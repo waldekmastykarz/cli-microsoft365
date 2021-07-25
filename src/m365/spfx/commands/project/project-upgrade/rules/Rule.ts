@@ -1,4 +1,4 @@
-import { Finding, Occurrence } from "../";
+import { Finding, Occurrence, Hash } from "../";
 import { Project } from "../../model";
 
 export abstract class Rule {
@@ -13,6 +13,10 @@ export abstract class Rule {
 
   get supersedes(): string[] {
     return [];
+  }
+
+  get properties(): Hash {
+    return {};
   }
 
   protected addFinding(findings: Finding[]): void {
@@ -32,6 +36,7 @@ export abstract class Rule {
       title: title,
       description: description,
       occurrences: occurrences,
+      properties: this.properties,
       resolutionType: this.resolutionType,
       severity: this.severity,
       supersedes: this.supersedes

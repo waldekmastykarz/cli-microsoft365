@@ -1,4 +1,5 @@
-import { Finding } from "../";
+import { Finding, Hash } from "../";
+import Utils from "../../../../../../Utils";
 import { Project } from "../../model";
 import { Rule } from "./Rule";
 
@@ -40,12 +41,19 @@ export class FN023001_GITIGNORE_release extends Rule {
     return './.gitignore';
   }
 
+  get properties(): Hash {
+    return {
+      add: this.add.toString()
+    };
+  }
+
   visit(project: Project, findings: Finding[]): void {
     if (!project.gitignore) {
       return;
     }
 
-    if (/^release$/m.test(project.gitignore.source) !== this.add) {
+    if (findings.find(f => f.id === this.id && Utils.hasProperty(f.properties, 'add', (!this.add).toString()))
+      || /^release$/m.test(project.gitignore.source) !== this.add) {
       this.addFinding(findings);
     }
   }

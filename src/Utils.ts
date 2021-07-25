@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as url from 'url';
+import { Hash } from './m365/spfx/commands/project/project-upgrade';
 
 export default class Utils {
   public static escapeXml(s: any | undefined): any | undefined {
@@ -646,5 +647,15 @@ export default class Utils {
     }
 
     return jsonObj;
+  }
+
+  public static hasProperty(h: Hash, property: string, value?: string): boolean {
+    const val = h[property];
+    if (value) {
+      return val === value;
+    }
+    else {
+      return val !== undefined;
+    }
   }
 }

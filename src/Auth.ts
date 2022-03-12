@@ -31,6 +31,13 @@ export interface InteractiveAuthorizationErrorResponse {
   errorDescription: string;
 }
 
+export enum CloudType {
+  AzureCloud,
+  AzureUSGovernment,
+  AzureGermanCloud,
+  AzureChinaCloud
+}
+
 export class Service {
   connected: boolean = false;
   authType: AuthType = AuthType.DeviceCode;
@@ -47,11 +54,13 @@ export class Service {
   appId: string;
   // ID of the tenant where the Azure AD app is registered; common if multitenant
   tenant: string;
+  cloudType: CloudType = CloudType.AzureCloud;
 
   constructor() {
     this.accessTokens = {};
     this.appId = config.cliAadAppId;
     this.tenant = config.tenant;
+    this.cloudType = CloudType.AzureCloud;
   }
 
   public logout(): void {
@@ -91,17 +100,39 @@ export class Auth {
   private deviceCodeRequest?: Msal.DeviceCodeRequest;
   private _service: Service;
   private clientApplication: Msal.ClientApplication | undefined;
+  private static cloudEndpoints: any[] = [];
 
   public get service(): Service {
     return this._service;
   }
 
   public get defaultResource(): string {
-    return 'https://graph.microsoft.com';
+    return Auth.getEndpointForResource('https://graph.microsoft.com', this._service.cloudType);
   }
 
   constructor() {
     this._service = new Service();
+  }
+
+  public static initialize(): void {
+    this.cloudEndpoints[CloudType.AzureUSGovernment] = {
+      'https://graph.microsoft.com': 'https://graph.microsoft.us',
+      'https://graph.windows.net': 'https://graph.windows.net',
+      'https://management.azure.com/': 'https://management.usgovcloudapi.net/',
+      'https://login.microsoftonline.com': 'https://login.microsoftonline.us'
+    };
+    this.cloudEndpoints[CloudType.AzureGermanCloud] = {
+      'https://graph.microsoft.com': 'https://graph.microsoft.us',
+      'https://graph.windows.net': 'https://graph.windows.net',
+      'https://management.azure.com/': 'https://management.usgovcloudapi.net/',
+      'https://login.microsoftonline.com': 'https://login.microsoftonline.de'
+    };
+    this.cloudEndpoints[CloudType.AzureChinaCloud] = {
+      'https://graph.microsoft.com': 'https://graph.microsoft.de',
+      'https://graph.windows.net': 'https://graph.cloudapi.de',
+      'https://management.azure.com/': 'https://management.microsoftazure.de',
+      'https://login.microsoftonline.com': 'https://login.chinacloudapi.cn'
+    };
   }
 
   public async restoreAuth(): Promise<void> {
@@ -242,7 +273,7 @@ export class Auth {
 
     const config = {
       clientId: this.service.appId,
-      authority: `https://login.microsoftonline.com/${this.service.tenant}`
+      authority: `${Auth.getEndpointForResource('https://login.microsoftonline.com', this.service.cloudType)}/${this.service.tenant}`
     };
 
     const authConfig = cert
@@ -621,7 +652,8 @@ export class Auth {
       resource = resource.substr(0, pos);
     }
 
-    if (resource === 'https://api.bap.microsoft.com') {
+    if (resource === 'https://api.bap.microsoft.com' ||
+      resource === 'https://management.azure.com') {
       // api.bap.microsoft.com is not a valid resource
       // we need to use https://management.azure.com/ instead
       resource = 'https://management.azure.com/';
@@ -680,6 +712,18 @@ export class Auth {
 
     return isAppOnlyAuth;
   }
+
+  public static getEndpointForResource(resource: string, cloudType: CloudType): string {
+    if (Auth.cloudEndpoints[cloudType] &&
+      Auth.cloudEndpoints[cloudType][resource]) {
+      return Auth.cloudEndpoints[cloudType][resource];
+    }
+    else {
+      return resource;
+    }
+  }
 }
+
+Auth.initialize();
 
 export default new Auth();

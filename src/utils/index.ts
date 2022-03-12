@@ -1,6 +1,7 @@
 export * from './accessToken';
 export * from './formatting';
 export * from './fsUtil';
+export * from './misc';
 export * from './odata';
 export * from './sinonUtil';
 export * from './spfx';

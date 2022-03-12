@@ -1,11 +1,12 @@
 import * as fs from 'fs';
-import auth, { AuthType } from '../../Auth';
+import auth, { AuthType, CloudType } from '../../Auth';
 import { Logger } from '../../cli';
 import Command, {
   CommandError, CommandOption
 } from '../../Command';
 import config from '../../config';
 import GlobalOptions from '../../GlobalOptions';
+import { misc } from '../../utils';
 import commands from './commands';
 
 interface CommandArgs {
@@ -13,15 +14,16 @@ interface CommandArgs {
 }
 
 interface Options extends GlobalOptions {
+  appId?: string;
   authType?: string;
-  userName?: string;
-  password?: string;
   certificateFile?: string;
   certificateBase64Encoded?: string;
-  thumbprint?: string;
-  appId?: string;
-  tenant?: string;
+  cloud?: string;
+  password?: string;
   secret?: string;
+  tenant?: string;
+  thumbprint?: string;
+  userName?: string;
 }
 
 class LoginCommand extends Command {
@@ -35,7 +37,16 @@ class LoginCommand extends Command {
 
   public getTelemetryProperties(args: CommandArgs): any {
     const telemetryProps: any = super.getTelemetryProperties(args);
-    telemetryProps.authType = args.options.authType || 'deviceCode';
+    telemetryProps.appId = typeof args.options.appId !== 'undefined';
+    telemetryProps.authType = args.options.authType ?? 'deviceCode';
+    telemetryProps.certificateFile = typeof args.options.certificateFile !== 'undefined';
+    telemetryProps.certificateBase64Encoded = typeof args.options.certificateBase64Encoded !== 'undefined';
+    telemetryProps.cloud = args.options.cloud ?? CloudType.AzureCloud;
+    telemetryProps.password = typeof args.options.password !== 'undefined';
+    telemetryProps.secret = typeof args.options.secret !== 'undefined';
+    telemetryProps.tenant = typeof args.options.tenant !== 'undefined';
+    telemetryProps.thumbprint = typeof args.options.thumbprint !== 'undefined';
+    telemetryProps.userName = typeof args.options.userName !== 'undefined';
     return telemetryProps;
   }
 
@@ -70,7 +81,7 @@ class LoginCommand extends Command {
         case 'identity':
           auth.service.authType = AuthType.Identity;
           auth.service.userName = args.options.userName;
-          break;        
+          break;
         case 'browser':
           auth.service.authType = AuthType.Browser;
           break;
@@ -78,6 +89,13 @@ class LoginCommand extends Command {
           auth.service.authType = AuthType.Secret;
           auth.service.secret = args.options.secret;
           break;
+      }
+
+      if (args.options.cloud) {
+        auth.service.cloudType = CloudType[args.options.cloud as keyof typeof CloudType];
+      }
+      else {
+        auth.service.cloudType = CloudType.AzureCloud;
       }
 
       auth
@@ -151,6 +169,10 @@ class LoginCommand extends Command {
       },
       {
         option: '--secret [secret]'
+      },
+      {
+        option: '--cloud [cloud]',
+        autocomplete: misc.getEnums(CloudType)
       }
     ];
 
@@ -189,6 +211,11 @@ class LoginCommand extends Command {
       if (!args.options.secret) {
         return 'Required option secret missing';
       }
+    }
+
+    if (args.options.cloud &&
+      typeof CloudType[args.options.cloud as keyof typeof CloudType] === 'undefined') {
+      return `${args.options.cloud} is not a valid value for cloud. Valid options are ${misc.getEnums(CloudType).join(', ')}`;
     }
 
     return true;

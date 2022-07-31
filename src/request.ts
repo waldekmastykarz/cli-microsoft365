@@ -1,6 +1,6 @@
 import Axios, { AxiosError, AxiosInstance, AxiosPromise, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { Stream } from 'stream';
-import auth, { Auth } from './Auth';
+import auth, { Auth, AuthType } from './Auth';
 import { Logger } from './cli';
 import { formatting } from './utils';
 const packageJSON = require('../package.json');
@@ -166,7 +166,12 @@ class Request {
               delete options.headers['x-anonymous'];
             }
             else {
-              options.headers.authorization = `Bearer ${accessToken}`;
+              if (auth.service.authType === AuthType.Cookie) {
+                options.headers.cookie = auth.service.cookie as string;
+              }
+              else {
+                options.headers.authorization = `Bearer ${accessToken}`;
+              }
             }
           }
           return this.req(options);

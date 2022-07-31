@@ -48,6 +48,7 @@ export class Service {
   appId: string;
   // ID of the tenant where the Azure AD app is registered; common if multitenant
   tenant: string;
+  cookie?: string;
 
   constructor() {
     this.accessTokens = {};
@@ -68,6 +69,7 @@ export class Service {
     this.tenantId = undefined;
     this.appId = config.cliAadAppId;
     this.tenant = config.tenant;
+    this.cookie = undefined;
   }
 }
 
@@ -77,7 +79,8 @@ export enum AuthType {
   Certificate,
   Identity,
   Browser,
-  Secret
+  Secret,
+  Cookie
 }
 
 export enum CertificateType {
@@ -182,6 +185,9 @@ export class Auth {
         case AuthType.Secret:
           getTokenPromise = this.ensureAccessTokenWithSecret.bind(this);
           break;
+        case AuthType.Cookie:
+          getTokenPromise = this.ensureAccessTokenWithCookie.bind(this);
+          break;
       }
     }
 
@@ -227,6 +233,7 @@ export class Auth {
       case AuthType.Certificate:
         return this.getConfidentialClient(logger, debug, this.service.thumbprint as string, this.service.password, undefined);
       case AuthType.Identity:
+      case AuthType.Cookie:
         // msal-node doesn't support managed identity so we need to do it manually
         return undefined;
       case AuthType.Secret:
@@ -618,6 +625,23 @@ export class Auth {
     return (this.clientApplication as Msal.ConfidentialClientApplication).acquireTokenByClientCredential({
       scopes: [`${resource}/.default`]
     });
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private async ensureAccessTokenWithCookie(resource: string, logger: Logger, debug: boolean): Promise<AccessToken | null> {
+    // cookie-based auth is supported only by SharePoint
+    if (resource.indexOf('sharepoint.com') < -1) {
+      return null;
+    }
+
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    // return dummy access token that won't be used
+    return {
+      accessToken: '',
+      expiresOn: tomorrow
+    };
   }
 
   private calculateThumbprint(certificate: NodeForge.pki.Certificate): string {

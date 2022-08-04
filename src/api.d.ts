@@ -11,3 +11,5 @@ export declare function executeCommand(commandName: string, options: any, listen
   stdout: (message: any) => void,
   stderr: (message: any) => void,
 }): Promise<CommandOutput>;
+
+export declare function loginWithCookie(cookie: string): void;

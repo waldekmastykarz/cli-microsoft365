@@ -1,5 +1,6 @@
 import { Cli, CommandOutput } from "./cli";
 import * as path from 'path';
+import auth, { AuthType } from './Auth';
 
 export function executeCommand(commandName: string, options: any, listener?: {
   stdout: (message: any) => void,
@@ -14,4 +15,11 @@ export function executeCommand(commandName: string, options: any, listener?: {
   }
 
   return Cli.executeCommandWithOutput(cli.commands[0].command, { options: options ?? {} }, listener);
+}
+
+export function loginWithCookie(cookie: string): void {
+  auth.service.logout();
+  auth.service.authType = AuthType.Cookie;
+  auth.service.connected = true;
+  auth.service.cookie = cookie;
 }

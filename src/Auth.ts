@@ -630,7 +630,7 @@ export class Auth {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private async ensureAccessTokenWithCookie(resource: string, logger: Logger, debug: boolean): Promise<AccessToken | null> {
     // cookie-based auth is supported only by SharePoint
-    if (resource.indexOf('sharepoint.com') < -1) {
+    if (resource.indexOf('sharepoint.com') < 0) {
       return null;
     }
 

@@ -22,7 +22,6 @@ interface Options extends GlobalOptions {
   appId?: string;
   tenant?: string;
   secret?: string;
-  cookie?: string;
 }
 
 class LoginCommand extends Command {
@@ -79,9 +78,6 @@ class LoginCommand extends Command {
           auth.service.authType = AuthType.Secret;
           auth.service.secret = args.options.secret;
           break;
-        case 'cookie':
-          auth.service.authType = AuthType.Cookie;
-          auth.service.cookie = args.options.cookie;
       }
 
       auth
@@ -130,7 +126,7 @@ class LoginCommand extends Command {
     const options: CommandOption[] = [
       {
         option: '-t, --authType [authType]',
-        autocomplete: ['certificate', 'deviceCode', 'password', 'identity', 'browser', 'cookie']
+        autocomplete: ['certificate', 'deviceCode', 'password', 'identity', 'browser']
       },
       {
         option: '-u, --userName [userName]'
@@ -155,9 +151,6 @@ class LoginCommand extends Command {
       },
       {
         option: '--secret [secret]'
-      },
-      {
-        option: '--cookie [cookie]'
       }
     ];
 

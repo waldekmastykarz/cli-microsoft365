@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import config from '../../../../config.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import { spo } from '../../../../utils/spo.js';
 import command from './m365group-remove.js';
@@ -19,14 +18,14 @@ import { aadGroup } from '../../../../utils/aadGroup.js';
 describe(commands.M365GROUP_REMOVE, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogToStderrSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
   let promptOptions: any;
 
   const groupId = '3e6e705d-6fb5-4ca7-84dc-3c8f5154fe2c';
 
-  const defaultGetStub = (): sinon.SinonStub => {
-    return sinon.stub(request, 'get').callsFake(async (opts) => {
+  const defaultGetStub = (): jest.Mock => {
+    return jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups/${groupId}/drive?$select=webUrl`) {
         return { webUrl: "https://contoso.sharepoint.com/teams/sales/Shared%20Documents" };
       }
@@ -39,8 +38,8 @@ describe(commands.M365GROUP_REMOVE, () => {
     });
   };
 
-  const defaultPostStub = (): sinon.SinonStub => {
-    return sinon.stub(request, 'post').callsFake(async (opts) => {
+  const defaultPostStub = (): jest.Mock => {
+    return jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso-admin.sharepoint.com/_api/GroupSiteManager/Delete?siteUrl='https://contoso.sharepoint.com/teams/sales'`) {
         return Promise.resolve({
           "data": {
@@ -87,8 +86,8 @@ describe(commands.M365GROUP_REMOVE, () => {
     });
   };
 
-  const defaultDeleteStub = (): sinon.SinonStub => {
-    return sinon.stub(request, 'delete').callsFake(async (opts) => {
+  const defaultDeleteStub = (): jest.Mock => {
+    return jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/directory/deletedItems/${groupId}`) {
         return { response: { status: 204 } };
       }
@@ -96,12 +95,12 @@ describe(commands.M365GROUP_REMOVE, () => {
     });
   };
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(aadGroup, 'isUnifiedGroup').resolves(true);
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(aadGroup, 'isUnifiedGroup').mockClear().mockImplementation().resolves(true);
     auth.service.connected = true;
     auth.service.spoUrl = 'https://contoso.sharepoint.com';
     commandInfo = Cli.getCommandInfo(command);
@@ -121,20 +120,20 @@ describe(commands.M365GROUP_REMOVE, () => {
       }
     };
     (command as any).intervalInMs = 0;
-    sinon.stub(spo, 'getSpoAdminUrl').callsFake(() => Promise.resolve('https://contoso-admin.sharepoint.com'));
+    jest.spyOn(spo, 'getSpoAdminUrl').mockClear().mockImplementation(() => Promise.resolve('https://contoso-admin.sharepoint.com'));
     const futureDate = new Date();
     futureDate.setSeconds(futureDate.getSeconds() + 1800);
-    sinon.stub(spo, 'ensureFormDigest').callsFake(() => { return Promise.resolve({ FormDigestValue: 'abc', FormDigestTimeoutSeconds: 1800, FormDigestExpiresAt: futureDate, WebFullUrl: 'https://contoso.sharepoint.com/teams/sales' }); });
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(spo, 'ensureFormDigest').mockClear().mockImplementation(() => { return Promise.resolve({ FormDigestValue: 'abc', FormDigestTimeoutSeconds: 1800, FormDigestExpiresAt: futureDate, WebFullUrl: 'https://contoso.sharepoint.com/teams/sales' }); });
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
     promptOptions = undefined;
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post,
       request.delete,
@@ -144,8 +143,8 @@ describe(commands.M365GROUP_REMOVE, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -168,134 +167,160 @@ describe(commands.M365GROUP_REMOVE, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('prompts before removing the specified group when confirm option not passed', async () => {
-    await command.action(logger, { options: { id: '28beab62-7540-4db1-a23f-29a6018a3848' } });
-    let promptIssued = false;
+  it('prompts before removing the specified group when confirm option not passed',
+    async () => {
+      await command.action(logger, { options: { id: '28beab62-7540-4db1-a23f-29a6018a3848' } });
+      let promptIssued = false;
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+
+      assert(promptIssued);
     }
-
-    assert(promptIssued);
-  });
+  );
 
   it('aborts removing the group when prompt not confirmed', async () => {
-    const getGroupSpy: sinon.SinonStub = defaultGetStub();
+    const getGroupSpy: jest.Mock = defaultGetStub();
 
     await command.action(logger, { options: { id: '28beab62-7540-4db1-a23f-29a6018a3848' } });
     assert(getGroupSpy.notCalled);
   });
 
-  it('deletes the group site for the sepcified group id when prompt confirmed', async () => {
-    defaultGetStub();
-    const deletedGroupSpy: sinon.SinonStub = defaultPostStub();
+  it('deletes the group site for the sepcified group id when prompt confirmed',
+    async () => {
+      defaultGetStub();
+      const deletedGroupSpy: jest.Mock = defaultPostStub();
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: true }
-    ));
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: true }
+      ));
 
-    await command.action(logger, { options: { id: groupId, verbose: true } });
-    assert(deletedGroupSpy.calledOnce);
-    assert(loggerLogToStderrSpy.calledWith(`Deleting the group site: 'https://contoso.sharepoint.com/teams/sales'...`));
-  });
+      await command.action(logger, { options: { id: groupId, verbose: true } });
+      assert(deletedGroupSpy.calledOnce);
+      assert(loggerLogToStderrSpy.calledWith(`Deleting the group site: 'https://contoso.sharepoint.com/teams/sales'...`));
+    }
+  );
 
   it('deletes the group without moving it to the Recycle Bin', async () => {
     defaultGetStub();
     defaultPostStub();
-    const deleteStub: sinon.SinonStub = defaultDeleteStub();
+    const deleteStub: jest.Mock = defaultDeleteStub();
 
     await command.action(logger, { options: { id: groupId, verbose: true, skipRecycleBin: true, force: true } });
     assert(deleteStub.called);
     assert(loggerLogToStderrSpy.calledWith("Group has been deleted and is now available in the deleted groups list. Removing permanently..."));
   });
 
-  it('verifies if the group is deleted and available in the deleted groups list, retry and delete the group', async () => {
-    const getCallStub: sinon.SinonStub = sinon.stub(request, 'get');
+  it('verifies if the group is deleted and available in the deleted groups list, retry and delete the group',
+    async () => {
+      const getCallStub: jest.Mock = jest.spyOn(request, 'get').mockClear().mockImplementation();
 
-    getCallStub.withArgs(sinon.match({ url: `https://graph.microsoft.com/v1.0/groups/${groupId}/drive?$select=webUrl` }))
-      .resolves({ webUrl: "https://contoso.sharepoint.com/teams/sales/Shared%20Documents" });
+      getCallStub.withArgs(expect.objectContaining(
+        { url: `https://graph.microsoft.com/v1.0/groups/${groupId}/drive?$select=webUrl` }
+      ))
+        .resolves({ webUrl: "https://contoso.sharepoint.com/teams/sales/Shared%20Documents" });
 
-    getCallStub.withArgs(sinon.match({ url: `https://graph.microsoft.com/v1.0/directory/deletedItems/${groupId}` }))
-      .onFirstCall().rejects({ response: { status: 404 } })
-      .onSecondCall().resolves({ id: groupId });
+      getCallStub.withArgs(expect.objectContaining(
+        { url: `https://graph.microsoft.com/v1.0/directory/deletedItems/${groupId}` }
+      ))
+        .onFirstCall().rejects({ response: { status: 404 } })
+        .onSecondCall().resolves({ id: groupId });
 
-    defaultPostStub();
-    const deleteStub: sinon.SinonStub = defaultDeleteStub();
+      defaultPostStub();
+      const deleteStub: jest.Mock = defaultDeleteStub();
 
-    await command.action(logger, { options: { id: groupId, verbose: true, skipRecycleBin: true, force: true } });
-    assert(deleteStub.called);
-  });
+      await command.action(logger, { options: { id: groupId, verbose: true, skipRecycleBin: true, force: true } });
+      assert(deleteStub.called);
+    }
+  );
 
-  it('handles error if unexpected error occurs while deleting site from the recycle bin', async () => {
-    const getCallStub: sinon.SinonStub = sinon.stub(request, 'get');
+  it('handles error if unexpected error occurs while deleting site from the recycle bin',
+    async () => {
+      const getCallStub: jest.Mock = jest.spyOn(request, 'get').mockClear().mockImplementation();
 
-    getCallStub.withArgs(sinon.match({ url: `https://graph.microsoft.com/v1.0/groups/${groupId}/drive?$select=webUrl` }))
-      .resolves({ webUrl: "https://contoso.sharepoint.com/teams/sales/Shared%20Documents" });
+      getCallStub.withArgs(expect.objectContaining(
+        { url: `https://graph.microsoft.com/v1.0/groups/${groupId}/drive?$select=webUrl` }
+      ))
+        .resolves({ webUrl: "https://contoso.sharepoint.com/teams/sales/Shared%20Documents" });
 
-    getCallStub.withArgs(sinon.match({ url: `https://graph.microsoft.com/v1.0/directory/deletedItems/${groupId}` }))
-      .onFirstCall().rejects({ response: { status: 404 } })
-      .onSecondCall().resolves({ id: groupId });
+      getCallStub.withArgs(expect.objectContaining(
+        { url: `https://graph.microsoft.com/v1.0/directory/deletedItems/${groupId}` }
+      ))
+        .onFirstCall().rejects({ response: { status: 404 } })
+        .onSecondCall().resolves({ id: groupId });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso-admin.sharepoint.com/_api/GroupSiteManager/Delete?siteUrl='https://contoso.sharepoint.com/teams/sales'`) {
-        return Promise.resolve({
-          "data": {
-            "odata.null": true
-          }
-        });
-      }
-
-      if ((opts.url as string).indexOf(`/_vti_bin/client.svc/ProcessQuery`) > -1) {
-        if (opts.headers &&
-          opts.headers['X-RequestDigest'] &&
-          opts.headers['X-RequestDigest'] === 'abc' &&
-          opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="185" ObjectPathId="184" /><Query Id="186" ObjectPathId="184"><Query SelectAllProperties="false"><Properties><Property Name="IsComplete" ScalarProperty="true" /><Property Name="PollingInterval" ScalarProperty="true" /></Properties></Query></Query></Actions><ObjectPaths><Method Id="184" ParentId="175" Name="RemoveDeletedSite"><Parameters><Parameter Type="String">https://contoso.sharepoint.com/teams/sales</Parameter></Parameters></Method><Constructor Id="175" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /></ObjectPaths></Request>`) {
-          return JSON.stringify([
-            {
-              "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.7324.1200", "ErrorInfo": {
-                "ErrorMessage": "An error has occurred.", "ErrorValue": null, "TraceCorrelationId": "e13c489e-2026-5000-8242-7ec96d02ba1d", "ErrorCode": -1, "ErrorTypeName": "SPException"
-              }, "TraceCorrelationId": "e13c489e-2026-5000-8242-7ec96d02ba1d"
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso-admin.sharepoint.com/_api/GroupSiteManager/Delete?siteUrl='https://contoso.sharepoint.com/teams/sales'`) {
+          return Promise.resolve({
+            "data": {
+              "odata.null": true
             }
-          ]);
+          });
         }
-      }
 
-      throw 'Invalid request';
-    });
-    defaultDeleteStub();
+        if ((opts.url as string).indexOf(`/_vti_bin/client.svc/ProcessQuery`) > -1) {
+          if (opts.headers &&
+            opts.headers['X-RequestDigest'] &&
+            opts.headers['X-RequestDigest'] === 'abc' &&
+            opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="185" ObjectPathId="184" /><Query Id="186" ObjectPathId="184"><Query SelectAllProperties="false"><Properties><Property Name="IsComplete" ScalarProperty="true" /><Property Name="PollingInterval" ScalarProperty="true" /></Properties></Query></Query></Actions><ObjectPaths><Method Id="184" ParentId="175" Name="RemoveDeletedSite"><Parameters><Parameter Type="String">https://contoso.sharepoint.com/teams/sales</Parameter></Parameters></Method><Constructor Id="175" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /></ObjectPaths></Request>`) {
+            return JSON.stringify([
+              {
+                "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.7324.1200", "ErrorInfo": {
+                  "ErrorMessage": "An error has occurred.", "ErrorValue": null, "TraceCorrelationId": "e13c489e-2026-5000-8242-7ec96d02ba1d", "ErrorCode": -1, "ErrorTypeName": "SPException"
+                }, "TraceCorrelationId": "e13c489e-2026-5000-8242-7ec96d02ba1d"
+              }
+            ]);
+          }
+        }
 
-    await assert.rejects(command.action(logger, { options: { id: groupId, skipRecycleBin: true, force: true, debug: true } }),
-      new CommandError('An error has occurred.'));
-  });
+        throw 'Invalid request';
+      });
+      defaultDeleteStub();
 
-  it('handles error if unexpected error occurs while finding the group in the deleted groups list', async () => {
-    const getCallStub: sinon.SinonStub = sinon.stub(request, 'get');
+      await assert.rejects(command.action(logger, { options: { id: groupId, skipRecycleBin: true, force: true, debug: true } }),
+        new CommandError('An error has occurred.'));
+    }
+  );
 
-    getCallStub.withArgs(sinon.match({ url: `https://graph.microsoft.com/v1.0/groups/${groupId}/drive?$select=webUrl` }))
-      .resolves({ webUrl: "https://contoso.sharepoint.com/teams/sales/Shared%20Documents" });
+  it('handles error if unexpected error occurs while finding the group in the deleted groups list',
+    async () => {
+      const getCallStub: jest.Mock = jest.spyOn(request, 'get').mockClear().mockImplementation();
 
-    getCallStub.withArgs(sinon.match({ url: `https://graph.microsoft.com/v1.0/directory/deletedItems/${groupId}` }))
-      .rejects();
+      getCallStub.withArgs(expect.objectContaining(
+        { url: `https://graph.microsoft.com/v1.0/groups/${groupId}/drive?$select=webUrl` }
+      ))
+        .resolves({ webUrl: "https://contoso.sharepoint.com/teams/sales/Shared%20Documents" });
 
-    defaultPostStub();
-    defaultDeleteStub();
+      getCallStub.withArgs(expect.objectContaining(
+        { url: `https://graph.microsoft.com/v1.0/directory/deletedItems/${groupId}` }
+      ))
+        .rejects();
 
-    await assert.rejects(command.action(logger, { options: { id: groupId, verbose: true, skipRecycleBin: true, force: true } }),
-      new CommandError('Error'));
-  });
+      defaultPostStub();
+      defaultDeleteStub();
+
+      await assert.rejects(command.action(logger, { options: { id: groupId, verbose: true, skipRecycleBin: true, force: true } }),
+        new CommandError('Error'));
+    }
+  );
 
   it('handles group not found after all retries', async () => {
-    const getCallStub: sinon.SinonStub = sinon.stub(request, 'get');
+    const getCallStub: jest.Mock = jest.spyOn(request, 'get').mockClear().mockImplementation();
 
-    getCallStub.withArgs(sinon.match({ url: `https://graph.microsoft.com/v1.0/groups/${groupId}/drive?$select=webUrl` }))
+    getCallStub.withArgs(expect.objectContaining(
+      { url: `https://graph.microsoft.com/v1.0/groups/${groupId}/drive?$select=webUrl` }
+    ))
       .resolves({ webUrl: "https://contoso.sharepoint.com/teams/sales/Shared%20Documents" });
 
-    getCallStub.withArgs(sinon.match({ url: `https://graph.microsoft.com/v1.0/directory/deletedItems/${groupId}` }))
+    getCallStub.withArgs(expect.objectContaining(
+      { url: `https://graph.microsoft.com/v1.0/directory/deletedItems/${groupId}` }
+    ))
       .rejects({ response: { status: 404 } });
 
     defaultPostStub();
-    const deleteStub: sinon.SinonStub = defaultDeleteStub();
+    const deleteStub: jest.Mock = defaultDeleteStub();
 
     await command.action(logger, { options: { id: groupId, verbose: true, skipRecycleBin: true, force: true } });
     assert(deleteStub.notCalled);
@@ -304,8 +329,8 @@ describe(commands.M365GROUP_REMOVE, () => {
   it('throws error when the group is not a unified group', async () => {
     const groupId = '3f04e370-cbc6-4091-80fe-1d038be2ad06';
 
-    sinonUtil.restore(aadGroup.isUnifiedGroup);
-    sinon.stub(aadGroup, 'isUnifiedGroup').resolves(false);
+    jestUtil.restore(aadGroup.isUnifiedGroup);
+    jest.spyOn(aadGroup, 'isUnifiedGroup').mockClear().mockImplementation().resolves(false);
 
     await assert.rejects(command.action(logger, { options: { id: groupId, force: true } } as any),
       new CommandError(`Specified group with id '${groupId}' is not a Microsoft 365 group.`));

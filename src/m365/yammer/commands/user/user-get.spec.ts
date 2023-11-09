@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,21 +8,21 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './user-get.js';
 
 describe(commands.USER_GET, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').callsFake(() => Promise.resolve());
-    sinon.stub(telemetry, 'trackEvent').callsFake(() => { });
-    sinon.stub(pid, 'getProcessName').callsFake(() => '');
-    sinon.stub(session, 'getId').callsFake(() => '');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation(() => Promise.resolve());
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockImplementation(() => { });
+    jest.spyOn(pid, 'getProcessName').mockClear().mockImplementation(() => '');
+    jest.spyOn(session, 'getId').mockClear().mockImplementation(() => '');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -41,18 +40,18 @@ describe(commands.USER_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -69,7 +68,7 @@ describe(commands.USER_GET, () => {
   });
 
   it('calls user by e-mail', async () => {
-    sinon.stub(request, 'get').callsFake((opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/users/by_email.json?email=pl%40nubo.eu') {
         return Promise.resolve(
           [{ "type": "user", "id": 1496550646, "network_id": 801445, "state": "active", "full_name": "John Doe" }]
@@ -78,11 +77,11 @@ describe(commands.USER_GET, () => {
       return Promise.reject('Invalid request');
     });
     await command.action(logger, { options: { email: "pl@nubo.eu" } } as any);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0][0].id, 1496550646);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0][0].id, 1496550646);
   });
 
   it('calls user by id', async () => {
-    sinon.stub(request, 'get').callsFake((opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/users/1496550646.json') {
         return Promise.resolve(
           { "type": "user", "id": 1496550646, "network_id": 801445, "state": "active", "full_name": "John Doe" }
@@ -91,11 +90,11 @@ describe(commands.USER_GET, () => {
       return Promise.reject('Invalid request');
     });
     await command.action(logger, { options: { id: 1496550646 } } as any);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].id, 1496550646);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].id, 1496550646);
   });
 
   it('calls the current user and json', async () => {
-    sinon.stub(request, 'get').callsFake((opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/users/current.json') {
         return Promise.resolve(
           { "type": "user", "id": 1496550646, "network_id": 801445, "state": "active", "full_name": "John Doe" }
@@ -104,11 +103,11 @@ describe(commands.USER_GET, () => {
       return Promise.reject('Invalid request');
     });
     await command.action(logger, { options: { output: 'json' } } as any);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].id, 1496550646);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].id, 1496550646);
   });
 
   it('correctly handles error', async () => {
-    sinon.stub(request, 'get').callsFake(() => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
       return Promise.reject({
         "error": {
           "base": "An error has occurred."
@@ -120,7 +119,7 @@ describe(commands.USER_GET, () => {
   });
 
   it('correctly handles 404 error', async () => {
-    sinon.stub(request, 'get').callsFake(() => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
       return Promise.reject({
         "statusCode": 404
       });

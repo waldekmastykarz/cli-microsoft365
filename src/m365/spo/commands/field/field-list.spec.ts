@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,21 +8,21 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './field-list.js';
 
 describe(commands.FIELD_LIST, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -41,17 +40,17 @@ describe(commands.FIELD_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -67,10 +66,12 @@ describe(commands.FIELD_LIST, () => {
     assert.deepStrictEqual(command.defaultProperties(), ['Id', 'Title', 'Group', 'Hidden']);
   });
 
-  it('fails validation if the specified site URL is not a valid SharePoint URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'site.com' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the specified site URL is not a valid SharePoint URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'site.com' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the list ID is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com/sites/sales', listId: 'abc' } }, commandInfo);
@@ -82,30 +83,38 @@ describe(commands.FIELD_LIST, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation when all required parameters are valid and list id', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com/sites/sales', listId: '935c13a0-cc53-4103-8b48-c1d0828eaa7f' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when all required parameters are valid and list id',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com/sites/sales', listId: '935c13a0-cc53-4103-8b48-c1d0828eaa7f' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when all required parameters are valid and list title', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com/sites/sales', listTitle: 'Demo List' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when all required parameters are valid and list title',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com/sites/sales', listTitle: 'Demo List' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when all required parameters are valid and list url', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com/sites/sales', listUrl: 'sites/hr-life/Lists/breakInheritance' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when all required parameters are valid and list url',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com/sites/sales', listUrl: 'sites/hr-life/Lists/breakInheritance' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('fails validation if title and id are specified together', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com/sites/sales', listTitle: 'Demo List', listId: '935c13a0-cc53-4103-8b48-c1d0828eaa7f' } }, commandInfo);
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if title and id and url are specified together', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com/sites/sales', listTitle: 'Demo List', listId: '935c13a0-cc53-4103-8b48-c1d0828eaa7f', listUrl: 'sites/hr-life/Lists/breakInheritance' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if title and id and url are specified together',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com/sites/sales', listTitle: 'Demo List', listId: '935c13a0-cc53-4103-8b48-c1d0828eaa7f', listUrl: 'sites/hr-life/Lists/breakInheritance' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if title and url are specified together', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com/sites/sales', listTitle: 'Demo List', listUrl: 'sites/hr-life/Lists/breakInheritance' } }, commandInfo);
@@ -113,7 +122,7 @@ describe(commands.FIELD_LIST, () => {
   });
 
   it('correctly handles list not found', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists/getByTitle('Documents')/fields`) > -1) {
         throw {
           error: {
@@ -136,7 +145,7 @@ describe(commands.FIELD_LIST, () => {
   });
 
   it('retrieves all site columns', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/fields`) > -1) {
         return {
           "value": [{
@@ -235,7 +244,7 @@ describe(commands.FIELD_LIST, () => {
   });
 
   it('retrieves all list columns from list queried by title', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists/getByTitle('Documents')/fields`) > -1) {
         return {
           "value": [{
@@ -334,7 +343,7 @@ describe(commands.FIELD_LIST, () => {
   });
 
   it('retrieves all list columns from list queried by url', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/GetList('%2Fsites%2Fportal%2Ftest')/fields`) > -1) {
         return {
           "value": [{
@@ -433,7 +442,7 @@ describe(commands.FIELD_LIST, () => {
   });
 
   it('retrieves all list columns from list queried by id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists(guid'3c0e9e00-8fcc-479f-9d8d-3447cda34c5b')/fields`) > -1) {
         return {
           "value": [{

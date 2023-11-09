@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import { autocomplete } from '../../../../autocomplete.js';
 import { Logger } from '../../../../cli/Logger.js';
 import { telemetry } from '../../../../telemetry.js';
@@ -11,16 +10,16 @@ import command from './completion-sh-setup.js';
 describe(commands.COMPLETION_SH_SETUP, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
-  let generateShCompletionStub: sinon.SinonStub;
-  let setupShCompletionStub: sinon.SinonStub;
+  let loggerLogToStderrSpy: jest.SpyInstance;
+  let generateShCompletionStub: jest.Mock;
+  let setupShCompletionStub: jest.Mock;
 
-  before(() => {
-    sinon.stub(telemetry, 'trackEvent').callsFake(() => { });
-    sinon.stub(pid, 'getProcessName').callsFake(() => '');
-    sinon.stub(session, 'getId').callsFake(() => '');
-    generateShCompletionStub = sinon.stub(autocomplete, 'generateShCompletion').callsFake(() => { });
-    setupShCompletionStub = sinon.stub(autocomplete, 'setupShCompletion').callsFake(() => { });
+  beforeAll(() => {
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockImplementation(() => { });
+    jest.spyOn(pid, 'getProcessName').mockClear().mockImplementation(() => '');
+    jest.spyOn(session, 'getId').mockClear().mockImplementation(() => '');
+    generateShCompletionStub = jest.spyOn(autocomplete, 'generateShCompletion').mockClear().mockImplementation(() => { });
+    setupShCompletionStub = jest.spyOn(autocomplete, 'setupShCompletion').mockClear().mockImplementation(() => { });
   });
 
   beforeEach(() => {
@@ -36,16 +35,16 @@ describe(commands.COMPLETION_SH_SETUP, () => {
         log.push(msg);
       }
     };
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
   });
 
   afterEach(() => {
-    generateShCompletionStub.reset();
-    setupShCompletionStub.reset();
+    generateShCompletionStub.mockReset();
+    setupShCompletionStub.mockReset();
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
   });
 
   it('has correct name', () => {

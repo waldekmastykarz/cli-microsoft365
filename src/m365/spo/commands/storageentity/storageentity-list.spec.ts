@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './storageentity-list.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -18,15 +17,15 @@ describe(commands.STORAGEENTITY_LIST, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -44,18 +43,18 @@ describe(commands.STORAGEENTITY_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -68,7 +67,7 @@ describe(commands.STORAGEENTITY_LIST, () => {
   });
 
   it('retrieves the list of configured tenant properties', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/AllProperties?$select=storageentitiesindex`) > -1) {
         if (opts.headers &&
           opts.headers.accept &&
@@ -107,111 +106,121 @@ describe(commands.STORAGEENTITY_LIST, () => {
     ]));
   });
 
-  it('doesn\'t fail if no tenant properties have been configured', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/AllProperties?$select=storageentitiesindex`) > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return { storageentitiesindex: '' };
+  it('doesn\'t fail if no tenant properties have been configured',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/AllProperties?$select=storageentitiesindex`) > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return { storageentitiesindex: '' };
+          }
         }
-      }
 
-      throw 'Invalid request';
-    });
-    await command.action(logger, { options: { appCatalogUrl: 'https://contoso.sharepoint.com/sites/appcatalog' } });
-  });
-
-  it('doesn\'t fail if tenant properties web property value is empty', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/AllProperties?$select=storageentitiesindex`) > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return {};
-        }
-      }
-
-      throw 'Invalid request';
-    });
-    await command.action(logger, { options: { debug: true, appCatalogUrl: 'https://contoso.sharepoint.com/sites/appcatalog' } });
-    let correctResponse: boolean = false;
-    log.forEach(l => {
-      if (!l || typeof l !== 'string') {
-        return;
-      }
-
-      if (l.indexOf('No tenant properties found') > -1) {
-        correctResponse = true;
-      }
-    });
-    assert(correctResponse, 'Incorrect response');
-  });
-
-  it('doesn\'t fail if tenant properties web property value is empty JSON object', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/AllProperties?$select=storageentitiesindex`) > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return { storageentitiesindex: JSON.stringify({}) };
-        }
-      }
-
-      throw 'Invalid request';
-    });
-    await command.action(logger, { options: { appCatalogUrl: 'https://contoso.sharepoint.com/sites/appcatalog' } });
-  });
-
-  it('doesn\'t fail if tenant properties web property value is empty JSON object (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/AllProperties?$select=storageentitiesindex`) > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return { storageentitiesindex: JSON.stringify({}) };
-        }
-      }
-
-      throw 'Invalid request';
-    });
-    await command.action(logger, { options: { debug: true, appCatalogUrl: 'https://contoso.sharepoint.com/sites/appcatalog' } });
-    let correctResponse: boolean = false;
-    log.forEach(l => {
-      if (!l || typeof l !== 'string') {
-        return;
-      }
-
-      if (l.indexOf('No tenant properties found') > -1) {
-        correctResponse = true;
-      }
-    });
-    assert(correctResponse, 'Incorrect response');
-  });
-
-  it('doesn\'t fail if tenant properties web property value is invalid JSON', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/AllProperties?$select=storageentitiesindex`) > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return { storageentitiesindex: 'a' };
-        }
-      }
-
-      throw 'Invalid request';
-    });
-
-    let errorMessage;
-    try {
-      JSON.parse('a');
+        throw 'Invalid request';
+      });
+      await command.action(logger, { options: { appCatalogUrl: 'https://contoso.sharepoint.com/sites/appcatalog' } });
     }
-    catch (err: any) {
-      errorMessage = err.message;
-    }
+  );
 
-    await assert.rejects(command.action(logger, { options: { debug: true, appCatalogUrl: 'https://contoso.sharepoint.com/sites/appcatalog' } } as any), new CommandError(`${errorMessage}`));
-  });
+  it('doesn\'t fail if tenant properties web property value is empty',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/AllProperties?$select=storageentitiesindex`) > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return {};
+          }
+        }
+
+        throw 'Invalid request';
+      });
+      await command.action(logger, { options: { debug: true, appCatalogUrl: 'https://contoso.sharepoint.com/sites/appcatalog' } });
+      let correctResponse: boolean = false;
+      log.forEach(l => {
+        if (!l || typeof l !== 'string') {
+          return;
+        }
+
+        if (l.indexOf('No tenant properties found') > -1) {
+          correctResponse = true;
+        }
+      });
+      assert(correctResponse, 'Incorrect response');
+    }
+  );
+
+  it('doesn\'t fail if tenant properties web property value is empty JSON object',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/AllProperties?$select=storageentitiesindex`) > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return { storageentitiesindex: JSON.stringify({}) };
+          }
+        }
+
+        throw 'Invalid request';
+      });
+      await command.action(logger, { options: { appCatalogUrl: 'https://contoso.sharepoint.com/sites/appcatalog' } });
+    }
+  );
+
+  it('doesn\'t fail if tenant properties web property value is empty JSON object (debug)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/AllProperties?$select=storageentitiesindex`) > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return { storageentitiesindex: JSON.stringify({}) };
+          }
+        }
+
+        throw 'Invalid request';
+      });
+      await command.action(logger, { options: { debug: true, appCatalogUrl: 'https://contoso.sharepoint.com/sites/appcatalog' } });
+      let correctResponse: boolean = false;
+      log.forEach(l => {
+        if (!l || typeof l !== 'string') {
+          return;
+        }
+
+        if (l.indexOf('No tenant properties found') > -1) {
+          correctResponse = true;
+        }
+      });
+      assert(correctResponse, 'Incorrect response');
+    }
+  );
+
+  it('doesn\'t fail if tenant properties web property value is invalid JSON',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/AllProperties?$select=storageentitiesindex`) > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return { storageentitiesindex: 'a' };
+          }
+        }
+
+        throw 'Invalid request';
+      });
+
+      let errorMessage;
+      try {
+        JSON.parse('a');
+      }
+      catch (err: any) {
+        errorMessage = err.message;
+      }
+
+      await assert.rejects(command.action(logger, { options: { debug: true, appCatalogUrl: 'https://contoso.sharepoint.com/sites/appcatalog' } } as any), new CommandError(`${errorMessage}`));
+    }
+  );
 
   it('requires app catalog URL', () => {
     const options = command.options;
@@ -240,21 +249,23 @@ describe(commands.STORAGEENTITY_LIST, () => {
     assert.strictEqual(actual, `${url} is not a valid SharePoint Online site URL`);
   });
 
-  it('fails validation when no SharePoint Online app catalog URL specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation when no SharePoint Online app catalog URL specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: {} }, commandInfo);
-    assert.strictEqual(actual, 'Required option appCatalogUrl not specified');
-  });
+      const actual = await command.validate({ options: {} }, commandInfo);
+      assert.strictEqual(actual, 'Required option appCatalogUrl not specified');
+    }
+  );
 
   it('handles promise rejection', async () => {
-    sinon.stub(request, 'get').rejects(new Error('error'));
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error('error'));
 
     await assert.rejects(command.action(logger, { options: { debug: true, appCatalogUrl: 'https://contoso.sharepoint.com/sites/appcatalog' } } as any), new CommandError('error'));
   });

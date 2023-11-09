@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './channel-get.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -18,15 +17,15 @@ describe(commands.CHANNEL_GET, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -44,19 +43,19 @@ describe(commands.CHANNEL_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -68,61 +67,67 @@ describe(commands.CHANNEL_GET, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('fails validation if both teamId and teamName options are not passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both teamId and teamName options are not passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        id: '19:00000000000000000000000000000000@thread.skype'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          id: '19:00000000000000000000000000000000@thread.skype'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if both teamId and teamName options are passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both teamId and teamName options are passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        teamId: '26b48cd6-3da7-493d-8010-1b246ef552d6',
-        teamName: 'Team Name',
-        id: '19:00000000000000000000000000000000@thread.skype'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          teamId: '26b48cd6-3da7-493d-8010-1b246ef552d6',
+          teamName: 'Team Name',
+          id: '19:00000000000000000000000000000000@thread.skype'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if id, name and primary options are not passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if id, name and primary options are not passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        teamId: '26b48cd6-3da7-493d-8010-1b246ef552d6'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          teamId: '26b48cd6-3da7-493d-8010-1b246ef552d6'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if id with primary options are passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -141,7 +146,7 @@ describe(commands.CHANNEL_GET, () => {
   });
 
   it('fails validation if name and primary options are passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -159,28 +164,30 @@ describe(commands.CHANNEL_GET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if id, name and primary options are passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if id, name and primary options are passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        teamId: '26b48cd6-3da7-493d-8010-1b246ef552d6',
-        id: '19:00000000000000000000000000000000@thread.skype',
-        name: 'Channel Name',
-        primary: true
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          teamId: '26b48cd6-3da7-493d-8010-1b246ef552d6',
+          id: '19:00000000000000000000000000000000@thread.skype',
+          name: 'Channel Name',
+          primary: true
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if id and name are passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -209,7 +216,7 @@ describe(commands.CHANNEL_GET, () => {
   });
 
   it('fails validation if the teamId is not provided.', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -226,7 +233,7 @@ describe(commands.CHANNEL_GET, () => {
   });
 
   it('fails validation if the id is not provided.', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -252,15 +259,17 @@ describe(commands.CHANNEL_GET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validates for a incorrect id missing trailing @thread.skype.', async () => {
-    const actual = await command.validate({
-      options: {
-        teamId: '00000000-0000-0000-0000-000000000000',
-        id: '19:552b7125655c46d5b5b86db02ee7bfdf@thread'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validates for a incorrect id missing trailing @thread.skype.',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          teamId: '00000000-0000-0000-0000-000000000000',
+          id: '19:552b7125655c46d5b5b86db02ee7bfdf@thread'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('correctly validates the when all options are valid', async () => {
     const actual = await command.validate({
@@ -273,7 +282,7 @@ describe(commands.CHANNEL_GET, () => {
   });
 
   it('fails to get channel information due to wrong channel id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/teams/39958f28-eefb-4006-8f83-13b6ac2a4a7f/channels/19%3A493665404ebd4a18adb8a980a31b4986%40thread.skype`) {
         throw {
           "error": {
@@ -299,7 +308,7 @@ describe(commands.CHANNEL_GET, () => {
   });
 
   it('fails when team name does not exist', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/v1.0/groups?$filter=displayName eq '`) > -1) {
         return {
           "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#teams",
@@ -341,7 +350,7 @@ describe(commands.CHANNEL_GET, () => {
   });
 
   it('fails to get channel when channel does not exist', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/channels?$filter=displayName eq '`) > -1) {
         return { value: [] };
       }
@@ -358,222 +367,232 @@ describe(commands.CHANNEL_GET, () => {
     } as any), new CommandError('The specified channel does not exist in the Microsoft Teams team'));
   });
 
-  it('should get channel information for the Microsoft Teams team by id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/teams/39958f28-eefb-4006-8f83-13b6ac2a4a7f/channels/19%3A493665404ebd4a18adb8a980a31b4986%40thread.skype`) {
-        return {
-          "id": "19:493665404ebd4a18adb8a980a31b4986@thread.skype",
-          "displayName": "channel1",
-          "description": null,
-          "email": "",
-          "webUrl": "https://teams.microsoft.com/l/channel/19%3a493665404ebd4a18adb8a980a31b4986%40thread.skype/channel1?groupId=39958f28-eefb-4006-8f83-13b6ac2a4a7f&tenantId=ea1787c6-7ce2-4e71-be47-5e0deb30f9e4"
-        };
-      }
-      throw 'Invalid request';
-    });
+  it('should get channel information for the Microsoft Teams team by id',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/teams/39958f28-eefb-4006-8f83-13b6ac2a4a7f/channels/19%3A493665404ebd4a18adb8a980a31b4986%40thread.skype`) {
+          return {
+            "id": "19:493665404ebd4a18adb8a980a31b4986@thread.skype",
+            "displayName": "channel1",
+            "description": null,
+            "email": "",
+            "webUrl": "https://teams.microsoft.com/l/channel/19%3a493665404ebd4a18adb8a980a31b4986%40thread.skype/channel1?groupId=39958f28-eefb-4006-8f83-13b6ac2a4a7f&tenantId=ea1787c6-7ce2-4e71-be47-5e0deb30f9e4"
+          };
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        teamId: '39958f28-eefb-4006-8f83-13b6ac2a4a7f',
-        id: '19:493665404ebd4a18adb8a980a31b4986@thread.skype'
-      }
-    });
-    const call: sinon.SinonSpyCall = loggerLogSpy.lastCall;
-    assert.strictEqual(call.args[0].id, '19:493665404ebd4a18adb8a980a31b4986@thread.skype');
-    assert.strictEqual(call.args[0].displayName, 'channel1');
-    assert.strictEqual(call.args[0].description, null);
-    assert.strictEqual(call.args[0].email, '');
-    assert.strictEqual(call.args[0].webUrl, 'https://teams.microsoft.com/l/channel/19%3a493665404ebd4a18adb8a980a31b4986%40thread.skype/channel1?groupId=39958f28-eefb-4006-8f83-13b6ac2a4a7f&tenantId=ea1787c6-7ce2-4e71-be47-5e0deb30f9e4');
-  });
+      await command.action(logger, {
+        options: {
+          teamId: '39958f28-eefb-4006-8f83-13b6ac2a4a7f',
+          id: '19:493665404ebd4a18adb8a980a31b4986@thread.skype'
+        }
+      });
+      const call: sinon.SinonSpyCall = loggerLogSpy.mock.lastCall;
+      assert.strictEqual(call.mock.calls[0].id, '19:493665404ebd4a18adb8a980a31b4986@thread.skype');
+      assert.strictEqual(call.mock.calls[0].displayName, 'channel1');
+      assert.strictEqual(call.mock.calls[0].description, null);
+      assert.strictEqual(call.mock.calls[0].email, '');
+      assert.strictEqual(call.mock.calls[0].webUrl, 'https://teams.microsoft.com/l/channel/19%3a493665404ebd4a18adb8a980a31b4986%40thread.skype/channel1?groupId=39958f28-eefb-4006-8f83-13b6ac2a4a7f&tenantId=ea1787c6-7ce2-4e71-be47-5e0deb30f9e4');
+    }
+  );
 
-  it('should get primary channel information for the Microsoft Teams team by id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/teams/39958f28-eefb-4006-8f83-13b6ac2a4a7f/primaryChannel`) {
-        return {
-          "id": "19:493665404ebd4a18adb8a980a31b4986@thread.skype",
-          "displayName": "General",
-          "description": null,
-          "email": "",
-          "webUrl": "https://teams.microsoft.com/l/channel/19%3a493665404ebd4a18adb8a980a31b4986%40thread.skype/general?groupId=39958f28-eefb-4006-8f83-13b6ac2a4a7f&tenantId=ea1787c6-7ce2-4e71-be47-5e0deb30f9e4"
-        };
-      }
-      throw 'Invalid request';
-    });
+  it('should get primary channel information for the Microsoft Teams team by id',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/teams/39958f28-eefb-4006-8f83-13b6ac2a4a7f/primaryChannel`) {
+          return {
+            "id": "19:493665404ebd4a18adb8a980a31b4986@thread.skype",
+            "displayName": "General",
+            "description": null,
+            "email": "",
+            "webUrl": "https://teams.microsoft.com/l/channel/19%3a493665404ebd4a18adb8a980a31b4986%40thread.skype/general?groupId=39958f28-eefb-4006-8f83-13b6ac2a4a7f&tenantId=ea1787c6-7ce2-4e71-be47-5e0deb30f9e4"
+          };
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        teamId: '39958f28-eefb-4006-8f83-13b6ac2a4a7f',
-        primary: true
-      }
-    });
-    const call: sinon.SinonSpyCall = loggerLogSpy.lastCall;
-    assert.strictEqual(call.args[0].id, '19:493665404ebd4a18adb8a980a31b4986@thread.skype');
-    assert.strictEqual(call.args[0].displayName, 'General');
-    assert.strictEqual(call.args[0].description, null);
-    assert.strictEqual(call.args[0].email, '');
-    assert.strictEqual(call.args[0].webUrl, 'https://teams.microsoft.com/l/channel/19%3a493665404ebd4a18adb8a980a31b4986%40thread.skype/general?groupId=39958f28-eefb-4006-8f83-13b6ac2a4a7f&tenantId=ea1787c6-7ce2-4e71-be47-5e0deb30f9e4');
-  });
+      await command.action(logger, {
+        options: {
+          teamId: '39958f28-eefb-4006-8f83-13b6ac2a4a7f',
+          primary: true
+        }
+      });
+      const call: sinon.SinonSpyCall = loggerLogSpy.mock.lastCall;
+      assert.strictEqual(call.mock.calls[0].id, '19:493665404ebd4a18adb8a980a31b4986@thread.skype');
+      assert.strictEqual(call.mock.calls[0].displayName, 'General');
+      assert.strictEqual(call.mock.calls[0].description, null);
+      assert.strictEqual(call.mock.calls[0].email, '');
+      assert.strictEqual(call.mock.calls[0].webUrl, 'https://teams.microsoft.com/l/channel/19%3a493665404ebd4a18adb8a980a31b4986%40thread.skype/general?groupId=39958f28-eefb-4006-8f83-13b6ac2a4a7f&tenantId=ea1787c6-7ce2-4e71-be47-5e0deb30f9e4');
+    }
+  );
 
-  it('should get channel information for the Microsoft Teams team by name', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/v1.0/groups?$filter=displayName eq '`) > -1) {
-        return {
-          "value": [
-            {
-              "id": "39958f28-eefb-4006-8f83-13b6ac2a4a7f",
-              "createdDateTime": null,
-              "displayName": "Team Name",
-              "description": "Team Description",
-              "internalId": null,
-              "classification": null,
-              "specialization": null,
-              "visibility": null,
-              "webUrl": null,
-              "isArchived": false,
-              "isMembershipLimitedToOwners": null,
-              "memberSettings": null,
-              "guestSettings": null,
-              "messagingSettings": null,
-              "funSettings": null,
-              "discoverySettings": null,
-              "resourceProvisioningOptions": ["Team"]
-            }
-          ]
-        };
-      }
+  it('should get channel information for the Microsoft Teams team by name',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/v1.0/groups?$filter=displayName eq '`) > -1) {
+          return {
+            "value": [
+              {
+                "id": "39958f28-eefb-4006-8f83-13b6ac2a4a7f",
+                "createdDateTime": null,
+                "displayName": "Team Name",
+                "description": "Team Description",
+                "internalId": null,
+                "classification": null,
+                "specialization": null,
+                "visibility": null,
+                "webUrl": null,
+                "isArchived": false,
+                "isMembershipLimitedToOwners": null,
+                "memberSettings": null,
+                "guestSettings": null,
+                "messagingSettings": null,
+                "funSettings": null,
+                "discoverySettings": null,
+                "resourceProvisioningOptions": ["Team"]
+              }
+            ]
+          };
+        }
 
-      if ((opts.url as string).indexOf(`/channels?$filter=displayName eq '`) > -1) {
-        return {
-          "value": [
-            {
-              "id": "19:493665404ebd4a18adb8a980a31b4986@thread.skype",
-              "displayName": "Channel Name",
-              "description": null,
-              "email": "",
-              "webUrl": "https://teams.microsoft.com/l/channel/19%3a493665404ebd4a18adb8a980a31b4986%40thread.skype/channel1?groupId=39958f28-eefb-4006-8f83-13b6ac2a4a7f&tenantId=ea1787c6-7ce2-4e71-be47-5e0deb30f9e4",
-              "membershipType": "standard"
-            }
-          ]
-        };
-      }
+        if ((opts.url as string).indexOf(`/channels?$filter=displayName eq '`) > -1) {
+          return {
+            "value": [
+              {
+                "id": "19:493665404ebd4a18adb8a980a31b4986@thread.skype",
+                "displayName": "Channel Name",
+                "description": null,
+                "email": "",
+                "webUrl": "https://teams.microsoft.com/l/channel/19%3a493665404ebd4a18adb8a980a31b4986%40thread.skype/channel1?groupId=39958f28-eefb-4006-8f83-13b6ac2a4a7f&tenantId=ea1787c6-7ce2-4e71-be47-5e0deb30f9e4",
+                "membershipType": "standard"
+              }
+            ]
+          };
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/teams/39958f28-eefb-4006-8f83-13b6ac2a4a7f/channels/19%3A493665404ebd4a18adb8a980a31b4986%40thread.skype`) {
-        return {
-          "id": "19:493665404ebd4a18adb8a980a31b4986@thread.skype",
-          "displayName": "Channel Name",
-          "description": null,
-          "email": "",
-          "webUrl": "https://teams.microsoft.com/l/channel/19%3a493665404ebd4a18adb8a980a31b4986%40thread.skype/channel1?groupId=39958f28-eefb-4006-8f83-13b6ac2a4a7f&tenantId=ea1787c6-7ce2-4e71-be47-5e0deb30f9e4"
-        };
-      }
-      throw 'Invalid request';
-    });
+        if (opts.url === `https://graph.microsoft.com/v1.0/teams/39958f28-eefb-4006-8f83-13b6ac2a4a7f/channels/19%3A493665404ebd4a18adb8a980a31b4986%40thread.skype`) {
+          return {
+            "id": "19:493665404ebd4a18adb8a980a31b4986@thread.skype",
+            "displayName": "Channel Name",
+            "description": null,
+            "email": "",
+            "webUrl": "https://teams.microsoft.com/l/channel/19%3a493665404ebd4a18adb8a980a31b4986%40thread.skype/channel1?groupId=39958f28-eefb-4006-8f83-13b6ac2a4a7f&tenantId=ea1787c6-7ce2-4e71-be47-5e0deb30f9e4"
+          };
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        teamName: 'Team Name',
-        name: 'Channel Name'
-      }
-    });
-    const call: sinon.SinonSpyCall = loggerLogSpy.lastCall;
-    assert.strictEqual(call.args[0].id, '19:493665404ebd4a18adb8a980a31b4986@thread.skype');
-    assert.strictEqual(call.args[0].displayName, 'Channel Name');
-    assert.strictEqual(call.args[0].description, null);
-    assert.strictEqual(call.args[0].email, '');
-    assert.strictEqual(call.args[0].webUrl, 'https://teams.microsoft.com/l/channel/19%3a493665404ebd4a18adb8a980a31b4986%40thread.skype/channel1?groupId=39958f28-eefb-4006-8f83-13b6ac2a4a7f&tenantId=ea1787c6-7ce2-4e71-be47-5e0deb30f9e4');
-  });
+      await command.action(logger, {
+        options: {
+          teamName: 'Team Name',
+          name: 'Channel Name'
+        }
+      });
+      const call: sinon.SinonSpyCall = loggerLogSpy.mock.lastCall;
+      assert.strictEqual(call.mock.calls[0].id, '19:493665404ebd4a18adb8a980a31b4986@thread.skype');
+      assert.strictEqual(call.mock.calls[0].displayName, 'Channel Name');
+      assert.strictEqual(call.mock.calls[0].description, null);
+      assert.strictEqual(call.mock.calls[0].email, '');
+      assert.strictEqual(call.mock.calls[0].webUrl, 'https://teams.microsoft.com/l/channel/19%3a493665404ebd4a18adb8a980a31b4986%40thread.skype/channel1?groupId=39958f28-eefb-4006-8f83-13b6ac2a4a7f&tenantId=ea1787c6-7ce2-4e71-be47-5e0deb30f9e4');
+    }
+  );
 
-  it('should get primary channel information for the Microsoft Teams team by name', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/v1.0/groups?$filter=displayName eq '`) > -1) {
-        return {
-          "value": [
-            {
-              "id": "39958f28-eefb-4006-8f83-13b6ac2a4a7f",
-              "createdDateTime": null,
-              "displayName": "Team Name",
-              "description": "Team Description",
-              "internalId": null,
-              "classification": null,
-              "specialization": null,
-              "visibility": null,
-              "webUrl": null,
-              "isArchived": false,
-              "isMembershipLimitedToOwners": null,
-              "memberSettings": null,
-              "guestSettings": null,
-              "messagingSettings": null,
-              "funSettings": null,
-              "discoverySettings": null,
-              "resourceProvisioningOptions": ["Team"]
-            }
-          ]
-        };
-      }
+  it('should get primary channel information for the Microsoft Teams team by name',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/v1.0/groups?$filter=displayName eq '`) > -1) {
+          return {
+            "value": [
+              {
+                "id": "39958f28-eefb-4006-8f83-13b6ac2a4a7f",
+                "createdDateTime": null,
+                "displayName": "Team Name",
+                "description": "Team Description",
+                "internalId": null,
+                "classification": null,
+                "specialization": null,
+                "visibility": null,
+                "webUrl": null,
+                "isArchived": false,
+                "isMembershipLimitedToOwners": null,
+                "memberSettings": null,
+                "guestSettings": null,
+                "messagingSettings": null,
+                "funSettings": null,
+                "discoverySettings": null,
+                "resourceProvisioningOptions": ["Team"]
+              }
+            ]
+          };
+        }
 
-      if ((opts.url as string).indexOf(`/channels?$filter=displayName eq '`) > -1) {
-        return {
-          "value": [
-            {
-              "id": "19:493665404ebd4a18adb8a980a31b4986@thread.skype",
-              "displayName": "General",
-              "description": null,
-              "email": "",
-              "webUrl": "https://teams.microsoft.com/l/channel/19%3a493665404ebd4a18adb8a980a31b4986%40thread.skype/general?groupId=39958f28-eefb-4006-8f83-13b6ac2a4a7f&tenantId=ea1787c6-7ce2-4e71-be47-5e0deb30f9e4",
-              "membershipType": "standard"
-            }
-          ]
-        };
-      }
+        if ((opts.url as string).indexOf(`/channels?$filter=displayName eq '`) > -1) {
+          return {
+            "value": [
+              {
+                "id": "19:493665404ebd4a18adb8a980a31b4986@thread.skype",
+                "displayName": "General",
+                "description": null,
+                "email": "",
+                "webUrl": "https://teams.microsoft.com/l/channel/19%3a493665404ebd4a18adb8a980a31b4986%40thread.skype/general?groupId=39958f28-eefb-4006-8f83-13b6ac2a4a7f&tenantId=ea1787c6-7ce2-4e71-be47-5e0deb30f9e4",
+                "membershipType": "standard"
+              }
+            ]
+          };
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/teams/39958f28-eefb-4006-8f83-13b6ac2a4a7f/primaryChannel`) {
-        return {
-          "id": "19:493665404ebd4a18adb8a980a31b4986@thread.skype",
-          "displayName": "General",
-          "description": null,
-          "email": "",
-          "webUrl": "https://teams.microsoft.com/l/channel/19%3a493665404ebd4a18adb8a980a31b4986%40thread.skype/general?groupId=39958f28-eefb-4006-8f83-13b6ac2a4a7f&tenantId=ea1787c6-7ce2-4e71-be47-5e0deb30f9e4"
-        };
-      }
-      throw 'Invalid request';
-    });
+        if (opts.url === `https://graph.microsoft.com/v1.0/teams/39958f28-eefb-4006-8f83-13b6ac2a4a7f/primaryChannel`) {
+          return {
+            "id": "19:493665404ebd4a18adb8a980a31b4986@thread.skype",
+            "displayName": "General",
+            "description": null,
+            "email": "",
+            "webUrl": "https://teams.microsoft.com/l/channel/19%3a493665404ebd4a18adb8a980a31b4986%40thread.skype/general?groupId=39958f28-eefb-4006-8f83-13b6ac2a4a7f&tenantId=ea1787c6-7ce2-4e71-be47-5e0deb30f9e4"
+          };
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        teamName: 'Team Name',
-        primary: true
-      }
-    });
-    const call: sinon.SinonSpyCall = loggerLogSpy.lastCall;
-    assert.strictEqual(call.args[0].id, '19:493665404ebd4a18adb8a980a31b4986@thread.skype');
-    assert.strictEqual(call.args[0].displayName, 'General');
-    assert.strictEqual(call.args[0].description, null);
-    assert.strictEqual(call.args[0].email, '');
-    assert.strictEqual(call.args[0].webUrl, 'https://teams.microsoft.com/l/channel/19%3a493665404ebd4a18adb8a980a31b4986%40thread.skype/general?groupId=39958f28-eefb-4006-8f83-13b6ac2a4a7f&tenantId=ea1787c6-7ce2-4e71-be47-5e0deb30f9e4');
-  });
+      await command.action(logger, {
+        options: {
+          teamName: 'Team Name',
+          primary: true
+        }
+      });
+      const call: sinon.SinonSpyCall = loggerLogSpy.mock.lastCall;
+      assert.strictEqual(call.mock.calls[0].id, '19:493665404ebd4a18adb8a980a31b4986@thread.skype');
+      assert.strictEqual(call.mock.calls[0].displayName, 'General');
+      assert.strictEqual(call.mock.calls[0].description, null);
+      assert.strictEqual(call.mock.calls[0].email, '');
+      assert.strictEqual(call.mock.calls[0].webUrl, 'https://teams.microsoft.com/l/channel/19%3a493665404ebd4a18adb8a980a31b4986%40thread.skype/general?groupId=39958f28-eefb-4006-8f83-13b6ac2a4a7f&tenantId=ea1787c6-7ce2-4e71-be47-5e0deb30f9e4');
+    }
+  );
 
-  it('should get channel information for the Microsoft Teams team (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/teams/39958f28-eefb-4006-8f83-13b6ac2a4a7f/channels/19%3A493665404ebd4a18adb8a980a31b4986%40thread.skype`) {
-        return {
-          "id": "19:493665404ebd4a18adb8a980a31b4986@thread.skype",
-          "displayName": "channel1",
-          "description": null,
-          "email": "",
-          "webUrl": "https://teams.microsoft.com/l/channel/19%3a493665404ebd4a18adb8a980a31b4986%40thread.skype/channel1?groupId=39958f28-eefb-4006-8f83-13b6ac2a4a7f&tenantId=ea1787c6-7ce2-4e71-be47-5e0deb30f9e4"
-        };
-      }
-      throw 'Invalid request';
-    });
+  it('should get channel information for the Microsoft Teams team (debug)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/teams/39958f28-eefb-4006-8f83-13b6ac2a4a7f/channels/19%3A493665404ebd4a18adb8a980a31b4986%40thread.skype`) {
+          return {
+            "id": "19:493665404ebd4a18adb8a980a31b4986@thread.skype",
+            "displayName": "channel1",
+            "description": null,
+            "email": "",
+            "webUrl": "https://teams.microsoft.com/l/channel/19%3a493665404ebd4a18adb8a980a31b4986%40thread.skype/channel1?groupId=39958f28-eefb-4006-8f83-13b6ac2a4a7f&tenantId=ea1787c6-7ce2-4e71-be47-5e0deb30f9e4"
+          };
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        teamId: '39958f28-eefb-4006-8f83-13b6ac2a4a7f',
-        id: '19:493665404ebd4a18adb8a980a31b4986@thread.skype'
-      }
-    });
-    const call: sinon.SinonSpyCall = loggerLogSpy.getCall(loggerLogSpy.callCount - 2);
-    assert.strictEqual(call.args[0].id, '19:493665404ebd4a18adb8a980a31b4986@thread.skype');
-  });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          teamId: '39958f28-eefb-4006-8f83-13b6ac2a4a7f',
+          id: '19:493665404ebd4a18adb8a980a31b4986@thread.skype'
+        }
+      });
+      const call: sinon.SinonSpyCall = loggerLogSpy.mock.calls[0];
+      assert.strictEqual(call.mock.calls[0].id, '19:493665404ebd4a18adb8a980a31b4986@thread.skype');
+    }
+  );
 });

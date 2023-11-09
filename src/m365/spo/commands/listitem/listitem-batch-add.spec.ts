@@ -1,7 +1,6 @@
 import assert from 'assert';
 import fs from 'fs';
 import os from 'os';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -11,7 +10,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './listitem-batch-add.js';
 
@@ -34,11 +33,11 @@ describe(commands.LISTITEM_BATCH_ADD, () => {
   let log: any[];
   let logger: Logger;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').callsFake(() => Promise.resolve());
-    sinon.stub(telemetry, 'trackEvent').callsFake(() => { });
-    sinon.stub(pid, 'getProcessName').callsFake(() => '');
-    sinon.stub(session, 'getId').callsFake(() => '');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation(() => Promise.resolve());
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockImplementation(() => { });
+    jest.spyOn(pid, 'getProcessName').mockClear().mockImplementation(() => '');
+    jest.spyOn(session, 'getId').mockClear().mockImplementation(() => '');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -59,15 +58,15 @@ describe(commands.LISTITEM_BATCH_ADD, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       fs.existsSync,
       fs.readFileSync
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -80,8 +79,8 @@ describe(commands.LISTITEM_BATCH_ADD, () => {
   });
 
   it('adds items in batch to a sharepoint list retrieved by id', async () => {
-    sinon.stub(fs, 'readFileSync').callsFake(_ => csvContent);
-    sinon.stub(request, 'post').callsFake(async (opts: any) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(_ => csvContent);
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts: any) => {
       if (opts.url === `${webUrl}/_api/$batch`) {
         return Promise.resolve(mockBatchSuccessfulResponse);
       }
@@ -91,41 +90,45 @@ describe(commands.LISTITEM_BATCH_ADD, () => {
     await command.action(logger, { options: { webUrl: webUrl, filePath: filePath, listId: listId, verbose: true } } as any);
   });
 
-  it('adds items in batch to a sharepoint list retrieved by title', async () => {
-    sinon.stub(fs, 'readFileSync').callsFake(_ => csvContent);
-    sinon.stub(request, 'post').callsFake(async (opts: any) => {
-      if (opts.url === `${webUrl}/_api/$batch`) {
-        return Promise.resolve(mockBatchSuccessfulResponse);
-      }
-      throw 'Invalid request';
-    });
+  it('adds items in batch to a sharepoint list retrieved by title',
+    async () => {
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(_ => csvContent);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts: any) => {
+        if (opts.url === `${webUrl}/_api/$batch`) {
+          return Promise.resolve(mockBatchSuccessfulResponse);
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { webUrl: webUrl, filePath: filePath, listTitle: listTitle, verbose: true } } as any);
-  });
-
-  it('adds 150 items in batch to a sharepoint list retrieved by url', async () => {
-    let csvContent150Items = csvContent;
-    for (let i = 1; i < 150; i++) {
-      csvContent150Items += `\n${csvContentLine}`;
+      await command.action(logger, { options: { webUrl: webUrl, filePath: filePath, listTitle: listTitle, verbose: true } } as any);
     }
-    let amountOfRequestsInBody = 0;
-    sinon.stub(fs, 'readFileSync').callsFake(_ => csvContent150Items);
-    sinon.stub(request, 'post').callsFake(async (opts: any) => {
-      if (opts.url === `${webUrl}/_api/$batch`) {
-        amountOfRequestsInBody += opts.data.match(/POST/g).length;
-        return Promise.resolve(mockBatchSuccessfulResponse);
-      }
-      throw 'Invalid request';
-    });
+  );
 
-    await command.action(logger, { options: { webUrl: webUrl, filePath: filePath, listUrl: listUrl, verbose: true } } as any);
-    assert.strictEqual(amountOfRequestsInBody, 150);
-  });
+  it('adds 150 items in batch to a sharepoint list retrieved by url',
+    async () => {
+      let csvContent150Items = csvContent;
+      for (let i = 1; i < 150; i++) {
+        csvContent150Items += `\n${csvContentLine}`;
+      }
+      let amountOfRequestsInBody = 0;
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(_ => csvContent150Items);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts: any) => {
+        if (opts.url === `${webUrl}/_api/$batch`) {
+          amountOfRequestsInBody += opts.data.match(/POST/g).length;
+          return Promise.resolve(mockBatchSuccessfulResponse);
+        }
+        throw 'Invalid request';
+      });
+
+      await command.action(logger, { options: { webUrl: webUrl, filePath: filePath, listUrl: listUrl, verbose: true } } as any);
+      assert.strictEqual(amountOfRequestsInBody, 150);
+    }
+  );
 
   it('throws an error when batch api URL fails', async () => {
     const errorMessage = 'SharePoint REST Service Exception';
-    sinon.stub(fs, 'readFileSync').callsFake(_ => csvContent);
-    sinon.stub(request, 'post').callsFake(async (opts: any) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(_ => csvContent);
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts: any) => {
       if (opts.url === `${webUrl}/_api/$batch`) {
         throw errorMessage;
       }
@@ -135,39 +138,45 @@ describe(commands.LISTITEM_BATCH_ADD, () => {
     await assert.rejects(command.action(logger, { options: { webUrl: webUrl, filePath: filePath, listUrl: listUrl, verbose: true } } as any), new CommandError(errorMessage));
   });
 
-  it('throws an error when batch api returns partly unsuccessful results', async () => {
-    const errorMessage = `Creating some items failed with the following errors: ${os.EOL}- Line 3: SomeDateTime - You must specify a valid date within the range of 1/1/1900 and 12/31/8900.${os.EOL}- Line 4: SomeDateTime - You must specify a valid date within the range of 1/1/1900 and 12/31/8900.`;
-    sinon.stub(fs, 'readFileSync').callsFake(_ => csvContent);
-    sinon.stub(request, 'post').callsFake(async (opts: any) => {
-      if (opts.url === `${webUrl}/_api/$batch`) {
-        return Promise.resolve(mockBatchFailedResponse);
-      }
-      throw 'Invalid request';
-    });
+  it('throws an error when batch api returns partly unsuccessful results',
+    async () => {
+      const errorMessage = `Creating some items failed with the following errors: ${os.EOL}- Line 3: SomeDateTime - You must specify a valid date within the range of 1/1/1900 and 12/31/8900.${os.EOL}- Line 4: SomeDateTime - You must specify a valid date within the range of 1/1/1900 and 12/31/8900.`;
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(_ => csvContent);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts: any) => {
+        if (opts.url === `${webUrl}/_api/$batch`) {
+          return Promise.resolve(mockBatchFailedResponse);
+        }
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, { options: { webUrl: webUrl, filePath: filePath, listUrl: listUrl, verbose: true } } as any), new CommandError(errorMessage));
-  });
+      await assert.rejects(command.action(logger, { options: { webUrl: webUrl, filePath: filePath, listUrl: listUrl, verbose: true } } as any), new CommandError(errorMessage));
+    }
+  );
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', filePath: filePath, listId: listId } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', filePath: filePath, listId: listId } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if listId option is not a valid GUID', async () => {
-    sinon.stub(fs, 'existsSync').callsFake(_ => true);
+    jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(_ => true);
     const actual = await command.validate({ options: { webUrl: webUrl, filePath: filePath, listId: 'foo' } }, commandInfo);
     assert.notStrictEqual(actual, true);
   });
 
   it('fails validation if csv file does not exist', async () => {
-    sinon.stub(fs, 'existsSync').callsFake(_ => false);
+    jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(_ => false);
     const actual = await command.validate({ options: { webUrl: webUrl, filePath: filePath, listId: listId } }, commandInfo);
     assert.notStrictEqual(actual, true);
   });
 
-  it('passes validation if filePath exists and listId is a valid guid', async () => {
-    sinon.stub(fs, 'existsSync').callsFake(_ => true);
-    const actual = await command.validate({ options: { webUrl: webUrl, filePath: filePath, listId: listId } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if filePath exists and listId is a valid guid',
+    async () => {
+      jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(_ => true);
+      const actual = await command.validate({ options: { webUrl: webUrl, filePath: filePath, listId: listId } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

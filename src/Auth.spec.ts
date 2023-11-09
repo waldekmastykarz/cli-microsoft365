@@ -4,7 +4,6 @@ import assert from 'assert';
 import clipboard from 'clipboardy';
 import fs from 'fs';
 import 'node-forge';
-import sinon from 'sinon';
 import { Auth, AuthType, CertificateType, CloudType, InteractiveAuthorizationCodeResponse, InteractiveAuthorizationErrorResponse, Service } from './Auth.js';
 import authServer from './AuthServer.js';
 import { CommandError } from './Command.js';
@@ -15,7 +14,7 @@ import { Logger } from './cli/Logger.js';
 import request from './request.js';
 import { accessToken } from "./utils/accessToken.js";
 import { browserUtil } from "./utils/browserUtil.js";
-import { sinonUtil } from './utils/sinonUtil.js';
+import { jestUtil } from './utils/jestUtil.js';
 
 class MockTokenStorage implements TokenStorage {
   public get(): Promise<string> {
@@ -46,19 +45,19 @@ describe('Auth', () => {
   let auth: Auth;
   let cli: Cli;
   let response: DeviceCodeResponse;
-  let openStub: sinon.SinonStub;
-  let clipboardStub: sinon.SinonStub;
-  let getSettingWithDefaultValueStub: sinon.SinonStub;
+  let openStub: jest.Mock;
+  let clipboardStub: jest.Mock;
+  let getSettingWithDefaultValueStub: jest.Mock;
   const resource: string = 'https://contoso.sharepoint.com';
-  let loggerSpy: sinon.SinonSpy;
+  let loggerSpy: jest.SpyInstance;
   const logger: Logger = {
     log: (msg: any) => log.push(msg) as any,
     logRaw: (msg: any) => log.push(msg) as any,
     logToStderr: (msg: any) => log.push(msg) as any
   };
-  const loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
-  let readFileSyncStub: sinon.SinonStub;
-  let initializeServerStub: sinon.SinonStub;
+  const loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
+  let readFileSyncStub: jest.SpyInstance;
+  let initializeServerStub: jest.Mock;
   const publicApplication = new msal.PublicClientApplication({
     auth: {
       clientId: '123'
@@ -79,8 +78,8 @@ describe('Auth', () => {
     redirectUri: "https://localhost:666"
   };
 
-  before(() => {
-    sinon.stub(publicApplication, 'getTokenCache').callsFake(() => tokenCache as any);
+  beforeAll(() => {
+    jest.spyOn(publicApplication, 'getTokenCache').mockClear().mockImplementation(() => tokenCache as any);
   });
 
   beforeEach(() => {
@@ -98,22 +97,22 @@ describe('Auth', () => {
     auth.service.appId = '9bc3ab49-b65d-410a-85ad-de819febfddc';
     auth.service.tenant = '9bc3ab49-b65d-410a-85ad-de819febfddd';
     (auth as any)._authServer = authServer;
-    readFileSyncStub = sinon.stub(fs, 'readFileSync').callsFake(() => 'certificate');
-    initializeServerStub = sinon.stub((auth as any)._authServer, 'initializeServer').callsFake(((service: Service, resource: string, resolve: (error: InteractiveAuthorizationCodeResponse) => void) => {
+    readFileSyncStub = jest.spyOn(fs, 'readFileSync').mockReturnValue('certificate');
+    initializeServerStub = jest.spyOn((auth as any)._authServer, 'initializeServer').mockClear().mockImplementation(((service: Service, resource: string, resolve: (error: InteractiveAuthorizationCodeResponse) => void) => {
       resolve(httpServerResponse);
     }) as any);
-    loggerSpy = sinon.spy(logger, 'log');
+    loggerSpy = jest.spyOn(logger, 'log').mockClear();
     (auth as any)._clipboardy = clipboard;
-    openStub = sinon.stub(browserUtil, 'open').callsFake(async () => { return; });
-    clipboardStub = sinon.stub((auth as any)._clipboardy, 'writeSync').callsFake(() => 'clippy');
-    getSettingWithDefaultValueStub = sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((() => 'key'));
+    openStub = jest.spyOn(browserUtil, 'open').mockClear().mockImplementation(async () => { return; });
+    clipboardStub = jest.spyOn((auth as any)._clipboardy, 'writeSync').mockClear().mockImplementation(() => 'clippy');
+    getSettingWithDefaultValueStub = jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((() => 'key'));
   });
 
   afterEach(() => {
-    loggerSpy.restore();
-    readFileSyncStub.restore();
-    initializeServerStub.restore();
-    sinonUtil.restore([
+    loggerSpy.mockRestore();
+    readFileSyncStub.mockRestore();
+    initializeServerStub.mockRestore();
+    jestUtil.restore([
       cli.config.get,
       request.get,
       (auth as any).getClientApplication,
@@ -124,12 +123,12 @@ describe('Auth', () => {
       publicApplication.acquireTokenByCode,
       tokenCache.getAllAccounts
     ]);
-    openStub.restore();
-    clipboardStub.restore();
-    getSettingWithDefaultValueStub.restore();
+    openStub.mockRestore();
+    clipboardStub.mockRestore();
+    getSettingWithDefaultValueStub.mockRestore();
   });
 
-  after(() => {
+  afterAll(() => {
     auth.service.cloudType = CloudType.Public;
   });
 
@@ -175,31 +174,33 @@ describe('Auth', () => {
     });
   });
 
-  it('returns existing access token if still valid (token stored as a Date)', (done) => {
-    const now = new Date();
-    now.setSeconds(now.getSeconds() + 1);
-    auth.service.accessTokens[resource] = {
-      expiresOn: now,
-      accessToken: 'abc'
-    };
+  it('returns existing access token if still valid (token stored as a Date)',
+    (done) => {
+      const now = new Date();
+      now.setSeconds(now.getSeconds() + 1);
+      auth.service.accessTokens[resource] = {
+        expiresOn: now,
+        accessToken: 'abc'
+      };
 
-    auth.ensureAccessToken(resource, logger).then((accessToken) => {
-      try {
-        assert.strictEqual(accessToken, auth.service.accessTokens[resource].accessToken);
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
+      auth.ensureAccessToken(resource, logger).then((accessToken) => {
+        try {
+          assert.strictEqual(accessToken, auth.service.accessTokens[resource].accessToken);
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
 
   it('retrieves new access token silently if already signed in', (done) => {
-    sinon.stub(auth as any, 'getClientApplication').callsFake(_ => publicApplication);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    const acquireTokenSilentStub = sinon.stub(publicApplication, 'acquireTokenSilent').callsFake(_ => Promise.resolve({
+    jest.spyOn(auth as any, 'getClientApplication').mockClear().mockImplementation(_ => publicApplication);
+    jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+    const acquireTokenSilentStub = jest.spyOn(publicApplication, 'acquireTokenSilent').mockClear().mockImplementation(_ => Promise.resolve({
       expiresOn: new Date(),
       accessToken: 'abc'
     } as any));
@@ -217,30 +218,32 @@ describe('Auth', () => {
     });
   });
 
-  it('retrieves new access token silently if already signed in (debug)', (done) => {
-    sinon.stub(auth as any, 'getClientApplication').callsFake(_ => publicApplication);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    const acquireTokenSilentStub = sinon.stub(publicApplication, 'acquireTokenSilent').callsFake(_ => Promise.resolve({
-      expiresOn: new Date(),
-      accessToken: 'abc'
-    } as any));
+  it('retrieves new access token silently if already signed in (debug)',
+    (done) => {
+      jest.spyOn(auth as any, 'getClientApplication').mockClear().mockImplementation(_ => publicApplication);
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      const acquireTokenSilentStub = jest.spyOn(publicApplication, 'acquireTokenSilent').mockClear().mockImplementation(_ => Promise.resolve({
+        expiresOn: new Date(),
+        accessToken: 'abc'
+      } as any));
 
-    auth.ensureAccessToken(resource, logger, true).then(() => {
-      try {
-        assert(acquireTokenSilentStub.called);
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
+      auth.ensureAccessToken(resource, logger, true).then(() => {
+        try {
+          assert(acquireTokenSilentStub.called);
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
 
   it('handles error when retrieving new access token silently', (done) => {
-    sinon.stub(auth as any, 'getClientApplication').callsFake(_ => publicApplication);
-    sinon.stub(publicApplication, 'acquireTokenSilent').callsFake(_ => Promise.reject('An error has occurred'));
+    jest.spyOn(auth as any, 'getClientApplication').mockClear().mockImplementation(_ => publicApplication);
+    jest.spyOn(publicApplication, 'acquireTokenSilent').mockClear().mockImplementation(_ => Promise.reject('An error has occurred'));
 
     auth.ensureAccessToken(resource, logger).then(() => {
       done('Got access token');
@@ -255,29 +258,31 @@ describe('Auth', () => {
     });
   });
 
-  it('handles error when retrieving new access token silently (debug)', (done) => {
-    sinon.stub(auth as any, 'getClientApplication').callsFake(_ => publicApplication);
-    sinon.stub(publicApplication, 'acquireTokenSilent').callsFake(_ => Promise.reject({
-      errorCode: 'error',
-      errorMessage: 'AADSTS00000 An error has occurred'
-    }));
+  it('handles error when retrieving new access token silently (debug)',
+    (done) => {
+      jest.spyOn(auth as any, 'getClientApplication').mockClear().mockImplementation(_ => publicApplication);
+      jest.spyOn(publicApplication, 'acquireTokenSilent').mockClear().mockImplementation(_ => Promise.reject({
+        errorCode: 'error',
+        errorMessage: 'AADSTS00000 An error has occurred'
+      }));
 
-    auth.ensureAccessToken(resource, logger).then(() => {
-      done('Got access token');
-    }, (err) => {
-      try {
-        assert.notStrictEqual(typeof err, 'undefined');
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    });
-  });
+      auth.ensureAccessToken(resource, logger).then(() => {
+        done('Got access token');
+      }, (err) => {
+        try {
+          assert.notStrictEqual(typeof err, 'undefined');
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      });
+    }
+  );
 
   it('handles failure response when retrieving new access token', (done) => {
-    sinon.stub(auth as any, 'getClientApplication').callsFake(_ => publicApplication);
-    sinon.stub(publicApplication, 'acquireTokenSilent').callsFake(_ => Promise.resolve(null));
+    jest.spyOn(auth as any, 'getClientApplication').mockClear().mockImplementation(_ => publicApplication);
+    jest.spyOn(publicApplication, 'acquireTokenSilent').mockClear().mockImplementation(_ => Promise.resolve(null));
 
     auth.ensureAccessToken(resource, logger).then(() => {
       done('Got access token');
@@ -293,8 +298,8 @@ describe('Auth', () => {
   });
 
   it('handles empty response when retrieving new access token', (done) => {
-    sinon.stub(auth as any, 'getClientApplication').callsFake(_ => publicApplication);
-    sinon.stub(publicApplication, 'acquireTokenSilent').callsFake(_ => Promise.resolve(null));
+    jest.spyOn(auth as any, 'getClientApplication').mockClear().mockImplementation(_ => publicApplication);
+    jest.spyOn(publicApplication, 'acquireTokenSilent').mockClear().mockImplementation(_ => Promise.resolve(null));
 
     auth.ensureAccessToken(resource, logger, true).then(() => {
       done('Got access token');
@@ -309,33 +314,35 @@ describe('Auth', () => {
     });
   });
 
-  it('shows AAD error when retrieving new access token silently failed', (done) => {
-    sinon.stub(auth as any, 'getClientApplication').callsFake(_ => publicApplication);
-    sinon.stub(publicApplication, 'acquireTokenSilent').callsFake(_ => Promise.reject({
-      errorCode: 'error',
-      errorMessage: 'AADSTS00000 An error has occurred'
-    }));
+  it('shows AAD error when retrieving new access token silently failed',
+    (done) => {
+      jest.spyOn(auth as any, 'getClientApplication').mockClear().mockImplementation(_ => publicApplication);
+      jest.spyOn(publicApplication, 'acquireTokenSilent').mockClear().mockImplementation(_ => Promise.reject({
+        errorCode: 'error',
+        errorMessage: 'AADSTS00000 An error has occurred'
+      }));
 
-    auth.ensureAccessToken(resource, logger).then(() => {
-      done('Got access token');
-    }, (err) => {
-      try {
-        assert.strictEqual(JSON.stringify(err), JSON.stringify({
-          errorCode: 'error',
-          errorMessage: 'AADSTS00000 An error has occurred'
-        }));
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    });
-  });
+      auth.ensureAccessToken(resource, logger).then(() => {
+        done('Got access token');
+      }, (err) => {
+        try {
+          assert.strictEqual(JSON.stringify(err), JSON.stringify({
+            errorCode: 'error',
+            errorMessage: 'AADSTS00000 An error has occurred'
+          }));
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      });
+    }
+  );
 
   it('shows AAD error when invalid AAD app used', (done) => {
-    sinon.stub(auth as any, 'getClientApplication').callsFake(_ => publicApplication);
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(publicApplication, 'acquireTokenByDeviceCode').callsFake(_ => Promise.reject({
+    jest.spyOn(auth as any, 'getClientApplication').mockClear().mockImplementation(_ => publicApplication);
+    jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+    jest.spyOn(publicApplication, 'acquireTokenByDeviceCode').mockClear().mockImplementation(_ => Promise.reject({
       errorCode: 'invalid_client',
       errorMessage: `AADSTS7000218: The request body must contain the following parameter: 'client_assertion' or 'client_secret'.`
     }));
@@ -356,101 +363,109 @@ describe('Auth', () => {
     });
   });
 
-  it('retrieves new access token using existing refresh token when the access token expired (debug)', (done) => {
-    const now = new Date();
-    now.setSeconds(now.getSeconds() - 1);
-    auth.service.accessTokens[resource] = {
-      expiresOn: now.toISOString(),
-      accessToken: 'abc'
-    };
-    sinon.stub(auth as any, 'getClientApplication').callsFake(_ => publicApplication);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    sinon.stub(publicApplication, 'acquireTokenSilent').callsFake(_ => Promise.resolve({
-      expiresOn: new Date(),
-      accessToken: 'acc'
-    } as any));
+  it('retrieves new access token using existing refresh token when the access token expired (debug)',
+    (done) => {
+      const now = new Date();
+      now.setSeconds(now.getSeconds() - 1);
+      auth.service.accessTokens[resource] = {
+        expiresOn: now.toISOString(),
+        accessToken: 'abc'
+      };
+      jest.spyOn(auth as any, 'getClientApplication').mockClear().mockImplementation(_ => publicApplication);
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      jest.spyOn(publicApplication, 'acquireTokenSilent').mockClear().mockImplementation(_ => Promise.resolve({
+        expiresOn: new Date(),
+        accessToken: 'acc'
+      } as any));
 
-    auth.ensureAccessToken(resource, logger, true).then((accessToken) => {
-      try {
-        assert.strictEqual(accessToken, 'acc');
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
+      auth.ensureAccessToken(resource, logger, true).then((accessToken) => {
+        try {
+          assert.strictEqual(accessToken, 'acc');
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
 
-  it('retrieves new access token using existing refresh token when refresh forced', (done) => {
-    const config = cli.config;
-    sinon.stub(config, 'get').callsFake((() => { }) as any);
-    const now = new Date();
-    now.setSeconds(now.getSeconds() + 1);
-    auth.service.accessTokens[resource] = {
-      expiresOn: now.toISOString(),
-      accessToken: 'abc'
-    };
-    sinon.stub(auth as any, 'getClientApplication').callsFake(_ => publicApplication);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    sinon.stub(publicApplication, 'acquireTokenSilent').callsFake(_ => Promise.resolve({
-      expiresOn: new Date(),
-      accessToken: 'acc'
-    } as any));
+  it('retrieves new access token using existing refresh token when refresh forced',
+    (done) => {
+      const config = cli.config;
+      jest.spyOn(config, 'get').mockClear().mockImplementation((() => { }) as any);
+      const now = new Date();
+      now.setSeconds(now.getSeconds() + 1);
+      auth.service.accessTokens[resource] = {
+        expiresOn: now.toISOString(),
+        accessToken: 'abc'
+      };
+      jest.spyOn(auth as any, 'getClientApplication').mockClear().mockImplementation(_ => publicApplication);
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      jest.spyOn(publicApplication, 'acquireTokenSilent').mockClear().mockImplementation(_ => Promise.resolve({
+        expiresOn: new Date(),
+        accessToken: 'acc'
+      } as any));
 
-    auth.ensureAccessToken(resource, logger, true, true).then((accessToken) => {
-      try {
-        assert.strictEqual(accessToken, 'acc');
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
+      auth.ensureAccessToken(resource, logger, true, true).then((accessToken) => {
+        try {
+          assert.strictEqual(accessToken, 'acc');
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
 
-  it('retrieves access token using device code authentication flow when no refresh token available and no authType specified', (done) => {
-    const config = cli.config;
-    sinon.stub(config, 'get').callsFake((() => 'value'));
-    sinon.stub(auth as any, 'getClientApplication').callsFake(_ => publicApplication);
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    sinon.stub(publicApplication, 'acquireTokenByDeviceCode').callsFake(_ => Promise.resolve({
-      expiresOn: new Date(),
-      accessToken: 'acc'
-    } as any));
+  it('retrieves access token using device code authentication flow when no refresh token available and no authType specified',
+    (done) => {
+      const config = cli.config;
+      jest.spyOn(config, 'get').mockClear().mockImplementation((() => 'value'));
+      jest.spyOn(auth as any, 'getClientApplication').mockClear().mockImplementation(_ => publicApplication);
+      jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      jest.spyOn(publicApplication, 'acquireTokenByDeviceCode').mockClear().mockImplementation(_ => Promise.resolve({
+        expiresOn: new Date(),
+        accessToken: 'acc'
+      } as any));
 
-    auth.ensureAccessToken(resource, logger).then((accessToken) => {
-      try {
-        assert.strictEqual(accessToken, 'acc');
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
+      auth.ensureAccessToken(resource, logger).then((accessToken) => {
+        try {
+          assert.strictEqual(accessToken, 'acc');
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
 
-  it('opens the browser with the login (using autoOpenLinksInBrowser)', async () => {
-    getSettingWithDefaultValueStub.restore();
-    getSettingWithDefaultValueStub = sinon.stub(cli, 'getSettingWithDefaultValue').callsFake(((settingName, defaultValue) => {
-      if (settingName === "autoOpenLinksInBrowser") { return true; }
-      else {
-        return defaultValue;
-      }
-    }));
+  it('opens the browser with the login (using autoOpenLinksInBrowser)',
+    async () => {
+      getSettingWithDefaultValueStub.mockRestore();
+      getSettingWithDefaultValueStub = jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation(((settingName, defaultValue) => {
+        if (settingName === "autoOpenLinksInBrowser") { return true; }
+        else {
+          return defaultValue;
+        }
+      }));
 
-    openStub.restore();
-    openStub = sinon.stub(browserUtil, 'open').callsFake(async () => { return; });
+      openStub.mockRestore();
+      openStub = jest.spyOn(browserUtil, 'open').mockClear().mockImplementation(async () => { return; });
 
-    await (auth as any).processDeviceCodeCallback(response, logger, false);
-    assert(openStub.called);
-  });
+      await (auth as any).processDeviceCodeCallback(response, logger, false);
+      assert(openStub.called);
+    }
+  );
 
   it('copies the device code to the clipboard', async () => {
     await (auth as any).processDeviceCodeCallback(response, logger, false);
@@ -462,105 +477,113 @@ describe('Auth', () => {
     assert(loggerLogToStderrSpy.calledWith(response));
   });
 
-  it('retrieves token using device code authentication flow when authType deviceCode specified', (done) => {
-    const config = cli.config;
-    sinon.stub(config, 'get').callsFake((() => 'value'));
-    sinon.stub(auth as any, 'getClientApplication').callsFake(_ => publicApplication);
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    const acquireTokenByDeviceCodeStub = sinon.stub(publicApplication, 'acquireTokenByDeviceCode').callsFake(_ => Promise.resolve({
-      expiresOn: new Date(),
-      accessToken: 'acc'
-    } as any));
-    auth.service.authType = AuthType.DeviceCode;
+  it('retrieves token using device code authentication flow when authType deviceCode specified',
+    (done) => {
+      const config = cli.config;
+      jest.spyOn(config, 'get').mockClear().mockImplementation((() => 'value'));
+      jest.spyOn(auth as any, 'getClientApplication').mockClear().mockImplementation(_ => publicApplication);
+      jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      const acquireTokenByDeviceCodeStub = jest.spyOn(publicApplication, 'acquireTokenByDeviceCode').mockClear().mockImplementation(_ => Promise.resolve({
+        expiresOn: new Date(),
+        accessToken: 'acc'
+      } as any));
+      auth.service.authType = AuthType.DeviceCode;
 
-    auth.ensureAccessToken(resource, logger).then(() => {
-      try {
-        assert(acquireTokenByDeviceCodeStub.called);
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
+      auth.ensureAccessToken(resource, logger).then(() => {
+        try {
+          assert(acquireTokenByDeviceCodeStub.called);
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
 
-  it('retrieves token using password flow when authType password specified', (done) => {
-    sinon.stub(auth as any, 'getClientApplication').callsFake(_ => publicApplication);
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    const acquireTokenByUsernamePasswordStub = sinon.stub(publicApplication, 'acquireTokenByUsernamePassword').callsFake(_ => Promise.resolve({
-      expiresOn: new Date(),
-      accessToken: 'acc'
-    } as any));
-    auth.service.authType = AuthType.Password;
+  it('retrieves token using password flow when authType password specified',
+    (done) => {
+      jest.spyOn(auth as any, 'getClientApplication').mockClear().mockImplementation(_ => publicApplication);
+      jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      const acquireTokenByUsernamePasswordStub = jest.spyOn(publicApplication, 'acquireTokenByUsernamePassword').mockClear().mockImplementation(_ => Promise.resolve({
+        expiresOn: new Date(),
+        accessToken: 'acc'
+      } as any));
+      auth.service.authType = AuthType.Password;
 
-    auth.ensureAccessToken(resource, logger).then(() => {
-      try {
-        assert(acquireTokenByUsernamePasswordStub.called);
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
+      auth.ensureAccessToken(resource, logger).then(() => {
+        try {
+          assert(acquireTokenByUsernamePasswordStub.called);
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
 
-  it('retrieves token using password flow when authType password specified (debug)', (done) => {
-    sinon.stub(auth as any, 'getClientApplication').callsFake(_ => publicApplication);
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    const acquireTokenByUsernamePasswordStub = sinon.stub(publicApplication, 'acquireTokenByUsernamePassword').callsFake(_ => Promise.resolve({
-      expiresOn: new Date(),
-      accessToken: 'acc'
-    } as any));
-    auth.service.authType = AuthType.Password;
+  it('retrieves token using password flow when authType password specified (debug)',
+    (done) => {
+      jest.spyOn(auth as any, 'getClientApplication').mockClear().mockImplementation(_ => publicApplication);
+      jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      const acquireTokenByUsernamePasswordStub = jest.spyOn(publicApplication, 'acquireTokenByUsernamePassword').mockClear().mockImplementation(_ => Promise.resolve({
+        expiresOn: new Date(),
+        accessToken: 'acc'
+      } as any));
+      auth.service.authType = AuthType.Password;
 
-    auth.ensureAccessToken(resource, logger, true).then(() => {
-      try {
-        assert(acquireTokenByUsernamePasswordStub.called);
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
+      auth.ensureAccessToken(resource, logger, true).then(() => {
+        try {
+          assert(acquireTokenByUsernamePasswordStub.called);
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
 
-  it('handles error when retrieving token using password flow failed', (done) => {
-    sinon.stub(auth as any, 'getClientApplication').callsFake(_ => publicApplication);
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    sinon.stub(publicApplication, 'acquireTokenByUsernamePassword').callsFake(_ => Promise.reject({
-      errorCode: 'error',
-      errorMessage: `An error has occurred`
-    }));
-    auth.service.authType = AuthType.Password;
+  it('handles error when retrieving token using password flow failed',
+    (done) => {
+      jest.spyOn(auth as any, 'getClientApplication').mockClear().mockImplementation(_ => publicApplication);
+      jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      jest.spyOn(publicApplication, 'acquireTokenByUsernamePassword').mockClear().mockImplementation(_ => Promise.reject({
+        errorCode: 'error',
+        errorMessage: `An error has occurred`
+      }));
+      auth.service.authType = AuthType.Password;
 
-    auth.ensureAccessToken(resource, logger).then(() => {
-      done('Got access token');
-    }, (err) => {
-      try {
-        assert.strictEqual(err.errorMessage, 'An error has occurred');
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    });
-  });
+      auth.ensureAccessToken(resource, logger).then(() => {
+        done('Got access token');
+      }, (err) => {
+        try {
+          assert.strictEqual(err.errorMessage, 'An error has occurred');
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      });
+    }
+  );
 
   it('uses browser auth and retrieves a successful response', (done) => {
-    sinon.stub(auth as any, 'getClientApplication').callsFake(_ => publicApplication);
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    const acquireTokenByCodeStub = sinon.stub(publicApplication, 'acquireTokenByCode').callsFake(_ => Promise.resolve({
+    jest.spyOn(auth as any, 'getClientApplication').mockClear().mockImplementation(_ => publicApplication);
+    jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+    jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+    const acquireTokenByCodeStub = jest.spyOn(publicApplication, 'acquireTokenByCode').mockClear().mockImplementation(_ => Promise.resolve({
       expiresOn: new Date(),
       accessToken: 'acc'
     } as any));
@@ -569,7 +592,7 @@ describe('Auth', () => {
     auth.ensureAccessToken(resource, logger, false).then(() => {
       try {
         assert(acquireTokenByCodeStub.called);
-        const args = acquireTokenByCodeStub.args[0][0];
+        const args = acquireTokenByCodeStub.mock.calls[0][0];
         assert.strictEqual(args.code, httpServerResponse.code, 'Incorrect code');
         assert.strictEqual(args.redirectUri, httpServerResponse.redirectUri, 'Incorrect redirectUri');
         assert.deepStrictEqual(args.scopes, ['https://contoso.sharepoint.com/.default'], 'Incorrect scopes');
@@ -583,38 +606,40 @@ describe('Auth', () => {
     });
   });
 
-  it('uses browser auth and retrieves a successful response (debug)', (done) => {
-    sinon.stub(auth as any, 'getClientApplication').callsFake(_ => publicApplication);
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    const acquireTokenByCodeStub = sinon.stub(publicApplication, 'acquireTokenByCode').callsFake(_ => Promise.resolve({
-      expiresOn: new Date(),
-      accessToken: 'acc'
-    } as any));
-    auth.service.authType = AuthType.Browser;
+  it('uses browser auth and retrieves a successful response (debug)',
+    (done) => {
+      jest.spyOn(auth as any, 'getClientApplication').mockClear().mockImplementation(_ => publicApplication);
+      jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      const acquireTokenByCodeStub = jest.spyOn(publicApplication, 'acquireTokenByCode').mockClear().mockImplementation(_ => Promise.resolve({
+        expiresOn: new Date(),
+        accessToken: 'acc'
+      } as any));
+      auth.service.authType = AuthType.Browser;
 
-    auth.ensureAccessToken(resource, logger, true).then(() => {
-      try {
-        assert(acquireTokenByCodeStub.called);
-        const args = acquireTokenByCodeStub.args[0][0];
-        assert.strictEqual(args.code, httpServerResponse.code, 'Incorrect code');
-        assert.strictEqual(args.redirectUri, httpServerResponse.redirectUri, 'Incorrect redirectUri');
-        assert.deepStrictEqual(args.scopes, ['https://contoso.sharepoint.com/.default'], 'Incorrect scopes');
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
+      auth.ensureAccessToken(resource, logger, true).then(() => {
+        try {
+          assert(acquireTokenByCodeStub.called);
+          const args = acquireTokenByCodeStub.mock.calls[0][0];
+          assert.strictEqual(args.code, httpServerResponse.code, 'Incorrect code');
+          assert.strictEqual(args.redirectUri, httpServerResponse.redirectUri, 'Incorrect redirectUri');
+          assert.deepStrictEqual(args.scopes, ['https://contoso.sharepoint.com/.default'], 'Incorrect scopes');
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
 
   it('uses browser auth and retrieves an unsuccessful response', (done) => {
-    sinon.stub(auth as any, 'getClientApplication').callsFake(_ => publicApplication);
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    const acquireTokenByCodeStub = sinon.stub(publicApplication, 'acquireTokenByCode').callsFake(_ => Promise.resolve({
+    jest.spyOn(auth as any, 'getClientApplication').mockClear().mockImplementation(_ => publicApplication);
+    jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+    jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+    const acquireTokenByCodeStub = jest.spyOn(publicApplication, 'acquireTokenByCode').mockClear().mockImplementation(_ => Promise.resolve({
       expiresOn: new Date(),
       accessToken: 'acc'
     } as any));
@@ -624,8 +649,8 @@ describe('Auth', () => {
       errorDescription: "errorHasOccurred"
     };
 
-    initializeServerStub.restore();
-    initializeServerStub = sinon.stub((auth as any)._authServer, 'initializeServer').callsFake(((service: Service, resource: string, resolve: (error: InteractiveAuthorizationCodeResponse) => void, reject: (error: InteractiveAuthorizationErrorResponse) => void) => {
+    initializeServerStub.mockRestore();
+    initializeServerStub = jest.spyOn((auth as any)._authServer, 'initializeServer').mockClear().mockImplementation(((service: Service, resource: string, resolve: (error: InteractiveAuthorizationCodeResponse) => void, reject: (error: InteractiveAuthorizationErrorResponse) => void) => {
       reject(error);
     }) as any);
     auth.service.authType = AuthType.Browser;
@@ -644,1194 +669,1268 @@ describe('Auth', () => {
     });
   });
 
-  it('uses browser auth and retrieves an unsuccessful response (debug)', (done) => {
-    sinon.stub(auth as any, 'getClientApplication').callsFake(_ => publicApplication);
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    const acquireTokenByCodeStub = sinon.stub(publicApplication, 'acquireTokenByCode').callsFake(_ => Promise.resolve({
-      expiresOn: new Date(),
-      accessToken: 'acc'
-    } as any));
-
-    const error = <InteractiveAuthorizationErrorResponse>{
-      error: "shortError",
-      errorDescription: "errorHasOccurred"
-    };
-
-    initializeServerStub.restore();
-    initializeServerStub = sinon.stub((auth as any)._authServer, 'initializeServer').callsFake(((service: Service, resource: string, resolve: (error: InteractiveAuthorizationCodeResponse) => void, reject: (error: InteractiveAuthorizationErrorResponse) => void) => {
-      reject(error);
-    }) as any);
-    auth.service.authType = AuthType.Browser;
-
-    auth.ensureAccessToken(resource, logger, true).then(() => {
-      done("Should not be called");
-    }, (err) => {
-      try {
-        assert(acquireTokenByCodeStub.notCalled);
-        assert.strictEqual(JSON.stringify(err), JSON.stringify(error));
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    });
-  });
-
-  it('uses browser auth and retrieves retrieving a token but acquisition failed', (done) => {
-    const error = {
-      errorCode: 'error',
-      errorMessage: `An error has occurred`
-    };
-    sinon.stub(auth as any, 'getClientApplication').callsFake(_ => publicApplication);
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    sinon.stub(publicApplication, 'acquireTokenByCode').callsFake(_ => Promise.reject(error));
-    auth.service.authType = AuthType.Browser;
-
-    auth.ensureAccessToken(resource, logger).then(() => {
-      assert.fail('Got access token');
-    }, (err) => {
-      try {
-        assert.strictEqual(JSON.stringify(err), JSON.stringify(error));
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    });
-  });
-
-  it('uses browser auth and retrieves retrieving a token but acquisition failed (debug)', (done) => {
-    const error = {
-      errorCode: 'error',
-      errorMessage: `An error has occurred`
-    };
-    sinon.stub(auth as any, 'getClientApplication').callsFake(_ => publicApplication);
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    sinon.stub(publicApplication, 'acquireTokenByCode').callsFake(_ => Promise.reject(error));
-    auth.service.authType = AuthType.Browser;
-
-    auth.ensureAccessToken(resource, logger, true).then(() => {
-      assert.fail('Got access token');
-    }, (err) => {
-      try {
-        assert.strictEqual(JSON.stringify(err), JSON.stringify(error));
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    });
-  });
-
-  it('retrieves token using certificate flow when authType certificate specified', (done) => {
-    auth.service.certificate = base64EncodedPemCert;
-    auth.service.authType = AuthType.Certificate;
-
-    let actualThumbprint: string = '';
-    let acquireTokenByClientCredentialStub: any;
-    let originalGetConfidentialClient = (auth as any).getConfidentialClient;
-    originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
-    sinon.stub(auth as any, 'getConfidentialClient').callsFake(async (logger, debug, thumbprint, cert) => {
-      actualThumbprint = thumbprint as string;
-      const confidentialApplication = await originalGetConfidentialClient(logger, debug, thumbprint, cert);
-      acquireTokenByClientCredentialStub = sinon.stub(confidentialApplication, 'acquireTokenByClientCredential').callsFake(_ => Promise.resolve({
+  it('uses browser auth and retrieves an unsuccessful response (debug)',
+    (done) => {
+      jest.spyOn(auth as any, 'getClientApplication').mockClear().mockImplementation(_ => publicApplication);
+      jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      const acquireTokenByCodeStub = jest.spyOn(publicApplication, 'acquireTokenByCode').mockClear().mockImplementation(_ => Promise.resolve({
         expiresOn: new Date(),
         accessToken: 'acc'
       } as any));
-      return confidentialApplication;
-    });
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
 
-    auth.ensureAccessToken(resource, logger, false).then(_ => {
-      try {
-        assert(acquireTokenByClientCredentialStub.called);
-        assert.strictEqual(actualThumbprint, "ccf4f2a3c3d209c512b3724bb883a5474c0921dc");
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
+      const error = <InteractiveAuthorizationErrorResponse>{
+        error: "shortError",
+        errorDescription: "errorHasOccurred"
+      };
 
-  it('retrieves token using certificate flow when authType certificate specified (debug)', (done) => {
-    auth.service.certificate = base64EncodedPemCert;
-    auth.service.authType = AuthType.Certificate;
+      initializeServerStub.mockRestore();
+      initializeServerStub = jest.spyOn((auth as any)._authServer, 'initializeServer').mockClear().mockImplementation(((service: Service, resource: string, resolve: (error: InteractiveAuthorizationCodeResponse) => void, reject: (error: InteractiveAuthorizationErrorResponse) => void) => {
+        reject(error);
+      }) as any);
+      auth.service.authType = AuthType.Browser;
 
-    let actualThumbprint: string = '';
-    let acquireTokenByClientCredentialStub: any;
-    let originalGetConfidentialClient = (auth as any).getConfidentialClient;
-    originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
-    sinon.stub(auth as any, 'getConfidentialClient').callsFake(async (logger, debug, thumbprint, cert) => {
-      actualThumbprint = thumbprint as string;
-      const confidentialApplication = await originalGetConfidentialClient(logger, debug, thumbprint, cert);
-      acquireTokenByClientCredentialStub = sinon.stub(confidentialApplication, 'acquireTokenByClientCredential').callsFake(_ => Promise.resolve({
-        expiresOn: new Date(),
-        accessToken: 'acc'
-      } as any));
-      return confidentialApplication;
-    });
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-
-    auth.ensureAccessToken(resource, logger, true).then(_ => {
-      try {
-        assert(acquireTokenByClientCredentialStub.called);
-        assert.strictEqual(actualThumbprint, "ccf4f2a3c3d209c512b3724bb883a5474c0921dc");
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
-
-  it('retrieves token using certificate flow when authType certificate and thumbprint specified ', (done) => {
-    auth.service.certificate = base64EncodedPemCert;
-    auth.service.thumbprint = 'ccf4f2a3c3d209c512b3724bb883a5474c0921dc';
-    auth.service.authType = AuthType.Certificate;
-
-    let actualThumbprint: string = '';
-    let acquireTokenByClientCredentialStub: any;
-    let originalGetConfidentialClient = (auth as any).getConfidentialClient;
-    originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
-    sinon.stub(auth as any, 'getConfidentialClient').callsFake(async (logger, debug, thumbprint, cert) => {
-      actualThumbprint = thumbprint as string;
-      const confidentialApplication = await originalGetConfidentialClient(logger, debug, thumbprint, cert);
-      acquireTokenByClientCredentialStub = sinon.stub(confidentialApplication, 'acquireTokenByClientCredential').callsFake(_ => Promise.resolve({
-        expiresOn: new Date(),
-        accessToken: 'acc'
-      } as any));
-      return confidentialApplication;
-    });
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-
-    auth.ensureAccessToken(resource, logger, false).then(_ => {
-      try {
-        assert(acquireTokenByClientCredentialStub.called);
-        assert.strictEqual(actualThumbprint, "ccf4f2a3c3d209c512b3724bb883a5474c0921dc");
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
-
-  it('retrieves token using certificate flow when authType certificate and thumbprint specified (debug)', (done) => {
-    auth.service.certificate = base64EncodedPemCert;
-    auth.service.thumbprint = 'ccf4f2a3c3d209c512b3724bb883a5474c0921dc';
-    auth.service.authType = AuthType.Certificate;
-
-    let actualThumbprint: string = '';
-    let acquireTokenByClientCredentialStub: any;
-    let originalGetConfidentialClient = (auth as any).getConfidentialClient;
-    originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
-    sinon.stub(auth as any, 'getConfidentialClient').callsFake(async (logger, debug, thumbprint, cert) => {
-      actualThumbprint = thumbprint as string;
-      const confidentialApplication = await originalGetConfidentialClient(logger, debug, thumbprint, cert);
-      acquireTokenByClientCredentialStub = sinon.stub(confidentialApplication, 'acquireTokenByClientCredential').callsFake(_ => Promise.resolve({
-        expiresOn: new Date(),
-        accessToken: 'acc'
-      } as any));
-      return confidentialApplication;
-    });
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-
-    auth.ensureAccessToken(resource, logger, true).then(_ => {
-      try {
-        assert(acquireTokenByClientCredentialStub.called);
-        assert.strictEqual(actualThumbprint, "ccf4f2a3c3d209c512b3724bb883a5474c0921dc");
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
-
-  it('retrieves token using PFX certificate flow when authType certificate specified', (done) => {
-    auth.service.password = 'pass@word1';
-    auth.service.certificate = base64EncodedPfxCert;
-    auth.service.authType = AuthType.Certificate;
-
-    readFileSyncStub.restore();
-    let actualThumbprint: string = '';
-    let actualCert: string = '';
-    let originalGetConfidentialClient = (auth as any).getConfidentialClient;
-    originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
-    sinon.stub(auth as any, 'getConfidentialClient').callsFake(async (logger, debug, thumbprint, cert) => {
-      actualThumbprint = thumbprint as string;
-      actualCert = cert as string;
-      const confidentialApplication = await originalGetConfidentialClient(logger, debug, thumbprint, cert);
-      sinon.stub(confidentialApplication, 'acquireTokenByClientCredential').callsFake(_ => Promise.resolve({
-        expiresOn: new Date(),
-        accessToken: 'acc'
-      } as any));
-      return confidentialApplication;
-    });
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-
-    auth.ensureAccessToken(resource, logger, false).then(_ => {
-      try {
-        assert.notStrictEqual(actualCert.indexOf('MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQ'), -1);
-        assert.strictEqual(actualThumbprint, 'ccf4f2a3c3d209c512b3724bb883a5474c0921dc');
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
-
-  it('retrieves token using PFX certificate flow when authType certificate specified (debug)', (done) => {
-    auth.service.authType = AuthType.Certificate;
-    auth.service.password = 'pass@word1';
-    auth.service.certificate = base64EncodedPfxCert;
-
-    readFileSyncStub.restore();
-    let actualThumbprint: string = '';
-    let actualCert: string = '';
-    let originalGetConfidentialClient = (auth as any).getConfidentialClient;
-    originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
-    sinon.stub(auth as any, 'getConfidentialClient').callsFake(async (logger, debug, thumbprint, cert) => {
-      actualThumbprint = thumbprint as string;
-      actualCert = cert as string;
-      const confidentialApplication = await originalGetConfidentialClient(logger, debug, thumbprint, cert);
-      sinon.stub(confidentialApplication, 'acquireTokenByClientCredential').callsFake(_ => Promise.resolve({
-        expiresOn: new Date(),
-        accessToken: 'acc'
-      } as any));
-      return confidentialApplication;
-    });
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-
-    auth.ensureAccessToken(resource, logger, true).then(_ => {
-      try {
-        assert.notStrictEqual(actualCert.indexOf('MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQ'), -1);
-        assert.strictEqual(actualThumbprint, 'ccf4f2a3c3d209c512b3724bb883a5474c0921dc');
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
-
-  it('retrieves token using certificate flow when authType certificate and certificateType specified ', (done) => {
-    auth.service.authType = AuthType.Certificate;
-    auth.service.certificate = base64EncodedPemCert;
-    auth.service.certificateType = CertificateType.Base64;
-
-    let acquireTokenByClientCredentialStub: any;
-    let originalGetConfidentialClient = (auth as any).getConfidentialClient;
-    originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
-    sinon.stub(auth as any, 'getConfidentialClient').callsFake(async (logger, debug, thumbprint, cert) => {
-      const confidentialApplication = await originalGetConfidentialClient(logger, debug, thumbprint, cert);
-      acquireTokenByClientCredentialStub = sinon.stub(confidentialApplication, 'acquireTokenByClientCredential').callsFake(_ => Promise.resolve({
-        expiresOn: new Date(),
-        accessToken: 'acc'
-      } as any));
-      return confidentialApplication;
-    });
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-
-    auth.ensureAccessToken(resource, logger, false).then(() => {
-      try {
-        assert(acquireTokenByClientCredentialStub.called);
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
-
-  it('retrieves token using certificate flow when authType certificate and certificateType specified (debug)', (done) => {
-    auth.service.authType = AuthType.Certificate;
-    auth.service.certificate = base64EncodedPemCert;
-    auth.service.certificateType = CertificateType.Base64;
-
-    let acquireTokenByClientCredentialStub: any;
-    let originalGetConfidentialClient = (auth as any).getConfidentialClient;
-    originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
-    sinon.stub(auth as any, 'getConfidentialClient').callsFake(async (logger, debug, thumbprint, cert) => {
-      const confidentialApplication = await originalGetConfidentialClient(logger, debug, thumbprint, cert);
-      acquireTokenByClientCredentialStub = sinon.stub(confidentialApplication, 'acquireTokenByClientCredential').callsFake(_ => Promise.resolve({
-        expiresOn: new Date(),
-        accessToken: 'acc'
-      } as any));
-      return confidentialApplication;
-    });
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-
-    auth.ensureAccessToken(resource, logger, true).then(() => {
-      try {
-        assert(acquireTokenByClientCredentialStub.called);
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
-
-  it('retrieves token using PFX certificate flow when authType certificate and thumbprint specified', (done) => {
-    auth.service.authType = AuthType.Certificate;
-    auth.service.password = 'pass@word1';
-    auth.service.certificate = base64EncodedPfxCert;
-    auth.service.thumbprint = 'ccf4f2a3c3d209c512b3724bb883a5474c0921dc';
-
-    let actualThumbprint: string = '';
-    let actualCert: string = '';
-    let originalGetConfidentialClient = (auth as any).getConfidentialClient;
-    originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
-    sinon.stub(auth as any, 'getConfidentialClient').callsFake(async (logger, debug, thumbprint, cert) => {
-      actualThumbprint = thumbprint as string;
-      actualCert = cert as string;
-      const confidentialApplication = await originalGetConfidentialClient(logger, debug, thumbprint, cert);
-      sinon.stub(confidentialApplication, 'acquireTokenByClientCredential').callsFake(_ => Promise.resolve({
-        expiresOn: new Date(),
-        accessToken: 'acc'
-      } as any));
-      return confidentialApplication;
-    });
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-
-    auth.ensureAccessToken(resource, logger, false).then(_ => {
-      try {
-        assert.notStrictEqual(actualCert.indexOf('MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQ'), -1);
-        assert.strictEqual(actualThumbprint, 'ccf4f2a3c3d209c512b3724bb883a5474c0921dc');
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
-
-  it('retrieves token using PFX certificate flow when authType certificate and thumbprint specified (debug)', (done) => {
-    auth.service.authType = AuthType.Certificate;
-    auth.service.password = 'pass@word1';
-    auth.service.certificate = base64EncodedPfxCert;
-    auth.service.thumbprint = 'ccf4f2a3c3d209c512b3724bb883a5474c0921dc';
-
-    let actualThumbprint: string = '';
-    let actualCert: string = '';
-    let originalGetConfidentialClient = (auth as any).getConfidentialClient;
-    originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
-    sinon.stub(auth as any, 'getConfidentialClient').callsFake(async (logger, debug, thumbprint, cert) => {
-      actualThumbprint = thumbprint as string;
-      actualCert = cert as string;
-      const confidentialApplication = await originalGetConfidentialClient(logger, debug, thumbprint, cert);
-      sinon.stub(confidentialApplication, 'acquireTokenByClientCredential').callsFake(_ => Promise.resolve({
-        expiresOn: new Date(),
-        accessToken: 'acc'
-      } as any));
-      return confidentialApplication;
-    });
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-
-    auth.ensureAccessToken(resource, logger, true).then(() => {
-      try {
-        assert.notStrictEqual(actualCert.indexOf('MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQ'), -1);
-        assert.strictEqual(actualThumbprint, 'ccf4f2a3c3d209c512b3724bb883a5474c0921dc');
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
-
-  it('retrieves token using PFX certificate flow when authType certificate and certificateType specified (debug)', (done) => {
-    auth.service.authType = AuthType.Certificate;
-    auth.service.password = 'pass@word1';
-    auth.service.certificate = base64EncodedPfxCert;
-    auth.service.certificateType = CertificateType.Binary;
-
-    let actualThumbprint: string = '';
-    let actualCert: string = '';
-    let originalGetConfidentialClient = (auth as any).getConfidentialClient;
-    originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
-    sinon.stub(auth as any, 'getConfidentialClient').callsFake(async (logger, debug, thumbprint, cert) => {
-      actualThumbprint = thumbprint as string;
-      actualCert = cert as string;
-      const confidentialApplication = await originalGetConfidentialClient(logger, debug, thumbprint, cert);
-      sinon.stub(confidentialApplication, 'acquireTokenByClientCredential').callsFake(_ => Promise.resolve({
-        expiresOn: new Date(),
-        accessToken: 'acc'
-      } as any));
-      return confidentialApplication;
-    });
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-
-    auth.ensureAccessToken(resource, logger, true).then(() => {
-      try {
-        assert.notStrictEqual(actualCert.indexOf('MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQ'), -1);
-        assert.strictEqual(actualThumbprint, 'ccf4f2a3c3d209c512b3724bb883a5474c0921dc');
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
-
-  it('handles error when PFX certificate flow when authType certificate specified (debug)', (done) => {
-    auth.service.authType = AuthType.Certificate;
-    auth.service.certificate = base64EncodedPfxCert;
-    auth.service.password = 'abc';
-
-    let originalGetConfidentialClient = (auth as any).getConfidentialClient;
-    originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
-    sinon.stub(auth as any, 'getConfidentialClient').callsFake(async (logger, debug, thumbprint, cert) => {
-      const confidentialApplication = await originalGetConfidentialClient(logger, debug, thumbprint, cert);
-      sinon.stub(confidentialApplication, 'acquireTokenByClientCredential').callsFake(_ => Promise.resolve({
-        expiresOn: new Date(),
-        accessToken: 'acc'
-      } as any));
-      return confidentialApplication;
-    });
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-
-    auth.ensureAccessToken(resource, logger, true).then(() => {
-      done('Expected error');
-    }, (err) => {
-      try {
-        assert.strictEqual(err.toString(), 'Error: PKCS#12 MAC could not be verified. Invalid password?');
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    });
-  });
-
-  it('handles error when retrieving token using certificate flow failed', (done) => {
-    auth.service.authType = AuthType.Certificate;
-    auth.service.certificate = base64EncodedPemCert;
-
-    let originalGetConfidentialClient = (auth as any).getConfidentialClient;
-    originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
-    sinon.stub(auth as any, 'getConfidentialClient').callsFake(async (logger, debug, thumbprint, cert) => {
-      const confidentialApplication = await originalGetConfidentialClient(logger, debug, thumbprint, cert);
-      sinon.stub(confidentialApplication, 'acquireTokenByClientCredential').callsFake(_ => Promise.reject('An error has occurred'));
-      return confidentialApplication;
-    });
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-
-    auth.ensureAccessToken(resource, logger).then(() => {
-      done('Got access token');
-    }, (err) => {
-      try {
-        assert.strictEqual(err, 'An error has occurred');
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    });
-  });
-
-  it('logs error when retrieving token using certificate flow failed in debug mode', (done) => {
-    auth.service.authType = AuthType.Certificate;
-    auth.service.certificate = base64EncodedPemCert;
-
-    let originalGetConfidentialClient = (auth as any).getConfidentialClient;
-    originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
-    sinon.stub(auth as any, 'getConfidentialClient').callsFake(async (logger, debug, thumbprint, cert) => {
-      const confidentialApplication = await originalGetConfidentialClient(logger, debug, thumbprint, cert);
-      sinon.stub(confidentialApplication, 'acquireTokenByClientCredential').callsFake(_ => Promise.reject({ errorCode: 'error', errorMessage: 'An error has occurred' }));
-      return confidentialApplication;
-    });
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-
-    auth.ensureAccessToken(resource, logger, true).then(() => {
-      done('Got access token');
-    }, (err) => {
-      try {
-        assert.strictEqual(JSON.stringify(err), JSON.stringify({ errorCode: 'error', errorMessage: 'An error has occurred' }));
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    });
-  });
-
-  it('calls api with correct params using system managed identity flow when authType identity and Azure VM api', (done) => {
-    sinon.stub(auth as any, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    const requestStub = sinon.stub(request, 'get').callsFake(() => {
-      return Promise.resolve({
-        "access_token": "eyJ0eXAiOiJKV1QiLCJ...",
-        "client_id": "a04566df-9a65-4e90-ae3d-574572a16423",
-        "expires_in": "86399",
-        "expires_on": "1587847593",
-        "ext_expires_in": "86399",
-        "not_before": "1587760893",
-        "resource": "https://contoso.sharepoint.com/",
-        "token_type": "Bearer"
+      auth.ensureAccessToken(resource, logger, true).then(() => {
+        done("Should not be called");
+      }, (err) => {
+        try {
+          assert(acquireTokenByCodeStub.notCalled);
+          assert.strictEqual(JSON.stringify(err), JSON.stringify(error));
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
       });
-    });
+    }
+  );
 
-    auth.service.authType = AuthType.Identity;
-    auth.service.userName = undefined;
-    auth.ensureAccessToken(resource, logger, true).then(() => {
-      try {
-        assert.strictEqual(requestStub.lastCall.args[0].url, 'http://169.254.169.254/metadata/identity/oauth2/token?resource=https%3A%2F%2Fcontoso.sharepoint.com&api-version=2018-02-01');
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers.Metadata, true);
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers['x-anonymous'], true);
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
+  it('uses browser auth and retrieves retrieving a token but acquisition failed',
+    (done) => {
+      const error = {
+        errorCode: 'error',
+        errorMessage: `An error has occurred`
+      };
+      jest.spyOn(auth as any, 'getClientApplication').mockClear().mockImplementation(_ => publicApplication);
+      jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      jest.spyOn(publicApplication, 'acquireTokenByCode').mockClear().mockImplementation(_ => Promise.reject(error));
+      auth.service.authType = AuthType.Browser;
 
-  it('gets token using system managed identity flow when authType identity and Azure VM api', (done) => {
-    sinon.stub(auth as any, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    sinon.stub(request, 'get').callsFake(() => {
-      return Promise.resolve({
-        "access_token": "eyJ0eXAiOiJKV1QiLCJ...",
-        "client_id": "a04566df-9a65-4e90-ae3d-574572a16423",
-        "expires_in": "86399",
-        "expires_on": "1587847593",
-        "ext_expires_in": "86399",
-        "not_before": "1587760893",
-        "resource": "https://contoso.sharepoint.com/",
-        "token_type": "Bearer"
+      auth.ensureAccessToken(resource, logger).then(() => {
+        assert.fail('Got access token');
+      }, (err) => {
+        try {
+          assert.strictEqual(JSON.stringify(err), JSON.stringify(error));
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
       });
-    });
+    }
+  );
 
-    auth.service.authType = AuthType.Identity;
-    auth.service.userName = undefined;
-    auth.ensureAccessToken(resource, logger, true).then((accessToken) => {
-      try {
-        assert.strictEqual(accessToken, 'eyJ0eXAiOiJKV1QiLCJ...');
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
+  it('uses browser auth and retrieves retrieving a token but acquisition failed (debug)',
+    (done) => {
+      const error = {
+        errorCode: 'error',
+        errorMessage: `An error has occurred`
+      };
+      jest.spyOn(auth as any, 'getClientApplication').mockClear().mockImplementation(_ => publicApplication);
+      jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      jest.spyOn(publicApplication, 'acquireTokenByCode').mockClear().mockImplementation(_ => Promise.reject(error));
+      auth.service.authType = AuthType.Browser;
 
-  it('calls api with correct params user-assigned managed identity flow when authType identity and client_id and Azure VM api', (done) => {
-    sinon.stub(auth as any, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    const requestStub = sinon.stub(request, 'get').callsFake(() => {
-      return Promise.resolve({
-        "access_token": "eyJ0eXAiOiJKV1QiLCJ...",
-        "client_id": "a04566df-9a65-4e90-ae3d-574572a16423",
-        "expires_in": "86399",
-        "expires_on": "1587847593",
-        "ext_expires_in": "86399",
-        "not_before": "1587760893",
-        "resource": "https://contoso.sharepoint.com/",
-        "token_type": "Bearer"
+      auth.ensureAccessToken(resource, logger, true).then(() => {
+        assert.fail('Got access token');
+      }, (err) => {
+        try {
+          assert.strictEqual(JSON.stringify(err), JSON.stringify(error));
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
       });
-    });
+    }
+  );
 
-    auth.service.authType = AuthType.Identity;
-    auth.service.userName = 'a04566df-9a65-4e90-ae3d-574572a16423';
-    auth.ensureAccessToken(resource, logger, true).then(() => {
-      try {
-        assert.strictEqual(requestStub.lastCall.args[0].url, 'http://169.254.169.254/metadata/identity/oauth2/token?resource=https%3A%2F%2Fcontoso.sharepoint.com&api-version=2018-02-01&client_id=a04566df-9a65-4e90-ae3d-574572a16423');
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers.Metadata, true);
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers['x-anonymous'], true);
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
+  it('retrieves token using certificate flow when authType certificate specified',
+    (done) => {
+      auth.service.certificate = base64EncodedPemCert;
+      auth.service.authType = AuthType.Certificate;
 
-  it('calls api with correct params user-assigned managed identity flow when authType identity and principal_id and Azure VM api', (done) => {
-    sinon.stub(auth as any, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    const requestStub = sinon.stub(request, 'get').callsFake((opts) => {
+      let actualThumbprint: string = '';
+      let acquireTokenByClientCredentialStub: any;
+      let originalGetConfidentialClient = (auth as any).getConfidentialClient;
+      originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
+      jest.spyOn(auth as any, 'getConfidentialClient').mockClear().mockImplementation(async (logger, debug, thumbprint, cert) => {
+        actualThumbprint = thumbprint as string;
+        const confidentialApplication = await originalGetConfidentialClient(logger, debug, thumbprint, cert);
+        acquireTokenByClientCredentialStub = jest.spyOn(confidentialApplication, 'acquireTokenByClientCredential').mockClear().mockImplementation().mockImplementation(_ => Promise.resolve({
+          expiresOn: new Date(),
+          accessToken: 'acc'
+        } as any));
+        return confidentialApplication;
+      });
+      jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
 
-      if ((opts.url as string).indexOf('&client_id=') !== -1) {
+      auth.ensureAccessToken(resource, logger, false).then(_ => {
+        try {
+          assert(acquireTokenByClientCredentialStub.called);
+          assert.strictEqual(actualThumbprint, "ccf4f2a3c3d209c512b3724bb883a5474c0921dc");
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
+
+  it('retrieves token using certificate flow when authType certificate specified (debug)',
+    (done) => {
+      auth.service.certificate = base64EncodedPemCert;
+      auth.service.authType = AuthType.Certificate;
+
+      let actualThumbprint: string = '';
+      let acquireTokenByClientCredentialStub: any;
+      let originalGetConfidentialClient = (auth as any).getConfidentialClient;
+      originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
+      jest.spyOn(auth as any, 'getConfidentialClient').mockClear().mockImplementation(async (logger, debug, thumbprint, cert) => {
+        actualThumbprint = thumbprint as string;
+        const confidentialApplication = await originalGetConfidentialClient(logger, debug, thumbprint, cert);
+        acquireTokenByClientCredentialStub = jest.spyOn(confidentialApplication, 'acquireTokenByClientCredential').mockClear().mockImplementation().mockImplementation(_ => Promise.resolve({
+          expiresOn: new Date(),
+          accessToken: 'acc'
+        } as any));
+        return confidentialApplication;
+      });
+      jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+
+      auth.ensureAccessToken(resource, logger, true).then(_ => {
+        try {
+          assert(acquireTokenByClientCredentialStub.called);
+          assert.strictEqual(actualThumbprint, "ccf4f2a3c3d209c512b3724bb883a5474c0921dc");
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
+
+  it('retrieves token using certificate flow when authType certificate and thumbprint specified ',
+    (done) => {
+      auth.service.certificate = base64EncodedPemCert;
+      auth.service.thumbprint = 'ccf4f2a3c3d209c512b3724bb883a5474c0921dc';
+      auth.service.authType = AuthType.Certificate;
+
+      let actualThumbprint: string = '';
+      let acquireTokenByClientCredentialStub: any;
+      let originalGetConfidentialClient = (auth as any).getConfidentialClient;
+      originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
+      jest.spyOn(auth as any, 'getConfidentialClient').mockClear().mockImplementation(async (logger, debug, thumbprint, cert) => {
+        actualThumbprint = thumbprint as string;
+        const confidentialApplication = await originalGetConfidentialClient(logger, debug, thumbprint, cert);
+        acquireTokenByClientCredentialStub = jest.spyOn(confidentialApplication, 'acquireTokenByClientCredential').mockClear().mockImplementation().mockImplementation(_ => Promise.resolve({
+          expiresOn: new Date(),
+          accessToken: 'acc'
+        } as any));
+        return confidentialApplication;
+      });
+      jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+
+      auth.ensureAccessToken(resource, logger, false).then(_ => {
+        try {
+          assert(acquireTokenByClientCredentialStub.called);
+          assert.strictEqual(actualThumbprint, "ccf4f2a3c3d209c512b3724bb883a5474c0921dc");
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
+
+  it('retrieves token using certificate flow when authType certificate and thumbprint specified (debug)',
+    (done) => {
+      auth.service.certificate = base64EncodedPemCert;
+      auth.service.thumbprint = 'ccf4f2a3c3d209c512b3724bb883a5474c0921dc';
+      auth.service.authType = AuthType.Certificate;
+
+      let actualThumbprint: string = '';
+      let acquireTokenByClientCredentialStub: any;
+      let originalGetConfidentialClient = (auth as any).getConfidentialClient;
+      originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
+      jest.spyOn(auth as any, 'getConfidentialClient').mockClear().mockImplementation(async (logger, debug, thumbprint, cert) => {
+        actualThumbprint = thumbprint as string;
+        const confidentialApplication = await originalGetConfidentialClient(logger, debug, thumbprint, cert);
+        acquireTokenByClientCredentialStub = jest.spyOn(confidentialApplication, 'acquireTokenByClientCredential').mockClear().mockImplementation().mockImplementation(_ => Promise.resolve({
+          expiresOn: new Date(),
+          accessToken: 'acc'
+        } as any));
+        return confidentialApplication;
+      });
+      jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+
+      auth.ensureAccessToken(resource, logger, true).then(_ => {
+        try {
+          assert(acquireTokenByClientCredentialStub.called);
+          assert.strictEqual(actualThumbprint, "ccf4f2a3c3d209c512b3724bb883a5474c0921dc");
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
+
+  it('retrieves token using PFX certificate flow when authType certificate specified',
+    (done) => {
+      auth.service.password = 'pass@word1';
+      auth.service.certificate = base64EncodedPfxCert;
+      auth.service.authType = AuthType.Certificate;
+
+      readFileSyncStub.mockRestore();
+      let actualThumbprint: string = '';
+      let actualCert: string = '';
+      let originalGetConfidentialClient = (auth as any).getConfidentialClient;
+      originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
+      jest.spyOn(auth as any, 'getConfidentialClient').mockClear().mockImplementation(async (logger, debug, thumbprint, cert) => {
+        actualThumbprint = thumbprint as string;
+        actualCert = cert as string;
+        const confidentialApplication = await originalGetConfidentialClient(logger, debug, thumbprint, cert);
+        jest.spyOn(confidentialApplication, 'acquireTokenByClientCredential').mockClear().mockImplementation().mockImplementation(_ => Promise.resolve({
+          expiresOn: new Date(),
+          accessToken: 'acc'
+        } as any));
+        return confidentialApplication;
+      });
+      jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+
+      auth.ensureAccessToken(resource, logger, false).then(_ => {
+        try {
+          assert.notStrictEqual(actualCert.indexOf('MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQ'), -1);
+          assert.strictEqual(actualThumbprint, 'ccf4f2a3c3d209c512b3724bb883a5474c0921dc');
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
+
+  it('retrieves token using PFX certificate flow when authType certificate specified (debug)',
+    (done) => {
+      auth.service.authType = AuthType.Certificate;
+      auth.service.password = 'pass@word1';
+      auth.service.certificate = base64EncodedPfxCert;
+
+      readFileSyncStub.mockRestore();
+      let actualThumbprint: string = '';
+      let actualCert: string = '';
+      let originalGetConfidentialClient = (auth as any).getConfidentialClient;
+      originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
+      jest.spyOn(auth as any, 'getConfidentialClient').mockClear().mockImplementation(async (logger, debug, thumbprint, cert) => {
+        actualThumbprint = thumbprint as string;
+        actualCert = cert as string;
+        const confidentialApplication = await originalGetConfidentialClient(logger, debug, thumbprint, cert);
+        jest.spyOn(confidentialApplication, 'acquireTokenByClientCredential').mockClear().mockImplementation().mockImplementation(_ => Promise.resolve({
+          expiresOn: new Date(),
+          accessToken: 'acc'
+        } as any));
+        return confidentialApplication;
+      });
+      jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+
+      auth.ensureAccessToken(resource, logger, true).then(_ => {
+        try {
+          assert.notStrictEqual(actualCert.indexOf('MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQ'), -1);
+          assert.strictEqual(actualThumbprint, 'ccf4f2a3c3d209c512b3724bb883a5474c0921dc');
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
+
+  it('retrieves token using certificate flow when authType certificate and certificateType specified ',
+    (done) => {
+      auth.service.authType = AuthType.Certificate;
+      auth.service.certificate = base64EncodedPemCert;
+      auth.service.certificateType = CertificateType.Base64;
+
+      let acquireTokenByClientCredentialStub: any;
+      let originalGetConfidentialClient = (auth as any).getConfidentialClient;
+      originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
+      jest.spyOn(auth as any, 'getConfidentialClient').mockClear().mockImplementation(async (logger, debug, thumbprint, cert) => {
+        const confidentialApplication = await originalGetConfidentialClient(logger, debug, thumbprint, cert);
+        acquireTokenByClientCredentialStub = jest.spyOn(confidentialApplication, 'acquireTokenByClientCredential').mockClear().mockImplementation().mockImplementation(_ => Promise.resolve({
+          expiresOn: new Date(),
+          accessToken: 'acc'
+        } as any));
+        return confidentialApplication;
+      });
+      jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+
+      auth.ensureAccessToken(resource, logger, false).then(() => {
+        try {
+          assert(acquireTokenByClientCredentialStub.called);
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
+
+  it('retrieves token using certificate flow when authType certificate and certificateType specified (debug)',
+    (done) => {
+      auth.service.authType = AuthType.Certificate;
+      auth.service.certificate = base64EncodedPemCert;
+      auth.service.certificateType = CertificateType.Base64;
+
+      let acquireTokenByClientCredentialStub: any;
+      let originalGetConfidentialClient = (auth as any).getConfidentialClient;
+      originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
+      jest.spyOn(auth as any, 'getConfidentialClient').mockClear().mockImplementation(async (logger, debug, thumbprint, cert) => {
+        const confidentialApplication = await originalGetConfidentialClient(logger, debug, thumbprint, cert);
+        acquireTokenByClientCredentialStub = jest.spyOn(confidentialApplication, 'acquireTokenByClientCredential').mockClear().mockImplementation().mockImplementation(_ => Promise.resolve({
+          expiresOn: new Date(),
+          accessToken: 'acc'
+        } as any));
+        return confidentialApplication;
+      });
+      jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+
+      auth.ensureAccessToken(resource, logger, true).then(() => {
+        try {
+          assert(acquireTokenByClientCredentialStub.called);
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
+
+  it('retrieves token using PFX certificate flow when authType certificate and thumbprint specified',
+    (done) => {
+      auth.service.authType = AuthType.Certificate;
+      auth.service.password = 'pass@word1';
+      auth.service.certificate = base64EncodedPfxCert;
+      auth.service.thumbprint = 'ccf4f2a3c3d209c512b3724bb883a5474c0921dc';
+
+      let actualThumbprint: string = '';
+      let actualCert: string = '';
+      let originalGetConfidentialClient = (auth as any).getConfidentialClient;
+      originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
+      jest.spyOn(auth as any, 'getConfidentialClient').mockClear().mockImplementation(async (logger, debug, thumbprint, cert) => {
+        actualThumbprint = thumbprint as string;
+        actualCert = cert as string;
+        const confidentialApplication = await originalGetConfidentialClient(logger, debug, thumbprint, cert);
+        jest.spyOn(confidentialApplication, 'acquireTokenByClientCredential').mockClear().mockImplementation().mockImplementation(_ => Promise.resolve({
+          expiresOn: new Date(),
+          accessToken: 'acc'
+        } as any));
+        return confidentialApplication;
+      });
+      jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+
+      auth.ensureAccessToken(resource, logger, false).then(_ => {
+        try {
+          assert.notStrictEqual(actualCert.indexOf('MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQ'), -1);
+          assert.strictEqual(actualThumbprint, 'ccf4f2a3c3d209c512b3724bb883a5474c0921dc');
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
+
+  it('retrieves token using PFX certificate flow when authType certificate and thumbprint specified (debug)',
+    (done) => {
+      auth.service.authType = AuthType.Certificate;
+      auth.service.password = 'pass@word1';
+      auth.service.certificate = base64EncodedPfxCert;
+      auth.service.thumbprint = 'ccf4f2a3c3d209c512b3724bb883a5474c0921dc';
+
+      let actualThumbprint: string = '';
+      let actualCert: string = '';
+      let originalGetConfidentialClient = (auth as any).getConfidentialClient;
+      originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
+      jest.spyOn(auth as any, 'getConfidentialClient').mockClear().mockImplementation(async (logger, debug, thumbprint, cert) => {
+        actualThumbprint = thumbprint as string;
+        actualCert = cert as string;
+        const confidentialApplication = await originalGetConfidentialClient(logger, debug, thumbprint, cert);
+        jest.spyOn(confidentialApplication, 'acquireTokenByClientCredential').mockClear().mockImplementation().mockImplementation(_ => Promise.resolve({
+          expiresOn: new Date(),
+          accessToken: 'acc'
+        } as any));
+        return confidentialApplication;
+      });
+      jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+
+      auth.ensureAccessToken(resource, logger, true).then(() => {
+        try {
+          assert.notStrictEqual(actualCert.indexOf('MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQ'), -1);
+          assert.strictEqual(actualThumbprint, 'ccf4f2a3c3d209c512b3724bb883a5474c0921dc');
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
+
+  it('retrieves token using PFX certificate flow when authType certificate and certificateType specified (debug)',
+    (done) => {
+      auth.service.authType = AuthType.Certificate;
+      auth.service.password = 'pass@word1';
+      auth.service.certificate = base64EncodedPfxCert;
+      auth.service.certificateType = CertificateType.Binary;
+
+      let actualThumbprint: string = '';
+      let actualCert: string = '';
+      let originalGetConfidentialClient = (auth as any).getConfidentialClient;
+      originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
+      jest.spyOn(auth as any, 'getConfidentialClient').mockClear().mockImplementation(async (logger, debug, thumbprint, cert) => {
+        actualThumbprint = thumbprint as string;
+        actualCert = cert as string;
+        const confidentialApplication = await originalGetConfidentialClient(logger, debug, thumbprint, cert);
+        jest.spyOn(confidentialApplication, 'acquireTokenByClientCredential').mockClear().mockImplementation().mockImplementation(_ => Promise.resolve({
+          expiresOn: new Date(),
+          accessToken: 'acc'
+        } as any));
+        return confidentialApplication;
+      });
+      jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+
+      auth.ensureAccessToken(resource, logger, true).then(() => {
+        try {
+          assert.notStrictEqual(actualCert.indexOf('MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQ'), -1);
+          assert.strictEqual(actualThumbprint, 'ccf4f2a3c3d209c512b3724bb883a5474c0921dc');
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
+
+  it('handles error when PFX certificate flow when authType certificate specified (debug)',
+    (done) => {
+      auth.service.authType = AuthType.Certificate;
+      auth.service.certificate = base64EncodedPfxCert;
+      auth.service.password = 'abc';
+
+      let originalGetConfidentialClient = (auth as any).getConfidentialClient;
+      originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
+      jest.spyOn(auth as any, 'getConfidentialClient').mockClear().mockImplementation(async (logger, debug, thumbprint, cert) => {
+        const confidentialApplication = await originalGetConfidentialClient(logger, debug, thumbprint, cert);
+        jest.spyOn(confidentialApplication, 'acquireTokenByClientCredential').mockClear().mockImplementation().mockImplementation(_ => Promise.resolve({
+          expiresOn: new Date(),
+          accessToken: 'acc'
+        } as any));
+        return confidentialApplication;
+      });
+      jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+
+      auth.ensureAccessToken(resource, logger, true).then(() => {
+        done('Expected error');
+      }, (err) => {
+        try {
+          assert.strictEqual(err.toString(), 'Error: PKCS#12 MAC could not be verified. Invalid password?');
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      });
+    }
+  );
+
+  it('handles error when retrieving token using certificate flow failed',
+    (done) => {
+      auth.service.authType = AuthType.Certificate;
+      auth.service.certificate = base64EncodedPemCert;
+
+      let originalGetConfidentialClient = (auth as any).getConfidentialClient;
+      originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
+      jest.spyOn(auth as any, 'getConfidentialClient').mockClear().mockImplementation(async (logger, debug, thumbprint, cert) => {
+        const confidentialApplication = await originalGetConfidentialClient(logger, debug, thumbprint, cert);
+        jest.spyOn(confidentialApplication, 'acquireTokenByClientCredential').mockClear().mockImplementation().mockImplementation(_ => Promise.reject('An error has occurred'));
+        return confidentialApplication;
+      });
+      jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+
+      auth.ensureAccessToken(resource, logger).then(() => {
+        done('Got access token');
+      }, (err) => {
+        try {
+          assert.strictEqual(err, 'An error has occurred');
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      });
+    }
+  );
+
+  it('logs error when retrieving token using certificate flow failed in debug mode',
+    (done) => {
+      auth.service.authType = AuthType.Certificate;
+      auth.service.certificate = base64EncodedPemCert;
+
+      let originalGetConfidentialClient = (auth as any).getConfidentialClient;
+      originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
+      jest.spyOn(auth as any, 'getConfidentialClient').mockClear().mockImplementation(async (logger, debug, thumbprint, cert) => {
+        const confidentialApplication = await originalGetConfidentialClient(logger, debug, thumbprint, cert);
+        jest.spyOn(confidentialApplication, 'acquireTokenByClientCredential').mockClear().mockImplementation().mockImplementation(_ => Promise.reject({ errorCode: 'error', errorMessage: 'An error has occurred' }));
+        return confidentialApplication;
+      });
+      jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+
+      auth.ensureAccessToken(resource, logger, true).then(() => {
+        done('Got access token');
+      }, (err) => {
+        try {
+          assert.strictEqual(JSON.stringify(err), JSON.stringify({ errorCode: 'error', errorMessage: 'An error has occurred' }));
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      });
+    }
+  );
+
+  it('calls api with correct params using system managed identity flow when authType identity and Azure VM api',
+    (done) => {
+      jest.spyOn(auth as any, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      const requestStub = jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
+        return Promise.resolve({
+          "access_token": "eyJ0eXAiOiJKV1QiLCJ...",
+          "client_id": "a04566df-9a65-4e90-ae3d-574572a16423",
+          "expires_in": "86399",
+          "expires_on": "1587847593",
+          "ext_expires_in": "86399",
+          "not_before": "1587760893",
+          "resource": "https://contoso.sharepoint.com/",
+          "token_type": "Bearer"
+        });
+      });
+
+      auth.service.authType = AuthType.Identity;
+      auth.service.userName = undefined;
+      auth.ensureAccessToken(resource, logger, true).then(() => {
+        try {
+          assert.strictEqual(requestStub.mock.lastCall[0].url, 'http://169.254.169.254/metadata/identity/oauth2/token?resource=https%3A%2F%2Fcontoso.sharepoint.com&api-version=2018-02-01');
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers.Metadata, true);
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers['x-anonymous'], true);
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
+
+  it('gets token using system managed identity flow when authType identity and Azure VM api',
+    (done) => {
+      jest.spyOn(auth as any, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
+        return Promise.resolve({
+          "access_token": "eyJ0eXAiOiJKV1QiLCJ...",
+          "client_id": "a04566df-9a65-4e90-ae3d-574572a16423",
+          "expires_in": "86399",
+          "expires_on": "1587847593",
+          "ext_expires_in": "86399",
+          "not_before": "1587760893",
+          "resource": "https://contoso.sharepoint.com/",
+          "token_type": "Bearer"
+        });
+      });
+
+      auth.service.authType = AuthType.Identity;
+      auth.service.userName = undefined;
+      auth.ensureAccessToken(resource, logger, true).then((accessToken) => {
+        try {
+          assert.strictEqual(accessToken, 'eyJ0eXAiOiJKV1QiLCJ...');
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
+
+  it('calls api with correct params user-assigned managed identity flow when authType identity and client_id and Azure VM api',
+    (done) => {
+      jest.spyOn(auth as any, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      const requestStub = jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
+        return Promise.resolve({
+          "access_token": "eyJ0eXAiOiJKV1QiLCJ...",
+          "client_id": "a04566df-9a65-4e90-ae3d-574572a16423",
+          "expires_in": "86399",
+          "expires_on": "1587847593",
+          "ext_expires_in": "86399",
+          "not_before": "1587760893",
+          "resource": "https://contoso.sharepoint.com/",
+          "token_type": "Bearer"
+        });
+      });
+
+      auth.service.authType = AuthType.Identity;
+      auth.service.userName = 'a04566df-9a65-4e90-ae3d-574572a16423';
+      auth.ensureAccessToken(resource, logger, true).then(() => {
+        try {
+          assert.strictEqual(requestStub.mock.lastCall[0].url, 'http://169.254.169.254/metadata/identity/oauth2/token?resource=https%3A%2F%2Fcontoso.sharepoint.com&api-version=2018-02-01&client_id=a04566df-9a65-4e90-ae3d-574572a16423');
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers.Metadata, true);
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers['x-anonymous'], true);
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
+
+  it('calls api with correct params user-assigned managed identity flow when authType identity and principal_id and Azure VM api',
+    (done) => {
+      jest.spyOn(auth as any, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      const requestStub = jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
+
+        if ((opts.url as string).indexOf('&client_id=') !== -1) {
+
+          return Promise.reject({ error: { "error": "invalid_request", "error_description": "Identity not found" } });
+        }
+
+        return Promise.resolve({
+          "access_token": "eyJ0eXAiOiJKV1QiLCJ...",
+          "client_id": "a04566df-9a65-4e90-ae3d-574572a16423",
+          "expires_in": "86399",
+          "expires_on": "1587847593",
+          "ext_expires_in": "86399",
+          "not_before": "1587760893",
+          "resource": "https://contoso.sharepoint.com/",
+          "token_type": "Bearer"
+        });
+      });
+
+      auth.service.authType = AuthType.Identity;
+      auth.service.userName = 'a04566df-9a65-4e90-ae3d-574572a16423';
+      auth.ensureAccessToken(resource, logger, true).then(() => {
+        try {
+          assert.strictEqual(requestStub.mock.lastCall[0].url, 'http://169.254.169.254/metadata/identity/oauth2/token?resource=https%3A%2F%2Fcontoso.sharepoint.com&api-version=2018-02-01&principal_id=a04566df-9a65-4e90-ae3d-574572a16423');
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers.Metadata, true);
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers['x-anonymous'], true);
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
+
+  it('retrieves token using user-assigned managed identity flow when authType identity and principal_id and Azure VM api',
+    (done) => {
+      jest.spyOn(auth as any, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
+
+        if ((opts.url as string).indexOf('&client_id=') !== -1) {
+
+          return Promise.reject({ error: { "error": "invalid_request", "error_description": "Identity not found" } });
+        }
+
+        return Promise.resolve({
+          "access_token": "eyJ0eXAiOiJKV1QiLCJ...",
+          "client_id": "a04566df-9a65-4e90-ae3d-574572a16423",
+          "expires_in": "86399",
+          "expires_on": "1587847593",
+          "ext_expires_in": "86399",
+          "not_before": "1587760893",
+          "resource": "https://contoso.sharepoint.com/",
+          "token_type": "Bearer"
+        });
+      });
+
+      auth.service.authType = AuthType.Identity;
+      auth.service.userName = 'a04566df-9a65-4e90-ae3d-574572a16423';
+      auth.ensureAccessToken(resource, logger, true).then((accessToken) => {
+        try {
+          assert.strictEqual(accessToken, 'eyJ0eXAiOiJKV1QiLCJ...');
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
+
+  it('handles error when using user-assigned managed identity flow when authType identity and principal_id and Azure VM api',
+    (done) => {
+      jest.spyOn(auth as any, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      const requestStub = jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
+
+        if ((opts.url as string).indexOf('&client_id=') !== -1) {
+
+          return Promise.reject({ error: { "error": "invalid_request", "error_description": "Identity not found" } });
+        }
 
         return Promise.reject({ error: { "error": "invalid_request", "error_description": "Identity not found" } });
-      }
-
-      return Promise.resolve({
-        "access_token": "eyJ0eXAiOiJKV1QiLCJ...",
-        "client_id": "a04566df-9a65-4e90-ae3d-574572a16423",
-        "expires_in": "86399",
-        "expires_on": "1587847593",
-        "ext_expires_in": "86399",
-        "not_before": "1587760893",
-        "resource": "https://contoso.sharepoint.com/",
-        "token_type": "Bearer"
       });
-    });
 
-    auth.service.authType = AuthType.Identity;
-    auth.service.userName = 'a04566df-9a65-4e90-ae3d-574572a16423';
-    auth.ensureAccessToken(resource, logger, true).then(() => {
-      try {
-        assert.strictEqual(requestStub.lastCall.args[0].url, 'http://169.254.169.254/metadata/identity/oauth2/token?resource=https%3A%2F%2Fcontoso.sharepoint.com&api-version=2018-02-01&principal_id=a04566df-9a65-4e90-ae3d-574572a16423');
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers.Metadata, true);
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers['x-anonymous'], true);
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
-
-  it('retrieves token using user-assigned managed identity flow when authType identity and principal_id and Azure VM api', (done) => {
-    sinon.stub(auth as any, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    sinon.stub(request, 'get').callsFake((opts) => {
-
-      if ((opts.url as string).indexOf('&client_id=') !== -1) {
-
-        return Promise.reject({ error: { "error": "invalid_request", "error_description": "Identity not found" } });
-      }
-
-      return Promise.resolve({
-        "access_token": "eyJ0eXAiOiJKV1QiLCJ...",
-        "client_id": "a04566df-9a65-4e90-ae3d-574572a16423",
-        "expires_in": "86399",
-        "expires_on": "1587847593",
-        "ext_expires_in": "86399",
-        "not_before": "1587760893",
-        "resource": "https://contoso.sharepoint.com/",
-        "token_type": "Bearer"
+      auth.service.authType = AuthType.Identity;
+      auth.service.userName = 'a04566df-9a65-4e90-ae3d-574572a16423';
+      auth.ensureAccessToken(resource, logger, true).then(() => {
+        done(new Error('something is wrong'));
+      }, (err) => {
+        try {
+          assert.strictEqual(requestStub.mock.lastCall[0].url, 'http://169.254.169.254/metadata/identity/oauth2/token?resource=https%3A%2F%2Fcontoso.sharepoint.com&api-version=2018-02-01&principal_id=a04566df-9a65-4e90-ae3d-574572a16423');
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers.Metadata, true);
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers['x-anonymous'], true);
+          assert.strictEqual(err.error.error_description, 'Identity not found');
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
       });
-    });
+    }
+  );
 
-    auth.service.authType = AuthType.Identity;
-    auth.service.userName = 'a04566df-9a65-4e90-ae3d-574572a16423';
-    auth.ensureAccessToken(resource, logger, true).then((accessToken) => {
-      try {
-        assert.strictEqual(accessToken, 'eyJ0eXAiOiJKV1QiLCJ...');
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
+  it('handles EACCES error when using user-assigned managed identity flow when authType identity and principal_id and Azure VM api',
+    (done) => {
+      jest.spyOn(auth as any, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      const requestStub = jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
 
-  it('handles error when using user-assigned managed identity flow when authType identity and principal_id and Azure VM api', (done) => {
-    sinon.stub(auth as any, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    const requestStub = sinon.stub(request, 'get').callsFake((opts) => {
+        if ((opts.url as string).indexOf('&client_id=') !== -1) {
 
-      if ((opts.url as string).indexOf('&client_id=') !== -1) {
+          return Promise.reject({ error: { "error": "invalid_request", "error_description": "Identity not found" } });
+        }
 
-        return Promise.reject({ error: { "error": "invalid_request", "error_description": "Identity not found" } });
-      }
-
-      return Promise.reject({ error: { "error": "invalid_request", "error_description": "Identity not found" } });
-    });
-
-    auth.service.authType = AuthType.Identity;
-    auth.service.userName = 'a04566df-9a65-4e90-ae3d-574572a16423';
-    auth.ensureAccessToken(resource, logger, true).then(() => {
-      done(new Error('something is wrong'));
-    }, (err) => {
-      try {
-        assert.strictEqual(requestStub.lastCall.args[0].url, 'http://169.254.169.254/metadata/identity/oauth2/token?resource=https%3A%2F%2Fcontoso.sharepoint.com&api-version=2018-02-01&principal_id=a04566df-9a65-4e90-ae3d-574572a16423');
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers.Metadata, true);
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers['x-anonymous'], true);
-        assert.strictEqual(err.error.error_description, 'Identity not found');
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    });
-  });
-
-  it('handles EACCES error when using user-assigned managed identity flow when authType identity and principal_id and Azure VM api', (done) => {
-    sinon.stub(auth as any, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    const requestStub = sinon.stub(request, 'get').callsFake((opts) => {
-
-      if ((opts.url as string).indexOf('&client_id=') !== -1) {
-
-        return Promise.reject({ error: { "error": "invalid_request", "error_description": "Identity not found" } });
-      }
-
-      return Promise.reject({ error: { "errno": "EACCES", "code": "EACCES", "syscall": "connect", "address": "169.254.169.254", "port": 80 } });
-    });
-
-    auth.service.authType = AuthType.Identity;
-    auth.service.userName = 'a04566df-9a65-4e90-ae3d-574572a16423';
-    auth.ensureAccessToken(resource, logger, true).then(() => {
-      done(new Error('something is wrong'));
-    }, (err) => {
-      try {
-        assert.strictEqual(requestStub.lastCall.args[0].url, 'http://169.254.169.254/metadata/identity/oauth2/token?resource=https%3A%2F%2Fcontoso.sharepoint.com&api-version=2018-02-01&principal_id=a04566df-9a65-4e90-ae3d-574572a16423');
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers.Metadata, true);
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers['x-anonymous'], true);
-        assert.notStrictEqual(err.indexOf('Error while logging with Managed Identity. Please check if a Managed Identity is assigned to the current Azure resource.'), -1);
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    });
-  });
-
-  it('calls api with correct params using system managed identity flow when authType identity and Azure Function api', (done) => {
-    process.env.IDENTITY_ENDPOINT = 'http://127.0.0.1:41932/MSI/token/';
-    process.env.IDENTITY_HEADER = 'AFBA957766234A0CA9F3B6FA3D9582C7';
-    sinon.stub(auth as any, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    const requestStub = sinon.stub(request, 'get').callsFake(() => {
-      return Promise.resolve({
-        "access_token": "eyJ0eXAiOiJKV1QiLCJ...",
-        "client_id": "a04566df-9a65-4e90-ae3d-574572a16423",
-        "expires_in": "86399",
-        "expires_on": "1587847593",
-        "ext_expires_in": "86399",
-        "not_before": "1587760893",
-        "resource": "https://contoso.sharepoint.com/",
-        "token_type": "Bearer"
+        return Promise.reject({ error: { "errno": "EACCES", "code": "EACCES", "syscall": "connect", "address": "169.254.169.254", "port": 80 } });
       });
-    });
 
-    auth.service.authType = AuthType.Identity;
-    auth.service.userName = undefined;
-    auth.ensureAccessToken(resource, logger, true).then(() => {
-      try {
-        assert.strictEqual(requestStub.lastCall.args[0].url, 'http://127.0.0.1:41932/MSI/token/?resource=https%3A%2F%2Fcontoso.sharepoint.com&api-version=2019-08-01');
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers.Metadata, true);
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers['x-anonymous'], true);
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
-
-  it('calls api with correct params using system managed identity flow when authType identity and Azure Cloud Shell api', (done) => {
-    process.env = {
-      IDENTITY_ENDPOINT: 'http://localhost:50342/oauth2/token'
-    };
-    sinon.stub(auth as any, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    const requestStub = sinon.stub(request, 'get').callsFake(() => {
-      return Promise.resolve({
-        "access_token": "eyJ0eXAiOiJKV1QiLCJ...",
-        "client_id": "a04566df-9a65-4e90-ae3d-574572a16423",
-        "expires_in": "86399",
-        "expires_on": "1587847593",
-        "ext_expires_in": "86399",
-        "not_before": "1587760893",
-        "resource": "https://contoso.sharepoint.com/",
-        "token_type": "Bearer"
+      auth.service.authType = AuthType.Identity;
+      auth.service.userName = 'a04566df-9a65-4e90-ae3d-574572a16423';
+      auth.ensureAccessToken(resource, logger, true).then(() => {
+        done(new Error('something is wrong'));
+      }, (err) => {
+        try {
+          assert.strictEqual(requestStub.mock.lastCall[0].url, 'http://169.254.169.254/metadata/identity/oauth2/token?resource=https%3A%2F%2Fcontoso.sharepoint.com&api-version=2018-02-01&principal_id=a04566df-9a65-4e90-ae3d-574572a16423');
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers.Metadata, true);
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers['x-anonymous'], true);
+          assert.notStrictEqual(err.indexOf('Error while logging with Managed Identity. Please check if a Managed Identity is assigned to the current Azure resource.'), -1);
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
       });
-    });
+    }
+  );
 
-    auth.service.authType = AuthType.Identity;
-    auth.service.userName = undefined;
-    auth.ensureAccessToken(resource, logger, true).then(() => {
-      try {
-        assert.strictEqual(requestStub.lastCall.args[0].url, 'http://localhost:50342/oauth2/token?resource=https%3A%2F%2Fcontoso.sharepoint.com');
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers.Metadata, true);
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers['x-anonymous'], true);
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
-
-  it('fails with error when authType identity and Azure Cloud Shell api and IDENTITY_ENDPOINT, but userName option specified', (done) => {
-    process.env = {
-      IDENTITY_ENDPOINT: 'http://localhost:50342/oauth2/token',
-      ACC_CLOUD: 'abc'
-    };
-    sinon.stub(auth as any, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    sinon.stub(request, 'get').callsFake(() => {
-      return Promise.resolve();
-    });
-
-    auth.service.authType = AuthType.Identity;
-    auth.service.userName = 'abc';
-    auth.ensureAccessToken(resource, logger, true).then(() => {
-      done(new Error('something is wrong'));
-    }, (err) => {
-      try {
-        assert.notStrictEqual(err.indexOf('Azure Cloud Shell does not support user-managed identity. You can execute the command without the --userName option to login with user identity'), -1);
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    });
-  });
-
-  it('calls api with correct params using MSI when authType identity and Azure Cloud Shell api', (done) => {
-    process.env = {
-      MSI_ENDPOINT: 'http://localhost:50342/oauth2/token'
-    };
-    sinon.stub(auth as any, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    const requestStub = sinon.stub(request, 'get').callsFake(() => {
-      return Promise.resolve({
-        "access_token": "eyJ0eXAiOiJKV1QiLCJ...",
-        "client_id": "a04566df-9a65-4e90-ae3d-574572a16423",
-        "expires_in": "86399",
-        "expires_on": "1587847593",
-        "ext_expires_in": "86399",
-        "not_before": "1587760893",
-        "resource": "https://contoso.sharepoint.com/",
-        "token_type": "Bearer"
+  it('calls api with correct params using system managed identity flow when authType identity and Azure Function api',
+    (done) => {
+      process.env.IDENTITY_ENDPOINT = 'http://127.0.0.1:41932/MSI/token/';
+      process.env.IDENTITY_HEADER = 'AFBA957766234A0CA9F3B6FA3D9582C7';
+      jest.spyOn(auth as any, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      const requestStub = jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
+        return Promise.resolve({
+          "access_token": "eyJ0eXAiOiJKV1QiLCJ...",
+          "client_id": "a04566df-9a65-4e90-ae3d-574572a16423",
+          "expires_in": "86399",
+          "expires_on": "1587847593",
+          "ext_expires_in": "86399",
+          "not_before": "1587760893",
+          "resource": "https://contoso.sharepoint.com/",
+          "token_type": "Bearer"
+        });
       });
-    });
 
-    auth.service.authType = AuthType.Identity;
-    auth.service.userName = undefined;
-    auth.ensureAccessToken(resource, logger, true).then(() => {
-      try {
-        assert.strictEqual(requestStub.lastCall.args[0].url, 'http://localhost:50342/oauth2/token?resource=https%3A%2F%2Fcontoso.sharepoint.com');
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers.Metadata, true);
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers['x-anonymous'], true);
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
-
-  it('fails with error when authType identity and Azure Cloud Shell api and MSI_ENDPOINT, but userName option specified', (done) => {
-    process.env = {
-      MSI_ENDPOINT: 'http://localhost:50342/oauth2/token',
-      ACC_CLOUD: 'abc'
-    };
-    sinon.stub(auth as any, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    sinon.stub(request, 'get').callsFake(() => {
-      return Promise.resolve();
-    });
-
-    auth.service.authType = AuthType.Identity;
-    auth.service.userName = 'abc';
-    auth.ensureAccessToken(resource, logger, true).then(() => {
-      done(new Error('something is wrong'));
-    }, (err) => {
-      try {
-        assert.notStrictEqual(err.indexOf('Azure Cloud Shell does not support user-managed identity. You can execute the command without the --userName option to login with user identity'), -1);
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    });
-  });
-
-  it('handles error when using system managed identity flow when authType identity and Azure Function api', (done) => {
-    process.env.IDENTITY_ENDPOINT = 'http://127.0.0.1:41932/MSI/token/';
-    process.env.IDENTITY_HEADER = 'AFBA957766234A0CA9F3B6FA3D9582C7';
-    sinon.stub(auth as any, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    const requestStub = sinon.stub(request, 'get').callsFake(() => {
-      return Promise.reject({ error: { "StatusCode": 400, "Message": "No Managed Identity found for specified ClientId/ResourceId/PrincipalId.", "CorrelationId": "0507ee4d-c15f-421a-b96b-e71e351bc69a" } });
-    });
-
-    auth.service.authType = AuthType.Identity;
-    auth.service.userName = undefined;
-    auth.ensureAccessToken(resource, logger, true).then(() => {
-      done(new Error('something is wrong'));
-    }, (err) => {
-      try {
-        assert.strictEqual(requestStub.lastCall.args[0].url, 'http://127.0.0.1:41932/MSI/token/?resource=https%3A%2F%2Fcontoso.sharepoint.com&api-version=2019-08-01');
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers.Metadata, true);
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers['x-anonymous'], true);
-        assert.notStrictEqual(err.error.Message.indexOf('No Managed Identity found'), -1);
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    });
-  });
-
-  it('calls api with correct params using user-assigned managed identity flow when authType identity and client_id and Azure Functions api', (done) => {
-    process.env.IDENTITY_ENDPOINT = 'http://127.0.0.1:41932/MSI/token/';
-    process.env.IDENTITY_HEADER = 'AFBA957766234A0CA9F3B6FA3D9582C7';
-    sinon.stub(auth as any, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    const requestStub = sinon.stub(request, 'get').callsFake(() => {
-      return Promise.resolve({
-        "access_token": "eyJ0eXAiOiJKV1QiLCJ...",
-        "client_id": "a04566df-9a65-4e90-ae3d-574572a16423",
-        "expires_in": "86399",
-        "expires_on": "1587847593",
-        "ext_expires_in": "86399",
-        "not_before": "1587760893",
-        "resource": "https://contoso.sharepoint.com/",
-        "token_type": "Bearer"
+      auth.service.authType = AuthType.Identity;
+      auth.service.userName = undefined;
+      auth.ensureAccessToken(resource, logger, true).then(() => {
+        try {
+          assert.strictEqual(requestStub.mock.lastCall[0].url, 'http://127.0.0.1:41932/MSI/token/?resource=https%3A%2F%2Fcontoso.sharepoint.com&api-version=2019-08-01');
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers.Metadata, true);
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers['x-anonymous'], true);
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
       });
-    });
+    }
+  );
 
-    auth.service.authType = AuthType.Identity;
-    auth.service.userName = 'a04566df-9a65-4e90-ae3d-574572a16423';
-    auth.ensureAccessToken(resource, logger, true).then(() => {
-      try {
-        assert.strictEqual(requestStub.lastCall.args[0].url, 'http://127.0.0.1:41932/MSI/token/?resource=https%3A%2F%2Fcontoso.sharepoint.com&api-version=2019-08-01&client_id=a04566df-9a65-4e90-ae3d-574572a16423');
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers.Metadata, true);
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers['x-anonymous'], true);
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
+  it('calls api with correct params using system managed identity flow when authType identity and Azure Cloud Shell api',
+    (done) => {
+      process.env = {
+        IDENTITY_ENDPOINT: 'http://localhost:50342/oauth2/token'
+      };
+      jest.spyOn(auth as any, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      const requestStub = jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
+        return Promise.resolve({
+          "access_token": "eyJ0eXAiOiJKV1QiLCJ...",
+          "client_id": "a04566df-9a65-4e90-ae3d-574572a16423",
+          "expires_in": "86399",
+          "expires_on": "1587847593",
+          "ext_expires_in": "86399",
+          "not_before": "1587760893",
+          "resource": "https://contoso.sharepoint.com/",
+          "token_type": "Bearer"
+        });
+      });
 
-  it('calls api with correct params using user-assigned managed identity flow when authType identity and principal_id and Azure Functions api', (done) => {
-    process.env.IDENTITY_ENDPOINT = 'http://127.0.0.1:41932/MSI/token/';
-    process.env.IDENTITY_HEADER = 'AFBA957766234A0CA9F3B6FA3D9582C7';
-    sinon.stub(auth as any, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    const requestStub = sinon.stub(request, 'get').callsFake((opts) => {
+      auth.service.authType = AuthType.Identity;
+      auth.service.userName = undefined;
+      auth.ensureAccessToken(resource, logger, true).then(() => {
+        try {
+          assert.strictEqual(requestStub.mock.lastCall[0].url, 'http://localhost:50342/oauth2/token?resource=https%3A%2F%2Fcontoso.sharepoint.com');
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers.Metadata, true);
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers['x-anonymous'], true);
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
 
-      if ((opts.url as string).indexOf('&client_id=') !== -1) {
+  it('fails with error when authType identity and Azure Cloud Shell api and IDENTITY_ENDPOINT, but userName option specified',
+    (done) => {
+      process.env = {
+        IDENTITY_ENDPOINT: 'http://localhost:50342/oauth2/token',
+        ACC_CLOUD: 'abc'
+      };
+      jest.spyOn(auth as any, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
+        return Promise.resolve();
+      });
+
+      auth.service.authType = AuthType.Identity;
+      auth.service.userName = 'abc';
+      auth.ensureAccessToken(resource, logger, true).then(() => {
+        done(new Error('something is wrong'));
+      }, (err) => {
+        try {
+          assert.notStrictEqual(err.indexOf('Azure Cloud Shell does not support user-managed identity. You can execute the command without the --userName option to login with user identity'), -1);
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      });
+    }
+  );
+
+  it('calls api with correct params using MSI when authType identity and Azure Cloud Shell api',
+    (done) => {
+      process.env = {
+        MSI_ENDPOINT: 'http://localhost:50342/oauth2/token'
+      };
+      jest.spyOn(auth as any, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      const requestStub = jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
+        return Promise.resolve({
+          "access_token": "eyJ0eXAiOiJKV1QiLCJ...",
+          "client_id": "a04566df-9a65-4e90-ae3d-574572a16423",
+          "expires_in": "86399",
+          "expires_on": "1587847593",
+          "ext_expires_in": "86399",
+          "not_before": "1587760893",
+          "resource": "https://contoso.sharepoint.com/",
+          "token_type": "Bearer"
+        });
+      });
+
+      auth.service.authType = AuthType.Identity;
+      auth.service.userName = undefined;
+      auth.ensureAccessToken(resource, logger, true).then(() => {
+        try {
+          assert.strictEqual(requestStub.mock.lastCall[0].url, 'http://localhost:50342/oauth2/token?resource=https%3A%2F%2Fcontoso.sharepoint.com');
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers.Metadata, true);
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers['x-anonymous'], true);
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
+
+  it('fails with error when authType identity and Azure Cloud Shell api and MSI_ENDPOINT, but userName option specified',
+    (done) => {
+      process.env = {
+        MSI_ENDPOINT: 'http://localhost:50342/oauth2/token',
+        ACC_CLOUD: 'abc'
+      };
+      jest.spyOn(auth as any, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
+        return Promise.resolve();
+      });
+
+      auth.service.authType = AuthType.Identity;
+      auth.service.userName = 'abc';
+      auth.ensureAccessToken(resource, logger, true).then(() => {
+        done(new Error('something is wrong'));
+      }, (err) => {
+        try {
+          assert.notStrictEqual(err.indexOf('Azure Cloud Shell does not support user-managed identity. You can execute the command without the --userName option to login with user identity'), -1);
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      });
+    }
+  );
+
+  it('handles error when using system managed identity flow when authType identity and Azure Function api',
+    (done) => {
+      process.env.IDENTITY_ENDPOINT = 'http://127.0.0.1:41932/MSI/token/';
+      process.env.IDENTITY_HEADER = 'AFBA957766234A0CA9F3B6FA3D9582C7';
+      jest.spyOn(auth as any, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      const requestStub = jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
+        return Promise.reject({ error: { "StatusCode": 400, "Message": "No Managed Identity found for specified ClientId/ResourceId/PrincipalId.", "CorrelationId": "0507ee4d-c15f-421a-b96b-e71e351bc69a" } });
+      });
+
+      auth.service.authType = AuthType.Identity;
+      auth.service.userName = undefined;
+      auth.ensureAccessToken(resource, logger, true).then(() => {
+        done(new Error('something is wrong'));
+      }, (err) => {
+        try {
+          assert.strictEqual(requestStub.mock.lastCall[0].url, 'http://127.0.0.1:41932/MSI/token/?resource=https%3A%2F%2Fcontoso.sharepoint.com&api-version=2019-08-01');
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers.Metadata, true);
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers['x-anonymous'], true);
+          assert.notStrictEqual(err.error.Message.indexOf('No Managed Identity found'), -1);
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      });
+    }
+  );
+
+  it('calls api with correct params using user-assigned managed identity flow when authType identity and client_id and Azure Functions api',
+    (done) => {
+      process.env.IDENTITY_ENDPOINT = 'http://127.0.0.1:41932/MSI/token/';
+      process.env.IDENTITY_HEADER = 'AFBA957766234A0CA9F3B6FA3D9582C7';
+      jest.spyOn(auth as any, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      const requestStub = jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
+        return Promise.resolve({
+          "access_token": "eyJ0eXAiOiJKV1QiLCJ...",
+          "client_id": "a04566df-9a65-4e90-ae3d-574572a16423",
+          "expires_in": "86399",
+          "expires_on": "1587847593",
+          "ext_expires_in": "86399",
+          "not_before": "1587760893",
+          "resource": "https://contoso.sharepoint.com/",
+          "token_type": "Bearer"
+        });
+      });
+
+      auth.service.authType = AuthType.Identity;
+      auth.service.userName = 'a04566df-9a65-4e90-ae3d-574572a16423';
+      auth.ensureAccessToken(resource, logger, true).then(() => {
+        try {
+          assert.strictEqual(requestStub.mock.lastCall[0].url, 'http://127.0.0.1:41932/MSI/token/?resource=https%3A%2F%2Fcontoso.sharepoint.com&api-version=2019-08-01&client_id=a04566df-9a65-4e90-ae3d-574572a16423');
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers.Metadata, true);
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers['x-anonymous'], true);
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
+
+  it('calls api with correct params using user-assigned managed identity flow when authType identity and principal_id and Azure Functions api',
+    (done) => {
+      process.env.IDENTITY_ENDPOINT = 'http://127.0.0.1:41932/MSI/token/';
+      process.env.IDENTITY_HEADER = 'AFBA957766234A0CA9F3B6FA3D9582C7';
+      jest.spyOn(auth as any, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      const requestStub = jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
+
+        if ((opts.url as string).indexOf('&client_id=') !== -1) {
+
+          return Promise.reject({ error: { "StatusCode": 400, "Message": "No Managed Identity found for specified ClientId/ResourceId/PrincipalId.", "CorrelationId": "0507ee4d-c15f-421a-b96b-e71e351bc69a" } });
+        }
+
+        return Promise.resolve({ "access_token": "eyJ0eXA", "expires_on": "1587849030", "resource": "https://contoso.sharepoint.com", "token_type": "Bearer", "client_id": "A04566DF-9A65-4E90-AE3D-574572A16423" });
+      });
+
+      auth.service.authType = AuthType.Identity;
+      auth.service.userName = 'a04566df-9a65-4e90-ae3d-574572a16423';
+      auth.ensureAccessToken(resource, logger, true).then(() => {
+        try {
+          assert.strictEqual(requestStub.mock.lastCall[0].url, 'http://127.0.0.1:41932/MSI/token/?resource=https%3A%2F%2Fcontoso.sharepoint.com&api-version=2019-08-01&principal_id=a04566df-9a65-4e90-ae3d-574572a16423');
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers.Metadata, true);
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers['x-anonymous'], true);
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
+
+  it('handles error when using user-assigned managed identity flow when authType identity and principal_id and Azure Functions api',
+    (done) => {
+      process.env.IDENTITY_ENDPOINT = 'http://127.0.0.1:41932/MSI/token/';
+      process.env.IDENTITY_HEADER = 'AFBA957766234A0CA9F3B6FA3D9582C7';
+      jest.spyOn(auth as any, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      const requestStub = jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
+
+        if ((opts.url as string).indexOf('&client_id=') !== -1) {
+
+          return Promise.reject({ error: { "StatusCode": 400, "Message": "No Managed Identity found for specified ClientId/ResourceId/PrincipalId.", "CorrelationId": "0507ee4d-c15f-421a-b96b-e71e351bc69a" } });
+        }
 
         return Promise.reject({ error: { "StatusCode": 400, "Message": "No Managed Identity found for specified ClientId/ResourceId/PrincipalId.", "CorrelationId": "0507ee4d-c15f-421a-b96b-e71e351bc69a" } });
-      }
+      });
 
-      return Promise.resolve({ "access_token": "eyJ0eXA", "expires_on": "1587849030", "resource": "https://contoso.sharepoint.com", "token_type": "Bearer", "client_id": "A04566DF-9A65-4E90-AE3D-574572A16423" });
-    });
+      auth.service.authType = AuthType.Identity;
+      auth.service.userName = 'a04566df-9a65-4e90-ae3d-574572a16423';
+      auth.ensureAccessToken(resource, logger, true).then(() => {
+        done(new Error('something is wrong'));
+      }, (err) => {
+        try {
+          assert.strictEqual(requestStub.mock.lastCall[0].url, 'http://127.0.0.1:41932/MSI/token/?resource=https%3A%2F%2Fcontoso.sharepoint.com&api-version=2019-08-01&principal_id=a04566df-9a65-4e90-ae3d-574572a16423');
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers.Metadata, true);
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers['x-anonymous'], true);
+          assert.notStrictEqual(err.error.Message.indexOf('No Managed Identity found'), -1);
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      });
+    }
+  );
 
-    auth.service.authType = AuthType.Identity;
-    auth.service.userName = 'a04566df-9a65-4e90-ae3d-574572a16423';
-    auth.ensureAccessToken(resource, logger, true).then(() => {
-      try {
-        assert.strictEqual(requestStub.lastCall.args[0].url, 'http://127.0.0.1:41932/MSI/token/?resource=https%3A%2F%2Fcontoso.sharepoint.com&api-version=2019-08-01&principal_id=a04566df-9a65-4e90-ae3d-574572a16423');
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers.Metadata, true);
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers['x-anonymous'], true);
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
+  it('handles EACCES error when using user-assigned managed identity flow when authType identity and principal_id and Azure Functions api',
+    (done) => {
+      process.env.IDENTITY_ENDPOINT = 'http://127.0.0.1:41932/MSI/token/';
+      process.env.IDENTITY_HEADER = 'AFBA957766234A0CA9F3B6FA3D9582C7';
+      jest.spyOn(auth as any, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      const requestStub = jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
 
-  it('handles error when using user-assigned managed identity flow when authType identity and principal_id and Azure Functions api', (done) => {
-    process.env.IDENTITY_ENDPOINT = 'http://127.0.0.1:41932/MSI/token/';
-    process.env.IDENTITY_HEADER = 'AFBA957766234A0CA9F3B6FA3D9582C7';
-    sinon.stub(auth as any, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    const requestStub = sinon.stub(request, 'get').callsFake((opts) => {
+        if ((opts.url as string).indexOf('&client_id=') !== -1) {
 
-      if ((opts.url as string).indexOf('&client_id=') !== -1) {
+          return Promise.reject({ error: { "StatusCode": 400, "Message": "No Managed Identity found for specified ClientId/ResourceId/PrincipalId.", "CorrelationId": "0507ee4d-c15f-421a-b96b-e71e351bc69a" } });
+        }
 
-        return Promise.reject({ error: { "StatusCode": 400, "Message": "No Managed Identity found for specified ClientId/ResourceId/PrincipalId.", "CorrelationId": "0507ee4d-c15f-421a-b96b-e71e351bc69a" } });
-      }
+        return Promise.reject({ error: { "errno": "EACCES", "code": "EACCES", "syscall": "connect", "address": "169.254.169.254", "port": 80 } });
+      });
 
-      return Promise.reject({ error: { "StatusCode": 400, "Message": "No Managed Identity found for specified ClientId/ResourceId/PrincipalId.", "CorrelationId": "0507ee4d-c15f-421a-b96b-e71e351bc69a" } });
-    });
+      auth.service.authType = AuthType.Identity;
+      auth.service.userName = 'a04566df-9a65-4e90-ae3d-574572a16423';
+      auth.ensureAccessToken(resource, logger, false).then(() => {
+        done(new Error('something is wrong'));
+      }, (err) => {
+        try {
+          assert.strictEqual(requestStub.mock.lastCall[0].url, 'http://127.0.0.1:41932/MSI/token/?resource=https%3A%2F%2Fcontoso.sharepoint.com&api-version=2019-08-01&principal_id=a04566df-9a65-4e90-ae3d-574572a16423');
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers.Metadata, true);
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers['x-anonymous'], true);
+          assert.notStrictEqual(err.indexOf('Error while logging with Managed Identity. Please check if a Managed Identity is assigned to the current Azure resource.'), -1);
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      });
+    }
+  );
 
-    auth.service.authType = AuthType.Identity;
-    auth.service.userName = 'a04566df-9a65-4e90-ae3d-574572a16423';
-    auth.ensureAccessToken(resource, logger, true).then(() => {
-      done(new Error('something is wrong'));
-    }, (err) => {
-      try {
-        assert.strictEqual(requestStub.lastCall.args[0].url, 'http://127.0.0.1:41932/MSI/token/?resource=https%3A%2F%2Fcontoso.sharepoint.com&api-version=2019-08-01&principal_id=a04566df-9a65-4e90-ae3d-574572a16423');
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers.Metadata, true);
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers['x-anonymous'], true);
-        assert.notStrictEqual(err.error.Message.indexOf('No Managed Identity found'), -1);
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    });
-  });
+  it('handles undefined error when using user-assigned managed identity flow when authType identity and client_id and Azure Functions api',
+    (done) => {
+      process.env.IDENTITY_ENDPOINT = 'http://127.0.0.1:41932/MSI/token/';
+      process.env.IDENTITY_HEADER = 'AFBA957766234A0CA9F3B6FA3D9582C7';
+      jest.spyOn(auth as any, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      const requestStub = jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
+        return Promise.reject({ error: { "error": "invalid_request", "error_description": "Undefined" } });
+      });
 
-  it('handles EACCES error when using user-assigned managed identity flow when authType identity and principal_id and Azure Functions api', (done) => {
-    process.env.IDENTITY_ENDPOINT = 'http://127.0.0.1:41932/MSI/token/';
-    process.env.IDENTITY_HEADER = 'AFBA957766234A0CA9F3B6FA3D9582C7';
-    sinon.stub(auth as any, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    const requestStub = sinon.stub(request, 'get').callsFake((opts) => {
+      auth.service.authType = AuthType.Identity;
+      auth.service.userName = 'a04566df-9a65-4e90-ae3d-574572a16423';
+      auth.ensureAccessToken(resource, logger, true).then(() => {
+        done(new Error('something is wrong'));
+      }, (err) => {
+        try {
+          assert.strictEqual(requestStub.mock.lastCall[0].url, 'http://127.0.0.1:41932/MSI/token/?resource=https%3A%2F%2Fcontoso.sharepoint.com&api-version=2019-08-01&client_id=a04566df-9a65-4e90-ae3d-574572a16423');
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers.Metadata, true);
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers['x-anonymous'], true);
+          assert.notStrictEqual(err.error.error_description.indexOf('Undefined'), -1);
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      });
+    }
+  );
 
-      if ((opts.url as string).indexOf('&client_id=') !== -1) {
+  it('handles undefined error when using user-assigned managed identity flow when authType identity and principal_id and Azure Functions api',
+    (done) => {
+      process.env.IDENTITY_ENDPOINT = 'http://127.0.0.1:41932/MSI/token/';
+      process.env.IDENTITY_HEADER = 'AFBA957766234A0CA9F3B6FA3D9582C7';
+      jest.spyOn(auth as any, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      const requestStub = jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
+        if ((opts.url as string).indexOf('&client_id=') !== -1) {
 
-        return Promise.reject({ error: { "StatusCode": 400, "Message": "No Managed Identity found for specified ClientId/ResourceId/PrincipalId.", "CorrelationId": "0507ee4d-c15f-421a-b96b-e71e351bc69a" } });
-      }
+          return Promise.reject({ error: { "StatusCode": 400, "Message": "No Managed Identity found for specified ClientId/ResourceId/PrincipalId.", "CorrelationId": "0507ee4d-c15f-421a-b96b-e71e351bc69a" } });
+        }
+        return Promise.reject({ error: { "error": "Undefined" } });
+      });
 
-      return Promise.reject({ error: { "errno": "EACCES", "code": "EACCES", "syscall": "connect", "address": "169.254.169.254", "port": 80 } });
-    });
+      auth.service.authType = AuthType.Identity;
+      auth.service.userName = 'a04566df-9a65-4e90-ae3d-574572a16423';
+      auth.ensureAccessToken(resource, logger, true).then(() => {
+        done(new Error('something is wrong'));
+      }, (err) => {
+        try {
+          assert.strictEqual(requestStub.mock.lastCall[0].url, 'http://127.0.0.1:41932/MSI/token/?resource=https%3A%2F%2Fcontoso.sharepoint.com&api-version=2019-08-01&principal_id=a04566df-9a65-4e90-ae3d-574572a16423');
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers.Metadata, true);
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers['x-anonymous'], true);
+          assert.notStrictEqual(err.error.error.indexOf('Undefined'), -1);
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      });
+    }
+  );
 
-    auth.service.authType = AuthType.Identity;
-    auth.service.userName = 'a04566df-9a65-4e90-ae3d-574572a16423';
-    auth.ensureAccessToken(resource, logger, false).then(() => {
-      done(new Error('something is wrong'));
-    }, (err) => {
-      try {
-        assert.strictEqual(requestStub.lastCall.args[0].url, 'http://127.0.0.1:41932/MSI/token/?resource=https%3A%2F%2Fcontoso.sharepoint.com&api-version=2019-08-01&principal_id=a04566df-9a65-4e90-ae3d-574572a16423');
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers.Metadata, true);
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers['x-anonymous'], true);
-        assert.notStrictEqual(err.indexOf('Error while logging with Managed Identity. Please check if a Managed Identity is assigned to the current Azure resource.'), -1);
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    });
-  });
+  it('calls api with correct params using system managed identity flow when authType identity and Azure Function api using the old env variables',
+    (done) => {
+      process.env = {
+        MSI_ENDPOINT: 'http://127.0.0.1:41932/MSI/token/',
+        MSI_SECRET: 'AFBA957766234A0CA9F3B6FA3D9582C7'
+      };
+      jest.spyOn(auth as any, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      const requestStub = jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
+        return Promise.resolve(JSON.stringify({
+          "access_token": "eyJ0eXAiOiJKV1QiLCJ...",
+          "client_id": "a04566df-9a65-4e90-ae3d-574572a16423",
+          "expires_in": "86399",
+          "expires_on": "1587847593",
+          "ext_expires_in": "86399",
+          "not_before": "1587760893",
+          "resource": "https://contoso.sharepoint.com/",
+          "token_type": "Bearer"
+        }));
+      });
 
-  it('handles undefined error when using user-assigned managed identity flow when authType identity and client_id and Azure Functions api', (done) => {
-    process.env.IDENTITY_ENDPOINT = 'http://127.0.0.1:41932/MSI/token/';
-    process.env.IDENTITY_HEADER = 'AFBA957766234A0CA9F3B6FA3D9582C7';
-    sinon.stub(auth as any, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    const requestStub = sinon.stub(request, 'get').callsFake(() => {
-      return Promise.reject({ error: { "error": "invalid_request", "error_description": "Undefined" } });
-    });
-
-    auth.service.authType = AuthType.Identity;
-    auth.service.userName = 'a04566df-9a65-4e90-ae3d-574572a16423';
-    auth.ensureAccessToken(resource, logger, true).then(() => {
-      done(new Error('something is wrong'));
-    }, (err) => {
-      try {
-        assert.strictEqual(requestStub.lastCall.args[0].url, 'http://127.0.0.1:41932/MSI/token/?resource=https%3A%2F%2Fcontoso.sharepoint.com&api-version=2019-08-01&client_id=a04566df-9a65-4e90-ae3d-574572a16423');
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers.Metadata, true);
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers['x-anonymous'], true);
-        assert.notStrictEqual(err.error.error_description.indexOf('Undefined'), -1);
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    });
-  });
-
-  it('handles undefined error when using user-assigned managed identity flow when authType identity and principal_id and Azure Functions api', (done) => {
-    process.env.IDENTITY_ENDPOINT = 'http://127.0.0.1:41932/MSI/token/';
-    process.env.IDENTITY_HEADER = 'AFBA957766234A0CA9F3B6FA3D9582C7';
-    sinon.stub(auth as any, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    const requestStub = sinon.stub(request, 'get').callsFake((opts) => {
-      if ((opts.url as string).indexOf('&client_id=') !== -1) {
-
-        return Promise.reject({ error: { "StatusCode": 400, "Message": "No Managed Identity found for specified ClientId/ResourceId/PrincipalId.", "CorrelationId": "0507ee4d-c15f-421a-b96b-e71e351bc69a" } });
-      }
-      return Promise.reject({ error: { "error": "Undefined" } });
-    });
-
-    auth.service.authType = AuthType.Identity;
-    auth.service.userName = 'a04566df-9a65-4e90-ae3d-574572a16423';
-    auth.ensureAccessToken(resource, logger, true).then(() => {
-      done(new Error('something is wrong'));
-    }, (err) => {
-      try {
-        assert.strictEqual(requestStub.lastCall.args[0].url, 'http://127.0.0.1:41932/MSI/token/?resource=https%3A%2F%2Fcontoso.sharepoint.com&api-version=2019-08-01&principal_id=a04566df-9a65-4e90-ae3d-574572a16423');
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers.Metadata, true);
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers['x-anonymous'], true);
-        assert.notStrictEqual(err.error.error.indexOf('Undefined'), -1);
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    });
-  });
-
-  it('calls api with correct params using system managed identity flow when authType identity and Azure Function api using the old env variables', (done) => {
-    process.env = {
-      MSI_ENDPOINT: 'http://127.0.0.1:41932/MSI/token/',
-      MSI_SECRET: 'AFBA957766234A0CA9F3B6FA3D9582C7'
-    };
-    sinon.stub(auth as any, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    const requestStub = sinon.stub(request, 'get').callsFake(() => {
-      return Promise.resolve(JSON.stringify({
-        "access_token": "eyJ0eXAiOiJKV1QiLCJ...",
-        "client_id": "a04566df-9a65-4e90-ae3d-574572a16423",
-        "expires_in": "86399",
-        "expires_on": "1587847593",
-        "ext_expires_in": "86399",
-        "not_before": "1587760893",
-        "resource": "https://contoso.sharepoint.com/",
-        "token_type": "Bearer"
-      }));
-    });
-
-    auth.service.authType = AuthType.Identity;
-    auth.service.userName = undefined;
-    auth.ensureAccessToken(resource, logger, true).then(() => {
-      try {
-        assert.strictEqual(requestStub.lastCall.args[0].url, 'http://127.0.0.1:41932/MSI/token/?resource=https%3A%2F%2Fcontoso.sharepoint.com&api-version=2019-08-01');
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers.Metadata, true);
-        assert.strictEqual((requestStub.lastCall.args[0] as any).headers['x-anonymous'], true);
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
+      auth.service.authType = AuthType.Identity;
+      auth.service.userName = undefined;
+      auth.ensureAccessToken(resource, logger, true).then(() => {
+        try {
+          assert.strictEqual(requestStub.mock.lastCall[0].url, 'http://127.0.0.1:41932/MSI/token/?resource=https%3A%2F%2Fcontoso.sharepoint.com&api-version=2019-08-01');
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers.Metadata, true);
+          assert.strictEqual((requestStub.mock.lastCall[0] as any).headers['x-anonymous'], true);
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
 
   it('returns access token if persisting connection fails', (done) => {
-    sinon.stub(auth as any, 'getClientApplication').callsFake(_ => publicApplication);
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.reject('An error has occurred'));
-    sinon.stub(publicApplication, 'acquireTokenByDeviceCode').callsFake(_ => Promise.resolve({
+    jest.spyOn(auth as any, 'getClientApplication').mockClear().mockImplementation(_ => publicApplication);
+    jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+    jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.reject('An error has occurred'));
+    jest.spyOn(publicApplication, 'acquireTokenByDeviceCode').mockClear().mockImplementation(_ => Promise.resolve({
       expiresOn: new Date(),
       accessToken: 'acc'
     } as any));
@@ -1844,28 +1943,30 @@ describe('Auth', () => {
     });
   });
 
-  it('logs error message if persisting connection fails in debug mode', (done) => {
-    sinon.stub(auth as any, 'getClientApplication').callsFake(_ => publicApplication);
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.reject('An error has occurred'));
-    sinon.stub(publicApplication, 'acquireTokenByDeviceCode').callsFake(_ => Promise.resolve({
-      expiresOn: new Date(),
-      accessToken: 'acc'
-    } as any));
+  it('logs error message if persisting connection fails in debug mode',
+    (done) => {
+      jest.spyOn(auth as any, 'getClientApplication').mockClear().mockImplementation(_ => publicApplication);
+      jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.reject('An error has occurred'));
+      jest.spyOn(publicApplication, 'acquireTokenByDeviceCode').mockClear().mockImplementation(_ => Promise.resolve({
+        expiresOn: new Date(),
+        accessToken: 'acc'
+      } as any));
 
-    auth.ensureAccessToken(resource, logger, true).then((accessToken) => {
-      try {
-        assert.strictEqual(accessToken, 'acc');
-        assert(loggerLogToStderrSpy.calledWith(new CommandError('An error has occurred')));
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
+      auth.ensureAccessToken(resource, logger, true).then((accessToken) => {
+        try {
+          assert.strictEqual(accessToken, 'acc');
+          assert(loggerLogToStderrSpy.calledWith(new CommandError('An error has occurred')));
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
 
   it('configures FileTokenStorage as token storage', (done) => {
     const actual = auth.getTokenStorage();
@@ -1891,7 +1992,7 @@ describe('Auth', () => {
   });
 
   it('restores authentication', (done) => {
-    sinon.stub(auth as any, 'getServiceConnectionInfo').callsFake(() => Promise.resolve({
+    jest.spyOn(auth as any, 'getServiceConnectionInfo').mockClear().mockImplementation(() => Promise.resolve({
       connected: true
     }));
 
@@ -1911,7 +2012,7 @@ describe('Auth', () => {
   });
 
   it(`doesn't restore authentication when already restored`, (done) => {
-    const getServiceConnectionInfoStub = sinon.stub(auth as any, 'getServiceConnectionInfo').callsFake(() => Promise.resolve());
+    const getServiceConnectionInfoStub = jest.spyOn(auth as any, 'getServiceConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
     auth.service.connected = true;
 
     auth
@@ -1928,7 +2029,7 @@ describe('Auth', () => {
   });
 
   it('handles error when restoring authentication', (done) => {
-    sinon.stub(auth as any, 'getServiceConnectionInfo').callsFake(() => Promise.reject('An error has occurred'));
+    jest.spyOn(auth as any, 'getServiceConnectionInfo').mockClear().mockImplementation(() => Promise.reject('An error has occurred'));
 
     auth
       .restoreAuth()
@@ -1945,27 +2046,29 @@ describe('Auth', () => {
       });
   });
 
-  it('doesn\'t fail when restoring authentication from an incorrect JSON string', (done) => {
-    const mockStorage = {
-      get: () => Promise.resolve('abc')
-    };
-    sinon.stub(auth, 'getTokenStorage').callsFake(() => mockStorage as any);
+  it('doesn\'t fail when restoring authentication from an incorrect JSON string',
+    (done) => {
+      const mockStorage = {
+        get: () => Promise.resolve('abc')
+      };
+      jest.spyOn(auth, 'getTokenStorage').mockClear().mockImplementation(() => mockStorage as any);
 
-    auth
-      .restoreAuth()
-      .then(() => {
-        assert.strictEqual(auth.service.connected, false);
-        done();
-      }, (err) => {
-        done(err);
-      });
-  });
+      auth
+        .restoreAuth()
+        .then(() => {
+          assert.strictEqual(auth.service.connected, false);
+          done();
+        }, (err) => {
+          done(err);
+        });
+    }
+  );
 
   it('doesn\'t fail when restoring authentication failed', (done) => {
     const mockStorage = {
       get: () => Promise.reject('abc')
     };
-    sinon.stub(auth, 'getTokenStorage').callsFake(() => mockStorage as any);
+    jest.spyOn(auth, 'getTokenStorage').mockClear().mockImplementation(() => mockStorage as any);
 
     auth
       .restoreAuth()
@@ -1977,42 +2080,46 @@ describe('Auth', () => {
       });
   });
 
-  it('stores connection information in the configured token storage', (done) => {
-    const mockStorage = new MockTokenStorage();
-    const mockStorageSetStub = sinon.stub(mockStorage, 'set').callsFake(() => Promise.resolve());
-    sinon.stub(auth, 'getTokenStorage').callsFake(() => mockStorage);
+  it('stores connection information in the configured token storage',
+    (done) => {
+      const mockStorage = new MockTokenStorage();
+      const mockStorageSetStub = jest.spyOn(mockStorage, 'set').mockClear().mockImplementation(() => Promise.resolve());
+      jest.spyOn(auth, 'getTokenStorage').mockClear().mockImplementation(() => mockStorage);
 
-    auth
-      .storeConnectionInfo()
-      .then(() => {
-        try {
-          assert(mockStorageSetStub.called);
-          done();
-        }
-        catch (e) {
-          done(e);
-        }
-      });
-  });
+      auth
+        .storeConnectionInfo()
+        .then(() => {
+          try {
+            assert(mockStorageSetStub.called);
+            done();
+          }
+          catch (e) {
+            done(e);
+          }
+        });
+    }
+  );
 
-  it('clears connection information in the configured token storage', (done) => {
-    const mockStorage = new MockTokenStorage();
-    const mockStorageRemoveStub = sinon.stub(mockStorage, 'remove').callsFake(() => Promise.resolve());
-    sinon.stub(auth, 'getTokenStorage').callsFake(() => mockStorage);
-    sinon.stub(auth as any, 'getMsalCacheStorage').callsFake(() => mockStorage);
+  it('clears connection information in the configured token storage',
+    (done) => {
+      const mockStorage = new MockTokenStorage();
+      const mockStorageRemoveStub = jest.spyOn(mockStorage, 'remove').mockClear().mockImplementation(() => Promise.resolve());
+      jest.spyOn(auth, 'getTokenStorage').mockClear().mockImplementation(() => mockStorage);
+      jest.spyOn(auth as any, 'getMsalCacheStorage').mockClear().mockImplementation(() => mockStorage);
 
-    auth
-      .clearConnectionInfo()
-      .then(() => {
-        try {
-          assert(mockStorageRemoveStub.calledTwice, 'token storage or MSAL cache not cleared');
-          done();
-        }
-        catch (e) {
-          done(e);
-        }
-      });
-  });
+      auth
+        .clearConnectionInfo()
+        .then(() => {
+          try {
+            assert(mockStorageRemoveStub.calledTwice, 'token storage or MSAL cache not cleared');
+            done();
+          }
+          catch (e) {
+            done(e);
+          }
+        });
+    }
+  );
 
   it('resets connection information on logout', () => {
     auth.service.connected = true;
@@ -2047,13 +2154,17 @@ describe('Auth', () => {
     assert.strictEqual(auth.defaultResource, 'https://graph.microsoft.com');
   });
 
-  it('correctly retrieves resource from the root SharePoint site URL without trailing slash', () => {
-    assert.strictEqual(Auth.getResourceFromUrl('https://contoso.sharepoint.com'), 'https://contoso.sharepoint.com');
-  });
+  it('correctly retrieves resource from the root SharePoint site URL without trailing slash',
+    () => {
+      assert.strictEqual(Auth.getResourceFromUrl('https://contoso.sharepoint.com'), 'https://contoso.sharepoint.com');
+    }
+  );
 
-  it('correctly retrieves resource from the root SharePoint site URL with trailing slash', () => {
-    assert.strictEqual(Auth.getResourceFromUrl('https://contoso.sharepoint.com/'), 'https://contoso.sharepoint.com');
-  });
+  it('correctly retrieves resource from the root SharePoint site URL with trailing slash',
+    () => {
+      assert.strictEqual(Auth.getResourceFromUrl('https://contoso.sharepoint.com/'), 'https://contoso.sharepoint.com');
+    }
+  );
 
   it('correctly retrieves resource from a SharePoint subsite', () => {
     assert.strictEqual(Auth.getResourceFromUrl('https://contoso.sharepoint.com/subsite'), 'https://contoso.sharepoint.com');
@@ -2075,9 +2186,11 @@ describe('Auth', () => {
     assert.strictEqual(Auth.getResourceFromUrl('https://api.powerbi.com'), 'https://analysis.windows.net/powerbi/api');
   });
 
-  it('returns undefined if access token is not set when determining auth type', () => {
-    assert.strictEqual(accessToken.isAppOnlyAccessToken(''), undefined);
-  });
+  it('returns undefined if access token is not set when determining auth type',
+    () => {
+      assert.strictEqual(accessToken.isAppOnlyAccessToken(''), undefined);
+    }
+  );
 
   it(`returns undefined if access token is not valid`, () => {
     assert.strictEqual(accessToken.isAppOnlyAccessToken('123.456'), undefined);
@@ -2095,12 +2208,14 @@ describe('Auth', () => {
     assert(actualClientApp instanceof msal.PublicClientApplication);
   });
 
-  it('changes tenant for a multitenant app for password auth to organizations', async () => {
-    auth.service.authType = AuthType.Password;
-    auth.service.tenant = 'common';
-    await (auth as any).getClientApplication(logger, false);
-    assert.strictEqual(auth.service.tenant, 'organizations');
-  });
+  it('changes tenant for a multitenant app for password auth to organizations',
+    async () => {
+      auth.service.authType = AuthType.Password;
+      auth.service.tenant = 'common';
+      await (auth as any).getClientApplication(logger, false);
+      assert.strictEqual(auth.service.tenant, 'organizations');
+    }
+  );
 
   it('returns public client for browser auth', async () => {
     auth.service.authType = AuthType.Browser;
@@ -2122,36 +2237,38 @@ describe('Auth', () => {
     assert(actualClientApp instanceof msal.ConfidentialClientApplication);
   });
 
-  it('retrieves token using client secret flow when authType "secret" specified', (done) => {
-    auth.service.authType = AuthType.Secret;
-    auth.service.secret = "SomeSecretValue";
+  it('retrieves token using client secret flow when authType "secret" specified',
+    (done) => {
+      auth.service.authType = AuthType.Secret;
+      auth.service.secret = "SomeSecretValue";
 
-    let acquireTokenByClientCredentialStub: any;
-    let originalGetConfidentialClient = (auth as any).getConfidentialClient;
-    originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
-    sinon.stub(auth as any, 'getConfidentialClient').callsFake(async (logger, debug, thumbprint, cert, clientSecret) => {
-      const confidentialApplication = await originalGetConfidentialClient(logger, debug, undefined, undefined, clientSecret);
-      acquireTokenByClientCredentialStub = sinon.stub(confidentialApplication, 'acquireTokenByClientCredential').callsFake(_ => Promise.resolve({
-        expiresOn: new Date(),
-        accessToken: 'acc'
-      } as any));
-      return confidentialApplication;
-    });
-    sinon.stub(tokenCache, 'getAllAccounts').callsFake(() => []);
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
+      let acquireTokenByClientCredentialStub: any;
+      let originalGetConfidentialClient = (auth as any).getConfidentialClient;
+      originalGetConfidentialClient = originalGetConfidentialClient.bind(auth);
+      jest.spyOn(auth as any, 'getConfidentialClient').mockClear().mockImplementation(async (logger, debug, thumbprint, cert, clientSecret) => {
+        const confidentialApplication = await originalGetConfidentialClient(logger, debug, undefined, undefined, clientSecret);
+        acquireTokenByClientCredentialStub = jest.spyOn(confidentialApplication, 'acquireTokenByClientCredential').mockClear().mockImplementation().mockImplementation(_ => Promise.resolve({
+          expiresOn: new Date(),
+          accessToken: 'acc'
+        } as any));
+        return confidentialApplication;
+      });
+      jest.spyOn(tokenCache, 'getAllAccounts').mockClear().mockImplementation(() => []);
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
 
-    auth.ensureAccessToken(resource, logger).then(() => {
-      try {
-        assert(acquireTokenByClientCredentialStub.called);
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    }, (err) => {
-      done(err);
-    });
-  });
+      auth.ensureAccessToken(resource, logger).then(() => {
+        try {
+          assert(acquireTokenByClientCredentialStub.called);
+          done();
+        }
+        catch (e) {
+          done(e);
+        }
+      }, (err) => {
+        done(err);
+      });
+    }
+  );
 
   it('configures cloud for auth to AzureChina for China cloud', async () => {
     auth.service.cloudType = CloudType.China;
@@ -2159,21 +2276,27 @@ describe('Auth', () => {
     assert.strictEqual(actual.auth.azureCloudOptions?.azureCloudInstance, msal.AzureCloudInstance.AzureChina);
   });
 
-  it('configures cloud for auth to AzureUsGovernment for USGov cloud', async () => {
-    auth.service.cloudType = CloudType.USGov;
-    const actual: msal.Configuration = await (auth as any).getAuthClientConfiguration(logger, false);
-    assert.strictEqual(actual.auth.azureCloudOptions?.azureCloudInstance, msal.AzureCloudInstance.AzureUsGovernment);
-  });
+  it('configures cloud for auth to AzureUsGovernment for USGov cloud',
+    async () => {
+      auth.service.cloudType = CloudType.USGov;
+      const actual: msal.Configuration = await (auth as any).getAuthClientConfiguration(logger, false);
+      assert.strictEqual(actual.auth.azureCloudOptions?.azureCloudInstance, msal.AzureCloudInstance.AzureUsGovernment);
+    }
+  );
 
-  it('configures cloud for auth to AzureUsGovernment for USGovHigh cloud', async () => {
-    auth.service.cloudType = CloudType.USGovHigh;
-    const actual: msal.Configuration = await (auth as any).getAuthClientConfiguration(logger, false);
-    assert.strictEqual(actual.auth.azureCloudOptions?.azureCloudInstance, msal.AzureCloudInstance.AzureUsGovernment);
-  });
+  it('configures cloud for auth to AzureUsGovernment for USGovHigh cloud',
+    async () => {
+      auth.service.cloudType = CloudType.USGovHigh;
+      const actual: msal.Configuration = await (auth as any).getAuthClientConfiguration(logger, false);
+      assert.strictEqual(actual.auth.azureCloudOptions?.azureCloudInstance, msal.AzureCloudInstance.AzureUsGovernment);
+    }
+  );
 
-  it('configures cloud for auth to AzureUsGovernment for USGovDoD cloud', async () => {
-    auth.service.cloudType = CloudType.USGovDoD;
-    const actual: msal.Configuration = await (auth as any).getAuthClientConfiguration(logger, false);
-    assert.strictEqual(actual.auth.azureCloudOptions?.azureCloudInstance, msal.AzureCloudInstance.AzureUsGovernment);
-  });
+  it('configures cloud for auth to AzureUsGovernment for USGovDoD cloud',
+    async () => {
+      auth.service.cloudType = CloudType.USGovDoD;
+      const actual: msal.Configuration = await (auth as any).getAuthClientConfiguration(logger, false);
+      assert.strictEqual(actual.auth.azureCloudOptions?.azureCloudInstance, msal.AzureCloudInstance.AzureUsGovernment);
+    }
+  );
 });

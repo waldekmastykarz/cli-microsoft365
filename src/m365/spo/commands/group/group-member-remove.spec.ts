@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import spoGroupMemberListCommand from './group-member-list.js';
 import command from './group-member-remove.js';
@@ -50,12 +49,12 @@ describe(commands.GROUP_MEMBER_REMOVE, () => {
     userPrincipalName: email
   };
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').callsFake(() => Promise.resolve());
-    sinon.stub(telemetry, 'trackEvent').callsFake(() => { });
-    sinon.stub(pid, 'getProcessName').callsFake(() => '');
-    sinon.stub(session, 'getId').callsFake(() => '');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation(() => Promise.resolve());
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockImplementation(() => { });
+    jest.spyOn(pid, 'getProcessName').mockClear().mockImplementation(() => '');
+    jest.spyOn(session, 'getId').mockClear().mockImplementation(() => '');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -76,7 +75,7 @@ describe(commands.GROUP_MEMBER_REMOVE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post,
       Cli.prompt,
@@ -85,8 +84,8 @@ describe(commands.GROUP_MEMBER_REMOVE, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -98,102 +97,108 @@ describe(commands.GROUP_MEMBER_REMOVE, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('Removes Azure AD group from SharePoint group using Azure AD Group Name', async () => {
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+  it('Removes Azure AD group from SharePoint group using Azure AD Group Name',
+    async () => {
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command): Promise<any> => {
-      if (command === spoGroupMemberListCommand) {
-        return ({
-          stdout: spoGroupMemberListCommandOutput
-        });
-      }
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command): Promise<any> => {
+        if (command === spoGroupMemberListCommand) {
+          return ({
+            stdout: spoGroupMemberListCommandOutput
+          });
+        }
 
-      throw new CommandError('Unknown case');
-    });
+        throw new CommandError('Unknown case');
+      });
 
-    const postStub = sinon.stub(request, 'post').callsFake(async opts => {
-      if ((opts.url as string).indexOf('/_api/web/sitegroups/GetByName') > -1) {
-        return UserRemovalJSONResponse;
-      }
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
+        if ((opts.url as string).indexOf('/_api/web/sitegroups/GetByName') > -1) {
+          return UserRemovalJSONResponse;
+        }
 
-      throw `Invalid request ${JSON.stringify(opts)}`;
-    });
-    await command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: "https://contoso.sharepoint.com/sites/SiteA",
-        groupName: "Site A Visitors",
-        aadGroupName: "Azure AD Security Group"
-      }
-    });
-    assert(postStub.called);
-  });
+        throw `Invalid request ${JSON.stringify(opts)}`;
+      });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: "https://contoso.sharepoint.com/sites/SiteA",
+          groupName: "Site A Visitors",
+          aadGroupName: "Azure AD Security Group"
+        }
+      });
+      assert(postStub.called);
+    }
+  );
 
-  it('Removes Azure AD group from SharePoint group using Azure AD Group ID - Without Confirmation Prompt', async () => {
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command): Promise<any> => {
-      if (command === spoGroupMemberListCommand) {
-        return ({
-          stdout: spoGroupMemberListCommandOutput
-        });
-      }
+  it('Removes Azure AD group from SharePoint group using Azure AD Group ID - Without Confirmation Prompt',
+    async () => {
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command): Promise<any> => {
+        if (command === spoGroupMemberListCommand) {
+          return ({
+            stdout: spoGroupMemberListCommandOutput
+          });
+        }
 
-      throw new CommandError('Unknown case');
-    });
+        throw new CommandError('Unknown case');
+      });
 
-    const postStub = sinon.stub(request, 'post').callsFake(async opts => {
-      if ((opts.url as string).indexOf('/_api/web/sitegroups/GetByName') > -1) {
-        return UserRemovalJSONResponse;
-      }
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
+        if ((opts.url as string).indexOf('/_api/web/sitegroups/GetByName') > -1) {
+          return UserRemovalJSONResponse;
+        }
 
-      throw `Invalid request ${JSON.stringify(opts)}`;
-    });
-    await command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: "https://contoso.sharepoint.com/sites/SiteA",
-        groupName: "Site A Visitors",
-        aadGroupId: "5786b8e8-c495-4734-b345-756733960730",
-        force: true
-      }
-    });
-    assert(postStub.called);
-  });
+        throw `Invalid request ${JSON.stringify(opts)}`;
+      });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: "https://contoso.sharepoint.com/sites/SiteA",
+          groupName: "Site A Visitors",
+          aadGroupId: "5786b8e8-c495-4734-b345-756733960730",
+          force: true
+        }
+      });
+      assert(postStub.called);
+    }
+  );
 
-  it('Removes Azure AD group from SharePoint group using Azure AD Group ID and SharePoint Group ID', async () => {
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+  it('Removes Azure AD group from SharePoint group using Azure AD Group ID and SharePoint Group ID',
+    async () => {
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command): Promise<any> => {
-      if (command === spoGroupMemberListCommand) {
-        return ({
-          stdout: spoGroupMemberListCommandOutput
-        });
-      }
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command): Promise<any> => {
+        if (command === spoGroupMemberListCommand) {
+          return ({
+            stdout: spoGroupMemberListCommandOutput
+          });
+        }
 
-      throw new CommandError('Unknown case');
-    });
+        throw new CommandError('Unknown case');
+      });
 
-    const postStub = sinon.stub(request, 'post').callsFake(async opts => {
-      if ((opts.url as string).indexOf('/_api/web/sitegroups/GetById') > -1) {
-        return UserRemovalJSONResponse;
-      }
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
+        if ((opts.url as string).indexOf('/_api/web/sitegroups/GetById') > -1) {
+          return UserRemovalJSONResponse;
+        }
 
-      throw `Invalid request ${JSON.stringify(opts)}`;
-    });
-    await command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: "https://contoso.sharepoint.com/sites/SiteA",
-        groupId: 4,
-        aadGroupId: "4b468129-3b44-4414-bd45-aa5bde29df2f"
-      }
-    });
-    assert(postStub.called);
-  });
+        throw `Invalid request ${JSON.stringify(opts)}`;
+      });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: "https://contoso.sharepoint.com/sites/SiteA",
+          groupId: 4,
+          aadGroupId: "4b468129-3b44-4414-bd45-aa5bde29df2f"
+        }
+      });
+      assert(postStub.called);
+    }
+  );
 
   it('Throws error when Azure AD group not found', async () => {
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command): Promise<any> => {
+    jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command): Promise<any> => {
       if (command === spoGroupMemberListCommand) {
         return ({
           stdout: spoGroupMemberListCommandOutput
@@ -214,24 +219,26 @@ describe(commands.GROUP_MEMBER_REMOVE, () => {
     }), new CommandError('The Azure AD group Not existing group is not found in SharePoint group Site A Visitors'));
   });
 
-  it('Removes user from SharePoint group using Group ID - Without Confirmation Prompt', async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(async opts => {
-      if ((opts.url as string).indexOf('/_api/web/sitegroups/GetById') > -1) {
-        return UserRemovalJSONResponse;
-      }
+  it('Removes user from SharePoint group using Group ID - Without Confirmation Prompt',
+    async () => {
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
+        if ((opts.url as string).indexOf('/_api/web/sitegroups/GetById') > -1) {
+          return UserRemovalJSONResponse;
+        }
 
-      throw `Invalid request ${JSON.stringify(opts)}`;
-    });
-    await command.action(logger, {
-      options: {
-        webUrl: "https://contoso.sharepoint.com/sites/SiteA",
-        groupId: 4,
-        userName: "Alex.Wilber@contoso.com",
-        force: true
-      }
-    });
-    assert(postStub.called);
-  });
+        throw `Invalid request ${JSON.stringify(opts)}`;
+      });
+      await command.action(logger, {
+        options: {
+          webUrl: "https://contoso.sharepoint.com/sites/SiteA",
+          groupId: 4,
+          userName: "Alex.Wilber@contoso.com",
+          force: true
+        }
+      });
+      assert(postStub.called);
+    }
+  );
 
   it('fails validation if the userName is not a valid UPN.', async () => {
     const actual = await command.validate({
@@ -256,7 +263,7 @@ describe(commands.GROUP_MEMBER_REMOVE, () => {
   });
 
   it('fails validation if groupId and groupName is entered', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -275,121 +282,133 @@ describe(commands.GROUP_MEMBER_REMOVE, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if neither groupId nor groupName is entered', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if neither groupId nor groupName is entered',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        webUrl: webUrl,
-        userName: userName
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          webUrl: webUrl,
+          userName: userName
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if both userId and email options are passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both userId and email options are passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        webUrl: webUrl,
-        groupId: groupId,
-        userId: userId,
-        email: email
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          webUrl: webUrl,
+          groupId: groupId,
+          userId: userId,
+          email: email
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if both userName and email options are passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both userName and email options are passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        webUrl: webUrl,
-        groupId: groupId,
-        email: email,
-        userName: userName
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          webUrl: webUrl,
+          groupId: groupId,
+          email: email,
+          userName: userName
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if both userName and userId options are passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both userName and userId options are passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        webUrl: webUrl,
-        groupId: groupId,
-        userId: userId,
-        userName: userName
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          webUrl: webUrl,
+          groupId: groupId,
+          userId: userId,
+          userName: userName
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if both email and userId options are passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both email and userId options are passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        webUrl: webUrl,
-        groupId: groupId,
-        email: email,
-        userId: userId
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          webUrl: webUrl,
+          groupId: groupId,
+          email: email,
+          userId: userId
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if userName, email, and userId options are not passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if userName, email, and userId options are not passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        webUrl: webUrl,
-        groupId: groupId
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          webUrl: webUrl,
+          groupId: groupId
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if groupId is Invalid', async () => {
     const actual = await command.validate({
@@ -413,218 +432,236 @@ describe(commands.GROUP_MEMBER_REMOVE, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('passes validation if all the required options are specified', async () => {
-    const actual = await command.validate({
-      options: {
-        webUrl: webUrl,
-        groupId: groupId,
-        userName: userName
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if all the required options are specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          webUrl: webUrl,
+          groupId: groupId,
+          userName: userName
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('removes user from SharePoint group by groupId and userName with confirm option (debug)', async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+  it('removes user from SharePoint group by groupId and userName with confirm option (debug)',
+    async () => {
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        const loginName: string = `i:0#.f|membership|${userName}`;
+        if (opts.url === `${webUrl}/_api/web/sitegroups/GetById('${groupId}')/users/removeByLoginName(@LoginName)?@LoginName='${formatting.encodeQueryParameter(loginName)}'`) {
+          return UserRemovalJSONResponse;
+        }
+
+        return `Invalid request ${JSON.stringify(opts)}`;
+      });
+
+      await command.action(logger, {
+        options: {
+          debug: true,
+          verbose: true,
+          webUrl: webUrl,
+          groupId: groupId,
+          userName: userName,
+          force: true
+        }
+      });
+
+      assert(postStub.called);
+    }
+  );
+
+  it('removes user from SharePoint group by groupId and userName when confirm option not passed',
+    async () => {
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: true }
+      ));
+
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        const loginName: string = `i:0#.f|membership|${userName}`;
+        if (opts.url === `${webUrl}/_api/web/sitegroups/GetById('${groupId}')/users/removeByLoginName(@LoginName)?@LoginName='${formatting.encodeQueryParameter(loginName)}'`) {
+          return UserRemovalJSONResponse;
+        }
+
+        return `Invalid request ${JSON.stringify(opts)}`;
+      });
+
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          webUrl: webUrl,
+          groupId: groupId,
+          userName: userName,
+          force: false
+        }
+      });
+
+      assert(postStub.called);
+    }
+  );
+
+  it('removes user from SharePoint group by groupId and userId when confirm option not passed',
+    async () => {
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: true }
+      ));
+
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/sitegroups/GetById('${groupId}')/users/removeById(${userId})`) {
+          return UserRemovalJSONResponse;
+        }
+
+        return `Invalid request ${JSON.stringify(opts)}`;
+      });
+
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          webUrl: webUrl,
+          groupId: groupId,
+          userId: userId,
+          force: false
+        }
+      });
+
+      assert(postStub.called);
+    }
+  );
+
+  it('removes user from SharePoint group by groupId and email when confirm option not passed',
+    async () => {
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: true }
+      ));
+
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(() => Promise.resolve({
+        stdout: JSON.stringify(userInformation),
+        stderr: ''
+      }));
+
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        const loginName: string = `i:0#.f|membership|${userName}`;
+        if (opts.url === `${webUrl}/_api/web/sitegroups/GetById('${groupId}')/users/removeByLoginName(@LoginName)?@LoginName='${formatting.encodeQueryParameter(loginName)}'`) {
+          return UserRemovalJSONResponse;
+        }
+
+        return `Invalid request ${JSON.stringify(opts)}`;
+      });
+
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          webUrl: webUrl,
+          groupId: groupId,
+          email: email,
+          force: false
+        }
+      });
+
+      assert(postStub.called);
+    }
+  );
+
+  it('removes user from SharePoint group by groupName and userId with confirm option',
+    async () => {
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/sitegroups/GetByName('${formatting.encodeQueryParameter(groupName)}')/users/removeById(${userId})`) {
+          return UserRemovalJSONResponse;
+        }
+
+        return `Invalid request ${JSON.stringify(opts)}`;
+      });
+
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          webUrl: webUrl,
+          groupName: groupName,
+          userId: userId,
+          force: true
+        }
+      });
+
+      assert(postStub.called);
+    }
+  );
+
+  it('removes user from SharePoint group by groupName and email with confirm option',
+    async () => {
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(() => Promise.resolve({
+        stdout: JSON.stringify(userInformation),
+        stderr: ''
+      }));
+
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        const loginName: string = `i:0#.f|membership|${userName}`;
+        if (opts.url === `${webUrl}/_api/web/sitegroups/GetByName('${formatting.encodeQueryParameter(groupName)}')/users/removeByLoginName(@LoginName)?@LoginName='${formatting.encodeQueryParameter(loginName)}'`) {
+          return UserRemovalJSONResponse;
+        }
+
+        return `Invalid request ${JSON.stringify(opts)}`;
+      });
+
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          webUrl: webUrl,
+          groupName: groupName,
+          email: email,
+          force: true
+        }
+      });
+
+      assert(postStub.called);
+    }
+  );
+
+  it('aborts removing user from SharePoint group when prompt not confirmed',
+    async () => {
+      const postSpy = jest.spyOn(request, 'post').mockClear();
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: false }
+      ));
+
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          webUrl: webUrl,
+          groupId: groupId,
+          userName: userName,
+          force: false
+        }
+      });
+      assert(postSpy.notCalled);
+    }
+  );
+
+  it('correctly handles error when removing user from the group using groupId and userName',
+    async () => {
       const loginName: string = `i:0#.f|membership|${userName}`;
-      if (opts.url === `${webUrl}/_api/web/sitegroups/GetById('${groupId}')/users/removeByLoginName(@LoginName)?@LoginName='${formatting.encodeQueryParameter(loginName)}'`) {
-        return UserRemovalJSONResponse;
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/sitegroups/GetById('${groupId}')/users/removeByLoginName(@LoginName)?@LoginName='${formatting.encodeQueryParameter(loginName)}'`) {
+          return Promise.reject('The user does not exist or is not unique.');
+        }
 
-      return `Invalid request ${JSON.stringify(opts)}`;
-    });
+        return Promise.reject('Invalid request');
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        verbose: true,
-        webUrl: webUrl,
-        groupId: groupId,
-        userName: userName,
-        force: true
-      }
-    });
-
-    assert(postStub.called);
-  });
-
-  it('removes user from SharePoint group by groupId and userName when confirm option not passed', async () => {
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: true }
-    ));
-
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      const loginName: string = `i:0#.f|membership|${userName}`;
-      if (opts.url === `${webUrl}/_api/web/sitegroups/GetById('${groupId}')/users/removeByLoginName(@LoginName)?@LoginName='${formatting.encodeQueryParameter(loginName)}'`) {
-        return UserRemovalJSONResponse;
-      }
-
-      return `Invalid request ${JSON.stringify(opts)}`;
-    });
-
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        webUrl: webUrl,
-        groupId: groupId,
-        userName: userName,
-        force: false
-      }
-    });
-
-    assert(postStub.called);
-  });
-
-  it('removes user from SharePoint group by groupId and userId when confirm option not passed', async () => {
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: true }
-    ));
-
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/sitegroups/GetById('${groupId}')/users/removeById(${userId})`) {
-        return UserRemovalJSONResponse;
-      }
-
-      return `Invalid request ${JSON.stringify(opts)}`;
-    });
-
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        webUrl: webUrl,
-        groupId: groupId,
-        userId: userId,
-        force: false
-      }
-    });
-
-    assert(postStub.called);
-  });
-
-  it('removes user from SharePoint group by groupId and email when confirm option not passed', async () => {
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: true }
-    ));
-
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(() => Promise.resolve({
-      stdout: JSON.stringify(userInformation),
-      stderr: ''
-    }));
-
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      const loginName: string = `i:0#.f|membership|${userName}`;
-      if (opts.url === `${webUrl}/_api/web/sitegroups/GetById('${groupId}')/users/removeByLoginName(@LoginName)?@LoginName='${formatting.encodeQueryParameter(loginName)}'`) {
-        return UserRemovalJSONResponse;
-      }
-
-      return `Invalid request ${JSON.stringify(opts)}`;
-    });
-
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        webUrl: webUrl,
-        groupId: groupId,
-        email: email,
-        force: false
-      }
-    });
-
-    assert(postStub.called);
-  });
-
-  it('removes user from SharePoint group by groupName and userId with confirm option', async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/sitegroups/GetByName('${formatting.encodeQueryParameter(groupName)}')/users/removeById(${userId})`) {
-        return UserRemovalJSONResponse;
-      }
-
-      return `Invalid request ${JSON.stringify(opts)}`;
-    });
-
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        webUrl: webUrl,
-        groupName: groupName,
-        userId: userId,
-        force: true
-      }
-    });
-
-    assert(postStub.called);
-  });
-
-  it('removes user from SharePoint group by groupName and email with confirm option', async () => {
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(() => Promise.resolve({
-      stdout: JSON.stringify(userInformation),
-      stderr: ''
-    }));
-
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      const loginName: string = `i:0#.f|membership|${userName}`;
-      if (opts.url === `${webUrl}/_api/web/sitegroups/GetByName('${formatting.encodeQueryParameter(groupName)}')/users/removeByLoginName(@LoginName)?@LoginName='${formatting.encodeQueryParameter(loginName)}'`) {
-        return UserRemovalJSONResponse;
-      }
-
-      return `Invalid request ${JSON.stringify(opts)}`;
-    });
-
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        webUrl: webUrl,
-        groupName: groupName,
-        email: email,
-        force: true
-      }
-    });
-
-    assert(postStub.called);
-  });
-
-  it('aborts removing user from SharePoint group when prompt not confirmed', async () => {
-    const postSpy = sinon.spy(request, 'post');
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: false }
-    ));
-
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        webUrl: webUrl,
-        groupId: groupId,
-        userName: userName,
-        force: false
-      }
-    });
-    assert(postSpy.notCalled);
-  });
-
-  it('correctly handles error when removing user from the group using groupId and userName', async () => {
-    const loginName: string = `i:0#.f|membership|${userName}`;
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/sitegroups/GetById('${groupId}')/users/removeByLoginName(@LoginName)?@LoginName='${formatting.encodeQueryParameter(loginName)}'`) {
-        return Promise.reject('The user does not exist or is not unique.');
-      }
-
-      return Promise.reject('Invalid request');
-    });
-
-    await assert.rejects(command.action(logger, {
-      options: {
-        verbose: true,
-        webUrl: webUrl,
-        groupId: groupId,
-        userName: userName,
-        force: true
-      }
-    }), new CommandError('The user does not exist or is not unique.'));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          verbose: true,
+          webUrl: webUrl,
+          groupId: groupId,
+          userName: userName,
+          force: true
+        }
+      }), new CommandError('The user does not exist or is not unique.'));
+    }
+  );
 
   it('fails validation if webURL is Invalid', async () => {
     const actual = await command.validate({ options: { webUrl: "InvalidWEBURL", groupId: 4, userName: "Alex.Wilber@contoso.com" } }, commandInfo);
@@ -632,7 +669,7 @@ describe(commands.GROUP_MEMBER_REMOVE, () => {
   });
 
   it('fails validation if groupid and groupName is entered', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }

@@ -1,7 +1,6 @@
 import assert from 'assert';
 import fs from 'fs';
-import sinon from 'sinon';
-import { sinonUtil } from '../../../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../../../utils/jestUtil.js';
 import { Project } from '../../project-model/index.js';
 import { Finding } from '../../report-model/Finding.js';
 import { FileAddRemoveRule } from './FileAddRemoveRule.js';
@@ -21,32 +20,36 @@ describe('FileAddRemoveRule', () => {
   let rule: FileAddRemoveRule;
 
   afterEach(() => {
-    sinonUtil.restore(fs.existsSync);
+    jestUtil.restore(fs.existsSync);
   });
 
   beforeEach(() => {
     findings = [];
   });
 
-  it('doesn\'t return notification if the file doesn\'t exist and should be deleted', () => {
-    sinon.stub(fs, 'existsSync').callsFake(() => false);
-    rule = new FileAddRule(false);
-    const project: Project = {
-      path: '/usr/tmp'
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it('doesn\'t return notification if the file doesn\'t exist and should be deleted',
+    () => {
+      jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(() => false);
+      rule = new FileAddRule(false);
+      const project: Project = {
+        path: '/usr/tmp'
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
-  it('doesn\'t return notification if the file exists and should be added', () => {
-    sinon.stub(fs, 'existsSync').callsFake(() => true);
-    rule = new FileAddRule(true);
-    const project: Project = {
-      path: '/usr/tmp'
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it('doesn\'t return notification if the file exists and should be added',
+    () => {
+      jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(() => true);
+      rule = new FileAddRule(true);
+      const project: Project = {
+        path: '/usr/tmp'
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
   it('adjusts description when the file should be created', () => {
     rule = new FileAddRule(true);

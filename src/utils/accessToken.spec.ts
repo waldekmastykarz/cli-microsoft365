@@ -2,25 +2,33 @@ import assert from 'assert';
 import { accessToken } from '../utils/accessToken.js';
 
 describe('utils/accessToken', () => {
-  it('isAppOnlyAccessToken returns undefined when access token is undefined', () => {
-    const actual = accessToken.isAppOnlyAccessToken(undefined as any);
-    assert.strictEqual(actual, undefined);
-  });
+  it('isAppOnlyAccessToken returns undefined when access token is undefined',
+    () => {
+      const actual = accessToken.isAppOnlyAccessToken(undefined as any);
+      assert.strictEqual(actual, undefined);
+    }
+  );
 
-  it('isAppOnlyAccessToken returns undefined when access token is empty', () => {
-    const actual = accessToken.isAppOnlyAccessToken('');
-    assert.strictEqual(actual, undefined);
-  });
+  it('isAppOnlyAccessToken returns undefined when access token is empty',
+    () => {
+      const actual = accessToken.isAppOnlyAccessToken('');
+      assert.strictEqual(actual, undefined);
+    }
+  );
 
-  it('isAppOnlyAccessToken returns undefined when access token is invalid', () => {
-    const actual = accessToken.isAppOnlyAccessToken('abc.def');
-    assert.strictEqual(actual, undefined);
-  });
+  it('isAppOnlyAccessToken returns undefined when access token is invalid',
+    () => {
+      const actual = accessToken.isAppOnlyAccessToken('abc.def');
+      assert.strictEqual(actual, undefined);
+    }
+  );
 
-  it('isAppOnlyAccessToken returns undefined when non base64 access token passed', () => {
-    const actual = accessToken.isAppOnlyAccessToken('abc.def.ghi');
-    assert.strictEqual(actual, undefined);
-  });
+  it('isAppOnlyAccessToken returns undefined when non base64 access token passed',
+    () => {
+      const actual = accessToken.isAppOnlyAccessToken('abc.def.ghi');
+      assert.strictEqual(actual, undefined);
+    }
+  );
 
   it('isAppOnlyAccessToken returns true when access token is valid', () => {
     const jwt = JSON.stringify({

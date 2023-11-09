@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './group-get.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -18,15 +17,15 @@ describe(commands.GROUP_GET, () => {
   let cli: Cli;
   let log: any[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -44,18 +43,18 @@ describe(commands.GROUP_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -68,7 +67,7 @@ describe(commands.GROUP_GET, () => {
   });
 
   it('retrieves group by id with output option json', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/sitegroups/GetById') > -1) {
         return {
           "value": [{
@@ -117,7 +116,7 @@ describe(commands.GROUP_GET, () => {
   });
 
   it('retrieves group by name with output option json', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/sitegroups/GetByName') > -1) {
         return {
           "value": [{
@@ -174,7 +173,7 @@ describe(commands.GROUP_GET, () => {
       PrincipalType: 8
     };
 
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url!.endsWith('/_api/web/AssociatedOwnerGroup')) {
         return ownerGroupResponse;
       }
@@ -199,7 +198,7 @@ describe(commands.GROUP_GET, () => {
       PrincipalType: 8
     };
 
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url!.endsWith('/_api/web/AssociatedMemberGroup')) {
         return memberGroupResponse;
       }
@@ -224,7 +223,7 @@ describe(commands.GROUP_GET, () => {
       PrincipalType: 8
     };
 
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url!.endsWith('/_api/web/AssociatedVisitorGroup')) {
         return visitorGroupResponse;
       }
@@ -251,7 +250,7 @@ describe(commands.GROUP_GET, () => {
         }
       }
     };
-    sinon.stub(request, 'get').rejects(error);
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, {
       options: {
@@ -260,41 +259,47 @@ describe(commands.GROUP_GET, () => {
     } as any), new CommandError('An error has occurred'));
   });
 
-  it('fails validation if the url option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', id: 1 } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the url option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', id: 1 } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if associatedGroup has an invalid value', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', associatedGroup: 'invalid' } }, commandInfo);
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if both id and name options are not passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both id and name options are not passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if id and name both are passed(multiple options)', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if id and name both are passed(multiple options)',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: 7, name: "Team Site Members" } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: 7, name: "Team Site Members" } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the specified ID is not a number', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: 'a' } }, commandInfo);

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './user-recyclebinitem-remove.js';
 
@@ -21,11 +20,11 @@ describe(commands.USER_RECYCLEBINITEM_REMOVE, () => {
   let promptOptions: any;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -43,7 +42,7 @@ describe(commands.USER_RECYCLEBINITEM_REMOVE, () => {
         log.push(msg);
       }
     };
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
@@ -52,14 +51,14 @@ describe(commands.USER_RECYCLEBINITEM_REMOVE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.delete,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -72,10 +71,10 @@ describe(commands.USER_RECYCLEBINITEM_REMOVE, () => {
   });
 
   it('removes the user when prompt confirmed', async () => {
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    const deleteStub = sinon.stub(request, 'delete').callsFake(async (opts) => {
+    const deleteStub = jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/directory/deletedItems/${validUserId}`) {
         return;
       }
@@ -87,7 +86,7 @@ describe(commands.USER_RECYCLEBINITEM_REMOVE, () => {
   });
 
   it('removes the user without prompting the user', async () => {
-    const deleteStub = sinon.stub(request, 'delete').callsFake(async (opts) => {
+    const deleteStub = jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/directory/deletedItems/${validUserId}`) {
         return;
       }
@@ -109,16 +108,16 @@ describe(commands.USER_RECYCLEBINITEM_REMOVE, () => {
   });
 
   it('aborts removing users when prompt not confirmed', async () => {
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: false });
-    const deleteStub = sinon.stub(request, 'delete').resolves();
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: false });
+    const deleteStub = jest.spyOn(request, 'delete').mockClear().mockImplementation().resolves();
 
     await command.action(logger, { options: { id: validUserId } });
     assert(deleteStub.notCalled);
   });
 
   it('correctly handles API error', async () => {
-    sinon.stub(request, 'delete').rejects({
+    jest.spyOn(request, 'delete').mockClear().mockImplementation().rejects({
       error: {
         error: {
           code: 'Request_ResourceNotFound',

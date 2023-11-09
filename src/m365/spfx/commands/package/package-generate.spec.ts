@@ -1,6 +1,5 @@
 import assert from 'assert';
 import fs from 'fs';
-import sinon from 'sinon';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
 import { Logger } from '../../../../cli/Logger.js';
@@ -8,7 +7,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { fsUtil } from '../../../../utils/fsUtil.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './package-generate.js';
 
@@ -26,10 +25,10 @@ describe(commands.PACKAGE_GENERATE, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     (command as any).archive = admZipMock;
     commandInfo = Cli.getCommandInfo(command);
     Cli.getInstance().config;
@@ -48,14 +47,14 @@ describe(commands.PACKAGE_GENERATE, () => {
         log.push(msg);
       }
     };
-    sinon.stub(fs, 'mkdtempSync').callsFake(_ => '/tmp/abc');
-    sinon.stub(fsUtil, 'readdirR').callsFake(_ => ['file1.png', 'file.json']);
-    sinon.stub(fs, 'readFileSync').callsFake(_ => 'abc');
-    sinon.stub(fs, 'writeFileSync').callsFake(_ => { });
-    sinon.stub(fs, 'rmdirSync').callsFake(_ => { });
-    sinon.stub(fs, 'mkdirSync').callsFake(_ => '/tmp/abc/def');
-    sinon.stub(fs, 'copyFileSync').callsFake(_ => { });
-    sinon.stub(fs, 'statSync').callsFake(src => {
+    jest.spyOn(fs, 'mkdtempSync').mockClear().mockImplementation(_ => '/tmp/abc');
+    jest.spyOn(fsUtil, 'readdirR').mockClear().mockImplementation(_ => ['file1.png', 'file.json']);
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(_ => 'abc');
+    jest.spyOn(fs, 'writeFileSync').mockClear().mockImplementation(_ => { });
+    jest.spyOn(fs, 'rmdirSync').mockClear().mockImplementation(_ => { });
+    jest.spyOn(fs, 'mkdirSync').mockClear().mockImplementation(_ => '/tmp/abc/def');
+    jest.spyOn(fs, 'copyFileSync').mockClear().mockImplementation(_ => { });
+    jest.spyOn(fs, 'statSync').mockClear().mockImplementation(src => {
       return {
         isDirectory: () => src.toString().indexOf('.') < 0
       } as any;
@@ -63,7 +62,7 @@ describe(commands.PACKAGE_GENERATE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       (command as any).generateNewId,
       admZipMock.addFile,
       admZipMock.addLocalFile,
@@ -80,8 +79,8 @@ describe(commands.PACKAGE_GENERATE, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
   });
 
   it('has correct name', () => {
@@ -93,7 +92,7 @@ describe(commands.PACKAGE_GENERATE, () => {
   });
 
   it('creates a package for the specified HTML snippet', async () => {
-    const archiveWriteZipSpy = sinon.spy(admZipMock, 'writeZip');
+    const archiveWriteZipSpy = jest.spyOn(admZipMock, 'writeZip').mockClear();
     await command.action(logger, {
       options: {
         webPartTitle: 'Amsterdam weather',
@@ -108,7 +107,7 @@ describe(commands.PACKAGE_GENERATE, () => {
   });
 
   it('creates a package for the specified HTML snippet (debug)', async () => {
-    const archiveWriteZipSpy = sinon.spy(admZipMock, 'writeZip');
+    const archiveWriteZipSpy = jest.spyOn(admZipMock, 'writeZip').mockClear();
     await command.action(logger, {
       options: {
         webPartTitle: 'Amsterdam weather',
@@ -124,9 +123,9 @@ describe(commands.PACKAGE_GENERATE, () => {
   });
 
   it('creates a package exposed as a Teams tab', async () => {
-    sinonUtil.restore([fs.readFileSync, fs.writeFileSync]);
-    sinon.stub(fs, 'readFileSync').callsFake(_ => '$supportedHosts$');
-    const fsWriteFileSyncSpy = sinon.stub(fs, 'writeFileSync').callsFake(_ => { });
+    jestUtil.restore([fs.readFileSync, fs.writeFileSync]);
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(_ => '$supportedHosts$');
+    const fsWriteFileSyncSpy = jest.spyOn(fs, 'writeFileSync').mockClear().mockImplementation(_ => { });
     await command.action(logger, {
       options: {
         webPartTitle: 'Amsterdam weather',
@@ -141,9 +140,9 @@ describe(commands.PACKAGE_GENERATE, () => {
   });
 
   it('creates a package exposed as a Teams personal app', async () => {
-    sinonUtil.restore([fs.readFileSync, fs.writeFileSync]);
-    sinon.stub(fs, 'readFileSync').callsFake(_ => '$supportedHosts$');
-    const fsWriteFileSyncSpy = sinon.stub(fs, 'writeFileSync').callsFake(_ => { });
+    jestUtil.restore([fs.readFileSync, fs.writeFileSync]);
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(_ => '$supportedHosts$');
+    const fsWriteFileSyncSpy = jest.spyOn(fs, 'writeFileSync').mockClear().mockImplementation(_ => { });
     await command.action(logger, {
       options: {
         webPartTitle: 'Amsterdam weather',
@@ -158,9 +157,9 @@ describe(commands.PACKAGE_GENERATE, () => {
   });
 
   it('creates a package exposed as a Teams tab and personal app', async () => {
-    sinonUtil.restore([fs.readFileSync, fs.writeFileSync]);
-    sinon.stub(fs, 'readFileSync').callsFake(_ => '$supportedHosts$');
-    const fsWriteFileSyncSpy = sinon.stub(fs, 'writeFileSync').callsFake(_ => { });
+    jestUtil.restore([fs.readFileSync, fs.writeFileSync]);
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(_ => '$supportedHosts$');
+    const fsWriteFileSyncSpy = jest.spyOn(fs, 'writeFileSync').mockClear().mockImplementation(_ => { });
     await command.action(logger, {
       options: {
         webPartTitle: 'Amsterdam weather',
@@ -175,9 +174,9 @@ describe(commands.PACKAGE_GENERATE, () => {
   });
 
   it('handles exception when creating a temp folder failed', async () => {
-    sinonUtil.restore(fs.mkdtempSync);
-    sinon.stub(fs, 'mkdtempSync').throws(new Error('An error has occurred'));
-    const archiveWriteZipSpy = sinon.spy(admZipMock, 'writeZip');
+    jestUtil.restore(fs.mkdtempSync);
+    jest.spyOn(fs, 'mkdtempSync').mockClear().mockImplementation().throws(new Error('An error has occurred'));
+    const archiveWriteZipSpy = jest.spyOn(admZipMock, 'writeZip').mockClear();
     await assert.rejects(command.action(logger, {
       options: {
         webPartTitle: 'Amsterdam weather',
@@ -192,7 +191,7 @@ describe(commands.PACKAGE_GENERATE, () => {
   });
 
   it('handles error when creating the package failed', async () => {
-    sinon.stub(admZipMock, 'writeZip').throws(new Error('An error has occurred'));
+    jest.spyOn(admZipMock, 'writeZip').mockClear().mockImplementation().throws(new Error('An error has occurred'));
     await assert.rejects(command.action(logger, {
       options: {
         webPartTitle: 'Amsterdam weather',
@@ -205,26 +204,28 @@ describe(commands.PACKAGE_GENERATE, () => {
     }), (err) => err === 'An error has occurred');
   });
 
-  it('removes the temp directory after the package has been created', async () => {
-    sinonUtil.restore(fs.rmdirSync);
-    const fsrmdirSyncSpy = sinon.stub(fs, 'rmdirSync').callsFake(_ => { });
-    await command.action(logger, {
-      options: {
-        webPartTitle: 'Amsterdam weather',
-        webPartDescription: 'Shows weather in Amsterdam',
-        name: 'amsterdam-weather',
-        html: 'abc',
-        allowTenantWideDeployment: true,
-        enableForTeams: 'all'
-      }
-    });
-    assert(fsrmdirSyncSpy.called);
-  });
+  it('removes the temp directory after the package has been created',
+    async () => {
+      jestUtil.restore(fs.rmdirSync);
+      const fsrmdirSyncSpy = jest.spyOn(fs, 'rmdirSync').mockClear().mockImplementation(_ => { });
+      await command.action(logger, {
+        options: {
+          webPartTitle: 'Amsterdam weather',
+          webPartDescription: 'Shows weather in Amsterdam',
+          name: 'amsterdam-weather',
+          html: 'abc',
+          allowTenantWideDeployment: true,
+          enableForTeams: 'all'
+        }
+      });
+      assert(fsrmdirSyncSpy.called);
+    }
+  );
 
   it('removes the temp directory if creating the package failed', async () => {
-    sinonUtil.restore(fs.rmdirSync);
-    const fsrmdirSyncSpy = sinon.stub(fs, 'rmdirSync').callsFake(_ => { });
-    sinon.stub(admZipMock, 'writeZip').throws(new Error('An error has occurred'));
+    jestUtil.restore(fs.rmdirSync);
+    const fsrmdirSyncSpy = jest.spyOn(fs, 'rmdirSync').mockClear().mockImplementation(_ => { });
+    jest.spyOn(admZipMock, 'writeZip').mockClear().mockImplementation().throws(new Error('An error has occurred'));
     await assert.rejects(command.action(logger, {
       options: {
         webPartTitle: 'Amsterdam weather',
@@ -238,25 +239,27 @@ describe(commands.PACKAGE_GENERATE, () => {
     assert(fsrmdirSyncSpy.called);
   });
 
-  it('prompts user to remove the temp directory manually if removing it automatically failed', async () => {
-    sinonUtil.restore(fs.rmdirSync);
-    sinon.stub(fs, 'rmdirSync').throws(new Error('An error has occurred'));
-    await assert.rejects(command.action(logger, {
-      options: {
-        webPartTitle: 'Amsterdam weather',
-        webPartDescription: 'Shows weather in Amsterdam',
-        name: 'amsterdam-weather',
-        html: 'abc',
-        allowTenantWideDeployment: true,
-        enableForTeams: 'all'
-      }
-    }), (err) => err === 'An error has occurred while removing the temp folder at /tmp/abc. Please remove it manually.');
-  });
+  it('prompts user to remove the temp directory manually if removing it automatically failed',
+    async () => {
+      jestUtil.restore(fs.rmdirSync);
+      jest.spyOn(fs, 'rmdirSync').mockClear().mockImplementation().throws(new Error('An error has occurred'));
+      await assert.rejects(command.action(logger, {
+        options: {
+          webPartTitle: 'Amsterdam weather',
+          webPartDescription: 'Shows weather in Amsterdam',
+          name: 'amsterdam-weather',
+          html: 'abc',
+          allowTenantWideDeployment: true,
+          enableForTeams: 'all'
+        }
+      }), (err) => err === 'An error has occurred while removing the temp folder at /tmp/abc. Please remove it manually.');
+    }
+  );
 
   it('leaves unknown token as-is', async () => {
-    sinonUtil.restore([fs.readFileSync, fs.writeFileSync]);
-    sinon.stub(fs, 'readFileSync').callsFake(_ => '$token$');
-    const fsWriteFileSyncSpy = sinon.stub(fs, 'writeFileSync').callsFake(_ => { });
+    jestUtil.restore([fs.readFileSync, fs.writeFileSync]);
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(_ => '$token$');
+    const fsWriteFileSyncSpy = jest.spyOn(fs, 'writeFileSync').mockClear().mockImplementation(_ => { });
     await command.action(logger, {
       options: {
         webPartTitle: 'Amsterdam weather',
@@ -271,9 +274,9 @@ describe(commands.PACKAGE_GENERATE, () => {
   });
 
   it('exposes page context globally', async () => {
-    sinonUtil.restore([fs.readFileSync, fs.writeFileSync]);
-    sinon.stub(fs, 'readFileSync').callsFake(_ => '$exposePageContextGlobally$');
-    const fsWriteFileSyncSpy = sinon.stub(fs, 'writeFileSync').callsFake(_ => { });
+    jestUtil.restore([fs.readFileSync, fs.writeFileSync]);
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(_ => '$exposePageContextGlobally$');
+    const fsWriteFileSyncSpy = jest.spyOn(fs, 'writeFileSync').mockClear().mockImplementation(_ => { });
     await command.action(logger, {
       options: {
         webPartTitle: 'Amsterdam weather',
@@ -288,9 +291,9 @@ describe(commands.PACKAGE_GENERATE, () => {
   });
 
   it('exposes Teams context globally', async () => {
-    sinonUtil.restore([fs.readFileSync, fs.writeFileSync]);
-    sinon.stub(fs, 'readFileSync').callsFake(_ => '$exposeTeamsContextGlobally$');
-    const fsWriteFileSyncSpy = sinon.stub(fs, 'writeFileSync').callsFake(_ => { });
+    jestUtil.restore([fs.readFileSync, fs.writeFileSync]);
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(_ => '$exposeTeamsContextGlobally$');
+    const fsWriteFileSyncSpy = jest.spyOn(fs, 'writeFileSync').mockClear().mockImplementation(_ => { });
     await command.action(logger, {
       options: {
         webPartTitle: 'Amsterdam weather',
@@ -316,39 +319,45 @@ describe(commands.PACKAGE_GENERATE, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it(`passes validation if the enableForTeams option is set to tab`, async () => {
-    const actual = await command.validate({
-      options: {
-        webPartTitle: 'Amsterdam weather',
-        webPartDescription: 'Shows weather in Amsterdam', name: 'amsterdam-weather',
-        html: '@amsterdam-weather.html', allowTenantWideDeployment: true,
-        enableForTeams: 'tab'
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it(`passes validation if the enableForTeams option is set to tab`,
+    async () => {
+      const actual = await command.validate({
+        options: {
+          webPartTitle: 'Amsterdam weather',
+          webPartDescription: 'Shows weather in Amsterdam', name: 'amsterdam-weather',
+          html: '@amsterdam-weather.html', allowTenantWideDeployment: true,
+          enableForTeams: 'tab'
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it(`passes validation if the enableForTeams option is set to personalApp`, async () => {
-    const actual = await command.validate({
-      options: {
-        webPartTitle: 'Amsterdam weather',
-        webPartDescription: 'Shows weather in Amsterdam', name: 'amsterdam-weather',
-        html: '@amsterdam-weather.html', allowTenantWideDeployment: true,
-        enableForTeams: 'personalApp'
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it(`passes validation if the enableForTeams option is set to personalApp`,
+    async () => {
+      const actual = await command.validate({
+        options: {
+          webPartTitle: 'Amsterdam weather',
+          webPartDescription: 'Shows weather in Amsterdam', name: 'amsterdam-weather',
+          html: '@amsterdam-weather.html', allowTenantWideDeployment: true,
+          enableForTeams: 'personalApp'
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it(`passes validation if the enableForTeams option is set to all`, async () => {
-    const actual = await command.validate({
-      options: {
-        webPartTitle: 'Amsterdam weather',
-        webPartDescription: 'Shows weather in Amsterdam', name: 'amsterdam-weather',
-        html: '@amsterdam-weather.html', allowTenantWideDeployment: true,
-        enableForTeams: 'all'
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it(`passes validation if the enableForTeams option is set to all`,
+    async () => {
+      const actual = await command.validate({
+        options: {
+          webPartTitle: 'Amsterdam weather',
+          webPartDescription: 'Shows weather in Amsterdam', name: 'amsterdam-weather',
+          html: '@amsterdam-weather.html', allowTenantWideDeployment: true,
+          enableForTeams: 'all'
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

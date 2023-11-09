@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './retentioneventtype-set.js';
 
@@ -21,11 +20,11 @@ describe(commands.RETENTIONEVENTTYPE_SET, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.accessTokens[(command as any).resource] = {
       accessToken: 'abc',
@@ -50,13 +49,13 @@ describe(commands.RETENTIONEVENTTYPE_SET, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.patch
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.accessTokens = {};
   });
@@ -74,35 +73,41 @@ describe(commands.RETENTIONEVENTTYPE_SET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation with valid id but no other option specified', async () => {
-    const actual = await command.validate({ options: { id: validId } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation with valid id but no other option specified',
+    async () => {
+      const actual = await command.validate({ options: { id: validId } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation with valid id and a single option specified', async () => {
-    const actual = await command.validate({ options: { id: validId, description: description } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation with valid id and a single option specified',
+    async () => {
+      const actual = await command.validate({ options: { id: validId, description: description } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('correctly sets description of a specific retention event type by id', async () => {
-    const requestBody = {
-      description: description
-    };
+  it('correctly sets description of a specific retention event type by id',
+    async () => {
+      const requestBody = {
+        description: description
+      };
 
-    const patchStub = sinon.stub(request, 'patch').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/security/triggerTypes/retentionEventTypes/${validId}`) {
-        return;
-      }
+      const patchStub = jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/security/triggerTypes/retentionEventTypes/${validId}`) {
+          return;
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    await command.action(logger, { options: { id: validId, description: description, verbose: true } });
-    assert.deepStrictEqual(patchStub.lastCall.args[0].data, requestBody);
-  });
+      await command.action(logger, { options: { id: validId, description: description, verbose: true } });
+      assert.deepStrictEqual(patchStub.mock.lastCall[0].data, requestBody);
+    }
+  );
 
   it('handles error when retention event type does not exist', async () => {
-    sinon.stub(request, 'patch').callsFake(async () => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async () => {
       throw {
         'error': {
           'code': 'UnknownError',

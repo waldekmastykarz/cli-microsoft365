@@ -1,6 +1,5 @@
 import assert from 'assert';
 import fs from 'fs';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './app-get.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -19,15 +18,15 @@ describe(commands.APP_GET, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -45,11 +44,11 @@ describe(commands.APP_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       fs.existsSync,
       fs.readFileSync,
@@ -59,8 +58,8 @@ describe(commands.APP_GET, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -72,130 +71,142 @@ describe(commands.APP_GET, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('handles error when the app specified with the appId not found', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '9b1b1e42-794b-4c71-93ac-5ed92488b67f'&$select=id`) {
-        return { value: [] };
-      }
+  it('handles error when the app specified with the appId not found',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '9b1b1e42-794b-4c71-93ac-5ed92488b67f'&$select=id`) {
+          return { value: [] };
+        }
 
-      throw `Invalid request ${JSON.stringify(opts)}`;
-    });
+        throw `Invalid request ${JSON.stringify(opts)}`;
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f'
-      }
-    }), new CommandError(`No Azure AD application registration with ID 9b1b1e42-794b-4c71-93ac-5ed92488b67f found`));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f'
+        }
+      }), new CommandError(`No Azure AD application registration with ID 9b1b1e42-794b-4c71-93ac-5ed92488b67f found`));
+    }
+  );
 
-  it('handles error when the app with the specified the name not found', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=displayName eq 'My%20app'&$select=id`) {
-        return { value: [] };
-      }
+  it('handles error when the app with the specified the name not found',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=displayName eq 'My%20app'&$select=id`) {
+          return { value: [] };
+        }
 
-      throw `Invalid request ${JSON.stringify(opts)}`;
-    });
+        throw `Invalid request ${JSON.stringify(opts)}`;
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        name: 'My app'
-      }
-    }), new CommandError(`No Azure AD application registration with name My app found`));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          name: 'My app'
+        }
+      }), new CommandError(`No Azure AD application registration with name My app found`));
+    }
+  );
 
-  it('handles error when multiple apps with the specified name found', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('handles error when multiple apps with the specified name found',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=displayName eq 'My%20app'&$select=id`) {
-        return {
-          value: [
-            { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67f' },
-            { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67g' }
-          ]
-        };
-      }
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=displayName eq 'My%20app'&$select=id`) {
+          return {
+            value: [
+              { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67f' },
+              { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67g' }
+            ]
+          };
+        }
 
-      throw `Invalid request ${JSON.stringify(opts)}`;
-    });
+        throw `Invalid request ${JSON.stringify(opts)}`;
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        name: 'My app'
-      }
-    }), new CommandError(`Multiple Azure AD application registration with name 'My app' found. Found: 9b1b1e42-794b-4c71-93ac-5ed92488b67f, 9b1b1e42-794b-4c71-93ac-5ed92488b67g.`));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          name: 'My app'
+        }
+      }), new CommandError(`Multiple Azure AD application registration with name 'My app' found. Found: 9b1b1e42-794b-4c71-93ac-5ed92488b67f, 9b1b1e42-794b-4c71-93ac-5ed92488b67g.`));
+    }
+  );
 
-  it('handles selecting single result when multiple apps with the specified name found and cli is set to prompt', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=displayName eq 'My%20App'&$select=id`) {
-        return {
-          value: [
-            { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67f' },
-            { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67g' }
-          ]
-        };
-      }
+  it('handles selecting single result when multiple apps with the specified name found and cli is set to prompt',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=displayName eq 'My%20App'&$select=id`) {
+          return {
+            value: [
+              { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67f' },
+              { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67g' }
+            ]
+          };
+        }
 
-      if (opts.url === 'https://graph.microsoft.com/v1.0/myorganization/applications/9b1b1e42-794b-4c71-93ac-5ed92488b67f') {
-        return {
-          "id": "340a4aa3-1af6-43ac-87d8-189819003952",
-          "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
-          "createdDateTime": "2019-10-29T17:46:55Z",
-          "displayName": "My App",
-          "description": null
-        };
-      }
+        if (opts.url === 'https://graph.microsoft.com/v1.0/myorganization/applications/9b1b1e42-794b-4c71-93ac-5ed92488b67f') {
+          return {
+            "id": "340a4aa3-1af6-43ac-87d8-189819003952",
+            "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
+            "createdDateTime": "2019-10-29T17:46:55Z",
+            "displayName": "My App",
+            "description": null
+          };
+        }
 
-      throw `Invalid request ${JSON.stringify(opts)}`;
-    });
+        throw `Invalid request ${JSON.stringify(opts)}`;
+      });
 
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves({ id: '9b1b1e42-794b-4c71-93ac-5ed92488b67f' });
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves({ id: '9b1b1e42-794b-4c71-93ac-5ed92488b67f' });
 
-    await command.action(logger, {
-      options: {
-        name: 'My App'
-      }
-    });
-    const call: sinon.SinonSpyCall = loggerLogSpy.lastCall;
-    assert.deepEqual(call.args[0], {
-      "id": "340a4aa3-1af6-43ac-87d8-189819003952",
-      "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
-      "createdDateTime": "2019-10-29T17:46:55Z",
-      "displayName": "My App",
-      "description": null
-    });
-  });
+      await command.action(logger, {
+        options: {
+          name: 'My App'
+        }
+      });
+      const call: sinon.SinonSpyCall = loggerLogSpy.mock.lastCall;
+      assert.deepEqual(call.mock.calls[0], {
+        "id": "340a4aa3-1af6-43ac-87d8-189819003952",
+        "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
+        "createdDateTime": "2019-10-29T17:46:55Z",
+        "displayName": "My App",
+        "description": null
+      });
+    }
+  );
 
-  it('handles error when retrieving information about app through appId failed', async () => {
-    sinon.stub(request, 'get').rejects(new Error('An error has occurred'));
+  it('handles error when retrieving information about app through appId failed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f'
-      }
-    } as any), new CommandError('An error has occurred'));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f'
+        }
+      } as any), new CommandError('An error has occurred'));
+    }
+  );
 
-  it('handles error when retrieving information about app through name failed', async () => {
-    sinon.stub(request, 'get').rejects(new Error('An error has occurred'));
+  it('handles error when retrieving information about app through name failed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        name: 'My app'
-      }
-    } as any), new CommandError('An error has occurred'));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          name: 'My app'
+        }
+      } as any), new CommandError('An error has occurred'));
+    }
+  );
 
   it('fails validation if appId and objectId specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -208,7 +219,7 @@ describe(commands.APP_GET, () => {
   });
 
   it('fails validation if appId and name specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -221,7 +232,7 @@ describe(commands.APP_GET, () => {
   });
 
   it('fails validation if objectId and name specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -233,18 +244,20 @@ describe(commands.APP_GET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if neither appId, objectId, nor name specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if neither appId, objectId, nor name specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: {} }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: {} }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the objectId is not a valid guid', async () => {
     const actual = await command.validate({ options: { objectId: 'abc' } }, commandInfo);
@@ -261,494 +274,516 @@ describe(commands.APP_GET, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation if required options specified (objectId)', async () => {
-    const actual = await command.validate({ options: { objectId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if required options specified (objectId)',
+    async () => {
+      const actual = await command.validate({ options: { objectId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('passes validation if required options specified (name)', async () => {
     const actual = await command.validate({ options: { name: 'My app' } }, commandInfo);
     assert.strictEqual(actual, true);
   });
 
-  it(`should get an Azure AD app registration by its app (client) ID. Doesn't save the app info if not requested`, async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '9b1b1e42-794b-4c71-93ac-5ed92488b67f'&$select=id`) {
-        return {
-          value: [
-            {
-              "id": "340a4aa3-1af6-43ac-87d8-189819003952",
-              "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
-              "createdDateTime": "2019-10-29T17:46:55Z",
-              "displayName": "My App",
-              "description": null
-            }
-          ]
-        };
-      }
-
-      if ((opts.url as string).indexOf('/v1.0/myorganization/applications/') > -1) {
-        return {
-          "id": "340a4aa3-1af6-43ac-87d8-189819003952",
-          "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
-          "createdDateTime": "2019-10-29T17:46:55Z",
-          "displayName": "My App",
-          "description": null
-        };
-      }
-
-      throw 'Invalid request';
-    });
-    const fsWriteFileSyncSpy = sinon.spy(fs, 'writeFileSync');
-
-    await command.action(logger, {
-      options: {
-        appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f'
-      }
-    });
-    const call: sinon.SinonSpyCall = loggerLogSpy.lastCall;
-    assert.strictEqual(call.args[0].id, '340a4aa3-1af6-43ac-87d8-189819003952');
-    assert.strictEqual(call.args[0].appId, '9b1b1e42-794b-4c71-93ac-5ed92488b67f');
-    assert.strictEqual(call.args[0].displayName, 'My App');
-    assert(fsWriteFileSyncSpy.notCalled);
-  });
-
-  it(`should get an Azure AD app registration by its name. Doesn't save the app info if not requested`, async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=displayName eq 'My%20App'&$select=id`) {
-        return {
-          value: [
-            {
-              "id": "340a4aa3-1af6-43ac-87d8-189819003952",
-              "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
-              "createdDateTime": "2019-10-29T17:46:55Z",
-              "displayName": "My App",
-              "description": null
-            }
-          ]
-        };
-      }
-
-      if ((opts.url as string).indexOf('/v1.0/myorganization/applications/') > -1) {
-        return {
-          "id": "340a4aa3-1af6-43ac-87d8-189819003952",
-          "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
-          "createdDateTime": "2019-10-29T17:46:55Z",
-          "displayName": "My App",
-          "description": null
-        };
-      }
-
-      throw 'Invalid request';
-    });
-    const fsWriteFileSyncSpy = sinon.spy(fs, 'writeFileSync');
-
-    await command.action(logger, {
-      options: {
-        name: 'My App'
-      }
-    });
-    const call: sinon.SinonSpyCall = loggerLogSpy.lastCall;
-    assert.strictEqual(call.args[0].id, '340a4aa3-1af6-43ac-87d8-189819003952');
-    assert.strictEqual(call.args[0].appId, '9b1b1e42-794b-4c71-93ac-5ed92488b67f');
-    assert.strictEqual(call.args[0].displayName, 'My App');
-    assert(fsWriteFileSyncSpy.notCalled);
-  });
-
-  it(`should get an Azure AD app registration by its object ID. Doesn't save the app info if not requested`, async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications/340a4aa3-1af6-43ac-87d8-189819003952`) {
-        return {
-          "id": "340a4aa3-1af6-43ac-87d8-189819003952",
-          "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
-          "createdDateTime": "2019-10-29T17:46:55Z",
-          "displayName": "My App",
-          "description": null
-        };
-      }
-      throw 'Invalid request';
-    });
-    const fsWriteFileSyncSpy = sinon.spy(fs, 'writeFileSync');
-
-    await command.action(logger, {
-      options: {
-        objectId: '340a4aa3-1af6-43ac-87d8-189819003952'
-      }
-    });
-    const call: sinon.SinonSpyCall = loggerLogSpy.lastCall;
-    assert.strictEqual(call.args[0].id, '340a4aa3-1af6-43ac-87d8-189819003952');
-    assert.strictEqual(call.args[0].appId, '9b1b1e42-794b-4c71-93ac-5ed92488b67f');
-    assert.strictEqual(call.args[0].displayName, 'My App');
-    assert(fsWriteFileSyncSpy.notCalled);
-  });
-
-  it(`should get an Azure AD app registration by its app (client) ID. Creates the file it doesn't exist`, async () => {
-    let fileContents: string | undefined;
-    let filePath: string | undefined;
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '9b1b1e42-794b-4c71-93ac-5ed92488b67f'&$select=id`) {
-        return {
-          value: [
-            {
-              "id": "340a4aa3-1af6-43ac-87d8-189819003952",
-              "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
-              "createdDateTime": "2019-10-29T17:46:55Z",
-              "displayName": "My App",
-              "description": null
-            }
-          ]
-        };
-      }
-
-      if ((opts.url as string).indexOf('/v1.0/myorganization/applications/') > -1) {
-        return {
-          "id": "340a4aa3-1af6-43ac-87d8-189819003952",
-          "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
-          "createdDateTime": "2019-10-29T17:46:55Z",
-          "displayName": "My App",
-          "description": null
-        };
-      }
-
-      throw 'Invalid request';
-    });
-    sinon.stub(fs, 'existsSync').returns(false);
-    sinon.stub(fs, 'writeFileSync').callsFake((_, contents) => {
-      filePath = _.toString();
-      fileContents = contents as string;
-    });
-
-    await command.action(logger, {
-      options: {
-        appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f',
-        save: true
-      }
-    });
-    const call: sinon.SinonSpyCall = loggerLogSpy.lastCall;
-    assert.strictEqual(call.args[0].id, '340a4aa3-1af6-43ac-87d8-189819003952');
-    assert.strictEqual(call.args[0].appId, '9b1b1e42-794b-4c71-93ac-5ed92488b67f');
-    assert.strictEqual(call.args[0].displayName, 'My App');
-    assert.strictEqual(filePath, '.m365rc.json');
-    assert.strictEqual(fileContents, JSON.stringify({
-      apps: [{
-        appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f',
-        name: 'My App'
-      }]
-    }, null, 2));
-  });
-
-  it(`should get an Azure AD app registration by its app (client) ID. Writes to the existing empty file`, async () => {
-    let fileContents: string | undefined;
-    let filePath: string | undefined;
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '9b1b1e42-794b-4c71-93ac-5ed92488b67f'&$select=id`) {
-        return {
-          value: [
-            {
-              "id": "340a4aa3-1af6-43ac-87d8-189819003952",
-              "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
-              "createdDateTime": "2019-10-29T17:46:55Z",
-              "displayName": "My App",
-              "description": null
-            }
-          ]
-        };
-      }
-
-      if ((opts.url as string).indexOf('/v1.0/myorganization/applications/') > -1) {
-        return {
-          "id": "340a4aa3-1af6-43ac-87d8-189819003952",
-          "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
-          "createdDateTime": "2019-10-29T17:46:55Z",
-          "displayName": "My App",
-          "description": null
-        };
-      }
-
-      throw 'Invalid request';
-    });
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'readFileSync').returns('');
-    sinon.stub(fs, 'writeFileSync').callsFake((_, contents) => {
-      filePath = _.toString();
-      fileContents = contents as string;
-    });
-
-    await command.action(logger, {
-      options: {
-        appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f',
-        save: true
-      }
-    });
-    const call: sinon.SinonSpyCall = loggerLogSpy.lastCall;
-    assert.strictEqual(call.args[0].id, '340a4aa3-1af6-43ac-87d8-189819003952');
-    assert.strictEqual(call.args[0].appId, '9b1b1e42-794b-4c71-93ac-5ed92488b67f');
-    assert.strictEqual(call.args[0].displayName, 'My App');
-    assert.strictEqual(filePath, '.m365rc.json');
-    assert.strictEqual(fileContents, JSON.stringify({
-      apps: [{
-        appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f',
-        name: 'My App'
-      }]
-    }, null, 2));
-  });
-
-  it(`should get an Azure AD app registration by its app (client) ID. Adds to the existing file contents`, async () => {
-    let fileContents: string | undefined;
-    let filePath: string | undefined;
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '9b1b1e42-794b-4c71-93ac-5ed92488b67f'&$select=id`) {
-        return {
-          value: [
-            {
-              "id": "340a4aa3-1af6-43ac-87d8-189819003952",
-              "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
-              "createdDateTime": "2019-10-29T17:46:55Z",
-              "displayName": "My App",
-              "description": null
-            }
-          ]
-        };
-      }
-
-      if ((opts.url as string).indexOf('/v1.0/myorganization/applications/') > -1) {
-        return {
-          "id": "340a4aa3-1af6-43ac-87d8-189819003952",
-          "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
-          "createdDateTime": "2019-10-29T17:46:55Z",
-          "displayName": "My App",
-          "description": null
-        };
-      }
-
-      throw 'Invalid request';
-    });
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'readFileSync').returns(JSON.stringify({
-      "apps": [
-        {
-          "appId": "74ad36da-3704-4e67-ba08-8c8e833f3c52",
-          "name": "M365 app"
+  it(`should get an Azure AD app registration by its app (client) ID. Doesn't save the app info if not requested`,
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '9b1b1e42-794b-4c71-93ac-5ed92488b67f'&$select=id`) {
+          return {
+            value: [
+              {
+                "id": "340a4aa3-1af6-43ac-87d8-189819003952",
+                "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
+                "createdDateTime": "2019-10-29T17:46:55Z",
+                "displayName": "My App",
+                "description": null
+              }
+            ]
+          };
         }
-      ]
-    }));
-    sinon.stub(fs, 'writeFileSync').callsFake((_, contents) => {
-      filePath = _.toString();
-      fileContents = contents as string;
-    });
 
-    await command.action(logger, {
-      options: {
-        appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f',
-        save: true
-      }
-    });
-    const call: sinon.SinonSpyCall = loggerLogSpy.lastCall;
-    assert.strictEqual(call.args[0].id, '340a4aa3-1af6-43ac-87d8-189819003952');
-    assert.strictEqual(call.args[0].appId, '9b1b1e42-794b-4c71-93ac-5ed92488b67f');
-    assert.strictEqual(call.args[0].displayName, 'My App');
-    assert.strictEqual(filePath, '.m365rc.json');
-    assert.strictEqual(fileContents, JSON.stringify({
-      apps: [
-        {
-          "appId": "74ad36da-3704-4e67-ba08-8c8e833f3c52",
-          "name": "M365 app"
-        },
-        {
+        if ((opts.url as string).indexOf('/v1.0/myorganization/applications/') > -1) {
+          return {
+            "id": "340a4aa3-1af6-43ac-87d8-189819003952",
+            "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
+            "createdDateTime": "2019-10-29T17:46:55Z",
+            "displayName": "My App",
+            "description": null
+          };
+        }
+
+        throw 'Invalid request';
+      });
+      const fsWriteFileSyncSpy = jest.spyOn(fs, 'writeFileSync').mockClear();
+
+      await command.action(logger, {
+        options: {
+          appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f'
+        }
+      });
+      const call: sinon.SinonSpyCall = loggerLogSpy.mock.lastCall;
+      assert.strictEqual(call.mock.calls[0].id, '340a4aa3-1af6-43ac-87d8-189819003952');
+      assert.strictEqual(call.mock.calls[0].appId, '9b1b1e42-794b-4c71-93ac-5ed92488b67f');
+      assert.strictEqual(call.mock.calls[0].displayName, 'My App');
+      assert(fsWriteFileSyncSpy.notCalled);
+    }
+  );
+
+  it(`should get an Azure AD app registration by its name. Doesn't save the app info if not requested`,
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=displayName eq 'My%20App'&$select=id`) {
+          return {
+            value: [
+              {
+                "id": "340a4aa3-1af6-43ac-87d8-189819003952",
+                "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
+                "createdDateTime": "2019-10-29T17:46:55Z",
+                "displayName": "My App",
+                "description": null
+              }
+            ]
+          };
+        }
+
+        if ((opts.url as string).indexOf('/v1.0/myorganization/applications/') > -1) {
+          return {
+            "id": "340a4aa3-1af6-43ac-87d8-189819003952",
+            "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
+            "createdDateTime": "2019-10-29T17:46:55Z",
+            "displayName": "My App",
+            "description": null
+          };
+        }
+
+        throw 'Invalid request';
+      });
+      const fsWriteFileSyncSpy = jest.spyOn(fs, 'writeFileSync').mockClear();
+
+      await command.action(logger, {
+        options: {
+          name: 'My App'
+        }
+      });
+      const call: sinon.SinonSpyCall = loggerLogSpy.mock.lastCall;
+      assert.strictEqual(call.mock.calls[0].id, '340a4aa3-1af6-43ac-87d8-189819003952');
+      assert.strictEqual(call.mock.calls[0].appId, '9b1b1e42-794b-4c71-93ac-5ed92488b67f');
+      assert.strictEqual(call.mock.calls[0].displayName, 'My App');
+      assert(fsWriteFileSyncSpy.notCalled);
+    }
+  );
+
+  it(`should get an Azure AD app registration by its object ID. Doesn't save the app info if not requested`,
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications/340a4aa3-1af6-43ac-87d8-189819003952`) {
+          return {
+            "id": "340a4aa3-1af6-43ac-87d8-189819003952",
+            "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
+            "createdDateTime": "2019-10-29T17:46:55Z",
+            "displayName": "My App",
+            "description": null
+          };
+        }
+        throw 'Invalid request';
+      });
+      const fsWriteFileSyncSpy = jest.spyOn(fs, 'writeFileSync').mockClear();
+
+      await command.action(logger, {
+        options: {
+          objectId: '340a4aa3-1af6-43ac-87d8-189819003952'
+        }
+      });
+      const call: sinon.SinonSpyCall = loggerLogSpy.mock.lastCall;
+      assert.strictEqual(call.mock.calls[0].id, '340a4aa3-1af6-43ac-87d8-189819003952');
+      assert.strictEqual(call.mock.calls[0].appId, '9b1b1e42-794b-4c71-93ac-5ed92488b67f');
+      assert.strictEqual(call.mock.calls[0].displayName, 'My App');
+      assert(fsWriteFileSyncSpy.notCalled);
+    }
+  );
+
+  it(`should get an Azure AD app registration by its app (client) ID. Creates the file it doesn't exist`,
+    async () => {
+      let fileContents: string | undefined;
+      let filePath: string | undefined;
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '9b1b1e42-794b-4c71-93ac-5ed92488b67f'&$select=id`) {
+          return {
+            value: [
+              {
+                "id": "340a4aa3-1af6-43ac-87d8-189819003952",
+                "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
+                "createdDateTime": "2019-10-29T17:46:55Z",
+                "displayName": "My App",
+                "description": null
+              }
+            ]
+          };
+        }
+
+        if ((opts.url as string).indexOf('/v1.0/myorganization/applications/') > -1) {
+          return {
+            "id": "340a4aa3-1af6-43ac-87d8-189819003952",
+            "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
+            "createdDateTime": "2019-10-29T17:46:55Z",
+            "displayName": "My App",
+            "description": null
+          };
+        }
+
+        throw 'Invalid request';
+      });
+      jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(false);
+      jest.spyOn(fs, 'writeFileSync').mockClear().mockImplementation((_, contents) => {
+        filePath = _.toString();
+        fileContents = contents as string;
+      });
+
+      await command.action(logger, {
+        options: {
+          appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f',
+          save: true
+        }
+      });
+      const call: sinon.SinonSpyCall = loggerLogSpy.mock.lastCall;
+      assert.strictEqual(call.mock.calls[0].id, '340a4aa3-1af6-43ac-87d8-189819003952');
+      assert.strictEqual(call.mock.calls[0].appId, '9b1b1e42-794b-4c71-93ac-5ed92488b67f');
+      assert.strictEqual(call.mock.calls[0].displayName, 'My App');
+      assert.strictEqual(filePath, '.m365rc.json');
+      assert.strictEqual(fileContents, JSON.stringify({
+        apps: [{
           appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f',
           name: 'My App'
         }]
-    }, null, 2));
-  });
+      }, null, 2));
+    }
+  );
 
-  it(`should get an Azure AD app registration by its app (client) ID. Adds to the existing file contents (Debug)`, async () => {
-    let fileContents: string | undefined;
-    let filePath: string | undefined;
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '9b1b1e42-794b-4c71-93ac-5ed92488b67f'&$select=id`) {
-        return {
-          value: [
-            {
-              "id": "340a4aa3-1af6-43ac-87d8-189819003952",
-              "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
-              "createdDateTime": "2019-10-29T17:46:55Z",
-              "displayName": "My App",
-              "description": null
-            }
-          ]
-        };
-      }
-
-      if ((opts.url as string).indexOf('/v1.0/myorganization/applications/') > -1) {
-        return {
-          "id": "340a4aa3-1af6-43ac-87d8-189819003952",
-          "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
-          "createdDateTime": "2019-10-29T17:46:55Z",
-          "displayName": "My App",
-          "description": null
-        };
-      }
-
-      throw 'Invalid request';
-    });
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'readFileSync').returns(JSON.stringify({
-      "apps": [
-        {
-          "appId": "74ad36da-3704-4e67-ba08-8c8e833f3c52",
-          "name": "M365 app"
+  it(`should get an Azure AD app registration by its app (client) ID. Writes to the existing empty file`,
+    async () => {
+      let fileContents: string | undefined;
+      let filePath: string | undefined;
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '9b1b1e42-794b-4c71-93ac-5ed92488b67f'&$select=id`) {
+          return {
+            value: [
+              {
+                "id": "340a4aa3-1af6-43ac-87d8-189819003952",
+                "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
+                "createdDateTime": "2019-10-29T17:46:55Z",
+                "displayName": "My App",
+                "description": null
+              }
+            ]
+          };
         }
-      ]
-    }));
-    sinon.stub(fs, 'writeFileSync').callsFake((_, contents) => {
-      filePath = _.toString();
-      fileContents = contents as string;
-    });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f',
-        save: true
-      }
-    });
-    const call: sinon.SinonSpyCall = loggerLogSpy.lastCall;
-    assert.strictEqual(call.args[0].id, '340a4aa3-1af6-43ac-87d8-189819003952');
-    assert.strictEqual(call.args[0].appId, '9b1b1e42-794b-4c71-93ac-5ed92488b67f');
-    assert.strictEqual(call.args[0].displayName, 'My App');
-    assert.strictEqual(filePath, '.m365rc.json');
-    assert.strictEqual(fileContents, JSON.stringify({
-      apps: [
-        {
-          "appId": "74ad36da-3704-4e67-ba08-8c8e833f3c52",
-          "name": "M365 app"
-        },
-        {
+        if ((opts.url as string).indexOf('/v1.0/myorganization/applications/') > -1) {
+          return {
+            "id": "340a4aa3-1af6-43ac-87d8-189819003952",
+            "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
+            "createdDateTime": "2019-10-29T17:46:55Z",
+            "displayName": "My App",
+            "description": null
+          };
+        }
+
+        throw 'Invalid request';
+      });
+      jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+      jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('');
+      jest.spyOn(fs, 'writeFileSync').mockClear().mockImplementation((_, contents) => {
+        filePath = _.toString();
+        fileContents = contents as string;
+      });
+
+      await command.action(logger, {
+        options: {
+          appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f',
+          save: true
+        }
+      });
+      const call: sinon.SinonSpyCall = loggerLogSpy.mock.lastCall;
+      assert.strictEqual(call.mock.calls[0].id, '340a4aa3-1af6-43ac-87d8-189819003952');
+      assert.strictEqual(call.mock.calls[0].appId, '9b1b1e42-794b-4c71-93ac-5ed92488b67f');
+      assert.strictEqual(call.mock.calls[0].displayName, 'My App');
+      assert.strictEqual(filePath, '.m365rc.json');
+      assert.strictEqual(fileContents, JSON.stringify({
+        apps: [{
           appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f',
           name: 'My App'
         }]
-    }, null, 2));
-  });
+      }, null, 2));
+    }
+  );
 
-  it(`doesn't save app info in the .m365rc.json file when there was error reading file contents`, async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '9b1b1e42-794b-4c71-93ac-5ed92488b67f'&$select=id`) {
-        return {
-          value: [
-            {
-              "id": "340a4aa3-1af6-43ac-87d8-189819003952",
-              "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
-              "createdDateTime": "2019-10-29T17:46:55Z",
-              "displayName": "My App",
-              "description": null
-            }
-          ]
-        };
-      }
+  it(`should get an Azure AD app registration by its app (client) ID. Adds to the existing file contents`,
+    async () => {
+      let fileContents: string | undefined;
+      let filePath: string | undefined;
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '9b1b1e42-794b-4c71-93ac-5ed92488b67f'&$select=id`) {
+          return {
+            value: [
+              {
+                "id": "340a4aa3-1af6-43ac-87d8-189819003952",
+                "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
+                "createdDateTime": "2019-10-29T17:46:55Z",
+                "displayName": "My App",
+                "description": null
+              }
+            ]
+          };
+        }
 
-      if ((opts.url as string).indexOf('/v1.0/myorganization/applications/') > -1) {
-        return {
-          "id": "340a4aa3-1af6-43ac-87d8-189819003952",
-          "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
-          "createdDateTime": "2019-10-29T17:46:55Z",
-          "displayName": "My App",
-          "description": null
-        };
-      }
+        if ((opts.url as string).indexOf('/v1.0/myorganization/applications/') > -1) {
+          return {
+            "id": "340a4aa3-1af6-43ac-87d8-189819003952",
+            "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
+            "createdDateTime": "2019-10-29T17:46:55Z",
+            "displayName": "My App",
+            "description": null
+          };
+        }
 
-      throw 'Invalid request';
-    });
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'readFileSync').throws(new Error('An error has occurred'));
-    const fsWriteFileSyncSpy = sinon.spy(fs, 'writeFileSync');
+        throw 'Invalid request';
+      });
+      jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+      jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue(JSON.stringify({
+        "apps": [
+          {
+            "appId": "74ad36da-3704-4e67-ba08-8c8e833f3c52",
+            "name": "M365 app"
+          }
+        ]
+      }));
+      jest.spyOn(fs, 'writeFileSync').mockClear().mockImplementation((_, contents) => {
+        filePath = _.toString();
+        fileContents = contents as string;
+      });
 
-    await command.action(logger, {
-      options: {
-        appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f',
-        save: true
-      }
-    });
-    assert(fsWriteFileSyncSpy.notCalled);
-  });
+      await command.action(logger, {
+        options: {
+          appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f',
+          save: true
+        }
+      });
+      const call: sinon.SinonSpyCall = loggerLogSpy.mock.lastCall;
+      assert.strictEqual(call.mock.calls[0].id, '340a4aa3-1af6-43ac-87d8-189819003952');
+      assert.strictEqual(call.mock.calls[0].appId, '9b1b1e42-794b-4c71-93ac-5ed92488b67f');
+      assert.strictEqual(call.mock.calls[0].displayName, 'My App');
+      assert.strictEqual(filePath, '.m365rc.json');
+      assert.strictEqual(fileContents, JSON.stringify({
+        apps: [
+          {
+            "appId": "74ad36da-3704-4e67-ba08-8c8e833f3c52",
+            "name": "M365 app"
+          },
+          {
+            appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f',
+            name: 'My App'
+          }]
+      }, null, 2));
+    }
+  );
 
-  it(`doesn't save app info in the .m365rc.json file when file has invalid JSON`, async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '9b1b1e42-794b-4c71-93ac-5ed92488b67f'&$select=id`) {
-        return {
-          value: [
-            {
-              "id": "340a4aa3-1af6-43ac-87d8-189819003952",
-              "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
-              "createdDateTime": "2019-10-29T17:46:55Z",
-              "displayName": "My App",
-              "description": null
-            }
-          ]
-        };
-      }
+  it(`should get an Azure AD app registration by its app (client) ID. Adds to the existing file contents (Debug)`,
+    async () => {
+      let fileContents: string | undefined;
+      let filePath: string | undefined;
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '9b1b1e42-794b-4c71-93ac-5ed92488b67f'&$select=id`) {
+          return {
+            value: [
+              {
+                "id": "340a4aa3-1af6-43ac-87d8-189819003952",
+                "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
+                "createdDateTime": "2019-10-29T17:46:55Z",
+                "displayName": "My App",
+                "description": null
+              }
+            ]
+          };
+        }
 
-      if ((opts.url as string).indexOf('/v1.0/myorganization/applications/') > -1) {
-        return {
-          "id": "340a4aa3-1af6-43ac-87d8-189819003952",
-          "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
-          "createdDateTime": "2019-10-29T17:46:55Z",
-          "displayName": "My App",
-          "description": null
-        };
-      }
+        if ((opts.url as string).indexOf('/v1.0/myorganization/applications/') > -1) {
+          return {
+            "id": "340a4aa3-1af6-43ac-87d8-189819003952",
+            "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
+            "createdDateTime": "2019-10-29T17:46:55Z",
+            "displayName": "My App",
+            "description": null
+          };
+        }
 
-      throw 'Invalid request';
-    });
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'readFileSync').returns('{');
-    const fsWriteFileSyncSpy = sinon.spy(fs, 'writeFileSync');
+        throw 'Invalid request';
+      });
+      jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+      jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue(JSON.stringify({
+        "apps": [
+          {
+            "appId": "74ad36da-3704-4e67-ba08-8c8e833f3c52",
+            "name": "M365 app"
+          }
+        ]
+      }));
+      jest.spyOn(fs, 'writeFileSync').mockClear().mockImplementation((_, contents) => {
+        filePath = _.toString();
+        fileContents = contents as string;
+      });
 
-    await command.action(logger, {
-      options: {
-        appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f',
-        save: true
-      }
-    });
-    assert(fsWriteFileSyncSpy.notCalled);
-  });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f',
+          save: true
+        }
+      });
+      const call: sinon.SinonSpyCall = loggerLogSpy.mock.lastCall;
+      assert.strictEqual(call.mock.calls[0].id, '340a4aa3-1af6-43ac-87d8-189819003952');
+      assert.strictEqual(call.mock.calls[0].appId, '9b1b1e42-794b-4c71-93ac-5ed92488b67f');
+      assert.strictEqual(call.mock.calls[0].displayName, 'My App');
+      assert.strictEqual(filePath, '.m365rc.json');
+      assert.strictEqual(fileContents, JSON.stringify({
+        apps: [
+          {
+            "appId": "74ad36da-3704-4e67-ba08-8c8e833f3c52",
+            "name": "M365 app"
+          },
+          {
+            appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f',
+            name: 'My App'
+          }]
+      }, null, 2));
+    }
+  );
 
-  it(`doesn't fail execution when error occurred while saving app info`, async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '9b1b1e42-794b-4c71-93ac-5ed92488b67f'&$select=id`) {
-        return {
-          value: [
-            {
-              "id": "340a4aa3-1af6-43ac-87d8-189819003952",
-              "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
-              "createdDateTime": "2019-10-29T17:46:55Z",
-              "displayName": "My App",
-              "description": null
-            }
-          ]
-        };
-      }
+  it(`doesn't save app info in the .m365rc.json file when there was error reading file contents`,
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '9b1b1e42-794b-4c71-93ac-5ed92488b67f'&$select=id`) {
+          return {
+            value: [
+              {
+                "id": "340a4aa3-1af6-43ac-87d8-189819003952",
+                "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
+                "createdDateTime": "2019-10-29T17:46:55Z",
+                "displayName": "My App",
+                "description": null
+              }
+            ]
+          };
+        }
 
-      if ((opts.url as string).indexOf('/v1.0/myorganization/applications/') > -1) {
-        return {
-          "id": "340a4aa3-1af6-43ac-87d8-189819003952",
-          "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
-          "createdDateTime": "2019-10-29T17:46:55Z",
-          "displayName": "My App",
-          "description": null
-        };
-      }
+        if ((opts.url as string).indexOf('/v1.0/myorganization/applications/') > -1) {
+          return {
+            "id": "340a4aa3-1af6-43ac-87d8-189819003952",
+            "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
+            "createdDateTime": "2019-10-29T17:46:55Z",
+            "displayName": "My App",
+            "description": null
+          };
+        }
 
-      throw 'Invalid request';
-    });
-    sinon.stub(fs, 'existsSync').returns(false);
-    sinon.stub(fs, 'writeFileSync').throws(new Error('Error occurred while saving app info'));
+        throw 'Invalid request';
+      });
+      jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation().throws(new Error('An error has occurred'));
+      const fsWriteFileSyncSpy = jest.spyOn(fs, 'writeFileSync').mockClear();
+
+      await command.action(logger, {
+        options: {
+          appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f',
+          save: true
+        }
+      });
+      assert(fsWriteFileSyncSpy.notCalled);
+    }
+  );
+
+  it(`doesn't save app info in the .m365rc.json file when file has invalid JSON`,
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '9b1b1e42-794b-4c71-93ac-5ed92488b67f'&$select=id`) {
+          return {
+            value: [
+              {
+                "id": "340a4aa3-1af6-43ac-87d8-189819003952",
+                "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
+                "createdDateTime": "2019-10-29T17:46:55Z",
+                "displayName": "My App",
+                "description": null
+              }
+            ]
+          };
+        }
+
+        if ((opts.url as string).indexOf('/v1.0/myorganization/applications/') > -1) {
+          return {
+            "id": "340a4aa3-1af6-43ac-87d8-189819003952",
+            "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
+            "createdDateTime": "2019-10-29T17:46:55Z",
+            "displayName": "My App",
+            "description": null
+          };
+        }
+
+        throw 'Invalid request';
+      });
+      jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+      jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('{');
+      const fsWriteFileSyncSpy = jest.spyOn(fs, 'writeFileSync').mockClear();
+
+      await command.action(logger, {
+        options: {
+          appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f',
+          save: true
+        }
+      });
+      assert(fsWriteFileSyncSpy.notCalled);
+    }
+  );
+
+  it(`doesn't fail execution when error occurred while saving app info`,
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '9b1b1e42-794b-4c71-93ac-5ed92488b67f'&$select=id`) {
+          return {
+            value: [
+              {
+                "id": "340a4aa3-1af6-43ac-87d8-189819003952",
+                "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
+                "createdDateTime": "2019-10-29T17:46:55Z",
+                "displayName": "My App",
+                "description": null
+              }
+            ]
+          };
+        }
+
+        if ((opts.url as string).indexOf('/v1.0/myorganization/applications/') > -1) {
+          return {
+            "id": "340a4aa3-1af6-43ac-87d8-189819003952",
+            "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
+            "createdDateTime": "2019-10-29T17:46:55Z",
+            "displayName": "My App",
+            "description": null
+          };
+        }
+
+        throw 'Invalid request';
+      });
+      jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(false);
+      jest.spyOn(fs, 'writeFileSync').mockClear().mockImplementation().throws(new Error('Error occurred while saving app info'));
 
 
-    await command.action(logger, {
-      options: {
-        appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f',
-        save: true
-      }
-    });
-  });
+      await command.action(logger, {
+        options: {
+          appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f',
+          save: true
+        }
+      });
+    }
+  );
 });

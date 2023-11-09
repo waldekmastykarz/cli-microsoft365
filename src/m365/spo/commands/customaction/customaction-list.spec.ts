@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,22 +8,22 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './customaction-list.js';
 
 describe(commands.CUSTOMACTION_LIST, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogToStderrSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -42,18 +41,18 @@ describe(commands.CUSTOMACTION_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -70,7 +69,7 @@ describe(commands.CUSTOMACTION_LIST, () => {
   });
 
   it('returns all properties for output JSON', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/Site/UserCustomActions') > -1) {
         return { value: [{ "ClientSideComponentId": "b41916e7-e69d-467f-b37f-ff8ecf8f99f2", "ClientSideComponentProperties": "{\"testMessage\":\"Test message\"}", "CommandUIExtension": null, "Description": null, "Group": null, "Id": "8b86123a-3194-49cf-b167-c044b613a48a", "ImageUrl": null, "Location": "ClientSideExtension.ApplicationCustomizer", "Name": "YourName", "RegistrationId": null, "RegistrationType": 0, "Rights": { "High": "0", "Low": "0" }, "Scope": 3, "ScriptBlock": null, "ScriptSrc": null, "Sequence": 0, "Title": "YourAppCustomizer", "Url": null, "VersionOfUserCustomAction": "16.0.1.0" }, { "ClientSideComponentId": "b41916e7-e69d-467f-b37f-ff8ecf8f99f2", "ClientSideComponentProperties": "{\"testMessage\":\"Test message\"}", "CommandUIExtension": null, "Description": null, "Group": null, "Id": "9115bb61-d9f1-4ed4-b7b7-e5d1834e60f5", "ImageUrl": null, "Location": "ClientSideExtension.ApplicationCustomizer", "Name": "YourName", "RegistrationId": null, "RegistrationType": 0, "Rights": { "High": "0", "Low": "0" }, "Scope": 3, "ScriptBlock": null, "ScriptSrc": null, "Sequence": 0, "Title": "YourAppCustomizer", "Url": null, "VersionOfUserCustomAction": "16.0.1.0" }] };
       }
@@ -89,37 +88,39 @@ describe(commands.CUSTOMACTION_LIST, () => {
       assert(loggerLogSpy.calledWith([{ "ClientSideComponentId": "b41916e7-e69d-467f-b37f-ff8ecf8f99f2", "ClientSideComponentProperties": "{\"testMessage\":\"Test message\"}", "CommandUIExtension": null, "Description": null, "Group": null, "Id": "8b86123a-3194-49cf-b167-c044b613a48a", "ImageUrl": null, "Location": "ClientSideExtension.ApplicationCustomizer", "Name": "YourName", "RegistrationId": null, "RegistrationType": 0, "Rights": { "High": "0", "Low": "0" }, "Scope": 3, "ScriptBlock": null, "ScriptSrc": null, "Sequence": 0, "Title": "YourAppCustomizer", "Url": null, "VersionOfUserCustomAction": "16.0.1.0" }, { "ClientSideComponentId": "b41916e7-e69d-467f-b37f-ff8ecf8f99f2", "ClientSideComponentProperties": "{\"testMessage\":\"Test message\"}", "CommandUIExtension": null, "Description": null, "Group": null, "Id": "9115bb61-d9f1-4ed4-b7b7-e5d1834e60f5", "ImageUrl": null, "Location": "ClientSideExtension.ApplicationCustomizer", "Name": "YourName", "RegistrationId": null, "RegistrationType": 0, "Rights": { "High": "0", "Low": "0" }, "Scope": 3, "ScriptBlock": null, "ScriptSrc": null, "Sequence": 0, "Title": "YourAppCustomizer", "Url": null, "VersionOfUserCustomAction": "16.0.1.0" }]));
     }
     finally {
-      sinonUtil.restore((command as any)['getCustomActions']);
+      jestUtil.restore((command as any)['getCustomActions']);
     }
   });
 
 
-  it('correctly handles no custom actions when All scope specified (verbose)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/Web/UserCustomActions') > -1) {
-        return { value: [] };
-      }
+  it('correctly handles no custom actions when All scope specified (verbose)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/Web/UserCustomActions') > -1) {
+          return { value: [] };
+        }
 
-      if ((opts.url as string).indexOf('/_api/Site/UserCustomActions') > -1) {
-        return { value: [] };
-      }
+        if ((opts.url as string).indexOf('/_api/Site/UserCustomActions') > -1) {
+          return { value: [] };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        webUrl: 'https://contoso.sharepoint.com',
-        scope: 'All'
-      }
-    });
-    assert(loggerLogToStderrSpy.calledWith(`Custom actions not found`));
-  });
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          webUrl: 'https://contoso.sharepoint.com',
+          scope: 'All'
+        }
+      });
+      assert(loggerLogToStderrSpy.calledWith(`Custom actions not found`));
+    }
+  );
 
   it('correctly handles web custom action reject request', async () => {
     const err = 'Invalid web custom action reject request';
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/Web/UserCustomActions') > -1) {
         throw err;
       }
@@ -140,7 +141,7 @@ describe(commands.CUSTOMACTION_LIST, () => {
 
   it('correctly handles site custom action reject request', async () => {
     const err = 'Invalid site custom action reject request';
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/Web/UserCustomActions') > -1) {
         return { value: [] };
       }
@@ -173,7 +174,7 @@ describe(commands.CUSTOMACTION_LIST, () => {
   });
 
   it('retrieves all available user custom actions', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/Web/UserCustomActions') > -1) {
         return {
           value: [
@@ -220,7 +221,7 @@ describe(commands.CUSTOMACTION_LIST, () => {
   });
 
   it('correctly handles no scope entered (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/Web/UserCustomActions') > -1) {
         return {
           value: [
@@ -284,15 +285,17 @@ describe(commands.CUSTOMACTION_LIST, () => {
     ));
   });
 
-  it('fails validation if the url option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({
-      options:
-      {
-        webUrl: 'foo'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the url option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({
+        options:
+        {
+          webUrl: 'foo'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation when the url options specified', async () => {
     const actual = await command.validate({
@@ -304,16 +307,18 @@ describe(commands.CUSTOMACTION_LIST, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation when the url and scope options specified', async () => {
-    const actual = await command.validate({
-      options:
-      {
-        webUrl: "https://contoso.sharepoint.com",
-        scope: "Site"
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when the url and scope options specified',
+    async () => {
+      const actual = await command.validate({
+        options:
+        {
+          webUrl: "https://contoso.sharepoint.com",
+          scope: "Site"
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('humanize scope shows correct value when scope odata is 2', () => {
     const actual = (command as any)["humanizeScope"](2);
@@ -325,10 +330,12 @@ describe(commands.CUSTOMACTION_LIST, () => {
     assert(actual === "Web");
   });
 
-  it('humanize scope shows the scope odata value when is different than 2 and 3', () => {
-    const actual = (command as any)["humanizeScope"](1);
-    assert(actual === "1");
-  });
+  it('humanize scope shows the scope odata value when is different than 2 and 3',
+    () => {
+      const actual = (command as any)["humanizeScope"](1);
+      assert(actual === "1");
+    }
+  );
 
   it('accepts scope to be All', async () => {
     const actual = await command.validate({
@@ -385,14 +392,16 @@ describe(commands.CUSTOMACTION_LIST, () => {
     assert.strictEqual(actual, `${scope} is not a valid custom action scope. Allowed values are Site|Web|All`);
   });
 
-  it('doesn\'t fail validation if the optional scope option not specified', async () => {
-    const actual = await command.validate(
-      {
-        options:
+  it('doesn\'t fail validation if the optional scope option not specified',
+    async () => {
+      const actual = await command.validate(
         {
-          webUrl: "https://contoso.sharepoint.com"
-        }
-      }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+          options:
+          {
+            webUrl: "https://contoso.sharepoint.com"
+          }
+        }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

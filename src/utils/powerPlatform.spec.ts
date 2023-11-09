@@ -1,31 +1,30 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import request from "../request.js";
 import auth from '../Auth.js';
 import { powerPlatform } from './powerPlatform.js';
-import { sinonUtil } from "./sinonUtil.js";
+import { jestUtil } from "./jestUtil.js";
 
 describe('utils/powerPlatform', () => {
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockImplementation(() => Promise.resolve());
     auth.service.connected = true;
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
   it('returns correct dynamics url as admin', async () => {
     const envResponse: any = { "properties": { "linkedEnvironmentMetadata": { "instanceApiUrl": "https://contoso-dev.api.crm4.dynamics.com" } } };
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url === `https://api.bap.microsoft.com/providers/Microsoft.BusinessAppPlatform/scopes/admin/environments/someRandomGuid?api-version=2020-10-01&$select=properties.linkedEnvironmentMetadata.instanceApiUrl`)) {
         if (opts.headers &&
           opts.headers.accept &&
@@ -44,7 +43,7 @@ describe('utils/powerPlatform', () => {
   it('returns correct dynamics url', async () => {
     const envResponse: any = { "properties": { "linkedEnvironmentMetadata": { "instanceApiUrl": "https://contoso-dev.api.crm4.dynamics.com" } } };
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url === `https://api.bap.microsoft.com/providers/Microsoft.BusinessAppPlatform/environments/someRandomGuid?api-version=2020-10-01&$select=properties.linkedEnvironmentMetadata.instanceApiUrl`)) {
         if (opts.headers &&
           opts.headers.accept &&
@@ -61,7 +60,7 @@ describe('utils/powerPlatform', () => {
   });
 
   it('handles no environment found', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if ((opts.url === `https://api.bap.microsoft.com/providers/Microsoft.BusinessAppPlatform/environments/someRandomGuid?api-version=2020-10-01&$select=properties.linkedEnvironmentMetadata.instanceApiUrl`)) {
         throw Error('Random Error');
       }

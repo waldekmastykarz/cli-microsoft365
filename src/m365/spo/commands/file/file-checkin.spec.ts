@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './file-checkin.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -20,7 +19,7 @@ describe(commands.FILE_CHECKIN, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
   const stubPostResponses: any = (getFileByServerRelativeUrlResp: any = null, getFileByIdResp: any = null) => {
-    return sinon.stub(request, 'post').callsFake(async (opts) => {
+    return jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (getFileByServerRelativeUrlResp) {
         throw getFileByServerRelativeUrlResp;
       }
@@ -43,12 +42,12 @@ describe(commands.FILE_CHECKIN, () => {
     });
   };
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -69,15 +68,15 @@ describe(commands.FILE_CHECKIN, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       request.get,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -101,7 +100,7 @@ describe(commands.FILE_CHECKIN, () => {
         }
       }
     };
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/GetFileById') > -1) {
         throw error;
       }
@@ -148,23 +147,25 @@ describe(commands.FILE_CHECKIN, () => {
     }), new CommandError(expectedError));
   });
 
-  it('should call the correct API url when UniqueId option is passed', async () => {
-    const postStub: sinon.SinonStub = stubPostResponses();
+  it('should call the correct API url when UniqueId option is passed',
+    async () => {
+      const postStub: jest.Mock = stubPostResponses();
 
-    const actionId: string = '0CD891EF-AFCE-4E55-B836-FCE03286CCCF';
+      const actionId: string = '0CD891EF-AFCE-4E55-B836-FCE03286CCCF';
 
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        id: actionId,
-        webUrl: 'https://contoso.sharepoint.com/sites/project-x'
-      }
-    });
-    assert.strictEqual(postStub.lastCall.args[0].url, 'https://contoso.sharepoint.com/sites/project-x/_api/web/GetFileById(\'0CD891EF-AFCE-4E55-B836-FCE03286CCCF\')/checkin(comment=\'\',checkintype=1)');
-  });
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          id: actionId,
+          webUrl: 'https://contoso.sharepoint.com/sites/project-x'
+        }
+      });
+      assert.strictEqual(postStub.mock.lastCall[0].url, 'https://contoso.sharepoint.com/sites/project-x/_api/web/GetFileById(\'0CD891EF-AFCE-4E55-B836-FCE03286CCCF\')/checkin(comment=\'\',checkintype=1)');
+    }
+  );
 
   it('should call the correct API url when URL option is passed', async () => {
-    const postStub: sinon.SinonStub = stubPostResponses();
+    const postStub: jest.Mock = stubPostResponses();
 
     await command.action(logger, {
       options: {
@@ -172,23 +173,25 @@ describe(commands.FILE_CHECKIN, () => {
         webUrl: 'https://contoso.sharepoint.com/sites/project-x'
       }
     });
-    assert.strictEqual(postStub.lastCall.args[0].url, "https://contoso.sharepoint.com/sites/project-x/_api/web/GetFileByServerRelativePath(DecodedUrl='%2Fsites%2Fproject-x%2FDocuments%2FTest1.docx')/checkin(comment='',checkintype=1)");
+    assert.strictEqual(postStub.mock.lastCall[0].url, "https://contoso.sharepoint.com/sites/project-x/_api/web/GetFileByServerRelativePath(DecodedUrl='%2Fsites%2Fproject-x%2FDocuments%2FTest1.docx')/checkin(comment='',checkintype=1)");
   });
 
-  it('should call the correct API url when tenant root URL option is passed', async () => {
-    const postStub: sinon.SinonStub = stubPostResponses();
+  it('should call the correct API url when tenant root URL option is passed',
+    async () => {
+      const postStub: jest.Mock = stubPostResponses();
 
-    await command.action(logger, {
-      options: {
-        url: '/Documents/Test1.docx',
-        webUrl: 'https://contoso.sharepoint.com'
-      }
-    });
-    assert.strictEqual(postStub.lastCall.args[0].url, "https://contoso.sharepoint.com/_api/web/GetFileByServerRelativePath(DecodedUrl='%2FDocuments%2FTest1.docx')/checkin(comment='',checkintype=1)");
-  });
+      await command.action(logger, {
+        options: {
+          url: '/Documents/Test1.docx',
+          webUrl: 'https://contoso.sharepoint.com'
+        }
+      });
+      assert.strictEqual(postStub.mock.lastCall[0].url, "https://contoso.sharepoint.com/_api/web/GetFileByServerRelativePath(DecodedUrl='%2FDocuments%2FTest1.docx')/checkin(comment='',checkintype=1)");
+    }
+  );
 
   it('should call correctly the API when type is minor', async () => {
-    const postStub: sinon.SinonStub = stubPostResponses();
+    const postStub: jest.Mock = stubPostResponses();
 
     await command.action(logger, {
       options: {
@@ -197,11 +200,11 @@ describe(commands.FILE_CHECKIN, () => {
         type: 'minor'
       }
     });
-    assert.strictEqual(postStub.lastCall.args[0].url, "https://contoso.sharepoint.com/sites/project-x/_api/web/GetFileByServerRelativePath(DecodedUrl='%2Fsites%2Fproject-x%2FDocuments%2FTest1.docx')/checkin(comment='',checkintype=0)");
+    assert.strictEqual(postStub.mock.lastCall[0].url, "https://contoso.sharepoint.com/sites/project-x/_api/web/GetFileByServerRelativePath(DecodedUrl='%2Fsites%2Fproject-x%2FDocuments%2FTest1.docx')/checkin(comment='',checkintype=0)");
   });
 
   it('should call correctly the API when type is overwrite', async () => {
-    const postStub: sinon.SinonStub = stubPostResponses();
+    const postStub: jest.Mock = stubPostResponses();
 
     await command.action(logger, {
       options: {
@@ -210,11 +213,11 @@ describe(commands.FILE_CHECKIN, () => {
         type: 'overwrite'
       }
     });
-    assert.strictEqual(postStub.lastCall.args[0].url, "https://contoso.sharepoint.com/sites/project-x/_api/web/GetFileByServerRelativePath(DecodedUrl='%2Fsites%2Fproject-x%2FDocuments%2FTest1.docx')/checkin(comment='',checkintype=2)");
+    assert.strictEqual(postStub.mock.lastCall[0].url, "https://contoso.sharepoint.com/sites/project-x/_api/web/GetFileByServerRelativePath(DecodedUrl='%2Fsites%2Fproject-x%2FDocuments%2FTest1.docx')/checkin(comment='',checkintype=2)");
   });
 
   it('should call correctly the API when comment specified', async () => {
-    const postStub: sinon.SinonStub = stubPostResponses();
+    const postStub: jest.Mock = stubPostResponses();
 
     await command.action(logger, {
       options: {
@@ -223,11 +226,11 @@ describe(commands.FILE_CHECKIN, () => {
         comment: 'abc1'
       }
     });
-    assert.strictEqual(postStub.lastCall.args[0].url, "https://contoso.sharepoint.com/sites/project-x/_api/web/GetFileByServerRelativePath(DecodedUrl='%2Fsites%2Fproject-x%2FDocuments%2FTest1.docx')/checkin(comment='abc1',checkintype=1)");
+    assert.strictEqual(postStub.mock.lastCall[0].url, "https://contoso.sharepoint.com/sites/project-x/_api/web/GetFileByServerRelativePath(DecodedUrl='%2Fsites%2Fproject-x%2FDocuments%2FTest1.docx')/checkin(comment='abc1',checkintype=1)");
   });
 
   it('should call correctly the API when type is minor (id)', async () => {
-    const postStub: sinon.SinonStub = stubPostResponses();
+    const postStub: jest.Mock = stubPostResponses();
 
     await command.action(logger, {
       options: {
@@ -236,11 +239,11 @@ describe(commands.FILE_CHECKIN, () => {
         type: 'minor'
       }
     });
-    assert.strictEqual(postStub.lastCall.args[0].url, "https://contoso.sharepoint.com/sites/project-x/_api/web/GetFileById(\'0CD891EF-AFCE-4E55-B836-FCE03286CCCF\')/checkin(comment='',checkintype=0)");
+    assert.strictEqual(postStub.mock.lastCall[0].url, "https://contoso.sharepoint.com/sites/project-x/_api/web/GetFileById(\'0CD891EF-AFCE-4E55-B836-FCE03286CCCF\')/checkin(comment='',checkintype=0)");
   });
 
   it('should call correctly the API when type is overwrite (id)', async () => {
-    const postStub: sinon.SinonStub = stubPostResponses();
+    const postStub: jest.Mock = stubPostResponses();
 
     await command.action(logger, {
       options: {
@@ -249,11 +252,11 @@ describe(commands.FILE_CHECKIN, () => {
         type: 'overwrite'
       }
     });
-    assert.strictEqual(postStub.lastCall.args[0].url, "https://contoso.sharepoint.com/sites/project-x/_api/web/GetFileById(\'0CD891EF-AFCE-4E55-B836-FCE03286CCCF\')/checkin(comment='',checkintype=2)");
+    assert.strictEqual(postStub.mock.lastCall[0].url, "https://contoso.sharepoint.com/sites/project-x/_api/web/GetFileById(\'0CD891EF-AFCE-4E55-B836-FCE03286CCCF\')/checkin(comment='',checkintype=2)");
   });
 
   it('should call correctly the API when comment specified (id)', async () => {
-    const postStub: sinon.SinonStub = stubPostResponses();
+    const postStub: jest.Mock = stubPostResponses();
 
     await command.action(logger, {
       options: {
@@ -262,18 +265,22 @@ describe(commands.FILE_CHECKIN, () => {
         comment: 'abc1'
       }
     });
-    assert.strictEqual(postStub.lastCall.args[0].url, "https://contoso.sharepoint.com/sites/project-x/_api/web/GetFileById(\'0CD891EF-AFCE-4E55-B836-FCE03286CCCF\')/checkin(comment='abc1',checkintype=1)");
+    assert.strictEqual(postStub.mock.lastCall[0].url, "https://contoso.sharepoint.com/sites/project-x/_api/web/GetFileById(\'0CD891EF-AFCE-4E55-B836-FCE03286CCCF\')/checkin(comment='abc1',checkintype=1)");
   });
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', id: 'f09c4efe-b8c0-4e89-a166-03418661b89b' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', id: 'f09c4efe-b8c0-4e89-a166-03418661b89b' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the webUrl option is a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: 'f09c4efe-b8c0-4e89-a166-03418661b89b' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if the webUrl option is a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: 'f09c4efe-b8c0-4e89-a166-03418661b89b' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the id option is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '12345' } }, commandInfo);
@@ -286,7 +293,7 @@ describe(commands.FILE_CHECKIN, () => {
   });
 
   it('fails validation if the id or url option not specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -309,7 +316,7 @@ describe(commands.FILE_CHECKIN, () => {
   });
 
   it('fails validation if both id and url options are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }

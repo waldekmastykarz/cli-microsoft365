@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,14 +8,14 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './message-list.js';
 
 describe(commands.MESSAGE_LIST, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
   const firstMessageBatch: any = {
@@ -39,11 +38,11 @@ describe(commands.MESSAGE_LIST, () => {
     }
   };
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -61,18 +60,18 @@ describe(commands.MESSAGE_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -89,7 +88,7 @@ describe(commands.MESSAGE_LIST, () => {
   });
 
   it('correctly handles error', async () => {
-    sinon.stub(request, 'get').rejects({
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects({
       "error": {
         "base": "An error has occurred."
       }
@@ -128,140 +127,146 @@ describe(commands.MESSAGE_LIST, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('you are not allowed to use groupId and threadId at the same time', async () => {
-    const actual = await command.validate({ options: { groupId: 123, threadId: 123 } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('you are not allowed to use groupId and threadId at the same time',
+    async () => {
+      const actual = await command.validate({ options: { groupId: 123, threadId: 123 } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('you cannot specify the feedType with groupId or threadId at the same time', async () => {
-    const actual = await command.validate({ options: { feedType: 'All', threadId: 123 } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('you cannot specify the feedType with groupId or threadId at the same time',
+    async () => {
+      const actual = await command.validate({ options: { feedType: 'All', threadId: 123 } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('Fails in case FeedType is not correct', async () => {
     const actual = await command.validate({ options: { feedType: 'WrongValue' } }, commandInfo);
     assert.notStrictEqual(actual, true);
   });
 
-  it('you are not allowed to use groupId and threadId and feedType at the same time', async () => {
-    const actual = await command.validate({ options: { feedType: 'Private', groupId: 123, threadId: 123 } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('you are not allowed to use groupId and threadId and feedType at the same time',
+    async () => {
+      const actual = await command.validate({ options: { feedType: 'Private', groupId: 123, threadId: 123 } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('returns messages without more results', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/messages.json') {
         return secondMessageBatch;
       }
       throw 'Invalid request';
     });
     await command.action(logger, { options: {} } as any);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0][0].id, 10123190123130);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0][0].id, 10123190123130);
   });
 
   it('returns messages from top feed', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/messages/algo.json') {
         return secondMessageBatch;
       }
       throw 'Invalid request';
     });
     await command.action(logger, { options: { feedType: 'Top' } } as any,);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0][0].id, 10123190123130);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0][0].id, 10123190123130);
   });
 
   it('returns messages from my feed', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/messages/my_feed.json') {
         return secondMessageBatch;
       }
       throw 'Invalid request';
     });
     await command.action(logger, { options: { feedType: 'My' } } as any);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0][0].id, 10123190123130);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0][0].id, 10123190123130);
   });
 
   it('returns messages from following feed', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/messages/following.json') {
         return secondMessageBatch;
       }
       throw 'Invalid request';
     });
     await command.action(logger, { options: { feedType: 'Following' } } as any);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0][0].id, 10123190123130);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0][0].id, 10123190123130);
   });
 
   it('returns messages from sent feed', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/messages/sent.json') {
         return secondMessageBatch;
       }
       throw 'Invalid request';
     });
     await command.action(logger, { options: { feedType: 'Sent' } } as any);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0][0].id, 10123190123130);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0][0].id, 10123190123130);
   });
 
   it('returns messages from private feed', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/messages/private.json') {
         return secondMessageBatch;
       }
       throw 'Invalid request';
     });
     await command.action(logger, { options: { feedType: 'Private' } } as any);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0][0].id, 10123190123130);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0][0].id, 10123190123130);
   });
 
   it('returns messages from received feed', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/messages/received.json') {
         return secondMessageBatch;
       }
       throw 'Invalid request';
     });
     await command.action(logger, { options: { feedType: 'Received' } } as any);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0][0].id, 10123190123130);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0][0].id, 10123190123130);
   });
 
   it('returns messages from all feed', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/messages.json') {
         return secondMessageBatch;
       }
       throw 'Invalid request';
     });
     await command.action(logger, { options: { feedType: 'All' } } as any);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0][0].id, 10123190123130);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0][0].id, 10123190123130);
   });
 
   it('returns messages from the group feed', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/messages/in_group/123123.json') {
         return secondMessageBatch;
       }
       throw 'Invalid request';
     });
     await command.action(logger, { options: { groupId: 123123 } } as any);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0][0].id, 10123190123130);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0][0].id, 10123190123130);
   });
 
   it('returns messages from thread feed', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/messages/in_thread/123123.json') {
         return secondMessageBatch;
       }
       throw 'Invalid request';
     });
     await command.action(logger, { options: { threadId: 123123 } } as any);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0][0].id, 10123190123130);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0][0].id, 10123190123130);
   });
 
   it('returns all messages', async () => {
     let i: number = 0;
 
-    sinon.stub(request, 'get').callsFake(async () => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async () => {
       if (i++ === 0) {
         return firstMessageBatch;
       }
@@ -270,13 +275,13 @@ describe(commands.MESSAGE_LIST, () => {
       }
     });
     await command.action(logger, { options: { output: 'json' } } as any);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].length, 7);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].length, 7);
   });
 
   it('returns message with a specific limit', async () => {
     let i: number = 0;
 
-    sinon.stub(request, 'get').callsFake(async () => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async () => {
       if (i++ === 0) {
         return firstMessageBatch;
       }
@@ -285,13 +290,13 @@ describe(commands.MESSAGE_LIST, () => {
       }
     });
     await command.action(logger, { options: { limit: 6, output: 'json' } } as any);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].length, 6);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].length, 6);
   });
 
   it('handles error in loop', async () => {
     let i: number = 0;
 
-    sinon.stub(request, 'get').callsFake(async () => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async () => {
       if (i++ === 0) {
         return firstMessageBatch;
       }
@@ -308,35 +313,35 @@ describe(commands.MESSAGE_LIST, () => {
   });
 
   it('handles correct parameters older than', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/messages.json?older_than=10123190123128') {
         return secondMessageBatch;
       }
       throw 'Invalid request';
     });
     await command.action(logger, { options: { olderThanId: 10123190123128, output: 'json' } } as any);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0][0].id, 10123190123130);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0][0].id, 10123190123130);
   });
 
   it('handles correct parameters older than and threaded', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/messages.json?older_than=10123190123128&threaded=true') {
         return secondMessageBatch;
       }
       throw 'Invalid request';
     });
     await command.action(logger, { options: { olderThanId: 10123190123128, threaded: true, output: 'json' } } as any);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0][0].id, 10123190123130);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0][0].id, 10123190123130);
   });
 
   it('handles correct parameters with threaded', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/messages.json?threaded=true') {
         return secondMessageBatch;
       }
       throw 'Invalid request';
     });
     await command.action(logger, { options: { threaded: true, output: 'json' } } as any);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0][0].id, 10123190123130);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0][0].id, 10123190123130);
   });
 });

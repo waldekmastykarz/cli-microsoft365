@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './group-member-list.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -18,7 +17,7 @@ describe(commands.GROUP_MEMBER_LIST, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
   const JSONSPGroupMembersList =
@@ -63,12 +62,12 @@ describe(commands.GROUP_MEMBER_LIST, () => {
     value: JSONSPGroupMembersList
   };
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -86,19 +85,19 @@ describe(commands.GROUP_MEMBER_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       Cli.executeCommandWithOutput,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -115,7 +114,7 @@ describe(commands.GROUP_MEMBER_LIST, () => {
   });
 
   it('Getting the members of a SharePoint Group using groupId', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/sitegroups/GetById') > -1) {
         return groupMembersList;
       }
@@ -131,41 +130,45 @@ describe(commands.GROUP_MEMBER_LIST, () => {
     assert(loggerLogSpy.calledWith(JSONSPGroupMembersList));
   });
 
-  it('Getting the members of a SharePoint Group using groupId (DEBUG)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/web/sitegroups/GetById') > -1) {
-        return groupMembersList;
-      }
+  it('Getting the members of a SharePoint Group using groupId (DEBUG)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/web/sitegroups/GetById') > -1) {
+          return groupMembersList;
+        }
 
-      throw `Invalid request ${JSON.stringify(opts)}`;
-    });
-    await command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: "https://contoso.sharepoint.com/sites/SiteA",
-        groupId: 3
-      }
-    });
-    assert(loggerLogSpy.calledWith(JSONSPGroupMembersList));
-  });
+        throw `Invalid request ${JSON.stringify(opts)}`;
+      });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: "https://contoso.sharepoint.com/sites/SiteA",
+          groupId: 3
+        }
+      });
+      assert(loggerLogSpy.calledWith(JSONSPGroupMembersList));
+    }
+  );
 
-  it('Getting the members of a SharePoint Group using groupName (DEBUG)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/web/sitegroups/GetByName') > -1) {
-        return groupMembersList;
-      }
+  it('Getting the members of a SharePoint Group using groupName (DEBUG)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/web/sitegroups/GetByName') > -1) {
+          return groupMembersList;
+        }
 
-      throw `Invalid request ${JSON.stringify(opts)}`;
-    });
-    await command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: "https://contoso.sharepoint.com/sites/SiteA",
-        groupName: "Contoso Site Owners"
-      }
-    });
-    assert(loggerLogSpy.calledWith(JSONSPGroupMembersList));
-  });
+        throw `Invalid request ${JSON.stringify(opts)}`;
+      });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: "https://contoso.sharepoint.com/sites/SiteA",
+          groupName: "Contoso Site Owners"
+        }
+      });
+      assert(loggerLogSpy.calledWith(JSONSPGroupMembersList));
+    }
+  );
 
   it('Correctly Handles Error when listing members of the group', async () => {
     const error = {
@@ -178,7 +181,7 @@ describe(commands.GROUP_MEMBER_LIST, () => {
         }
       }
     };
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/sitegroups/GetById') > -1) {
         throw error;
       }
@@ -201,7 +204,7 @@ describe(commands.GROUP_MEMBER_LIST, () => {
   });
 
   it('fails validation if groupid and groupName is entered', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -213,26 +216,30 @@ describe(commands.GROUP_MEMBER_LIST, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if neither groupId nor groupName is entered', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if neither groupId nor groupName is entered',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: "https://contoso.sharepoint.com/sites/SiteA" } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: "https://contoso.sharepoint.com/sites/SiteA" } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if groupId is Invalid', async () => {
     const actual = await command.validate({ options: { webUrl: "https://contoso.sharepoint.com/sites/SiteA", groupId: "INVALIDGROUP" } }, commandInfo);
     assert.notStrictEqual(actual, true);
   });
 
-  it('passes validation if all the required options are specified', async () => {
-    const actual = await command.validate({ options: { webUrl: "https://contoso.sharepoint.com/sites/SiteA", groupId: 3 } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if all the required options are specified',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: "https://contoso.sharepoint.com/sites/SiteA", groupId: 3 } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

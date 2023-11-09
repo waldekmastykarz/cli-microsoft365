@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './storageentity-remove.js';
@@ -23,13 +22,13 @@ describe(commands.STORAGEENTITY_REMOVE, () => {
   let promptOptions: any;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'ABC',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -53,22 +52,22 @@ describe(commands.STORAGEENTITY_REMOVE, () => {
         log.push(msg);
       }
     };
-    sinon.stub(Cli, 'prompt').callsFake(async (options) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options) => {
       promptOptions = options;
       return { continue: false };
     });
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       Cli.prompt,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -81,82 +80,88 @@ describe(commands.STORAGEENTITY_REMOVE, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('removes existing tenant property without prompting with confirmation argument', async () => {
-    const postStub: sinon.SinonStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_vti_bin/client.svc/ProcessQuery') > -1) {
-        return JSON.stringify([{ "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.7018.1204", "ErrorInfo": null, "TraceCorrelationId": "4456299e-d09e-4000-ae61-ddde716daa27" }, 31, { "IsNull": false }, 33, { "IsNull": false }, 35, { "IsNull": false }]);
-      }
-      throw 'Invalid request';
-    });
+  it('removes existing tenant property without prompting with confirmation argument',
+    async () => {
+      const postStub: jest.Mock = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_vti_bin/client.svc/ProcessQuery') > -1) {
+          return JSON.stringify([{ "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.7018.1204", "ErrorInfo": null, "TraceCorrelationId": "4456299e-d09e-4000-ae61-ddde716daa27" }, 31, { "IsNull": false }, 33, { "IsNull": false }, 35, { "IsNull": false }]);
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { key: 'existingproperty', force: true, appCatalogUrl: 'https://contoso.sharepoint.com/sites/appcatalog' } });
-    assert.strictEqual(postStub.lastCall.args[0].url, 'https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery');
-    assert.strictEqual(postStub.lastCall.args[0].headers['X-RequestDigest'], 'ABC');
-    assert.strictEqual(postStub.lastCall.args[0].data, `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="31" ObjectPathId="30" /><ObjectPath Id="33" ObjectPathId="32" /><ObjectPath Id="35" ObjectPathId="34" /><Method Name="RemoveStorageEntity" Id="36" ObjectPathId="34"><Parameters><Parameter Type="String">existingproperty</Parameter></Parameters></Method></Actions><ObjectPaths><Constructor Id="30" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /><Method Id="32" ParentId="30" Name="GetSiteByUrl"><Parameters><Parameter Type="String">https://contoso.sharepoint.com/sites/appcatalog</Parameter></Parameters></Method><Property Id="34" ParentId="32" Name="RootWeb" /></ObjectPaths></Request>`);
-  });
-
-  it('prompts before removing tenant property when confirmation argument not passed', async () => {
-
-    await command.action(logger, { options: { debug: true, key: 'existingproperty', appCatalogUrl: 'https://contoso.sharepoint.com/sites/appcatalog' } });
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      await command.action(logger, { options: { key: 'existingproperty', force: true, appCatalogUrl: 'https://contoso.sharepoint.com/sites/appcatalog' } });
+      assert.strictEqual(postStub.mock.lastCall[0].url, 'https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery');
+      assert.strictEqual(postStub.mock.lastCall[0].headers['X-RequestDigest'], 'ABC');
+      assert.strictEqual(postStub.mock.lastCall[0].data, `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="31" ObjectPathId="30" /><ObjectPath Id="33" ObjectPathId="32" /><ObjectPath Id="35" ObjectPathId="34" /><Method Name="RemoveStorageEntity" Id="36" ObjectPathId="34"><Parameters><Parameter Type="String">existingproperty</Parameter></Parameters></Method></Actions><ObjectPaths><Constructor Id="30" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /><Method Id="32" ParentId="30" Name="GetSiteByUrl"><Parameters><Parameter Type="String">https://contoso.sharepoint.com/sites/appcatalog</Parameter></Parameters></Method><Property Id="34" ParentId="32" Name="RootWeb" /></ObjectPaths></Request>`);
     }
-    assert(promptIssued);
-  });
+  );
+
+  it('prompts before removing tenant property when confirmation argument not passed',
+    async () => {
+
+      await command.action(logger, { options: { debug: true, key: 'existingproperty', appCatalogUrl: 'https://contoso.sharepoint.com/sites/appcatalog' } });
+      let promptIssued = false;
+
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+      assert(promptIssued);
+    }
+  );
 
   it('aborts removing property when prompt not confirmed', async () => {
-    const postStub: sinon.SinonStub = sinon.stub(request, 'post').rejects(new Error('Invalid request'));
+    const postStub: jest.Mock = jest.spyOn(request, 'post').mockClear().mockImplementation().rejects(new Error('Invalid request'));
 
     await command.action(logger, { options: { debug: true, key: 'existingproperty', appCatalogUrl: 'https://contoso.sharepoint.com/sites/appcatalog' } });
     assert(postStub.notCalled);
   });
 
   it('removes tenant property when prompt confirmed', async () => {
-    const postStub: sinon.SinonStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postStub: jest.Mock = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_vti_bin/client.svc/ProcessQuery') > -1) {
         return JSON.stringify([{ "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.7018.1204", "ErrorInfo": null, "TraceCorrelationId": "4456299e-d09e-4000-ae61-ddde716daa27" }, 31, { "IsNull": false }, 33, { "IsNull": false }, 35, { "IsNull": false }]);
       }
       throw 'Invalid request';
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: true }
     ));
 
     await command.action(logger, { options: { debug: true, key: 'existingproperty', appCatalogUrl: 'https://contoso.sharepoint.com/sites/appcatalog' } });
-    assert.strictEqual(postStub.lastCall.args[0].url, 'https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery');
-    assert.strictEqual(postStub.lastCall.args[0].headers['X-RequestDigest'], 'ABC');
-    assert.strictEqual(postStub.lastCall.args[0].data, `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="31" ObjectPathId="30" /><ObjectPath Id="33" ObjectPathId="32" /><ObjectPath Id="35" ObjectPathId="34" /><Method Name="RemoveStorageEntity" Id="36" ObjectPathId="34"><Parameters><Parameter Type="String">existingproperty</Parameter></Parameters></Method></Actions><ObjectPaths><Constructor Id="30" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /><Method Id="32" ParentId="30" Name="GetSiteByUrl"><Parameters><Parameter Type="String">https://contoso.sharepoint.com/sites/appcatalog</Parameter></Parameters></Method><Property Id="34" ParentId="32" Name="RootWeb" /></ObjectPaths></Request>`);
+    assert.strictEqual(postStub.mock.lastCall[0].url, 'https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery');
+    assert.strictEqual(postStub.mock.lastCall[0].headers['X-RequestDigest'], 'ABC');
+    assert.strictEqual(postStub.mock.lastCall[0].data, `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="31" ObjectPathId="30" /><ObjectPath Id="33" ObjectPathId="32" /><ObjectPath Id="35" ObjectPathId="34" /><Method Name="RemoveStorageEntity" Id="36" ObjectPathId="34"><Parameters><Parameter Type="String">existingproperty</Parameter></Parameters></Method></Actions><ObjectPaths><Constructor Id="30" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /><Method Id="32" ParentId="30" Name="GetSiteByUrl"><Parameters><Parameter Type="String">https://contoso.sharepoint.com/sites/appcatalog</Parameter></Parameters></Method><Property Id="34" ParentId="32" Name="RootWeb" /></ObjectPaths></Request>`);
   });
 
-  it('correctly reports when trying to remove an nonexistent property', async () => {
-    const postStub: sinon.SinonStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_vti_bin/client.svc/ProcessQuery') > -1) {
-        return JSON.stringify([
-          {
-            "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.7018.1204", "ErrorInfo": {
-              "ErrorMessage": "File Not Found.", "ErrorValue": null, "TraceCorrelationId": "9e54299e-208a-4000-8546-cc4139091b26", "ErrorCode": -2147024894, "ErrorTypeName": "System.IO.FileNotFoundException"
-            }, "TraceCorrelationId": "9e54299e-208a-4000-8546-cc4139091b26"
-          }
-        ]);
-      }
+  it('correctly reports when trying to remove an nonexistent property',
+    async () => {
+      const postStub: jest.Mock = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_vti_bin/client.svc/ProcessQuery') > -1) {
+          return JSON.stringify([
+            {
+              "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.7018.1204", "ErrorInfo": {
+                "ErrorMessage": "File Not Found.", "ErrorValue": null, "TraceCorrelationId": "9e54299e-208a-4000-8546-cc4139091b26", "ErrorCode": -2147024894, "ErrorTypeName": "System.IO.FileNotFoundException"
+              }, "TraceCorrelationId": "9e54299e-208a-4000-8546-cc4139091b26"
+            }
+          ]);
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: true }
-    ));
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: true }
+      ));
 
-    await assert.rejects(command.action(logger, { options: { debug: true, key: 'nonexistentproperty', appCatalogUrl: 'https://contoso.sharepoint.com/sites/appcatalog' } } as any), new CommandError('File Not Found.'));
-    assert.strictEqual(postStub.lastCall.args[0].url, 'https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery');
-    assert.strictEqual(postStub.lastCall.args[0].headers['X-RequestDigest'], 'ABC');
-    assert.strictEqual(postStub.lastCall.args[0].data, `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="31" ObjectPathId="30" /><ObjectPath Id="33" ObjectPathId="32" /><ObjectPath Id="35" ObjectPathId="34" /><Method Name="RemoveStorageEntity" Id="36" ObjectPathId="34"><Parameters><Parameter Type="String">nonexistentproperty</Parameter></Parameters></Method></Actions><ObjectPaths><Constructor Id="30" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /><Method Id="32" ParentId="30" Name="GetSiteByUrl"><Parameters><Parameter Type="String">https://contoso.sharepoint.com/sites/appcatalog</Parameter></Parameters></Method><Property Id="34" ParentId="32" Name="RootWeb" /></ObjectPaths></Request>`);
-  });
+      await assert.rejects(command.action(logger, { options: { debug: true, key: 'nonexistentproperty', appCatalogUrl: 'https://contoso.sharepoint.com/sites/appcatalog' } } as any), new CommandError('File Not Found.'));
+      assert.strictEqual(postStub.mock.lastCall[0].url, 'https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery');
+      assert.strictEqual(postStub.mock.lastCall[0].headers['X-RequestDigest'], 'ABC');
+      assert.strictEqual(postStub.mock.lastCall[0].data, `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="31" ObjectPathId="30" /><ObjectPath Id="33" ObjectPathId="32" /><ObjectPath Id="35" ObjectPathId="34" /><Method Name="RemoveStorageEntity" Id="36" ObjectPathId="34"><Parameters><Parameter Type="String">nonexistentproperty</Parameter></Parameters></Method></Actions><ObjectPaths><Constructor Id="30" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /><Method Id="32" ParentId="30" Name="GetSiteByUrl"><Parameters><Parameter Type="String">https://contoso.sharepoint.com/sites/appcatalog</Parameter></Parameters></Method><Property Id="34" ParentId="32" Name="RootWeb" /></ObjectPaths></Request>`);
+    }
+  );
 
   it('requires app catalog URL', () => {
     const options = command.options;
@@ -207,25 +212,27 @@ describe(commands.STORAGEENTITY_REMOVE, () => {
     assert.strictEqual(actual, `${url} is not a valid SharePoint Online site URL`);
   });
 
-  it('fails validation when no SharePoint Online app catalog URL specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation when no SharePoint Online app catalog URL specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: {} }, commandInfo);
-    assert.strictEqual(actual, 'Required option appCatalogUrl not specified');
-  });
+      const actual = await command.validate({ options: {} }, commandInfo);
+      assert.strictEqual(actual, 'Required option appCatalogUrl not specified');
+    }
+  );
 
   it('handles promise rejection', async () => {
-    sinonUtil.restore(spo.getRequestDigest);
-    sinon.stub(spo, 'getRequestDigest').rejects(new Error('getRequestDigest error'));
+    jestUtil.restore(spo.getRequestDigest);
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().rejects(new Error('getRequestDigest error'));
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: true }
     ));
 

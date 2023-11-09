@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './task-remove.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -121,12 +120,12 @@ describe(commands.TASK_REMOVE, () => {
     "title": validPlanTitle
   };
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.accessTokens[(command as any).resource] = {
       accessToken: 'abc',
@@ -149,14 +148,14 @@ describe(commands.TASK_REMOVE, () => {
       }
     };
     promptOptions = undefined;
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.delete,
       Cli.prompt,
@@ -165,8 +164,8 @@ describe(commands.TASK_REMOVE, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.accessTokens = {};
   });
@@ -180,7 +179,7 @@ describe(commands.TASK_REMOVE, () => {
   });
 
   it('fails validation when title and id is used', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -198,7 +197,7 @@ describe(commands.TASK_REMOVE, () => {
   });
 
   it('fails validation when title is used without bucket id', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -214,103 +213,113 @@ describe(commands.TASK_REMOVE, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation when title is used with both bucket id and bucketname', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation when title is used with both bucket id and bucketname',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        title: validTaskTitle,
-        bucketId: validBucketId,
-        bucketName: validBucketName
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          title: validTaskTitle,
+          bucketId: validBucketId,
+          bucketName: validBucketName
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when bucket name is used without plan name, plan id, or roster id', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation when bucket name is used without plan name, plan id, or roster id',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        title: validTaskTitle,
-        bucketName: validBucketName
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          title: validTaskTitle,
+          bucketName: validBucketName
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when bucket name is used with both plan name, plan id, and roster id', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation when bucket name is used with both plan name, plan id, and roster id',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        title: validTaskTitle,
-        bucketName: validBucketName,
-        planId: validPlanId,
-        planTitle: validPlanTitle,
-        rosterId: validRosterId
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          title: validTaskTitle,
+          bucketName: validBucketName,
+          planId: validPlanId,
+          planTitle: validPlanTitle,
+          rosterId: validRosterId
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when plan name is used without owner group name or owner group id', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation when plan name is used without owner group name or owner group id',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        title: validTaskTitle,
-        bucketName: validBucketName,
-        planTitle: validPlanTitle
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          title: validTaskTitle,
+          bucketName: validBucketName,
+          planTitle: validPlanTitle
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when plan name is used with both owner group name and owner group id', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation when plan name is used with both owner group name and owner group id',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        title: validTaskTitle,
-        bucketName: validBucketName,
-        planTitle: validPlanTitle,
-        ownerGroupName: validOwnerGroupName,
-        ownerGroupId: validOwnerGroupId
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          title: validTaskTitle,
+          bucketName: validBucketName,
+          planTitle: validPlanTitle,
+          ownerGroupName: validOwnerGroupName,
+          ownerGroupId: validOwnerGroupId
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation when owner group id is not a guid', async () => {
     const actual = await command.validate({
@@ -356,7 +365,7 @@ describe(commands.TASK_REMOVE, () => {
   });
 
   it('fails validation when no groups found', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validOwnerGroupName)}'`) {
         return { "value": [] };
       }
@@ -376,7 +385,7 @@ describe(commands.TASK_REMOVE, () => {
   });
 
   it('fails validation when multiple groups found', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -384,7 +393,7 @@ describe(commands.TASK_REMOVE, () => {
       return defaultValue;
     });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validOwnerGroupName)}'`) {
         return multipleGroupResponse;
       }
@@ -404,7 +413,7 @@ describe(commands.TASK_REMOVE, () => {
   });
 
   it('fails validation when no buckets found', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${validPlanId}/buckets?$select=id,name`) {
         return { "value": [] };
       }
@@ -423,7 +432,7 @@ describe(commands.TASK_REMOVE, () => {
   });
 
   it('fails validation when multiple buckets found', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -431,7 +440,7 @@ describe(commands.TASK_REMOVE, () => {
       return defaultValue;
     });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${validPlanId}/buckets?$select=id,name`) {
         return multipleBucketByNameResponse;
       }
@@ -449,55 +458,57 @@ describe(commands.TASK_REMOVE, () => {
     }), new CommandError("Multiple buckets with name 'Bucket name' found. Found: vncYUXCRBke28qMLB-d4xJcACtNz."));
   });
 
-  it('handles selecting single result when multiple buckets with the specified name found and cli is set to prompt', async () => {
-    let removeRequestIssued = false;
+  it('handles selecting single result when multiple buckets with the specified name found and cli is set to prompt',
+    async () => {
+      let removeRequestIssued = false;
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validOwnerGroupName)}'`) {
-        return singleGroupResponse;
-      }
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups/${validOwnerGroupId}/planner/plans`) {
-        return singlePlanResponse;
-      }
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${validPlanId}/buckets?$select=id,name`) {
-        return multipleBucketByNameResponse;
-      }
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/buckets/${validBucketId}/tasks?$select=title,id`) {
-        return singleTaskByTitleResponse;
-      }
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${validTaskId}`) {
-        return singleTaskByIdResponse;
-      }
-      throw 'Invalid Request';
-    });
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validOwnerGroupName)}'`) {
+          return singleGroupResponse;
+        }
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups/${validOwnerGroupId}/planner/plans`) {
+          return singlePlanResponse;
+        }
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${validPlanId}/buckets?$select=id,name`) {
+          return multipleBucketByNameResponse;
+        }
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/buckets/${validBucketId}/tasks?$select=title,id`) {
+          return singleTaskByTitleResponse;
+        }
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${validTaskId}`) {
+          return singleTaskByIdResponse;
+        }
+        throw 'Invalid Request';
+      });
 
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${validTaskId}`) {
-        removeRequestIssued = true;
-        return;
-      }
+      jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${validTaskId}`) {
+          removeRequestIssued = true;
+          return;
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves(singleBucketByNameResponse.value[0]);
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves(singleBucketByNameResponse.value[0]);
 
-    await command.action(logger, {
-      options: {
-        title: validTaskTitle,
-        bucketName: validBucketName,
-        planTitle: validPlanTitle,
-        ownerGroupName: validOwnerGroupName
-      }
-    });
-    assert(removeRequestIssued);
-  });
+      await command.action(logger, {
+        options: {
+          title: validTaskTitle,
+          bucketName: validBucketName,
+          planTitle: validPlanTitle,
+          ownerGroupName: validOwnerGroupName
+        }
+      });
+      assert(removeRequestIssued);
+    }
+  );
 
   it('fails validation when no tasks found', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/buckets/${validBucketId}/tasks?$select=title,id`) {
         return { "value": [] };
       }
@@ -515,7 +526,7 @@ describe(commands.TASK_REMOVE, () => {
   });
 
   it('fails validation when multiple tasks found', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -523,7 +534,7 @@ describe(commands.TASK_REMOVE, () => {
       return defaultValue;
     });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/buckets/${validBucketId}/tasks?$select=title,id`) {
         return multipleTasksByTitleResponse;
       }
@@ -540,83 +551,89 @@ describe(commands.TASK_REMOVE, () => {
     }), new CommandError("Multiple tasks with title 'Task name' found. Found: 2Vf8JHgsBUiIf-nuvBtv-ZgAAYw2."));
   });
 
-  it('handles selecting single result when multiple tasks with the specified name found and cli is set to prompt', async () => {
-    let removeRequestIssued = false;
+  it('handles selecting single result when multiple tasks with the specified name found and cli is set to prompt',
+    async () => {
+      let removeRequestIssued = false;
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validOwnerGroupName)}'`) {
-        return singleGroupResponse;
-      }
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups/${validOwnerGroupId}/planner/plans`) {
-        return singlePlanResponse;
-      }
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${validPlanId}/buckets?$select=id,name`) {
-        return singleBucketByNameResponse;
-      }
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/buckets/${validBucketId}/tasks?$select=title,id`) {
-        return multipleTasksByTitleResponse;
-      }
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${validTaskId}`) {
-        return singleTaskByIdResponse;
-      }
-      throw 'Invalid Request';
-    });
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validOwnerGroupName)}'`) {
+          return singleGroupResponse;
+        }
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups/${validOwnerGroupId}/planner/plans`) {
+          return singlePlanResponse;
+        }
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${validPlanId}/buckets?$select=id,name`) {
+          return singleBucketByNameResponse;
+        }
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/buckets/${validBucketId}/tasks?$select=title,id`) {
+          return multipleTasksByTitleResponse;
+        }
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${validTaskId}`) {
+          return singleTaskByIdResponse;
+        }
+        throw 'Invalid Request';
+      });
 
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${validTaskId}`) {
-        removeRequestIssued = true;
-        return;
-      }
+      jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${validTaskId}`) {
+          removeRequestIssued = true;
+          return;
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves(singleTaskByTitleResponse.value[0]);
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves(singleTaskByTitleResponse.value[0]);
 
-    await command.action(logger, {
-      options: {
-        title: validTaskTitle,
-        bucketName: validBucketName,
-        planTitle: validPlanTitle,
-        ownerGroupName: validOwnerGroupName
-      }
-    });
-    assert(removeRequestIssued);
-  });
-
-  it('prompts before removing the specified task when confirm option not passed with id', async () => {
-    await command.action(logger, {
-      options: {
-        id: validTaskId
-      }
-    });
-
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      await command.action(logger, {
+        options: {
+          title: validTaskTitle,
+          bucketName: validBucketName,
+          planTitle: validPlanTitle,
+          ownerGroupName: validOwnerGroupName
+        }
+      });
+      assert(removeRequestIssued);
     }
+  );
 
-    assert(promptIssued);
-  });
+  it('prompts before removing the specified task when confirm option not passed with id',
+    async () => {
+      await command.action(logger, {
+        options: {
+          id: validTaskId
+        }
+      });
 
-  it('aborts removing the specified task when confirm option not passed and prompt not confirmed', async () => {
-    const postSpy = sinon.spy(request, 'delete');
+      let promptIssued = false;
 
-    await command.action(logger, {
-      options: {
-        id: validTaskId
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
       }
-    });
 
-    assert(postSpy.notCalled);
-  });
+      assert(promptIssued);
+    }
+  );
+
+  it('aborts removing the specified task when confirm option not passed and prompt not confirmed',
+    async () => {
+      const postSpy = jest.spyOn(request, 'delete').mockClear();
+
+      await command.action(logger, {
+        options: {
+          id: validTaskId
+        }
+      });
+
+      assert(postSpy.notCalled);
+    }
+  );
 
   it('correctly deletes task by id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${validTaskId}`) {
         return singleTaskByIdResponse;
       }
@@ -624,7 +641,7 @@ describe(commands.TASK_REMOVE, () => {
       throw 'Invalid Request';
     });
 
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
+    jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${validTaskId}`) {
         return;
       }
@@ -641,7 +658,7 @@ describe(commands.TASK_REMOVE, () => {
   });
 
   it('correctly deletes task by title with group id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups/${validOwnerGroupId}/planner/plans`) {
         return singlePlanResponse;
       }
@@ -657,7 +674,7 @@ describe(commands.TASK_REMOVE, () => {
       throw 'Invalid Request';
     });
 
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
+    jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${validTaskId}`) {
         return;
       }
@@ -665,8 +682,8 @@ describe(commands.TASK_REMOVE, () => {
       throw 'Invalid Request';
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
     await command.action(logger, {
       options: {
@@ -679,7 +696,7 @@ describe(commands.TASK_REMOVE, () => {
   });
 
   it('correctly deletes task by title', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validOwnerGroupName)}'`) {
         return singleGroupResponse;
       }
@@ -698,7 +715,7 @@ describe(commands.TASK_REMOVE, () => {
       throw 'Invalid Request';
     });
 
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
+    jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${validTaskId}`) {
         return;
       }
@@ -706,8 +723,8 @@ describe(commands.TASK_REMOVE, () => {
       throw 'Invalid Request';
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
     await command.action(logger, {
       options: {
@@ -720,7 +737,7 @@ describe(commands.TASK_REMOVE, () => {
   });
 
   it('correctly deletes task by rosterId', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/beta/planner/rosters/${validRosterId}/plans`) {
         return { "value": [planResponse] };
       }
@@ -736,7 +753,7 @@ describe(commands.TASK_REMOVE, () => {
       throw 'Invalid Request';
     });
 
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
+    jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${validTaskId}`) {
         return;
       }
@@ -744,8 +761,8 @@ describe(commands.TASK_REMOVE, () => {
       throw 'Invalid Request';
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: true }
     ));
 

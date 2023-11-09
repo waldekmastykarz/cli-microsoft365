@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../Auth.js';
 import { Cli } from '../../../cli/Cli.js';
 import { CommandInfo } from '../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../request.js';
 import { telemetry } from '../../../telemetry.js';
 import { pid } from '../../../utils/pid.js';
 import { session } from '../../../utils/session.js';
-import { sinonUtil } from '../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../utils/jestUtil.js';
 import commands from '../commands.js';
 import { ResultTableRow } from './search/datatypes/ResultTableRow.js';
 import { SearchResult } from './search/datatypes/SearchResult.js';
@@ -298,11 +297,11 @@ describe(commands.SEARCH, () => {
     throw 'Invalid request';
   };
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.spoUrl = 'https://contoso.sharepoint.com';
     commandInfo = Cli.getCommandInfo(command);
@@ -324,13 +323,13 @@ describe(commands.SEARCH, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -344,7 +343,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('executes search request', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
     await command.action(logger, {
       options: {
@@ -358,7 +357,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('executes search request with output option text', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
     await command.action(logger, {
       options: {
@@ -370,23 +369,25 @@ describe(commands.SEARCH, () => {
     assert.strictEqual(executedTest, TestID.QueryDocuments_NoParameterTest);
   });
 
-  it('executes search request with output option text and \'allResults\'', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+  it('executes search request with output option text and \'allResults\'',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
-    await command.action(logger, {
-      options: {
-        output: 'text',
-        queryText: 'IsDocument:1',
-        allResults: true,
-        rowLimit: 1
-      }
-    });
-    assert.strictEqual(returnArrayLength, 2);
-    assert.strictEqual(executedTest, TestID.QueryDocuments_WithStartRow1Test);
-  });
+      await command.action(logger, {
+        options: {
+          output: 'text',
+          queryText: 'IsDocument:1',
+          allResults: true,
+          rowLimit: 1
+        }
+      });
+      assert.strictEqual(returnArrayLength, 2);
+      assert.strictEqual(executedTest, TestID.QueryDocuments_WithStartRow1Test);
+    }
+  );
 
   it('executes search request with trimDuplicates', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
     await command.action(logger, {
       options: {
@@ -400,7 +401,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('executes search request with sortList', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
     await command.action(logger, {
       options: {
@@ -414,7 +415,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('executes search request with enableStemming=false', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
     await command.action(logger, {
       options: {
@@ -428,7 +429,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('executes search request with enableStemming=true', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
     await command.action(logger, {
       options: {
@@ -442,7 +443,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('executes search request with culture', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
     await command.action(logger, {
       options: {
@@ -455,23 +456,25 @@ describe(commands.SEARCH, () => {
     assert.strictEqual(executedTest, TestID.QueryAll_WithCultureTest);
   });
 
-  it('executes search request with output option json and \'allResults\'', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+  it('executes search request with output option json and \'allResults\'',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
-    await command.action(logger, {
-      options: {
-        output: 'json',
-        queryText: 'IsDocument:1',
-        allResults: true,
-        rowLimit: 1
-      }
-    });
-    assert.strictEqual(returnArrayLength, 2);
-    assert.strictEqual(executedTest, TestID.QueryDocuments_WithStartRow1Test);
-  });
+      await command.action(logger, {
+        options: {
+          output: 'json',
+          queryText: 'IsDocument:1',
+          allResults: true,
+          rowLimit: 1
+        }
+      });
+      assert.strictEqual(returnArrayLength, 2);
+      assert.strictEqual(executedTest, TestID.QueryDocuments_WithStartRow1Test);
+    }
+  );
 
   it('executes search request with selectProperties', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
     await command.action(logger, {
       options: {
@@ -485,7 +488,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('executes search request with refinementFilters', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
     await command.action(logger, {
       options: {
@@ -499,7 +502,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('executes search request with queryTemplate', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
     await command.action(logger, {
       options: {
@@ -513,7 +516,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('executes search request with sourceId', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
     await command.action(logger, {
       options: {
@@ -527,7 +530,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('executes search request with rankingModelId', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
     await command.action(logger, {
       options: {
@@ -541,7 +544,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('executes search request with rowLimits defined', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
     await command.action(logger, {
       options: {
@@ -556,7 +559,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('executes search request with startRow defined', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
     await command.action(logger, {
       options: {
@@ -571,7 +574,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('executes search request with properties defined', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
     await command.action(logger, {
       options: {
@@ -585,55 +588,61 @@ describe(commands.SEARCH, () => {
     assert.strictEqual(executedTest, TestID.QueryAll_WithPropertiesTest);
   });
 
-  it('executes search request with sourceName defined and no previous properties', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+  it('executes search request with sourceName defined and no previous properties',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
-    await command.action(logger, {
-      options: {
-        output: 'text',
-        debug: true,
-        queryText: '*',
-        sourceName: 'Local SharePoint Results'
-      }
-    });
-    assert.strictEqual(returnArrayLength, 4);
-    assert.strictEqual(executedTest, TestID.QueryAll_WithSourceNameAndNoPreviousPropertiesTest);
-  });
+      await command.action(logger, {
+        options: {
+          output: 'text',
+          debug: true,
+          queryText: '*',
+          sourceName: 'Local SharePoint Results'
+        }
+      });
+      assert.strictEqual(returnArrayLength, 4);
+      assert.strictEqual(executedTest, TestID.QueryAll_WithSourceNameAndNoPreviousPropertiesTest);
+    }
+  );
 
-  it('executes search request with sourceName defined and previous properties (ends with \',\')', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+  it('executes search request with sourceName defined and previous properties (ends with \',\')',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
-    await command.action(logger, {
-      options: {
-        output: 'text',
-        debug: true,
-        queryText: '*',
-        properties: 'some:property,',
-        sourceName: 'Local SharePoint Results'
-      }
-    });
-    assert.strictEqual(returnArrayLength, 4);
-    assert.strictEqual(executedTest, TestID.QueryAll_WithSourceNameAndPreviousPropertiesTest);
-  });
+      await command.action(logger, {
+        options: {
+          output: 'text',
+          debug: true,
+          queryText: '*',
+          properties: 'some:property,',
+          sourceName: 'Local SharePoint Results'
+        }
+      });
+      assert.strictEqual(returnArrayLength, 4);
+      assert.strictEqual(executedTest, TestID.QueryAll_WithSourceNameAndPreviousPropertiesTest);
+    }
+  );
 
-  it('executes search request with sourceName defined and previous properties (Doesn\'t end with \',\')', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+  it('executes search request with sourceName defined and previous properties (Doesn\'t end with \',\')',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
-    await command.action(logger, {
-      options: {
-        output: 'text',
-        debug: true,
-        queryText: '*',
-        properties: 'some:property',
-        sourceName: 'Local SharePoint Results'
-      }
-    });
-    assert.strictEqual(returnArrayLength, 4);
-    assert.strictEqual(executedTest, TestID.QueryAll_WithSourceNameAndPreviousPropertiesTest);
-  });
+      await command.action(logger, {
+        options: {
+          output: 'text',
+          debug: true,
+          queryText: '*',
+          properties: 'some:property',
+          sourceName: 'Local SharePoint Results'
+        }
+      });
+      assert.strictEqual(returnArrayLength, 4);
+      assert.strictEqual(executedTest, TestID.QueryAll_WithSourceNameAndPreviousPropertiesTest);
+    }
+  );
 
   it('executes search request with refiners defined', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
     await command.action(logger, {
       options: {
@@ -648,7 +657,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('executes search request with web defined', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
     await command.action(logger, {
       options: {
@@ -663,7 +672,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('executes search request with hiddenConstraints defined', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
     await command.action(logger, {
       options: {
@@ -678,7 +687,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('executes search request with clientType defined', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
     await command.action(logger, {
       options: {
@@ -693,7 +702,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('executes search request with enablePhonetic defined', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
     await command.action(logger, {
       options: {
@@ -708,7 +717,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('executes search request with processBestBets defined', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
     await command.action(logger, {
       options: {
@@ -723,7 +732,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('executes search request with enableQueryRules defined', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
     await command.action(logger, {
       options: {
@@ -737,23 +746,25 @@ describe(commands.SEARCH, () => {
     assert.strictEqual(executedTest, TestID.QueryAll_WithEnableQueryRulesTest);
   });
 
-  it('executes search request with processPersonalFavorites defined', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+  it('executes search request with processPersonalFavorites defined',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
-    await command.action(logger, {
-      options: {
-        output: 'text',
-        debug: true,
-        queryText: '*',
-        processPersonalFavorites: true
-      }
-    });
-    assert.strictEqual(returnArrayLength, 4);
-    assert.strictEqual(executedTest, TestID.QueryAll_WithProcessPersonalFavoritesTest);
-  });
+      await command.action(logger, {
+        options: {
+          output: 'text',
+          debug: true,
+          queryText: '*',
+          processPersonalFavorites: true
+        }
+      });
+      assert.strictEqual(returnArrayLength, 4);
+      assert.strictEqual(executedTest, TestID.QueryAll_WithProcessPersonalFavoritesTest);
+    }
+  );
 
   it('executes search request with parameter rawOutput', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
     await command.action(logger, {
       options: {
@@ -787,15 +798,17 @@ describe(commands.SEARCH, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('fails validation if the rankingModelId is not a valid GUID', async () => {
-    const actual = await command.validate({
-      options: {
-        rankingModelId: '123',
-        queryText: '*'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the rankingModelId is not a valid GUID',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          rankingModelId: '123',
+          queryText: '*'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation if the rankingModelId is a valid GUID', async () => {
     const actual = await command.validate({
@@ -838,7 +851,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('command correctly handles reject request', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/contextinfo') > -1) {
         return {
           FormDigestValue: 'abc'
@@ -849,7 +862,7 @@ describe(commands.SEARCH, () => {
     });
 
     const err = 'Invalid request';
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/webs') > -1) {
         throw err;
       }

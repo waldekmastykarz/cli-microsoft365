@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { urlUtil } from '../../../../utils/urlUtil.js';
 import commands from '../../commands.js';
 import command from './listitem-get.js';
@@ -25,7 +24,7 @@ describe(commands.LISTITEM_GET, () => {
   let cli: Cli;
   let log: any[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
   const expectedTitle = `List Item 1`;
@@ -124,12 +123,12 @@ describe(commands.LISTITEM_GET, () => {
     throw 'Invalid request';
   };
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').callsFake(() => Promise.resolve());
-    sinon.stub(telemetry, 'trackEvent').callsFake(() => { });
-    sinon.stub(pid, 'getProcessName').callsFake(() => '');
-    sinon.stub(session, 'getId').callsFake(() => '');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation(() => Promise.resolve());
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockImplementation(() => { });
+    jest.spyOn(pid, 'getProcessName').mockClear().mockImplementation(() => '');
+    jest.spyOn(session, 'getId').mockClear().mockImplementation(() => '');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -147,18 +146,18 @@ describe(commands.LISTITEM_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -186,41 +185,49 @@ describe(commands.LISTITEM_GET, () => {
     assert.notStrictEqual(command.types.string, 'undefined', 'command string types undefined');
   });
 
-  it('fails validation if listTitle, listId or listUrl option not specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if listTitle, listId or listUrl option not specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: expectedId } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: expectedId } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if listTitle, listId and listUrl are specified together', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if listTitle, listId and listUrl are specified together',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF', listUrl: listUrl, id: expectedId } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF', listUrl: listUrl, id: expectedId } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', listTitle: 'Demo List', id: expectedId } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', listTitle: 'Demo List', id: expectedId } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the webUrl option is a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', id: expectedId } }, commandInfo);
-    assert(actual);
-  });
+  it('passes validation if the webUrl option is a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', id: expectedId } }, commandInfo);
+      assert(actual);
+    }
+  );
 
   it('fails validation if the listId option is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: 'foo', id: expectedId } }, commandInfo);
@@ -232,10 +239,12 @@ describe(commands.LISTITEM_GET, () => {
     assert(actual);
   });
 
-  it('fails validation if the uniqueId option is not a valid GUID', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF', uniqueId: 'foo' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the uniqueId option is not a valid GUID',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF', uniqueId: 'foo' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation if the uniqueId option is a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF', uniqueId: expectedUniqueId } }, commandInfo);
@@ -247,166 +256,182 @@ describe(commands.LISTITEM_GET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('returns listItemInstance object by id when list item is requested', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+  it('returns listItemInstance object by id when list item is requested',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
-    command.allowUnknownOptions();
+      command.allowUnknownOptions();
 
-    const options: any = {
-      debug: true,
-      listTitle: 'Demo List',
-      webUrl: webUrl,
-      id: expectedId
-    };
+      const options: any = {
+        debug: true,
+        listTitle: 'Demo List',
+        webUrl: webUrl,
+        id: expectedId
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert.strictEqual(actualId, expectedId);
-  });
+      await command.action(logger, { options: options } as any);
+      assert.strictEqual(actualId, expectedId);
+    }
+  );
 
-  it('returns listItemInstance object by uniqueId when list item is requested', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+  it('returns listItemInstance object by uniqueId when list item is requested',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
-    command.allowUnknownOptions();
+      command.allowUnknownOptions();
 
-    const options: any = {
-      debug: true,
-      listTitle: 'Demo List',
-      webUrl: webUrl,
-      uniqueId: expectedUniqueId
-    };
+      const options: any = {
+        debug: true,
+        listTitle: 'Demo List',
+        webUrl: webUrl,
+        uniqueId: expectedUniqueId
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(loggerLogSpy.calledWith({
-      Attachments: false,
-      AuthorId: 3,
-      ContentTypeId: '0x0100B21BD271A810EE488B570BE49963EA34',
-      Created: '2018-03-15T10:43:10Z',
-      EditorId: 3,
-      GUID: 'ea093c7b-8ae6-4400-8b75-e2d01154dffc',
-      Modified: '2018-03-15T10:43:10Z',
-      Title: expectedTitle
-    }));
-  });
+      await command.action(logger, { options: options } as any);
+      assert(loggerLogSpy.calledWith({
+        Attachments: false,
+        AuthorId: 3,
+        ContentTypeId: '0x0100B21BD271A810EE488B570BE49963EA34',
+        Created: '2018-03-15T10:43:10Z',
+        EditorId: 3,
+        GUID: 'ea093c7b-8ae6-4400-8b75-e2d01154dffc',
+        Modified: '2018-03-15T10:43:10Z',
+        Title: expectedTitle
+      }));
+    }
+  );
 
-  it('returns listItemInstance object when list item is requested and with permissions', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+  it('returns listItemInstance object when list item is requested and with permissions',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
-    command.allowUnknownOptions();
+      command.allowUnknownOptions();
 
-    const options: any = {
-      debug: true,
-      listTitle: 'Demo List',
-      webUrl: webUrl,
-      id: expectedId,
-      withPermissions: true
-    };
+      const options: any = {
+        debug: true,
+        listTitle: 'Demo List',
+        webUrl: webUrl,
+        id: expectedId,
+        withPermissions: true
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert.strictEqual(actualId, expectedId);
-  });
+      await command.action(logger, { options: options } as any);
+      assert.strictEqual(actualId, expectedId);
+    }
+  );
 
-  it('returns listItemInstance object when list item is requested with an output type of json, and a list of fields are specified', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+  it('returns listItemInstance object when list item is requested with an output type of json, and a list of fields are specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
-    command.allowUnknownOptions();
+      command.allowUnknownOptions();
 
-    const options: any = {
-      listTitle: 'Demo List',
-      webUrl: webUrl,
-      id: expectedId,
-      output: "json",
-      properties: "ID,Modified"
-    };
+      const options: any = {
+        listTitle: 'Demo List',
+        webUrl: webUrl,
+        id: expectedId,
+        output: "json",
+        properties: "ID,Modified"
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert.strictEqual(actualId, expectedId);
-  });
+      await command.action(logger, { options: options } as any);
+      assert.strictEqual(actualId, expectedId);
+    }
+  );
 
-  it('returns listItemInstance object when list item is requested with an output type of json, a list of fields with lookup field are specified', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts: any) => {
-      if ((opts.url as string).indexOf('&$expand=') > -1) {
-        actualId = parseInt(opts.url.match(/\/items\((\d+)\)/i)[1]);
-        return {
-          "ID": actualId,
-          "Modified": "2018-03-15T10:43:10Z",
-          "Title": expectedTitle,
-          "Company": `{ "Title": "Contoso" }`
-        };
-      }
+  it('returns listItemInstance object when list item is requested with an output type of json, a list of fields with lookup field are specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts: any) => {
+        if ((opts.url as string).indexOf('&$expand=') > -1) {
+          actualId = parseInt(opts.url.match(/\/items\((\d+)\)/i)[1]);
+          return {
+            "ID": actualId,
+            "Modified": "2018-03-15T10:43:10Z",
+            "Title": expectedTitle,
+            "Company": `{ "Title": "Contoso" }`
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    command.allowUnknownOptions();
+      command.allowUnknownOptions();
 
-    const options: any = {
-      listTitle: 'Demo List',
-      webUrl: webUrl,
-      id: expectedId,
-      output: "json",
-      properties: "Title,Modified,Company/Title"
-    };
+      const options: any = {
+        listTitle: 'Demo List',
+        webUrl: webUrl,
+        id: expectedId,
+        output: "json",
+        properties: "Title,Modified,Company/Title"
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert.deepStrictEqual(JSON.stringify(loggerLogSpy.lastCall.args[0]), JSON.stringify({
-      "Modified": "2018-03-15T10:43:10Z",
-      "Title": expectedTitle,
-      "Company": `{ "Title": "Contoso" }`
-    }));
-  });
+      await command.action(logger, { options: options } as any);
+      assert.deepStrictEqual(JSON.stringify(loggerLogSpy.mock.lastCall[0]), JSON.stringify({
+        "Modified": "2018-03-15T10:43:10Z",
+        "Title": expectedTitle,
+        "Company": `{ "Title": "Contoso" }`
+      }));
+    }
+  );
 
-  it('returns listItemInstance object when list item is requested with an output type of text, and no list of fields', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+  it('returns listItemInstance object when list item is requested with an output type of text, and no list of fields',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
-    command.allowUnknownOptions();
+      command.allowUnknownOptions();
 
-    const options: any = {
-      listTitle: 'Demo List',
-      webUrl: webUrl,
-      id: expectedId,
-      output: "text"
-    };
+      const options: any = {
+        listTitle: 'Demo List',
+        webUrl: webUrl,
+        id: expectedId,
+        output: "text"
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert.strictEqual(actualId, expectedId);
-  });
+      await command.action(logger, { options: options } as any);
+      assert.strictEqual(actualId, expectedId);
+    }
+  );
 
-  it('returns listItemInstance object when list item is requested with an output type of text, and a list of fields specified', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+  it('returns listItemInstance object when list item is requested with an output type of text, and a list of fields specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
-    command.allowUnknownOptions();
+      command.allowUnknownOptions();
 
-    const options: any = {
-      listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF',
-      webUrl: webUrl,
-      id: expectedId,
-      output: "json"
-    };
+      const options: any = {
+        listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF',
+        webUrl: webUrl,
+        id: expectedId,
+        output: "json"
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert.strictEqual(actualId, expectedId);
-  });
+      await command.action(logger, { options: options } as any);
+      assert.strictEqual(actualId, expectedId);
+    }
+  );
 
-  it('returns listItemInstance object when list item is requested with an output type of text from a list specified by url, and a list of fields are being specified', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+  it('returns listItemInstance object when list item is requested with an output type of text from a list specified by url, and a list of fields are being specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
-    command.allowUnknownOptions();
+      command.allowUnknownOptions();
 
-    const options: any = {
-      verbose: true,
-      webUrl: webUrl,
-      id: expectedId,
-      listUrl: listUrl,
-      output: 'json',
-      properties: 'Title,Modified'
-    };
+      const options: any = {
+        verbose: true,
+        webUrl: webUrl,
+        id: expectedId,
+        listUrl: listUrl,
+        output: 'json',
+        properties: 'Title,Modified'
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert.strictEqual(actualId, expectedId);
-  });
+      await command.action(logger, { options: options } as any);
+      assert.strictEqual(actualId, expectedId);
+    }
+  );
 
   it('correctly handles random API error', async () => {
-    sinon.stub(request, 'get').callsFake(() => Promise.reject('An error has occurred'));
+    jest.spyOn(request, 'get').mockClear().mockImplementation(() => Promise.reject('An error has occurred'));
 
     const options: any = {
       listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF',

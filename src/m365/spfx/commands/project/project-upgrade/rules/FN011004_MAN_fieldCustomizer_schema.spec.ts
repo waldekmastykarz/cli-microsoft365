@@ -20,24 +20,26 @@ describe('FN011004_MAN_fieldCustomizer_schema', () => {
     assert.strictEqual(findings.length, 0);
   });
 
-  it('returns notifications if field customizer manifest has incorrect schema', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      manifests: [{
-        $schema: 'old-schema',
-        componentType: 'Extension',
-        extensionType: 'FieldCustomizer',
-        path: '/usr/tmp/manifest',
-        source: JSON.stringify({
+  it('returns notifications if field customizer manifest has incorrect schema',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        manifests: [{
           $schema: 'old-schema',
           componentType: 'Extension',
           extensionType: 'FieldCustomizer',
-          path: '/usr/tmp/manifest'
-        }, null, 2)
-      }]
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 1, 'Incorrect number of findings');
-    assert.strictEqual(findings[0].occurrences[0].position?.line, 2, 'Incorrect line number');
-  });
+          path: '/usr/tmp/manifest',
+          source: JSON.stringify({
+            $schema: 'old-schema',
+            componentType: 'Extension',
+            extensionType: 'FieldCustomizer',
+            path: '/usr/tmp/manifest'
+          }, null, 2)
+        }]
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 1, 'Incorrect number of findings');
+      assert.strictEqual(findings[0].occurrences[0].position?.line, 2, 'Incorrect line number');
+    }
+  );
 });

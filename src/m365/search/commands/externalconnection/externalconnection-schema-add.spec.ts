@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './externalconnection-schema-add.js';
 
@@ -21,11 +20,11 @@ describe(commands.EXTERNALCONNECTION_SCHEMA_ADD, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -46,13 +45,13 @@ describe(commands.EXTERNALCONNECTION_SCHEMA_ADD, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -65,7 +64,7 @@ describe(commands.EXTERNALCONNECTION_SCHEMA_ADD, () => {
   });
 
   it('adds an external connection schema', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts: any) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts: any) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/external/connections/${externalConnectionId}/schema`) {
         return;
       }
@@ -74,17 +73,19 @@ describe(commands.EXTERNALCONNECTION_SCHEMA_ADD, () => {
     await command.action(logger, { options: { schema: schema, externalConnectionId: externalConnectionId, verbose: true } } as any);
   });
 
-  it('correctly handles error when request is malformed or schema already exists', async () => {
-    const errorMessage = 'Error: The request is malformed or incorrect.';
-    sinon.stub(request, 'post').callsFake(async (opts: any) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/external/connections/${externalConnectionId}/schema`) {
-        throw errorMessage;
-      }
-      throw 'Invalid request';
-    });
-    await assert.rejects(command.action(logger, { options: { schema: schema, externalConnectionId: externalConnectionId } } as any),
-      new CommandError(errorMessage));
-  });
+  it('correctly handles error when request is malformed or schema already exists',
+    async () => {
+      const errorMessage = 'Error: The request is malformed or incorrect.';
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts: any) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/external/connections/${externalConnectionId}/schema`) {
+          throw errorMessage;
+        }
+        throw 'Invalid request';
+      });
+      await assert.rejects(command.action(logger, { options: { schema: schema, externalConnectionId: externalConnectionId } } as any),
+        new CommandError(errorMessage));
+    }
+  );
 
   it('fails validation if id is less than 3 characters', async () => {
     const actual = await command.validate({
@@ -146,30 +147,34 @@ describe(commands.EXTERNALCONNECTION_SCHEMA_ADD, () => {
     assert.notStrictEqual(actual, false);
   });
 
-  it('fails validation if schema does contain more than 128 properties', async () => {
-    const schemaObject = JSON.parse(schema);
-    for (let i = 0; i < 128; i++) {
-      schemaObject.properties.push({
-        name: `Test${i}`,
-        type: 'String'
-      });
+  it('fails validation if schema does contain more than 128 properties',
+    async () => {
+      const schemaObject = JSON.parse(schema);
+      for (let i = 0; i < 128; i++) {
+        schemaObject.properties.push({
+          name: `Test${i}`,
+          type: 'String'
+        });
+      }
+      const actual = await command.validate({
+        options: {
+          externalConnectionId: externalConnectionId,
+          schema: JSON.stringify(schemaObject)
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, false);
     }
-    const actual = await command.validate({
-      options: {
-        externalConnectionId: externalConnectionId,
-        schema: JSON.stringify(schemaObject)
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, false);
-  });
+  );
 
-  it('passes validation with a correct schema and external connection id', async () => {
-    const actual = await command.validate({
-      options: {
-        externalConnectionId: externalConnectionId,
-        schema: schema
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation with a correct schema and external connection id',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          externalConnectionId: externalConnectionId,
+          schema: schema
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request, { CliRequestOptions } from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './hubsite-disconnect.js';
@@ -46,19 +45,19 @@ describe(commands.HUBSITE_DISCONNECT, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
   let promptOptions: any;
-  let patchStub: sinon.SinonStub<[options: CliRequestOptions]>;
+  let patchStub: jest.Mock<[options: CliRequestOptions]>;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
 
-    sinon.stub(spo, 'getSpoAdminUrl').resolves(spoAdminUrl);
-    patchStub = sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(spo, 'getSpoAdminUrl').mockClear().mockImplementation().resolves(spoAdminUrl);
+    patchStub = jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${spoAdminUrl}/_api/HubSites/GetById('${id}')`) {
         return;
       }
@@ -80,7 +79,7 @@ describe(commands.HUBSITE_DISCONNECT, () => {
         log.push(msg);
       }
     };
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
@@ -88,7 +87,7 @@ describe(commands.HUBSITE_DISCONNECT, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       Cli.prompt,
       cli.getSettingWithDefaultValue,
@@ -96,8 +95,8 @@ describe(commands.HUBSITE_DISCONNECT, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -134,16 +133,18 @@ describe(commands.HUBSITE_DISCONNECT, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('prompts before disconnecting the hub site when confirmation argument not passed', async () => {
-    await command.action(logger, { options: { id: id } });
-    let promptIssued = false;
+  it('prompts before disconnecting the hub site when confirmation argument not passed',
+    async () => {
+      await command.action(logger, { options: { id: id } });
+      let promptIssued = false;
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+
+      assert(promptIssued);
     }
-
-    assert(promptIssued);
-  });
+  );
 
   it('aborts disconnecting hub site when prompt not confirmed', async () => {
     await command.action(logger, { options: { url: url } });
@@ -151,7 +152,7 @@ describe(commands.HUBSITE_DISCONNECT, () => {
   });
 
   it('disconnects hub site when when id option is specified', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       const baseUrl = opts.url?.split('?')[0];
       if (baseUrl === `${spoAdminUrl}/_api/HubSites/GetById('${id}')`) {
         if ((opts.headers?.accept as string)?.indexOf('application/json;odata=minimalmetadata') !== -1) {
@@ -170,12 +171,12 @@ describe(commands.HUBSITE_DISCONNECT, () => {
       }
     });
 
-    assert.deepStrictEqual(patchStub.lastCall.args[0].data, { ParentHubSiteId: '00000000-0000-0000-0000-000000000000' }, 'Request body does not match');
-    assert.deepStrictEqual(patchStub.lastCall.args[0].headers!['if-match'], etagValue, 'if-match request header doesn\'t match');
+    assert.deepStrictEqual(patchStub.mock.lastCall[0].data, { ParentHubSiteId: '00000000-0000-0000-0000-000000000000' }, 'Request body does not match');
+    assert.deepStrictEqual(patchStub.mock.lastCall[0].headers!['if-match'], etagValue, 'if-match request header doesn\'t match');
   });
 
   it('disconnects hub site when when title option is specified', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       const baseUrl = opts.url?.split('?')[0];
       if (baseUrl === `${spoAdminUrl}/_api/HubSites`) {
         if ((opts.headers?.accept as string)?.indexOf('application/json;odata=minimalmetadata') !== -1) {
@@ -194,12 +195,12 @@ describe(commands.HUBSITE_DISCONNECT, () => {
       }
     });
 
-    assert.deepStrictEqual(patchStub.lastCall.args[0].data, { ParentHubSiteId: '00000000-0000-0000-0000-000000000000' }, 'Request body does not match');
-    assert.deepStrictEqual(patchStub.lastCall.args[0].headers!['if-match'], etagValue, 'if-match request header doesn\'t match');
+    assert.deepStrictEqual(patchStub.mock.lastCall[0].data, { ParentHubSiteId: '00000000-0000-0000-0000-000000000000' }, 'Request body does not match');
+    assert.deepStrictEqual(patchStub.mock.lastCall[0].headers!['if-match'], etagValue, 'if-match request header doesn\'t match');
   });
 
   it('disconnects hub site when when url option is specified', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       const baseUrl = opts.url?.split('?')[0];
       if (baseUrl === `${spoAdminUrl}/_api/HubSites`) {
         if ((opts.headers?.accept as string)?.indexOf('application/json;odata=minimalmetadata') !== -1) {
@@ -218,12 +219,12 @@ describe(commands.HUBSITE_DISCONNECT, () => {
       }
     });
 
-    assert.deepStrictEqual(patchStub.lastCall.args[0].data, { ParentHubSiteId: '00000000-0000-0000-0000-000000000000' }, 'Request body does not match');
-    assert.deepStrictEqual(patchStub.lastCall.args[0].headers!['if-match'], etagValue, 'if-match request header doesn\'t match');
+    assert.deepStrictEqual(patchStub.mock.lastCall[0].data, { ParentHubSiteId: '00000000-0000-0000-0000-000000000000' }, 'Request body does not match');
+    assert.deepStrictEqual(patchStub.mock.lastCall[0].headers!['if-match'], etagValue, 'if-match request header doesn\'t match');
   });
 
   it('disconnects hub site when prompt confirmed', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       const baseUrl = opts.url?.split('?')[0];
       if (baseUrl === `${spoAdminUrl}/_api/HubSites`) {
         if ((opts.headers?.accept as string)?.indexOf('application/json;odata=minimalmetadata') !== -1) {
@@ -234,8 +235,8 @@ describe(commands.HUBSITE_DISCONNECT, () => {
       throw 'Invalid request URL: ' + opts.url;
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
     await command.action(logger, {
       options: {
@@ -244,134 +245,142 @@ describe(commands.HUBSITE_DISCONNECT, () => {
     });
   });
 
-  it('throws an error when multiple hub sites with the same title were retrieved', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
-
-      return defaultValue;
-    });
-
-    const response = {
-      value: [
-        singleHubSiteResponse,
-        {
-          'odata.etag': etagValue,
-          ID: 'a9d15b9d-152c-4fa2-be3a-3fbf086f3d49',
-          Title: title,
-          SiteUrl: 'https://contoso.sharepoint.com/sites/RandomSite'
+  it('throws an error when multiple hub sites with the same title were retrieved',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
         }
-      ]
-    };
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      const baseUrl = opts.url?.split('?')[0];
-      if (baseUrl === `${spoAdminUrl}/_api/HubSites`) {
-        if ((opts.headers?.accept as string)?.indexOf('application/json;odata=minimalmetadata') !== -1) {
-          return response;
+        return defaultValue;
+      });
+
+      const response = {
+        value: [
+          singleHubSiteResponse,
+          {
+            'odata.etag': etagValue,
+            ID: 'a9d15b9d-152c-4fa2-be3a-3fbf086f3d49',
+            Title: title,
+            SiteUrl: 'https://contoso.sharepoint.com/sites/RandomSite'
+          }
+        ]
+      };
+
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        const baseUrl = opts.url?.split('?')[0];
+        if (baseUrl === `${spoAdminUrl}/_api/HubSites`) {
+          if ((opts.headers?.accept as string)?.indexOf('application/json;odata=minimalmetadata') !== -1) {
+            return response;
+          }
         }
-      }
 
-      throw 'Invalid request URL: ' + opts.url;
-    });
+        throw 'Invalid request URL: ' + opts.url;
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        title: title,
-        force: true
-      }
-    }), new CommandError("Multiple hub sites with name 'Hub Site' found. Found: 55b979e7-36b6-4968-b3af-6ae221a3483f, a9d15b9d-152c-4fa2-be3a-3fbf086f3d49."));
-  });
-
-  it('handles selecting single result when multiple hubsites with the specified name found and cli is set to prompt', async () => {
-    const response = {
-      value: [
-        singleHubSiteResponse,
-        {
-          'odata.etag': etagValue,
-          ID: 'a9d15b9d-152c-4fa2-be3a-3fbf086f3d49',
-          Title: title,
-          SiteUrl: 'https://contoso.sharepoint.com/sites/RandomSite'
+      await assert.rejects(command.action(logger, {
+        options: {
+          title: title,
+          force: true
         }
-      ]
-    };
+      }), new CommandError("Multiple hub sites with name 'Hub Site' found. Found: 55b979e7-36b6-4968-b3af-6ae221a3483f, a9d15b9d-152c-4fa2-be3a-3fbf086f3d49."));
+    }
+  );
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      const baseUrl = opts.url?.split('?')[0];
-      if (baseUrl === `${spoAdminUrl}/_api/HubSites`) {
-        if ((opts.headers?.accept as string)?.indexOf('application/json;odata=minimalmetadata') !== -1) {
-          return response;
+  it('handles selecting single result when multiple hubsites with the specified name found and cli is set to prompt',
+    async () => {
+      const response = {
+        value: [
+          singleHubSiteResponse,
+          {
+            'odata.etag': etagValue,
+            ID: 'a9d15b9d-152c-4fa2-be3a-3fbf086f3d49',
+            Title: title,
+            SiteUrl: 'https://contoso.sharepoint.com/sites/RandomSite'
+          }
+        ]
+      };
+
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        const baseUrl = opts.url?.split('?')[0];
+        if (baseUrl === `${spoAdminUrl}/_api/HubSites`) {
+          if ((opts.headers?.accept as string)?.indexOf('application/json;odata=minimalmetadata') !== -1) {
+            return response;
+          }
         }
-      }
 
-      throw 'Invalid request URL: ' + opts.url;
-    });
+        throw 'Invalid request URL: ' + opts.url;
+      });
 
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves({
-      Title: title,
-      ID: id,
-      'odata.etag': etagValue
-    });
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves({
+        Title: title,
+        ID: id,
+        'odata.etag': etagValue
+      });
 
-    await command.action(logger, {
-      options: {
-        title: title,
-        verbose: true,
-        force: true
-      }
-    });
-
-    assert.deepStrictEqual(patchStub.lastCall.args[0].data, { ParentHubSiteId: '00000000-0000-0000-0000-000000000000' }, 'Request body does not match');
-    assert.deepStrictEqual(patchStub.lastCall.args[0].headers!['if-match'], etagValue, 'if-match request header doesn\'t match');
-  });
-
-  it('throws an error when no hub sites with the same title were found', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      const baseUrl = opts.url?.split('?')[0];
-      if (baseUrl === `${spoAdminUrl}/_api/HubSites`) {
-        if ((opts.headers?.accept as string)?.indexOf('application/json;odata=minimalmetadata') !== -1) {
-          return {
-            value: []
-          };
+      await command.action(logger, {
+        options: {
+          title: title,
+          verbose: true,
+          force: true
         }
-      }
+      });
 
-      throw 'Invalid request URL: ' + opts.url;
-    });
+      assert.deepStrictEqual(patchStub.mock.lastCall[0].data, { ParentHubSiteId: '00000000-0000-0000-0000-000000000000' }, 'Request body does not match');
+      assert.deepStrictEqual(patchStub.mock.lastCall[0].headers!['if-match'], etagValue, 'if-match request header doesn\'t match');
+    }
+  );
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        title: title,
-        force: true
-      }
-    }), new CommandError(`The specified hub site '${title}' does not exist.`));
-  });
-
-  it('throws an error when no hub sites with the same url were found', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      const baseUrl = opts.url?.split('?')[0];
-      if (baseUrl === `${spoAdminUrl}/_api/HubSites`) {
-        if ((opts.headers?.accept as string)?.indexOf('application/json;odata=minimalmetadata') !== -1) {
-          return {
-            value: []
-          };
+  it('throws an error when no hub sites with the same title were found',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        const baseUrl = opts.url?.split('?')[0];
+        if (baseUrl === `${spoAdminUrl}/_api/HubSites`) {
+          if ((opts.headers?.accept as string)?.indexOf('application/json;odata=minimalmetadata') !== -1) {
+            return {
+              value: []
+            };
+          }
         }
-      }
 
-      throw 'Invalid request URL: ' + opts.url;
-    });
+        throw 'Invalid request URL: ' + opts.url;
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        url: url,
-        force: true
-      }
-    }), new CommandError(`The specified hub site '${url}' does not exist.`));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          title: title,
+          force: true
+        }
+      }), new CommandError(`The specified hub site '${title}' does not exist.`));
+    }
+  );
+
+  it('throws an error when no hub sites with the same url were found',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        const baseUrl = opts.url?.split('?')[0];
+        if (baseUrl === `${spoAdminUrl}/_api/HubSites`) {
+          if ((opts.headers?.accept as string)?.indexOf('application/json;odata=minimalmetadata') !== -1) {
+            return {
+              value: []
+            };
+          }
+        }
+
+        throw 'Invalid request URL: ' + opts.url;
+      });
+
+      await assert.rejects(command.action(logger, {
+        options: {
+          url: url,
+          force: true
+        }
+      }), new CommandError(`The specified hub site '${url}' does not exist.`));
+    }
+  );
 
   it('handles random API error correctly', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${spoAdminUrl}/_api/HubSites/GetById('${id}')?$select=ID`) {
         return singleHubSiteResponse;
       }
@@ -380,8 +389,8 @@ describe(commands.HUBSITE_DISCONNECT, () => {
     });
 
     const errorMessage = 'Something went wrong';
-    patchStub.restore();
-    sinon.stub(request, 'patch').rejects({ error: { 'odata.error': { message: { value: errorMessage } } } });
+    patchStub.mockRestore();
+    jest.spyOn(request, 'patch').mockClear().mockImplementation().rejects({ error: { 'odata.error': { message: { value: errorMessage } } } });
 
     await assert.rejects(command.action(logger, {
       options: {

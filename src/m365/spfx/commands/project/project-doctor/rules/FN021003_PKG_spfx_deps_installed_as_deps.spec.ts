@@ -20,33 +20,39 @@ describe('FN021003_PKG_spfx_deps_installed_as_deps', () => {
     assert.strictEqual(rule.description, '');
   });
 
-  it(`doesn't return notifications when project version could not be determined`, () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      packageJson: {
-        dependencies: {}
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it(`doesn't return notifications when project version could not be determined`,
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        packageJson: {
+          dependencies: {}
+        }
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
-  it(`doesn't return notifications when package.json was not collected`, () => {
-    const project: Project = {
-      path: '/usr/tmp'
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it(`doesn't return notifications when package.json was not collected`,
+    () => {
+      const project: Project = {
+        path: '/usr/tmp'
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
-  it(`doesn't return notifications when project has no devDependencies`, () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      packageJson: {
-        dependencies: {}
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it(`doesn't return notifications when project has no devDependencies`,
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        packageJson: {
+          dependencies: {}
+        }
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 });

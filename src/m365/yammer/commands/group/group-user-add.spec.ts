@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './group-user-add.js';
 
@@ -18,11 +17,11 @@ describe(commands.GROUP_USER_ADD, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -43,14 +42,14 @@ describe(commands.GROUP_USER_ADD, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -63,7 +62,7 @@ describe(commands.GROUP_USER_ADD, () => {
   });
 
   it('correctly handles error', async () => {
-    sinon.stub(request, 'post').callsFake(async () => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async () => {
       throw {
         "error": {
           "base": "An error has occurred."
@@ -89,46 +88,52 @@ describe(commands.GROUP_USER_ADD, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('calls the service if the current user is added to the group', async () => {
-    const requestPostedStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === 'https://www.yammer.com/api/v1/group_memberships.json') {
-        return;
-      }
-      throw 'Invalid request';
-    });
+  it('calls the service if the current user is added to the group',
+    async () => {
+      const requestPostedStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://www.yammer.com/api/v1/group_memberships.json') {
+          return;
+        }
+        throw 'Invalid request';
+      });
 
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: true }
-    ));
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: true }
+      ));
 
-    await command.action(logger, { options: { debug: true, groupId: 1231231 } });
+      await command.action(logger, { options: { debug: true, groupId: 1231231 } });
 
-    assert(requestPostedStub.called);
-  });
+      assert(requestPostedStub.called);
+    }
+  );
 
-  it('calls the service if the user 989998789 is added to the group 1231231', async () => {
-    const requestPostedStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === 'https://www.yammer.com/api/v1/group_memberships.json') {
-        return;
-      }
-      throw 'Invalid request';
-    });
+  it('calls the service if the user 989998789 is added to the group 1231231',
+    async () => {
+      const requestPostedStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://www.yammer.com/api/v1/group_memberships.json') {
+          return;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, groupId: 1231231, id: 989998789 } });
+      await command.action(logger, { options: { debug: true, groupId: 1231231, id: 989998789 } });
 
-    assert(requestPostedStub.called);
-  });
+      assert(requestPostedStub.called);
+    }
+  );
 
-  it('calls the service if the user suzy@contoso.com is added to the group 1231231', async () => {
-    const requestPostedStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === 'https://www.yammer.com/api/v1/group_memberships.json') {
-        return;
-      }
-      throw 'Invalid request';
-    });
+  it('calls the service if the user suzy@contoso.com is added to the group 1231231',
+    async () => {
+      const requestPostedStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://www.yammer.com/api/v1/group_memberships.json') {
+          return;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, groupId: 1231231, email: "suzy@contoso.com" } });
+      await command.action(logger, { options: { debug: true, groupId: 1231231, email: "suzy@contoso.com" } });
 
-    assert(requestPostedStub.called);
-  });
+      assert(requestPostedStub.called);
+    }
+  );
 }); 

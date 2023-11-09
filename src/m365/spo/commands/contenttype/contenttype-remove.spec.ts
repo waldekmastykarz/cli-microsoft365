@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './contenttype-remove.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -21,12 +20,12 @@ describe(commands.CONTENTTYPE_REMOVE, () => {
   let commandInfo: CommandInfo;
   let promptOptions: any;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -44,7 +43,7 @@ describe(commands.CONTENTTYPE_REMOVE, () => {
         log.push(msg);
       }
     };
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
@@ -52,7 +51,7 @@ describe(commands.CONTENTTYPE_REMOVE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post,
       Cli.prompt,
@@ -60,8 +59,8 @@ describe(commands.CONTENTTYPE_REMOVE, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -74,7 +73,7 @@ describe(commands.CONTENTTYPE_REMOVE, () => {
   });
 
   it('delete content type by id - prompt', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/contenttypes('0x0100558D85B7216F6A489A499DB361E1AE2F')`) > -1) {
         return;
       }
@@ -96,7 +95,7 @@ describe(commands.CONTENTTYPE_REMOVE, () => {
 
 
   it('delete content type by id - prompt:continue', async () => {
-    const postCallbackStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postCallbackStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/contenttypes('0x0100558D85B7216F6A489A499DB361E1AE2F')`) > -1) {
         return;
       }
@@ -104,8 +103,8 @@ describe(commands.CONTENTTYPE_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
     await command.action(logger, {
       options: {
@@ -121,7 +120,7 @@ describe(commands.CONTENTTYPE_REMOVE, () => {
 
 
   it('delete content type by id - prompt:declined', async () => {
-    const postCallbackStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postCallbackStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/contenttypes('0x0100558D85B7216F6A489A499DB361E1AE2F')`) > -1) {
         return;
       }
@@ -129,8 +128,8 @@ describe(commands.CONTENTTYPE_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: false }
     ));
     await command.action(logger, {
@@ -146,7 +145,7 @@ describe(commands.CONTENTTYPE_REMOVE, () => {
   });
 
   it('delete content type by name - prompt', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/availableContentTypes?$filter=(Name eq 'TestContentType')`) > -1) {
         return { "value": [{ "Name": "TestContentType", "StringId": "0x0100558D85B7216F6A489A499DB361E1AE2F" }] };
       }
@@ -154,7 +153,7 @@ describe(commands.CONTENTTYPE_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/contenttypes('0x0100558D85B7216F6A489A499DB361E1AE2F')`) > -1) {
         return;
       }
@@ -174,7 +173,7 @@ describe(commands.CONTENTTYPE_REMOVE, () => {
 
 
   it('delete content type by name - prompt:continue', async () => {
-    const getCallbackStub = sinon.stub(request, 'get').callsFake(async (opts) => {
+    const getCallbackStub = jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/availableContentTypes?$filter=(Name eq 'TestContentType')`) > -1) {
         return { "value": [{ "Name": "TestContentType", "StringId": "0x0100558D85B7216F6A489A499DB361E1AE2F" }] };
       }
@@ -182,7 +181,7 @@ describe(commands.CONTENTTYPE_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    const postCallbackStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postCallbackStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/contenttypes('0x0100558D85B7216F6A489A499DB361E1AE2F')`) > -1) {
         return;
       }
@@ -190,8 +189,8 @@ describe(commands.CONTENTTYPE_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
     await command.action(logger, { options: { debug: true, verbose: false, webUrl: 'https://contoso.sharepoint.com/sites/portal', name: 'TestContentType', force: false } });
     assert(getCallbackStub.called);
@@ -199,7 +198,7 @@ describe(commands.CONTENTTYPE_REMOVE, () => {
   });
 
   it('delete content type by name - prompt:declined', async () => {
-    const postCallbackStub = sinon.stub(request, 'get').callsFake(async (opts) => {
+    const postCallbackStub = jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/availableContentTypes?$filter=(Name eq 'TestContentType')`) > -1) {
         return { "value": [{ "Name": "TestContentType", "StringId": "0x0100558D85B7216F6A489A499DB361E1AE2F" }] };
       }
@@ -207,7 +206,7 @@ describe(commands.CONTENTTYPE_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/contenttypes('0x0100558D85B7216F6A489A499DB361E1AE2F')`) > -1) {
         return;
       }
@@ -215,38 +214,40 @@ describe(commands.CONTENTTYPE_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: false });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: false });
 
     await command.action(logger, { options: { verbose: true, webUrl: 'https://contoso.sharepoint.com/sites/portal', name: 'TestContentType', force: false } });
     assert(postCallbackStub.notCalled);
   });
 
-  it('correctly escapes special characters in the content type name', async () => {
-    const getStub = sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/availableContentTypes?$filter=(Name eq 'Test%20Content%20Type')`) > -1) {
-        return { "value": [{ "Name": "Test Content Type", "StringId": "0x0100558D85B7216F6A489A499DB361E1AE2F" }] };
-      }
+  it('correctly escapes special characters in the content type name',
+    async () => {
+      const getStub = jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/availableContentTypes?$filter=(Name eq 'Test%20Content%20Type')`) > -1) {
+          return { "value": [{ "Name": "Test Content Type", "StringId": "0x0100558D85B7216F6A489A499DB361E1AE2F" }] };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/contenttypes('0x0100558D85B7216F6A489A499DB361E1AE2F')`) > -1) {
-        return;
-      }
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/contenttypes('0x0100558D85B7216F6A489A499DB361E1AE2F')`) > -1) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, verbose: true, webUrl: 'https://contoso.sharepoint.com/sites/portal', name: 'Test Content Type', force: true } } as any);
-    assert(getStub.called);
-    assert(postStub.called);
-  });
+      await command.action(logger, { options: { debug: true, verbose: true, webUrl: 'https://contoso.sharepoint.com/sites/portal', name: 'Test Content Type', force: true } } as any);
+      assert(getStub.called);
+      assert(postStub.called);
+    }
+  );
 
 
   it('correctly handles site content type not found by id', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/contenttypes('0x0100558D85B7216F6A489A499DB361E1AE2F')`) > -1) {
         return {
           "odata.null": true
@@ -262,7 +263,7 @@ describe(commands.CONTENTTYPE_REMOVE, () => {
 
   it('correctly handles site content type not found by name', async () => {
     //NonExistentContentType
-    const getRequestStub = sinon.stub(request, 'get').callsFake(async (opts) => {
+    const getRequestStub = jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/availableContentTypes?$filter=(Name eq 'NonExistentContentType')`) > -1) {
         return { "value": [] };
       }
@@ -270,7 +271,7 @@ describe(commands.CONTENTTYPE_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    const deleteRequestStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const deleteRequestStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/contenttypes`) > -1) {
         return {
           "odata.null": true
@@ -288,7 +289,7 @@ describe(commands.CONTENTTYPE_REMOVE, () => {
   });
 
   it('correctly handles random API error', async () => {
-    sinon.stub(request, 'get').rejects(new Error('An error has occurred'));
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
     await assert.rejects(command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/portal', name: 'NonExistentContentType', force: true } } as any),
       new CommandError('An error has occurred'));
@@ -317,59 +318,73 @@ describe(commands.CONTENTTYPE_REMOVE, () => {
     assert(containsOption);
   });
 
-  it('fails validation if the specified site URL is not a valid SharePoint URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'site.com', id: '0x0100558D85B7216F6A489A499DB361E1AE2F' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the specified site URL is not a valid SharePoint URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'site.com', id: '0x0100558D85B7216F6A489A499DB361E1AE2F' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if neither the content type ID nor content type Name parameters are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if neither the content type ID nor content type Name parameters are specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com/sites/sales' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com/sites/sales' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when contenttype id parameter is provided', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com/sites/sales', id: '0x0100558D85B7216F6A489A499DB361E1AE2F' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when contenttype id parameter is provided',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com/sites/sales', id: '0x0100558D85B7216F6A489A499DB361E1AE2F' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when contenttype name parameter is provided', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com/sites/sales', name: 'Test Content Type' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when contenttype name parameter is provided',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com/sites/sales', name: 'Test Content Type' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when contenttype id and confirm parameters are provided', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com/sites/sales', id: '0x0100558D85B7216F6A489A499DB361E1AE2F', force: true } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when contenttype id and confirm parameters are provided',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com/sites/sales', id: '0x0100558D85B7216F6A489A499DB361E1AE2F', force: true } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when contenttype name and confirm parameters are provided', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com/sites/sales', name: 'Test Content Type', force: true } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when contenttype name and confirm parameters are provided',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com/sites/sales', name: 'Test Content Type', force: true } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when neither name nor id are provided, but confirm is', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation when neither name nor id are provided, but confirm is',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com/sites/sales', force: true } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com/sites/sales', force: true } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation when both name and id are provided', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }

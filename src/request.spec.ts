@@ -1,11 +1,10 @@
 import assert from 'assert';
 import { ClientRequest } from 'http';
 import https from 'https';
-import sinon from 'sinon';
 import auth, { CloudType } from './Auth.js';
 import { Logger } from './cli/Logger.js';
 import _request, { CliRequestOptions } from './request.js';
-import { sinonUtil } from './utils/sinonUtil.js';
+import { jestUtil } from './utils/jestUtil.js';
 
 describe('Request', () => {
   const logger: Logger = {
@@ -19,12 +18,12 @@ describe('Request', () => {
   beforeEach(() => {
     _request.logger = logger;
     _request.debug = false;
-    sinon.stub(auth, 'ensureAccessToken').callsFake(() => Promise.resolve('ABC'));
+    jest.spyOn(auth, 'ensureAccessToken').mockClear().mockImplementation(() => Promise.resolve('ABC'));
   });
 
   afterEach(() => {
     _request.debug = false;
-    sinonUtil.restore([
+    jestUtil.restore([
       global.setTimeout,
       https.request,
       (_request as any).req,
@@ -53,7 +52,7 @@ describe('Request', () => {
   });
 
   it('sets user agent on all requests', (done) => {
-    sinon.stub(https, 'request').callsFake((options: any) => {
+    jest.spyOn(https, 'request').mockClear().mockImplementation((options: any) => {
       _options = options;
       return new ClientRequest('', () => { });
     });
@@ -76,7 +75,7 @@ describe('Request', () => {
   });
 
   it('uses gzip compression on all requests', (done) => {
-    sinon.stub(https, 'request').callsFake((options: any) => {
+    jest.spyOn(https, 'request').mockClear().mockImplementation((options: any) => {
       _options = options;
       return new ClientRequest('', () => { });
     });
@@ -99,7 +98,7 @@ describe('Request', () => {
   });
 
   it('sets access token on all requests', (done) => {
-    sinon.stub(https, 'request').callsFake((options: any) => {
+    jest.spyOn(https, 'request').mockClear().mockImplementation((options: any) => {
       _options = options;
       return new ClientRequest('', () => { });
     });
@@ -123,7 +122,7 @@ describe('Request', () => {
   });
 
   it(`doesn't set access token on anonymous requests`, (done) => {
-    sinon.stub(https, 'request').callsFake((options: any) => {
+    jest.spyOn(https, 'request').mockClear().mockImplementation((options: any) => {
       _options = options;
       return new ClientRequest('', () => { });
     });
@@ -149,7 +148,7 @@ describe('Request', () => {
   });
 
   it(`removes the anonymous header on anonymous requests`, (done) => {
-    sinon.stub(https, 'request').callsFake((options: any) => {
+    jest.spyOn(https, 'request').mockClear().mockImplementation((options: any) => {
       _options = options;
       return new ClientRequest('', () => { });
     });
@@ -175,34 +174,36 @@ describe('Request', () => {
   });
 
 
-  it(`removes the resource header on distinguished resource requests`, (done) => {
-    sinon.stub(https, 'request').callsFake((options: any) => {
-      _options = options;
-      return new ClientRequest('', () => { });
-    });
-
-    _request
-      .get({
-        url: 'https://contoso.sharepoint.com/',
-        headers: {
-          'x-resource': 'https://contoso.sharepoint.com'
-        }
-      })
-      .then(() => {
-        done('Error expected');
-      }, () => {
-        try {
-          assert.strictEqual(typeof (_options as any).headers['x-resource'], 'undefined');
-          done();
-        }
-        catch (err) {
-          done(err);
-        }
+  it(`removes the resource header on distinguished resource requests`,
+    (done) => {
+      jest.spyOn(https, 'request').mockClear().mockImplementation((options: any) => {
+        _options = options;
+        return new ClientRequest('', () => { });
       });
-  });
+
+      _request
+        .get({
+          url: 'https://contoso.sharepoint.com/',
+          headers: {
+            'x-resource': 'https://contoso.sharepoint.com'
+          }
+        })
+        .then(() => {
+          done('Error expected');
+        }, () => {
+          try {
+            assert.strictEqual(typeof (_options as any).headers['x-resource'], 'undefined');
+            done();
+          }
+          catch (err) {
+            done(err);
+          }
+        });
+    }
+  );
 
   it('sets method to GET for a GET request', (done) => {
-    sinon.stub(_request as any, 'req').callsFake(options => {
+    jest.spyOn(_request as any, 'req').mockClear().mockImplementation(options => {
       _options = options as CliRequestOptions;
       return Promise.resolve({ data: {} });
     });
@@ -225,7 +226,7 @@ describe('Request', () => {
   });
 
   it('sets method to HEAD for a HEAD request', (done) => {
-    sinon.stub(_request as any, 'req').callsFake(options => {
+    jest.spyOn(_request as any, 'req').mockClear().mockImplementation(options => {
       _options = options as CliRequestOptions;
       return Promise.resolve({ data: {} });
     });
@@ -248,7 +249,7 @@ describe('Request', () => {
   });
 
   it('sets method to POST for a POST request', (done) => {
-    sinon.stub(_request as any, 'req').callsFake(options => {
+    jest.spyOn(_request as any, 'req').mockClear().mockImplementation(options => {
       _options = options as CliRequestOptions;
       return Promise.resolve({ data: {} });
     });
@@ -271,7 +272,7 @@ describe('Request', () => {
   });
 
   it('sets method to PATCH for a PATCH request', (done) => {
-    sinon.stub(_request as any, 'req').callsFake(options => {
+    jest.spyOn(_request as any, 'req').mockClear().mockImplementation(options => {
       _options = options as CliRequestOptions;
       return Promise.resolve({ data: {} });
     });
@@ -294,7 +295,7 @@ describe('Request', () => {
   });
 
   it('sets method to PUT for a PUT request', (done) => {
-    sinon.stub(_request as any, 'req').callsFake(options => {
+    jest.spyOn(_request as any, 'req').mockClear().mockImplementation(options => {
       _options = options as CliRequestOptions;
       return Promise.resolve({ data: {} });
     });
@@ -317,7 +318,7 @@ describe('Request', () => {
   });
 
   it('sets method to DELETE for a DELETE request', (done) => {
-    sinon.stub(_request as any, 'req').callsFake(options => {
+    jest.spyOn(_request as any, 'req').mockClear().mockImplementation(options => {
       _options = options as CliRequestOptions;
       return Promise.resolve({ data: {} });
     });
@@ -340,7 +341,7 @@ describe('Request', () => {
   });
 
   it('returns response of a successful GET request', (done) => {
-    sinon.stub(_request as any, 'req').callsFake(options => {
+    jest.spyOn(_request as any, 'req').mockClear().mockImplementation(options => {
       _options = options as CliRequestOptions;
       return Promise.resolve({ data: {} });
     });
@@ -356,46 +357,50 @@ describe('Request', () => {
       });
   });
 
-  it('returns response of a successful GET request, with overridden authorization', (done) => {
-    sinon.stub(_request as any, 'req').callsFake(options => {
-      _options = options as CliRequestOptions;
-      return Promise.resolve({ data: {} });
-    });
-
-    _request
-      .get({
-        url: 'https://contoso.sharepoint.com/',
-        headers: {
-          authorization: 'Bearer 123'
-        }
-      })
-      .then(() => {
-        done();
-      }, (err) => {
-        done(err);
+  it('returns response of a successful GET request, with overridden authorization',
+    (done) => {
+      jest.spyOn(_request as any, 'req').mockClear().mockImplementation(options => {
+        _options = options as CliRequestOptions;
+        return Promise.resolve({ data: {} });
       });
-  });
 
-  it('returns response of a successful GET request for large file (stream)', (done) => {
-    sinon.stub(_request as any, 'req').callsFake(options => {
-      _options = options as CliRequestOptions;
-      (options as CliRequestOptions).responseType = "stream";
-      return Promise.resolve({ data: {} });
-    });
+      _request
+        .get({
+          url: 'https://contoso.sharepoint.com/',
+          headers: {
+            authorization: 'Bearer 123'
+          }
+        })
+        .then(() => {
+          done();
+        }, (err) => {
+          done(err);
+        });
+    }
+  );
 
-    _request
-      .get({
-        url: 'https://contoso.sharepoint.com/'
-      })
-      .then(() => {
-        done();
-      }, (err) => {
-        done(err);
+  it('returns response of a successful GET request for large file (stream)',
+    (done) => {
+      jest.spyOn(_request as any, 'req').mockClear().mockImplementation(options => {
+        _options = options as CliRequestOptions;
+        (options as CliRequestOptions).responseType = "stream";
+        return Promise.resolve({ data: {} });
       });
-  });
+
+      _request
+        .get({
+          url: 'https://contoso.sharepoint.com/'
+        })
+        .then(() => {
+          done();
+        }, (err) => {
+          done(err);
+        });
+    }
+  );
 
   it('correctly handles failed GET request', (cb) => {
-    sinon.stub(_request as any, 'req').callsFake(options => {
+    jest.spyOn(_request as any, 'req').mockClear().mockImplementation(options => {
       _options = options as CliRequestOptions;
       return Promise.reject('Error');
     });
@@ -417,134 +422,140 @@ describe('Request', () => {
       });
   });
 
-  it('repeats 429-throttled request after the designated retry value', (done) => {
-    let i: number = 0;
-    let timeout: number | undefined = -1;
+  it('repeats 429-throttled request after the designated retry value',
+    (done) => {
+      let i: number = 0;
+      let timeout: number | undefined = -1;
 
-    sinon.stub(_request as any, 'req').callsFake(() => {
-      if (i++ === 0) {
-        return Promise.reject({
-          response: {
-            status: 429,
-            headers: {
-              'retry-after': 60
+      jest.spyOn(_request as any, 'req').mockClear().mockImplementation(() => {
+        if (i++ === 0) {
+          return Promise.reject({
+            response: {
+              status: 429,
+              headers: {
+                'retry-after': 60
+              }
             }
-          }
-        });
-      }
-      else {
-        return Promise.resolve({ data: {} });
-      }
-    });
-    sinon.stub(global, 'setTimeout').callsFake((fn, to) => {
-      timeout = to;
-      fn();
-      return {} as any;
-    });
-
-    _request
-      .get({
-        url: 'https://contoso.sharepoint.com/'
-      })
-      .then(() => {
-        try {
-          assert.strictEqual(timeout, 60000);
-          done();
+          });
         }
-        catch (err) {
-          done(err);
+        else {
+          return Promise.resolve({ data: {} });
         }
-      }, (err) => {
-        done(err);
       });
-  });
-
-  it('repeats 429-throttled request after 10s if no value specified', (done) => {
-    let i: number = 0;
-    let timeout: number | undefined = -1;
-
-    sinon.stub(_request as any, 'req').callsFake(() => {
-      if (i++ === 0) {
-        return Promise.reject({
-          response: {
-            status: 429,
-            headers: {}
-          }
-        });
-      }
-      else {
-        return Promise.resolve({ data: {} });
-      }
-    });
-    sinon.stub(global, 'setTimeout').callsFake((fn, to) => {
-      timeout = to;
-      fn();
-      return {} as any;
-    });
-
-    _request
-      .get({
-        url: 'https://contoso.sharepoint.com/'
-      })
-      .then(() => {
-        try {
-          assert.strictEqual(timeout, 10000);
-          done();
-        }
-        catch (err) {
-          done(err);
-        }
-      }, (err) => {
-        done(err);
+      jest.spyOn(global, 'setTimeout').mockClear().mockImplementation((fn, to) => {
+        timeout = to;
+        fn();
+        return {} as any;
       });
-  });
 
-  it('repeats 429-throttled request after 10s if the specified value is not a number', (done) => {
-    let i: number = 0;
-    let timeout: number | undefined = -1;
+      _request
+        .get({
+          url: 'https://contoso.sharepoint.com/'
+        })
+        .then(() => {
+          try {
+            assert.strictEqual(timeout, 60000);
+            done();
+          }
+          catch (err) {
+            done(err);
+          }
+        }, (err) => {
+          done(err);
+        });
+    }
+  );
 
-    sinon.stub(_request as any, 'req').callsFake(() => {
-      if (i++ === 0) {
-        return Promise.reject({
-          response: {
-            status: 429,
-            headers: {
-              'retry-after': 'a'
+  it('repeats 429-throttled request after 10s if no value specified',
+    (done) => {
+      let i: number = 0;
+      let timeout: number | undefined = -1;
+
+      jest.spyOn(_request as any, 'req').mockClear().mockImplementation(() => {
+        if (i++ === 0) {
+          return Promise.reject({
+            response: {
+              status: 429,
+              headers: {}
             }
-          }
-        });
-      }
-      else {
-        return Promise.resolve({ data: {} });
-      }
-    });
-    sinon.stub(global, 'setTimeout').callsFake((fn, to) => {
-      timeout = to;
-      fn();
-      return {} as any;
-    });
-
-    _request
-      .get({
-        url: 'https://contoso.sharepoint.com/'
-      })
-      .then(() => {
-        try {
-          assert.strictEqual(timeout, 10000);
-          done();
+          });
         }
-        catch (err) {
-          done(err);
+        else {
+          return Promise.resolve({ data: {} });
         }
-      }, (err) => {
-        done(err);
       });
-  });
+      jest.spyOn(global, 'setTimeout').mockClear().mockImplementation((fn, to) => {
+        timeout = to;
+        fn();
+        return {} as any;
+      });
+
+      _request
+        .get({
+          url: 'https://contoso.sharepoint.com/'
+        })
+        .then(() => {
+          try {
+            assert.strictEqual(timeout, 10000);
+            done();
+          }
+          catch (err) {
+            done(err);
+          }
+        }, (err) => {
+          done(err);
+        });
+    }
+  );
+
+  it('repeats 429-throttled request after 10s if the specified value is not a number',
+    (done) => {
+      let i: number = 0;
+      let timeout: number | undefined = -1;
+
+      jest.spyOn(_request as any, 'req').mockClear().mockImplementation(() => {
+        if (i++ === 0) {
+          return Promise.reject({
+            response: {
+              status: 429,
+              headers: {
+                'retry-after': 'a'
+              }
+            }
+          });
+        }
+        else {
+          return Promise.resolve({ data: {} });
+        }
+      });
+      jest.spyOn(global, 'setTimeout').mockClear().mockImplementation((fn, to) => {
+        timeout = to;
+        fn();
+        return {} as any;
+      });
+
+      _request
+        .get({
+          url: 'https://contoso.sharepoint.com/'
+        })
+        .then(() => {
+          try {
+            assert.strictEqual(timeout, 10000);
+            done();
+          }
+          catch (err) {
+            done(err);
+          }
+        }, (err) => {
+          done(err);
+        });
+    }
+  );
 
   it('repeats 429-throttled request until it succeeds', (done) => {
     let i: number = 0;
 
-    sinon.stub(_request as any, 'req').callsFake(() => {
+    jest.spyOn(_request as any, 'req').mockClear().mockImplementation(() => {
       if (i++ < 3) {
         return Promise.reject({
           response: {
@@ -557,7 +568,7 @@ describe('Request', () => {
         return Promise.resolve({ data: {} });
       }
     });
-    sinon.stub(global, 'setTimeout').callsFake((fn) => {
+    jest.spyOn(global, 'setTimeout').mockClear().mockImplementation((fn) => {
       fn();
       return {} as any;
     });
@@ -579,55 +590,57 @@ describe('Request', () => {
       });
   });
 
-  it('repeats 429-throttled request after the designated retry value for large file (stream)', (done) => {
-    let i: number = 0;
-    let timeout: number | undefined = -1;
+  it('repeats 429-throttled request after the designated retry value for large file (stream)',
+    (done) => {
+      let i: number = 0;
+      let timeout: number | undefined = -1;
 
-    sinon.stub(_request as any, 'req').callsFake(options => {
-      _options = options as CliRequestOptions;
-      (options as CliRequestOptions).responseType = "stream";
+      jest.spyOn(_request as any, 'req').mockClear().mockImplementation(options => {
+        _options = options as CliRequestOptions;
+        (options as CliRequestOptions).responseType = "stream";
 
-      if (i++ === 0) {
-        return Promise.reject({
-          response: {
-            status: 429,
-            headers: {
-              'retry-after': 60
+        if (i++ === 0) {
+          return Promise.reject({
+            response: {
+              status: 429,
+              headers: {
+                'retry-after': 60
+              }
             }
-          }
-        });
-      }
-      else {
-        return Promise.resolve({ data: {} });
-      }
-    });
-    sinon.stub(global, 'setTimeout').callsFake((fn, to) => {
-      timeout = to;
-      fn();
-      return {} as any;
-    });
-
-    _request
-      .get({
-        url: 'https://contoso.sharepoint.com/'
-      })
-      .then(() => {
-        try {
-          assert.strictEqual(timeout, 60000);
-          done();
+          });
         }
-        catch (err) {
-          done(err);
+        else {
+          return Promise.resolve({ data: {} });
         }
-      }, (err) => {
-        done(err);
       });
-  });
+      jest.spyOn(global, 'setTimeout').mockClear().mockImplementation((fn, to) => {
+        timeout = to;
+        fn();
+        return {} as any;
+      });
+
+      _request
+        .get({
+          url: 'https://contoso.sharepoint.com/'
+        })
+        .then(() => {
+          try {
+            assert.strictEqual(timeout, 60000);
+            done();
+          }
+          catch (err) {
+            done(err);
+          }
+        }, (err) => {
+          done(err);
+        });
+    }
+  );
 
   it('repeats 503-throttled request until it succeeds', (done) => {
     let i: number = 0;
 
-    sinon.stub(_request as any, 'req').callsFake(() => {
+    jest.spyOn(_request as any, 'req').mockClear().mockImplementation(() => {
       if (i++ < 3) {
         return Promise.reject({
           response: {
@@ -640,7 +653,7 @@ describe('Request', () => {
         return Promise.resolve({ data: {} });
       }
     });
-    sinon.stub(global, 'setTimeout').callsFake((fn) => {
+    jest.spyOn(global, 'setTimeout').mockClear().mockImplementation((fn) => {
       fn();
       return {} as any;
     });
@@ -662,50 +675,52 @@ describe('Request', () => {
       });
   });
 
-  it('correctly handles request that was first 429-throttled and then failed', (done) => {
-    let i: number = 0;
+  it('correctly handles request that was first 429-throttled and then failed',
+    (done) => {
+      let i: number = 0;
 
-    sinon.stub(_request as any, 'req').callsFake(() => {
-      if (i++ === 0) {
-        return Promise.reject({
-          response: {
-            status: 429,
-            headers: {}
-          }
-        });
-      }
-      else {
-        return Promise.reject('Error');
-      }
-    });
-    sinon.stub(global, 'setTimeout').callsFake((fn) => {
-      fn();
-      return {} as any;
-    });
-
-    _request
-      .get({
-        url: 'https://contoso.sharepoint.com/'
-      })
-      .then(() => {
-        done('Expected error');
-      }, (err) => {
-        try {
-          assert.strictEqual(err, 'Error');
-          done();
+      jest.spyOn(_request as any, 'req').mockClear().mockImplementation(() => {
+        if (i++ === 0) {
+          return Promise.reject({
+            response: {
+              status: 429,
+              headers: {}
+            }
+          });
         }
-        catch (e) {
-          done(e);
+        else {
+          return Promise.reject('Error');
         }
       });
-  });
+      jest.spyOn(global, 'setTimeout').mockClear().mockImplementation((fn) => {
+        fn();
+        return {} as any;
+      });
+
+      _request
+        .get({
+          url: 'https://contoso.sharepoint.com/'
+        })
+        .then(() => {
+          done('Expected error');
+        }, (err) => {
+          try {
+            assert.strictEqual(err, 'Error');
+            done();
+          }
+          catch (e) {
+            done(e);
+          }
+        });
+    }
+  );
 
   it('logs additional info for throttled requests in debug mode', (done) => {
     let i: number = 0;
     _request.debug = true;
-    const logSpy: sinon.SinonSpy = sinon.spy(logger, 'log');
+    const logSpy: jest.SpyInstance = jest.spyOn(logger, 'log').mockClear();
 
-    sinon.stub(_request as any, 'req').callsFake(() => {
+    jest.spyOn(_request as any, 'req').mockClear().mockImplementation(() => {
       if (i++ === 0) {
         return Promise.reject({
           response: {
@@ -720,7 +735,7 @@ describe('Request', () => {
         return Promise.resolve({ data: {} });
       }
     });
-    sinon.stub(global, 'setTimeout').callsFake((fn) => {
+    jest.spyOn(global, 'setTimeout').mockClear().mockImplementation((fn) => {
       fn();
       return {} as any;
     });
@@ -745,7 +760,7 @@ describe('Request', () => {
   it(`updates the URL for the China cloud`, async () => {
     let url;
     auth.service.cloudType = CloudType.China;
-    sinon.stub(_request as any, 'req').callsFake((options: any) => {
+    jest.spyOn(_request as any, 'req').mockClear().mockImplementation((options: any) => {
       url = options.url;
       return Promise.resolve({ data: {} });
     });
@@ -758,7 +773,7 @@ describe('Request', () => {
   it(`updates the URL for the USGov cloud`, async () => {
     let url;
     auth.service.cloudType = CloudType.USGov;
-    sinon.stub(_request as any, 'req').callsFake((options: any) => {
+    jest.spyOn(_request as any, 'req').mockClear().mockImplementation((options: any) => {
       url = options.url;
       return Promise.resolve({ data: {} });
     });
@@ -771,7 +786,7 @@ describe('Request', () => {
   it(`updates the URL for the USGovDoD cloud`, async () => {
     let url;
     auth.service.cloudType = CloudType.USGovDoD;
-    sinon.stub(_request as any, 'req').callsFake((options: any) => {
+    jest.spyOn(_request as any, 'req').mockClear().mockImplementation((options: any) => {
       url = options.url;
       return Promise.resolve({ data: {} });
     });
@@ -784,7 +799,7 @@ describe('Request', () => {
   it(`updates the URL for the USGovHigh cloud`, async () => {
     let url;
     auth.service.cloudType = CloudType.USGovHigh;
-    sinon.stub(_request as any, 'req').callsFake((options: any) => {
+    jest.spyOn(_request as any, 'req').mockClear().mockImplementation((options: any) => {
       url = options.url;
       return Promise.resolve({ data: {} });
     });

@@ -12,18 +12,20 @@ describe('FN012016_TSC_noUnusedLocals', () => {
     rule = new FN012016_TSC_noUnusedLocals(false);
   });
 
-  it('doesn\'t return notification if noUnusedLocals is already up-to-date', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      tsConfigJson: {
-        compilerOptions: {
-          noUnusedLocals: false
+  it('doesn\'t return notification if noUnusedLocals is already up-to-date',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        tsConfigJson: {
+          compilerOptions: {
+            noUnusedLocals: false
+          }
         }
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
   it('doesn\'t return notification if object is missing', () => {
     const project: Project = {

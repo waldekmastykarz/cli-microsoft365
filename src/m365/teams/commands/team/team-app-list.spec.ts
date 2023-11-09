@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { odata } from '../../../../utils/odata.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './team-app-list.js';
 import teamGetCommand from './team-get.js';
@@ -22,14 +21,14 @@ describe(commands.TEAM_APP_LIST, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -47,19 +46,19 @@ describe(commands.TEAM_APP_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       odata.getAllItems,
       Cli.executeCommandWithOutput
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -82,7 +81,7 @@ describe(commands.TEAM_APP_LIST, () => {
   });
 
   it('fails when team does not exist in tenant', async () => {
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command): Promise<any> => {
+    jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command): Promise<any> => {
       if (command === teamGetCommand) {
         throw 'The specified team does not exist in the Microsoft Teams';
       }
@@ -93,29 +92,31 @@ describe(commands.TEAM_APP_LIST, () => {
       new CommandError('The specified team does not exist in the Microsoft Teams'));
   });
 
-  it('lists team apps for team specified by name with output json', async () => {
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command): Promise<any> => {
-      if (command === teamGetCommand) {
-        return { "stdout": JSON.stringify({ id: teamId }) };
-      }
+  it('lists team apps for team specified by name with output json',
+    async () => {
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command): Promise<any> => {
+        if (command === teamGetCommand) {
+          return { "stdout": JSON.stringify({ id: teamId }) };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(odata, 'getAllItems').callsFake(async (url: string): Promise<any> => {
-      if (url === `https://graph.microsoft.com/v1.0/teams/${teamId}/installedApps?$expand=teamsApp,teamsAppDefinition`) {
-        return jsonResponse;
-      }
+      jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url: string): Promise<any> => {
+        if (url === `https://graph.microsoft.com/v1.0/teams/${teamId}/installedApps?$expand=teamsApp,teamsAppDefinition`) {
+          return jsonResponse;
+        }
 
-      throw 'Invalid response';
-    });
+        throw 'Invalid response';
+      });
 
-    await command.action(logger, { options: { teamName: teamName, verbose: true, output: 'json' } });
-    assert(loggerLogSpy.calledWith(jsonResponse));
-  });
+      await command.action(logger, { options: { teamName: teamName, verbose: true, output: 'json' } });
+      assert(loggerLogSpy.calledWith(jsonResponse));
+    }
+  );
 
   it('lists team apps for team specified by id with output csv', async () => {
-    sinon.stub(odata, 'getAllItems').callsFake(async (url: string): Promise<any> => {
+    jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url: string): Promise<any> => {
       if (url === `https://graph.microsoft.com/v1.0/teams/${teamId}/installedApps?$expand=teamsApp,teamsAppDefinition`) {
         return jsonResponse;
       }

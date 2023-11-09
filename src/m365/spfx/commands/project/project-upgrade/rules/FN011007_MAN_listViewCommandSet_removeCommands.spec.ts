@@ -38,32 +38,36 @@ describe('FN011007_MAN_listViewCommandSet_removeCommands', () => {
     assert.strictEqual(findings.length, 0);
   });
 
-  it('doesn\'t return notifications if no ListViewCommandSet manifests found', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      manifests: [{
-        $schema: 'schema',
-        componentType: 'Extension',
-        extensionType: 'FieldCustomizer',
-        path: '/tmp'
-      }]
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
-
-  it('doesn\'t return notifications if commands property is not in the manifest', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      manifests: [{
+  it('doesn\'t return notifications if no ListViewCommandSet manifests found',
+    () => {
+      const project: Project = {
         path: '/usr/tmp',
-        componentType: 'Extension',
-        extensionType: 'ListViewCommandSet'
-      } as CommandSetManifest]
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+        manifests: [{
+          $schema: 'schema',
+          componentType: 'Extension',
+          extensionType: 'FieldCustomizer',
+          path: '/tmp'
+        }]
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
+
+  it('doesn\'t return notifications if commands property is not in the manifest',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        manifests: [{
+          path: '/usr/tmp',
+          componentType: 'Extension',
+          extensionType: 'ListViewCommandSet'
+        } as CommandSetManifest]
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
   it('returns notification if commands property is in the manifest', () => {
     const project: any = {

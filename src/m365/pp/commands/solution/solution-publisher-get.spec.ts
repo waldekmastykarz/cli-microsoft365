@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { powerPlatform } from '../../../../utils/powerPlatform.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './solution-publisher-get.js';
 
@@ -36,13 +35,13 @@ describe(commands.SOLUTION_PUBLISHER_GET, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -60,18 +59,18 @@ describe(commands.SOLUTION_PUBLISHER_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       powerPlatform.getDynamicsInstanceApiUrl
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -88,9 +87,9 @@ describe(commands.SOLUTION_PUBLISHER_GET, () => {
   });
 
   it('fails validation when no publisher found', async () => {
-    sinon.stub(powerPlatform, 'getDynamicsInstanceApiUrl').callsFake(async () => envUrl);
+    jest.spyOn(powerPlatform, 'getDynamicsInstanceApiUrl').mockClear().mockImplementation(async () => envUrl);
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.0/publishers?$filter=friendlyname eq '${validName}'&$select=publisherid,uniquename,friendlyname,versionnumber,isreadonly,description,customizationprefix,customizationoptionvalueprefix&api-version=9.1`)) {
         if ((opts.headers?.accept as string).indexOf('application/json') === 0) {
           return ({ "value": [] });
@@ -128,44 +127,48 @@ describe(commands.SOLUTION_PUBLISHER_GET, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('retrieves a specific publisher from power platform environment with the name parameter', async () => {
-    sinon.stub(powerPlatform, 'getDynamicsInstanceApiUrl').callsFake(async () => envUrl);
+  it('retrieves a specific publisher from power platform environment with the name parameter',
+    async () => {
+      jest.spyOn(powerPlatform, 'getDynamicsInstanceApiUrl').mockClear().mockImplementation(async () => envUrl);
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.0/publishers?$filter=friendlyname eq '${validName}'&$select=publisherid,uniquename,friendlyname,versionnumber,isreadonly,description,customizationprefix,customizationoptionvalueprefix&api-version=9.1`)) {
-        if ((opts.headers?.accept as string).indexOf('application/json') === 0) {
-          return publisherResponse;
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.0/publishers?$filter=friendlyname eq '${validName}'&$select=publisherid,uniquename,friendlyname,versionnumber,isreadonly,description,customizationprefix,customizationoptionvalueprefix&api-version=9.1`)) {
+          if ((opts.headers?.accept as string).indexOf('application/json') === 0) {
+            return publisherResponse;
+          }
         }
-      }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { verbose: true, environmentName: validEnvironment, name: validName } });
-    assert(loggerLogSpy.calledWith(publisherResponse.value[0]));
-  });
+      await command.action(logger, { options: { verbose: true, environmentName: validEnvironment, name: validName } });
+      assert(loggerLogSpy.calledWith(publisherResponse.value[0]));
+    }
+  );
 
-  it('retrieves a specific publisher from power platform environment with the id parameter', async () => {
-    sinon.stub(powerPlatform, 'getDynamicsInstanceApiUrl').callsFake(async () => envUrl);
+  it('retrieves a specific publisher from power platform environment with the id parameter',
+    async () => {
+      jest.spyOn(powerPlatform, 'getDynamicsInstanceApiUrl').mockClear().mockImplementation(async () => envUrl);
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.0/publishers(${validId})?$select=publisherid,uniquename,friendlyname,versionnumber,isreadonly,description,customizationprefix,customizationoptionvalueprefix&api-version=9.1`)) {
-        if ((opts.headers?.accept as string).indexOf('application/json') === 0) {
-          return publisherResponse.value[0];
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.0/publishers(${validId})?$select=publisherid,uniquename,friendlyname,versionnumber,isreadonly,description,customizationprefix,customizationoptionvalueprefix&api-version=9.1`)) {
+          if ((opts.headers?.accept as string).indexOf('application/json') === 0) {
+            return publisherResponse.value[0];
+          }
         }
-      }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, environmentName: validEnvironment, id: validId } });
-    assert(loggerLogSpy.calledWith(publisherResponse.value[0]));
-  });
+      await command.action(logger, { options: { debug: true, environmentName: validEnvironment, id: validId } });
+      assert(loggerLogSpy.calledWith(publisherResponse.value[0]));
+    }
+  );
 
   it('correctly handles API OData error', async () => {
-    sinon.stub(powerPlatform, 'getDynamicsInstanceApiUrl').callsFake(async () => envUrl);
+    jest.spyOn(powerPlatform, 'getDynamicsInstanceApiUrl').mockClear().mockImplementation(async () => envUrl);
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.0/publishers?$filter=friendlyname eq '${validName}'&$select=publisherid,uniquename,friendlyname,versionnumber,isreadonly,description,customizationprefix,customizationoptionvalueprefix&api-version=9.1`)) {
         if ((opts.headers?.accept as string).indexOf('application/json') === 0) {
           throw {

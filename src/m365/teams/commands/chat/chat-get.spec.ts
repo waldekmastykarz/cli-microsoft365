@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -11,7 +10,7 @@ import { accessToken } from '../../../../utils/accessToken.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './chat-get.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -36,16 +35,16 @@ describe(commands.CHAT_GET, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(accessToken, 'getUserNameFromAccessToken').returns('MeganB@M365x214355.onmicrosoft.com');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(accessToken, 'getUserNameFromAccessToken').mockClear().mockReturnValue('MeganB@M365x214355.onmicrosoft.com');
     auth.service.connected = true;
     if (!auth.service.accessTokens[auth.defaultResource]) {
       auth.service.accessTokens[auth.defaultResource] = {
@@ -57,7 +56,7 @@ describe(commands.CHAT_GET, () => {
   });
 
   beforeEach(() => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/chats?$filter=chatType eq 'group'&$expand=members&$select=id,topic,createdDateTime,members`
         || opts.url === `https://graph.microsoft.com/v1.0/chats?$filter=chatType eq 'oneOnOne'&$expand=members&$select=id,topic,createdDateTime,members`) {
         return findGroupChatsByMembersResponse;
@@ -96,19 +95,19 @@ describe(commands.CHAT_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       cli.getSettingWithDefaultValue,
       Cli.handleMultipleResultsFound
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.accessTokens = {};
   });
@@ -121,21 +120,23 @@ describe(commands.CHAT_GET, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('fails validation if id and name and participants are not specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if id and name and participants are not specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the id is not valid', async () => {
     const actual = await command.validate({
@@ -155,14 +156,16 @@ describe(commands.CHAT_GET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation for an incorrect id missing trailing @thread.v2 or @unq.gbl.spaces', async () => {
-    const actual = await command.validate({
-      options: {
-        id: '19:8b081ef6-4792-4def-b2c9-c363a1bf41d5_5031bb31-22c0-4f6f-9f73-91d34ab2b32d'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation for an incorrect id missing trailing @thread.v2 or @unq.gbl.spaces',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          id: '19:8b081ef6-4792-4def-b2c9-c363a1bf41d5_5031bb31-22c0-4f6f-9f73-91d34ab2b32d'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation for an invalid email address (single)', async () => {
     const actual = await command.validate({
@@ -182,78 +185,86 @@ describe(commands.CHAT_GET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if id and name properties are both defined', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if id and name properties are both defined',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        id: '19:8b081ef6-4792-4def-b2c9-c363a1bf41d5_5031bb31-22c0-4f6f-9f73-91d34ab2b32d',
-        name: 'test'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          id: '19:8b081ef6-4792-4def-b2c9-c363a1bf41d5_5031bb31-22c0-4f6f-9f73-91d34ab2b32d',
+          name: 'test'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if id and participants properties are both defined', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if id and participants properties are both defined',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        id: '19:8b081ef6-4792-4def-b2c9-c363a1bf41d5_5031bb31-22c0-4f6f-9f73-91d34ab2b32d',
-        participants: 'alexw@contoso.com'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          id: '19:8b081ef6-4792-4def-b2c9-c363a1bf41d5_5031bb31-22c0-4f6f-9f73-91d34ab2b32d',
+          participants: 'alexw@contoso.com'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if name and participants properties are both defined', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if name and participants properties are both defined',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        name: 'test',
-        participants: 'alexw@contoso.com'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          name: 'test',
+          participants: 'alexw@contoso.com'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if all three mutually exclusive properties are defined', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if all three mutually exclusive properties are defined',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        id: '19:8b081ef6-4792-4def-b2c9-c363a1bf41d5_5031bb31-22c0-4f6f-9f73-91d34ab2b32d',
-        name: 'test',
-        participants: 'alexw@contoso.com'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          id: '19:8b081ef6-4792-4def-b2c9-c363a1bf41d5_5031bb31-22c0-4f6f-9f73-91d34ab2b32d',
+          name: 'test',
+          participants: 'alexw@contoso.com'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('validates for a correct id input', async () => {
     const actual = await command.validate({
@@ -318,14 +329,16 @@ describe(commands.CHAT_GET, () => {
     assert(loggerLogSpy.calledWith(singleChatResponse));
   });
 
-  it('gets chat conversation to existing conversation using participants (multiple)', async () => {
-    await command.action(logger, {
-      options: {
-        participants: "AndrewK@M365x214355.onmicrosoft.com,DaveK@M365x214355.onmicrosoft.com"
-      }
-    });
-    assert(loggerLogSpy.calledWith(singleChatResponse));
-  });
+  it('gets chat conversation to existing conversation using participants (multiple)',
+    async () => {
+      await command.action(logger, {
+        options: {
+          participants: "AndrewK@M365x214355.onmicrosoft.com,DaveK@M365x214355.onmicrosoft.com"
+        }
+      });
+      assert(loggerLogSpy.calledWith(singleChatResponse));
+    }
+  );
 
   it('fails retrieving chat conversation with nonexistent name', async () => {
     await assert.rejects(command.action(logger, {
@@ -335,65 +348,75 @@ describe(commands.CHAT_GET, () => {
     } as any), new CommandError(`No chat conversation was found with this name.`));
   });
 
-  it('fails retrieving non-existent chat conversation by participants', async () => {
-    await assert.rejects(command.action(logger, {
-      options: {
-        participants: "NestorB@M365x214355.onmicrosoft.com"
-      }
-    } as any), new CommandError(`No chat conversation was found with these participants.`));
-  });
+  it('fails retrieving non-existent chat conversation by participants',
+    async () => {
+      await assert.rejects(command.action(logger, {
+        options: {
+          participants: "NestorB@M365x214355.onmicrosoft.com"
+        }
+      } as any), new CommandError(`No chat conversation was found with these participants.`));
+    }
+  );
 
-  it('fails retrieving chat conversation with multiple found chat conversations by name', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails retrieving chat conversation with multiple found chat conversations by name',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        name: "Just a conversation with same name"
-      }
-    } as any), new CommandError("Multiple chat conversations with this name found. Found: 19:28aca38f8f684a71babac6ab063b4041@thread.v2, 19:650081f4700a4414ac15cd7993129f80@thread.v2."));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          name: "Just a conversation with same name"
+        }
+      } as any), new CommandError("Multiple chat conversations with this name found. Found: 19:28aca38f8f684a71babac6ab063b4041@thread.v2, 19:650081f4700a4414ac15cd7993129f80@thread.v2."));
+    }
+  );
 
-  it('handles selecting single result when multiple chats with the specified name found and cli is set to prompt', async () => {
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves(singleGroupChatResponse);
+  it('handles selecting single result when multiple chats with the specified name found and cli is set to prompt',
+    async () => {
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves(singleGroupChatResponse);
 
-    await command.action(logger, {
-      options: {
-        name: "Just a conversation with same name"
-      }
-    });
-    assert(loggerLogSpy.calledWith(singleGroupChatResponse));
-  });
+      await command.action(logger, {
+        options: {
+          name: "Just a conversation with same name"
+        }
+      });
+      assert(loggerLogSpy.calledWith(singleGroupChatResponse));
+    }
+  );
 
-  it('fails retrieving chat conversation with multiple found chat conversations by participants', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails retrieving chat conversation with multiple found chat conversations by participants',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        participants: "AlexW@M365x214355.onmicrosoft.com,NateG@M365x214355.onmicrosoft.com"
-      }
-    } as any), new CommandError("Multiple chat conversations with these participants found. Found: 19:35bd5bc75e604da8a64e6cba7cfcf175@thread.v2, 19:5fb8d18dd38b40a4ae0209888adf5c38@thread.v2."));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          participants: "AlexW@M365x214355.onmicrosoft.com,NateG@M365x214355.onmicrosoft.com"
+        }
+      } as any), new CommandError("Multiple chat conversations with these participants found. Found: 19:35bd5bc75e604da8a64e6cba7cfcf175@thread.v2, 19:5fb8d18dd38b40a4ae0209888adf5c38@thread.v2."));
+    }
+  );
 
-  it('handles selecting single result when multiple chats conversations by participants found and cli is set to prompt', async () => {
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves(singleGroupChatResponse);
+  it('handles selecting single result when multiple chats conversations by participants found and cli is set to prompt',
+    async () => {
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves(singleGroupChatResponse);
 
-    await command.action(logger, {
-      options: {
-        participants: "AlexW@M365x214355.onmicrosoft.com,NateG@M365x214355.onmicrosoft.com"
-      }
-    });
-    assert(loggerLogSpy.calledWith(singleGroupChatResponse));
-  });
+      await command.action(logger, {
+        options: {
+          participants: "AlexW@M365x214355.onmicrosoft.com,NateG@M365x214355.onmicrosoft.com"
+        }
+      });
+      assert(loggerLogSpy.calledWith(singleGroupChatResponse));
+    }
+  );
 });

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './site-apppermission-remove.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -21,7 +20,7 @@ describe(commands.SITE_APPPERMISSION_REMOVE, () => {
   let commandInfo: CommandInfo;
   let promptOptions: any;
 
-  let deleteRequestStub: sinon.SinonStub;
+  let deleteRequestStub: jest.Mock;
 
   const site = {
     "id": "contoso.sharepoint.com,00000000-0000-0000-0000-000000000000,00000000-0000-0000-0000-000000000000",
@@ -59,12 +58,12 @@ describe(commands.SITE_APPPERMISSION_REMOVE, () => {
     ]
   };
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -83,14 +82,14 @@ describe(commands.SITE_APPPERMISSION_REMOVE, () => {
       }
     };
 
-    sinon.stub(Cli, 'prompt').callsFake(async (options) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options) => {
       promptOptions = options;
       return { continue: false };
     });
 
     promptOptions = undefined;
 
-    deleteRequestStub = sinon.stub(request, 'delete').callsFake(async (opts) => {
+    deleteRequestStub = jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/permissions/') > -1) {
         return;
       }
@@ -99,7 +98,7 @@ describe(commands.SITE_APPPERMISSION_REMOVE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.delete,
       global.setTimeout,
@@ -108,8 +107,8 @@ describe(commands.SITE_APPPERMISSION_REMOVE, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -122,7 +121,7 @@ describe(commands.SITE_APPPERMISSION_REMOVE, () => {
   });
 
   it('fails validation with an incorrect URL', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -158,139 +157,153 @@ describe(commands.SITE_APPPERMISSION_REMOVE, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if appId or appDisplayName or id options are not passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if appId or appDisplayName or id options are not passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        siteUrl: 'https://contoso.sharepoint.com/sites/sitecollection-name'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
-
-  it('fails validation if appId, appDisplayName and id options are passed (multiple options)', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
-
-      return defaultValue;
-    });
-
-    const actual = await command.validate({
-      options: {
-        siteUrl: 'https://contoso.sharepoint.com/sites/sitecollection-name',
-        appId: '89ea5c94-7736-4e25-95ad-3fa95f62b66e',
-        appDisplayName: 'Foo',
-        id: 'aTowaS50fG1zLnNwLmV4dHw4OWVhNWM5NC03NzM2LTRlMjUtOTVhZC0zZmE5NWY2MmI2NmVAZGUzNDhiYzctMWFlYi00NDA2LThjYjMtOTdkYjAyMWNhZGI0'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
-
-  it('fails validation if appId and appDisplayName both are passed (multiple options)', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
-
-      return defaultValue;
-    });
-
-    const actual = await command.validate({
-      options: {
-        siteUrl: 'https://contoso.sharepoint.com/sites/sitecollection-name',
-        appId: '89ea5c94-7736-4e25-95ad-3fa95f62b66e',
-        appDisplayName: 'Foo'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
-
-  it('fails validation if appId and id options are passed (multiple options)', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
-
-      return defaultValue;
-    });
-
-    const actual = await command.validate({
-      options: {
-        siteUrl: 'https://contoso.sharepoint.com/sites/sitecollection-name',
-        appId: '89ea5c94-7736-4e25-95ad-3fa95f62b66e',
-        id: 'aTowaS50fG1zLnNwLmV4dHw4OWVhNWM5NC03NzM2LTRlMjUtOTVhZC0zZmE5NWY2MmI2NmVAZGUzNDhiYzctMWFlYi00NDA2LThjYjMtOTdkYjAyMWNhZGI0'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
-
-  it('fails validation if appDisplayName and id options are passed (multiple options)', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
-
-      return defaultValue;
-    });
-
-    const actual = await command.validate({
-      options: {
-        siteUrl: 'https://contoso.sharepoint.com/sites/sitecollection-name',
-        appDisplayName: 'Foo',
-        id: 'aTowaS50fG1zLnNwLmV4dHw4OWVhNWM5NC03NzM2LTRlMjUtOTVhZC0zZmE5NWY2MmI2NmVAZGUzNDhiYzctMWFlYi00NDA2LThjYjMtOTdkYjAyMWNhZGI0'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
-
-  it('prompts before removing the site apppermission when confirm option not passed', async () => {
-    await command.action(logger, {
-      options: {
-        siteUrl: 'https://contoso.sharepoint.com/sites/sitecollection-name',
-        appDisplayName: 'Foo'
-      }
-    });
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      const actual = await command.validate({
+        options: {
+          siteUrl: 'https://contoso.sharepoint.com/sites/sitecollection-name'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
     }
-    assert(promptIssued);
-  });
+  );
 
-  it('aborts removing the site apppermission when prompt not confirmed', async () => {
-    sinonUtil.restore(Cli.prompt);
+  it('fails validation if appId, appDisplayName and id options are passed (multiple options)',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: false }
-    ));
+        return defaultValue;
+      });
 
-    await command.action(logger, {
-      options: {
-        siteUrl: 'https://contoso.sharepoint.com/sites/sitecollection-name',
-        appDisplayName: 'Foo'
+      const actual = await command.validate({
+        options: {
+          siteUrl: 'https://contoso.sharepoint.com/sites/sitecollection-name',
+          appId: '89ea5c94-7736-4e25-95ad-3fa95f62b66e',
+          appDisplayName: 'Foo',
+          id: 'aTowaS50fG1zLnNwLmV4dHw4OWVhNWM5NC03NzM2LTRlMjUtOTVhZC0zZmE5NWY2MmI2NmVAZGUzNDhiYzctMWFlYi00NDA2LThjYjMtOTdkYjAyMWNhZGI0'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
+
+  it('fails validation if appId and appDisplayName both are passed (multiple options)',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
+
+        return defaultValue;
+      });
+
+      const actual = await command.validate({
+        options: {
+          siteUrl: 'https://contoso.sharepoint.com/sites/sitecollection-name',
+          appId: '89ea5c94-7736-4e25-95ad-3fa95f62b66e',
+          appDisplayName: 'Foo'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
+
+  it('fails validation if appId and id options are passed (multiple options)',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
+
+        return defaultValue;
+      });
+
+      const actual = await command.validate({
+        options: {
+          siteUrl: 'https://contoso.sharepoint.com/sites/sitecollection-name',
+          appId: '89ea5c94-7736-4e25-95ad-3fa95f62b66e',
+          id: 'aTowaS50fG1zLnNwLmV4dHw4OWVhNWM5NC03NzM2LTRlMjUtOTVhZC0zZmE5NWY2MmI2NmVAZGUzNDhiYzctMWFlYi00NDA2LThjYjMtOTdkYjAyMWNhZGI0'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
+
+  it('fails validation if appDisplayName and id options are passed (multiple options)',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
+
+        return defaultValue;
+      });
+
+      const actual = await command.validate({
+        options: {
+          siteUrl: 'https://contoso.sharepoint.com/sites/sitecollection-name',
+          appDisplayName: 'Foo',
+          id: 'aTowaS50fG1zLnNwLmV4dHw4OWVhNWM5NC03NzM2LTRlMjUtOTVhZC0zZmE5NWY2MmI2NmVAZGUzNDhiYzctMWFlYi00NDA2LThjYjMtOTdkYjAyMWNhZGI0'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
+
+  it('prompts before removing the site apppermission when confirm option not passed',
+    async () => {
+      await command.action(logger, {
+        options: {
+          siteUrl: 'https://contoso.sharepoint.com/sites/sitecollection-name',
+          appDisplayName: 'Foo'
+        }
+      });
+      let promptIssued = false;
+
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
       }
-    });
-    assert(deleteRequestStub.notCalled);
-  });
+      assert(promptIssued);
+    }
+  );
+
+  it('aborts removing the site apppermission when prompt not confirmed',
+    async () => {
+      jestUtil.restore(Cli.prompt);
+
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: false }
+      ));
+
+      await command.action(logger, {
+        options: {
+          siteUrl: 'https://contoso.sharepoint.com/sites/sitecollection-name',
+          appDisplayName: 'Foo'
+        }
+      });
+      assert(deleteRequestStub.notCalled);
+    }
+  );
 
   it('removes site apppermission when prompt confirmed (debug)', async () => {
-    sinonUtil.restore(Cli.prompt);
+    jestUtil.restore(Cli.prompt);
 
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: true }
     ));
 
-    const getRequestStub = sinon.stub(request, 'get');
+    const getRequestStub = jest.spyOn(request, 'get').mockClear().mockImplementation();
     getRequestStub.onCall(0)
       .callsFake(async (opts) => {
         if ((opts.url as string).indexOf(":/sites/sitecollection-name") > - 1) {
@@ -318,13 +331,13 @@ describe(commands.SITE_APPPERMISSION_REMOVE, () => {
   });
 
   it('removes site apppermission with specified appId', async () => {
-    sinonUtil.restore(Cli.prompt);
+    jestUtil.restore(Cli.prompt);
 
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: true }
     ));
 
-    const getRequestStub = sinon.stub(request, 'get');
+    const getRequestStub = jest.spyOn(request, 'get').mockClear().mockImplementation();
     getRequestStub.onCall(0)
       .callsFake(async (opts) => {
         if ((opts.url as string).indexOf(":/sites/sitecollection-name") > - 1) {
@@ -352,13 +365,13 @@ describe(commands.SITE_APPPERMISSION_REMOVE, () => {
   });
 
   it('removes site apppermission with specified appDisplayName', async () => {
-    sinonUtil.restore(Cli.prompt);
+    jestUtil.restore(Cli.prompt);
 
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: true }
     ));
 
-    const getRequestStub = sinon.stub(request, 'get');
+    const getRequestStub = jest.spyOn(request, 'get').mockClear().mockImplementation();
     getRequestStub.onCall(0)
       .callsFake(async (opts) => {
         if ((opts.url as string).indexOf(":/sites/sitecollection-name") > - 1) {
@@ -386,7 +399,7 @@ describe(commands.SITE_APPPERMISSION_REMOVE, () => {
   });
 
   it('handles error correctly', async () => {
-    sinon.stub(request, 'get').callsFake(() => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
       throw 'An error has occurred';
     });
 

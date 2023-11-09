@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './plan-set.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -19,7 +18,7 @@ describe(commands.PLAN_SET, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
   const id = '2Vf8JHgsBUiIf-nuvBtv-ZgAAYw2';
@@ -123,12 +122,12 @@ describe(commands.PLAN_SET, () => {
     ...planDetailsResponse
   };
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.accessTokens[(command as any).resource] = {
       accessToken: 'abc',
@@ -151,20 +150,20 @@ describe(commands.PLAN_SET, () => {
       }
     };
 
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.patch,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.accessTokens = {};
   });
@@ -191,64 +190,72 @@ describe(commands.PLAN_SET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if neither the ownerGroupId nor ownerGroupName are provided when using title.', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if neither the ownerGroupId nor ownerGroupName are provided when using title.',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        title: title
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          title: title
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when both ownerGroupId and ownerGroupName are specified when using title', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation when both ownerGroupId and ownerGroupName are specified when using title',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        title: title,
-        ownerGroupId: ownerGroupId,
-        ownerGroupName: ownerGroupName
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          title: title,
+          ownerGroupId: ownerGroupId,
+          ownerGroupName: ownerGroupName
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if shareWithUserIds contains invalid guid.', async () => {
-    const actual = await command.validate({
-      options: {
-        title: title,
-        ownerGroupId: ownerGroupId,
-        shareWithUserIds: "invalid guid"
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if shareWithUserIds contains invalid guid.',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          title: title,
+          ownerGroupId: ownerGroupId,
+          shareWithUserIds: "invalid guid"
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when both shareWithUserIds and shareWithUserNames are specified', async () => {
-    const actual = await command.validate({
-      options: {
-        title: title,
-        ownerGroupId: ownerGroupId,
-        shareWithUserIds: shareWithUserIds,
-        shareWithUserNames: shareWithUserNames
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation when both shareWithUserIds and shareWithUserNames are specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          title: title,
+          ownerGroupId: ownerGroupId,
+          shareWithUserIds: shareWithUserIds,
+          shareWithUserNames: shareWithUserNames
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation when invalid category are specified', async () => {
     const actual = await command.validate({
@@ -261,197 +268,211 @@ describe(commands.PLAN_SET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('passes validation when valid title and ownerGroupId specified', async () => {
-    const actual = await command.validate({
-      options: {
-        title: title,
-        ownerGroupName: ownerGroupName
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when valid title and ownerGroupId specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          title: title,
+          ownerGroupName: ownerGroupName
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when valid title, ownerGroupName, and shareWithUserIds specified', async () => {
-    const actual = await command.validate({
-      options: {
-        title: title,
-        ownerGroupId: ownerGroupId,
-        shareWithUserIds: shareWithUserIds
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when valid title, ownerGroupName, and shareWithUserIds specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          title: title,
+          ownerGroupId: ownerGroupId,
+          shareWithUserIds: shareWithUserIds
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when valid title, ownerGroupName, and validShareWithUserNames specified', async () => {
-    const actual = await command.validate({
-      options: {
-        title: title,
-        ownerGroupId: ownerGroupId,
-        shareWithUserNames: shareWithUserNames
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when valid title, ownerGroupName, and validShareWithUserNames specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          title: title,
+          ownerGroupId: ownerGroupId,
+          shareWithUserNames: shareWithUserNames
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('correctly updates planner plan title with given id (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${id}`) {
-        return planResponse;
-      }
+  it('correctly updates planner plan title with given id (debug)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${id}`) {
+          return planResponse;
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${id}/details`) {
-        return planDetailsResponse;
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${id}/details`) {
+          return planDetailsResponse;
+        }
 
-      return 'Invalid request';
-    });
+        return 'Invalid request';
+      });
 
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${id}`) {
-        return planResponse;
-      }
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${id}`) {
+          return planResponse;
+        }
 
-      return 'Invalid request';
-    });
+        return 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        id: id,
-        newTitle: newTitle
-      }
-    });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          id: id,
+          newTitle: newTitle
+        }
+      });
 
-    assert(loggerLogSpy.calledWith(outputResponse));
-  });
+      assert(loggerLogSpy.calledWith(outputResponse));
+    }
+  );
 
-  it('correctly updates planner plan shareWithUserNames with given title and ownerGroupName', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(ownerGroupName)}'`) {
-        return singleGroupsResponse;
-      }
+  it('correctly updates planner plan shareWithUserNames with given title and ownerGroupName',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(ownerGroupName)}'`) {
+          return singleGroupsResponse;
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups/${ownerGroupId}/planner/plans`) {
-        return singlePlansResponse;
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups/${ownerGroupId}/planner/plans`) {
+          return singlePlansResponse;
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${id}`) {
-        return planResponse;
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${id}`) {
+          return planResponse;
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=userPrincipalName eq '${formatting.encodeQueryParameter(user)}'&$select=id,userPrincipalName`) {
-        return userResponse;
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=userPrincipalName eq '${formatting.encodeQueryParameter(user)}'&$select=id,userPrincipalName`) {
+          return userResponse;
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=userPrincipalName eq '${formatting.encodeQueryParameter(user1)}'&$select=id,userPrincipalName`) {
-        return user1Response;
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=userPrincipalName eq '${formatting.encodeQueryParameter(user1)}'&$select=id,userPrincipalName`) {
+          return user1Response;
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${id}/details`) {
-        return planDetailsResponse;
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${id}/details`) {
+          return planDetailsResponse;
+        }
 
-      return 'Invalid request';
-    });
+        return 'Invalid request';
+      });
 
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${id}/details`) {
-        return outputResponse;
-      }
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${id}/details`) {
+          return outputResponse;
+        }
 
-      return 'Invalid request';
-    });
+        return 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        title: title,
-        ownerGroupName: ownerGroupName,
-        shareWithUserNames: shareWithUserNames
-      }
-    });
+      await command.action(logger, {
+        options: {
+          title: title,
+          ownerGroupName: ownerGroupName,
+          shareWithUserNames: shareWithUserNames
+        }
+      });
 
-    assert(loggerLogSpy.calledWith(outputResponse));
-  });
+      assert(loggerLogSpy.calledWith(outputResponse));
+    }
+  );
 
-  it('correctly updates planner plan shareWithUserIds with given title and ownerGroupId', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(ownerGroupName)}'`) {
-        return singleGroupsResponse;
-      }
+  it('correctly updates planner plan shareWithUserIds with given title and ownerGroupId',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(ownerGroupName)}'`) {
+          return singleGroupsResponse;
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups/${ownerGroupId}/planner/plans`) {
-        return singlePlansResponse;
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups/${ownerGroupId}/planner/plans`) {
+          return singlePlansResponse;
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${id}`) {
-        return planResponse;
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${id}`) {
+          return planResponse;
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${id}/details`) {
-        return planDetailsResponse;
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${id}/details`) {
+          return planDetailsResponse;
+        }
 
-      return 'Invalid request';
-    });
+        return 'Invalid request';
+      });
 
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${id}/details`) {
-        return outputResponse;
-      }
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${id}/details`) {
+          return outputResponse;
+        }
 
-      return 'Invalid request';
-    });
+        return 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        title: title,
-        ownerGroupId: ownerGroupId,
-        shareWithUserIds: shareWithUserIds
-      }
-    });
+      await command.action(logger, {
+        options: {
+          title: title,
+          ownerGroupId: ownerGroupId,
+          shareWithUserIds: shareWithUserIds
+        }
+      });
 
-    assert(loggerLogSpy.calledWith(outputResponse));
-  });
+      assert(loggerLogSpy.calledWith(outputResponse));
+    }
+  );
 
-  it('correctly updates planner plan shareWithUserIds with given title and rosterId', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/beta/planner/rosters/${rosterId}/plans`) {
-        return singlePlansResponse;
-      }
+  it('correctly updates planner plan shareWithUserIds with given title and rosterId',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/beta/planner/rosters/${rosterId}/plans`) {
+          return singlePlansResponse;
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${id}`) {
-        return planResponse;
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${id}`) {
+          return planResponse;
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${id}/details`) {
-        return planDetailsResponse;
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${id}/details`) {
+          return planDetailsResponse;
+        }
 
-      return 'Invalid request';
-    });
+        return 'Invalid request';
+      });
 
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${id}/details`) {
-        return outputResponse;
-      }
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${id}/details`) {
+          return outputResponse;
+        }
 
-      return 'Invalid request';
-    });
+        return 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        title: title,
-        rosterId: rosterId,
-        shareWithUserIds: shareWithUserIds
-      }
-    });
+      await command.action(logger, {
+        options: {
+          title: title,
+          rosterId: rosterId,
+          shareWithUserIds: shareWithUserIds
+        }
+      });
 
-    assert(loggerLogSpy.calledWith(outputResponse));
-  });
+      assert(loggerLogSpy.calledWith(outputResponse));
+    }
+  );
 
 
   it('correctly updates planner plan categories with given id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${id}`) {
         return planResponse;
       }
@@ -463,7 +484,7 @@ describe(commands.PLAN_SET, () => {
       return 'Invalid request';
     });
 
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${id}/details`) {
         return outputResponse;
       }
@@ -484,7 +505,7 @@ describe(commands.PLAN_SET, () => {
   });
 
   it('fails when an invalid user is specified', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(ownerGroupName)}'`) {
         return singleGroupsResponse;
       }
@@ -508,7 +529,7 @@ describe(commands.PLAN_SET, () => {
       return 'Invalid request';
     });
 
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${id}/details`) {
         return outputResponse;
       }
@@ -526,7 +547,7 @@ describe(commands.PLAN_SET, () => {
   });
 
   it('correctly handles API OData error', async () => {
-    sinon.stub(request, 'get').rejects(new Error('An error has occurred.'));
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error('An error has occurred.'));
 
     await assert.rejects(command.action(logger, { options: {} }), new CommandError('An error has occurred.'));
   });

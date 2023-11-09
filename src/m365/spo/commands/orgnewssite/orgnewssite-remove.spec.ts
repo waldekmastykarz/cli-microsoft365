@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './orgnewssite-remove.js';
@@ -20,12 +19,12 @@ describe(commands.ORGNEWSSITE_REMOVE, () => {
   let commandInfo: CommandInfo;
   let promptOptions: any;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'ABC',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -50,21 +49,21 @@ describe(commands.ORGNEWSSITE_REMOVE, () => {
       }
     };
     promptOptions = undefined;
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -78,7 +77,7 @@ describe(commands.ORGNEWSSITE_REMOVE, () => {
   });
 
   it('completes a remove request - confirm parameter', async () => {
-    const svcListRequest = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const svcListRequest = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_vti_bin/client.svc/ProcessQuery`) > -1) {
         if (opts.headers &&
           opts.headers['X-RequestDigest']) {
@@ -100,7 +99,7 @@ describe(commands.ORGNEWSSITE_REMOVE, () => {
   });
 
   it('completes a remove request - prompt confirmed', async () => {
-    const svcListRequest = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const svcListRequest = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_vti_bin/client.svc/ProcessQuery`) > -1) {
         if (opts.headers &&
           opts.headers['X-RequestDigest']) {
@@ -111,8 +110,8 @@ describe(commands.ORGNEWSSITE_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: true }
     ));
     await command.action(logger, {
@@ -126,7 +125,7 @@ describe(commands.ORGNEWSSITE_REMOVE, () => {
   });
 
   it('handles error during remove request', async () => {
-    const svcListRequest = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const svcListRequest = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_vti_bin/client.svc/ProcessQuery`) > -1) {
         if (opts.headers &&
           opts.headers['X-RequestDigest']) {
@@ -153,7 +152,7 @@ describe(commands.ORGNEWSSITE_REMOVE, () => {
   });
 
   it('correctly handles random API error', async () => {
-    sinon.stub(request, 'post').rejects(new Error('An error has occurred'));
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
     await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/site1', force: true } } as any),
       new CommandError('An error has occurred'));
@@ -171,26 +170,30 @@ describe(commands.ORGNEWSSITE_REMOVE, () => {
   });
 
   it('aborts when declined confirmation', async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(() => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(() => {
       throw 'Invalid request';
     });
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: false }
     ));
     await command.action(logger, { options: { debug: true, verbose: true, force: false, url: 'https://contoso.sharepoint.com/sites/test1' } });
     assert(postStub.notCalled);
   });
 
-  it('fails validation if the url option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { url: 'foo' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the url option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { url: 'foo' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the url option is a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { url: 'https://contoso.sharepoint.com' } }, commandInfo);
-    assert(actual);
-  });
+  it('passes validation if the url option is a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { url: 'https://contoso.sharepoint.com' } }, commandInfo);
+      assert(actual);
+    }
+  );
 
   it('supports suppressing confirmation prompt', () => {
     const options = command.options;

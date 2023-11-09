@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './retentionlabel-set.js';
 import { session } from '../../../../utils/session.js';
@@ -19,14 +18,14 @@ describe(commands.RETENTIONLABEL_SET, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogToStderrSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.accessTokens[(command as any).resource] = {
       accessToken: 'abc',
@@ -48,17 +47,17 @@ describe(commands.RETENTIONLABEL_SET, () => {
         log.push(msg);
       }
     };
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.patch
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.accessTokens = {};
   });
@@ -76,89 +75,111 @@ describe(commands.RETENTIONLABEL_SET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation with valid id but no other option specified', async () => {
-    const actual = await command.validate({ options: { id: validId } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation with valid id but no other option specified',
+    async () => {
+      const actual = await command.validate({ options: { id: validId } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when specifying an invalid value for behaviorDuringRetentionPeriod', async () => {
-    const actual = await command.validate({ options: { id: validId, behaviorDuringRetentionPeriod: 'invalid' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation when specifying an invalid value for behaviorDuringRetentionPeriod',
+    async () => {
+      const actual = await command.validate({ options: { id: validId, behaviorDuringRetentionPeriod: 'invalid' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when specifying an invalid value for actionAfterRetentionPeriod', async () => {
-    const actual = await command.validate({ options: { id: validId, actionAfterRetentionPeriod: 'invalid' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation when specifying an invalid value for actionAfterRetentionPeriod',
+    async () => {
+      const actual = await command.validate({ options: { id: validId, actionAfterRetentionPeriod: 'invalid' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when specifying an invalid value for retentionTrigger', async () => {
-    const actual = await command.validate({ options: { id: validId, retentionTrigger: 'invalid' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation when specifying an invalid value for retentionTrigger',
+    async () => {
+      const actual = await command.validate({ options: { id: validId, retentionTrigger: 'invalid' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when specifying an invalid value for defaultRecordBehavior', async () => {
-    const actual = await command.validate({ options: { id: validId, defaultRecordBehavior: 'invalid' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation when specifying an invalid value for defaultRecordBehavior',
+    async () => {
+      const actual = await command.validate({ options: { id: validId, defaultRecordBehavior: 'invalid' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation with valid id and a single option specified', async () => {
-    const actual = await command.validate({ options: { id: validId, retentionDuration: 180 } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation with valid id and a single option specified',
+    async () => {
+      const actual = await command.validate({ options: { id: validId, retentionDuration: 180 } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation with valid id and multipe options specified', async () => {
-    const actual = await command.validate({ options: { id: validId, retentionDuration: 180, actionAfterRetentionPeriod: 'none' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation with valid id and multipe options specified',
+    async () => {
+      const actual = await command.validate({ options: { id: validId, retentionDuration: 180, actionAfterRetentionPeriod: 'none' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('correctly sets field retentionDays and actionAfterRetentionPeriod of a specific retention label by id', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/beta/security/labels/retentionLabels/${validId}`) {
-        return;
-      }
+  it('correctly sets field retentionDays and actionAfterRetentionPeriod of a specific retention label by id',
+    async () => {
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/beta/security/labels/retentionLabels/${validId}`) {
+          return;
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    await command.action(logger, { options: { id: validId, retentionDuration: 180, actionAfterRetentionPeriod: 'none', verbose: true } });
-    assert(loggerLogToStderrSpy.notCalled);
-  });
+      await command.action(logger, { options: { id: validId, retentionDuration: 180, actionAfterRetentionPeriod: 'none', verbose: true } });
+      assert(loggerLogToStderrSpy.notCalled);
+    }
+  );
 
-  it('correctly sets field retentionTrigger, defaultRecordBehavior and behaviorDuringRetentionPeriod of a specific retention label by id', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/beta/security/labels/retentionLabels/${validId}`) {
-        return;
-      }
+  it('correctly sets field retentionTrigger, defaultRecordBehavior and behaviorDuringRetentionPeriod of a specific retention label by id',
+    async () => {
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/beta/security/labels/retentionLabels/${validId}`) {
+          return;
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    await command.action(logger, { options: { id: validId, retentionTrigger: 'dateLabeled', defaultRecordBehavior: 'startLocked', behaviorDuringRetentionPeriod: 'retainAsRecord', verbose: true } });
-    assert(loggerLogToStderrSpy.notCalled);
-  });
+      await command.action(logger, { options: { id: validId, retentionTrigger: 'dateLabeled', defaultRecordBehavior: 'startLocked', behaviorDuringRetentionPeriod: 'retainAsRecord', verbose: true } });
+      assert(loggerLogToStderrSpy.notCalled);
+    }
+  );
 
-  it('correctly sets field descriptionForUsers, descriptionForAdmins and labelToBeApplied of a specific retention label by id', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/beta/security/labels/retentionLabels/${validId}`) {
-        return;
-      }
+  it('correctly sets field descriptionForUsers, descriptionForAdmins and labelToBeApplied of a specific retention label by id',
+    async () => {
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/beta/security/labels/retentionLabels/${validId}`) {
+          return;
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    await command.action(logger, { options: { id: validId, descriptionForUsers: 'description for users', descriptionForAdmins: 'description for admins', labelToBeApplied: 'label to be applied', verbose: true } });
-    assert(loggerLogToStderrSpy.notCalled);
-  });
+      await command.action(logger, { options: { id: validId, descriptionForUsers: 'description for users', descriptionForAdmins: 'description for admins', labelToBeApplied: 'label to be applied', verbose: true } });
+      assert(loggerLogToStderrSpy.notCalled);
+    }
+  );
 
-  it('fails to set field retentionDays of a specific retention label by id', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/beta/security/labels/retentionLabels/${validId}`) {
-        throw 'Error occurred when updating the retention label';
-      }
+  it('fails to set field retentionDays of a specific retention label by id',
+    async () => {
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/beta/security/labels/retentionLabels/${validId}`) {
+          throw 'Error occurred when updating the retention label';
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, { options: { id: validId, retentionDays: 180, actionAfterRetentionPeriod: 'none' } }), new CommandError('Error occurred when updating the retention label'));
-  });
+      await assert.rejects(command.action(logger, { options: { id: validId, retentionDays: 180, actionAfterRetentionPeriod: 'none' } }), new CommandError('Error occurred when updating the retention label'));
+    }
+  );
 });

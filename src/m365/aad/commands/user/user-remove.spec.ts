@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './user-remove.js';
 
@@ -24,11 +23,11 @@ describe(commands.USER_REMOVE, () => {
   let logger: Logger;
   let promptOptions: any;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -46,7 +45,7 @@ describe(commands.USER_REMOVE, () => {
         log.push(msg);
       }
     };
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
@@ -54,14 +53,14 @@ describe(commands.USER_REMOVE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.delete,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -96,39 +95,45 @@ describe(commands.USER_REMOVE, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation if required options specified (userName)', async () => {
-    const actual = await command.validate({ options: { userName: validUsername } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
-
-  it('prompts before removing the specified user when confirm option not passed', async () => {
-    await command.action(logger, {
-      options: {
-        id: validId
-      }
-    });
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+  it('passes validation if required options specified (userName)',
+    async () => {
+      const actual = await command.validate({ options: { userName: validUsername } }, commandInfo);
+      assert.strictEqual(actual, true);
     }
+  );
 
-    assert(promptIssued);
-  });
+  it('prompts before removing the specified user when confirm option not passed',
+    async () => {
+      await command.action(logger, {
+        options: {
+          id: validId
+        }
+      });
+      let promptIssued = false;
 
-  it('aborts removing the specified user when confirm option not passed and prompt not confirmed', async () => {
-    const deleteStub = sinon.stub(request, 'delete').resolves();
-
-    await command.action(logger, {
-      options: {
-        id: validId
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
       }
-    });
-    assert(deleteStub.notCalled);
-  });
+
+      assert(promptIssued);
+    }
+  );
+
+  it('aborts removing the specified user when confirm option not passed and prompt not confirmed',
+    async () => {
+      const deleteStub = jest.spyOn(request, 'delete').mockClear().mockImplementation().resolves();
+
+      await command.action(logger, {
+        options: {
+          id: validId
+        }
+      });
+      assert(deleteStub.notCalled);
+    }
+  );
 
   it('removes the specified user by id when prompt confirmed', async () => {
-    const deleteStub = sinon.stub(request, 'delete').callsFake(async (opts) => {
+    const deleteStub = jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users/${validId}`) {
         return;
       }
@@ -136,8 +141,8 @@ describe(commands.USER_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
     await command.action(logger, {
       options: {
@@ -148,45 +153,49 @@ describe(commands.USER_REMOVE, () => {
     assert(deleteStub.called);
   });
 
-  it('removes the specified user by userName when prompt confirmed', async () => {
-    const deleteStub = sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users/${validUsername}`) {
-        return;
-      }
+  it('removes the specified user by userName when prompt confirmed',
+    async () => {
+      const deleteStub = jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users/${validUsername}`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        userName: validUsername
-      }
-    });
-    assert(deleteStub.called);
-  });
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          userName: validUsername
+        }
+      });
+      assert(deleteStub.called);
+    }
+  );
 
-  it('removes the specified user by Username without confirmation prompt', async () => {
-    const deleteStub = sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users/${validUsername}`) {
-        return;
-      }
+  it('removes the specified user by Username without confirmation prompt',
+    async () => {
+      const deleteStub = jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users/${validUsername}`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        userName: validUsername,
-        force: true
-      }
-    });
-    assert(deleteStub.called);
-  });
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          userName: validUsername,
+          force: true
+        }
+      });
+      assert(deleteStub.called);
+    }
+  );
 
   it('correctly handles API OData error', async () => {
     const error = {
@@ -195,7 +204,7 @@ describe(commands.USER_REMOVE, () => {
       }
     };
 
-    sinon.stub(request, 'delete').rejects(error);
+    jest.spyOn(request, 'delete').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, {
       options: {

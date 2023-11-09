@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './navigation-node-add.js';
@@ -24,14 +23,14 @@ describe(commands.NAVIGATION_NODE_ADD, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -49,11 +48,11 @@ describe(commands.NAVIGATION_NODE_ADD, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       spo.getTopNavigationMenuState,
       spo.getQuickLaunchMenuState,
@@ -61,8 +60,8 @@ describe(commands.NAVIGATION_NODE_ADD, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -90,7 +89,7 @@ describe(commands.NAVIGATION_NODE_ADD, () => {
       "Title": "About",
       "Url": "/sites/team-a/sitepages/about.aspx"
     };
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/web/navigation/topnavigationbar` &&
         JSON.stringify(opts.data) === JSON.stringify({
           Title: title,
@@ -107,82 +106,86 @@ describe(commands.NAVIGATION_NODE_ADD, () => {
     assert(loggerLogSpy.calledWith(nodeAddResponse));
   });
 
-  it('adds new navigation node to the quick launch navigation and opens it in new window', async () => {
-    let saveCalled = false;
-    const nodeAddResponse = {
-      "AudienceIds": [],
-      "CurrentLCID": 1033,
-      "Id": 2003,
-      "IsDocLib": true,
-      "IsExternal": false,
-      "IsVisible": true,
-      "ListTemplateType": 0,
-      "Title": "About",
-      "Url": "/sites/team-a/sitepages/about.aspx"
-    };
+  it('adds new navigation node to the quick launch navigation and opens it in new window',
+    async () => {
+      let saveCalled = false;
+      const nodeAddResponse = {
+        "AudienceIds": [],
+        "CurrentLCID": 1033,
+        "Id": 2003,
+        "IsDocLib": true,
+        "IsExternal": false,
+        "IsVisible": true,
+        "ListTemplateType": 0,
+        "Title": "About",
+        "Url": "/sites/team-a/sitepages/about.aspx"
+      };
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/navigation/quicklaunch`) {
-        return nodeAddResponse;
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/navigation/quicklaunch`) {
+          return nodeAddResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(spo, 'getQuickLaunchMenuState').callsFake(async () => {
-      return quickLaunchResponse;
-    });
+      jest.spyOn(spo, 'getQuickLaunchMenuState').mockClear().mockImplementation(async () => {
+        return quickLaunchResponse;
+      });
 
-    sinon.stub(spo, 'saveMenuState').callsFake(async () => {
-      saveCalled = true;
-      return;
-    });
+      jest.spyOn(spo, 'saveMenuState').mockClear().mockImplementation(async () => {
+        saveCalled = true;
+        return;
+      });
 
-    await command.action(logger, { options: { webUrl: webUrl, location: 'QuickLaunch', title: title, url: nodeUrl, openInNewWindow: true, verbose: true } });
-    assert(loggerLogSpy.calledWith(nodeAddResponse));
-    assert.strictEqual(saveCalled, true);
-  });
+      await command.action(logger, { options: { webUrl: webUrl, location: 'QuickLaunch', title: title, url: nodeUrl, openInNewWindow: true, verbose: true } });
+      assert(loggerLogSpy.calledWith(nodeAddResponse));
+      assert.strictEqual(saveCalled, true);
+    }
+  );
 
-  it('adds new navigation node with a parent id and opens it in new window', async () => {
-    const parentNodeId = 2039;
-    let saveCalled = false;
-    const nodeAddResponse = {
-      "AudienceIds": audienceIds.split(','),
-      "CurrentLCID": 1033,
-      "Id": 2041,
-      "IsDocLib": true,
-      "IsExternal": false,
-      "IsVisible": true,
-      "ListTemplateType": 0,
-      "Title": "About",
-      "Url": "/sites/team-a/sitepages/about.aspx"
-    };
+  it('adds new navigation node with a parent id and opens it in new window',
+    async () => {
+      const parentNodeId = 2039;
+      let saveCalled = false;
+      const nodeAddResponse = {
+        "AudienceIds": audienceIds.split(','),
+        "CurrentLCID": 1033,
+        "Id": 2041,
+        "IsDocLib": true,
+        "IsExternal": false,
+        "IsVisible": true,
+        "ListTemplateType": 0,
+        "Title": "About",
+        "Url": "/sites/team-a/sitepages/about.aspx"
+      };
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/navigation/GetNodeById(${parentNodeId})/Children`) {
-        return nodeAddResponse;
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/navigation/GetNodeById(${parentNodeId})/Children`) {
+          return nodeAddResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(spo, 'getQuickLaunchMenuState').callsFake(async () => {
-      return quickLaunchResponse;
-    });
+      jest.spyOn(spo, 'getQuickLaunchMenuState').mockClear().mockImplementation(async () => {
+        return quickLaunchResponse;
+      });
 
-    sinon.stub(spo, 'getTopNavigationMenuState').callsFake(async () => {
-      return topNavigationResponse;
-    });
+      jest.spyOn(spo, 'getTopNavigationMenuState').mockClear().mockImplementation(async () => {
+        return topNavigationResponse;
+      });
 
-    sinon.stub(spo, 'saveMenuState').callsFake(async () => {
-      saveCalled = true;
-      return;
-    });
+      jest.spyOn(spo, 'saveMenuState').mockClear().mockImplementation(async () => {
+        saveCalled = true;
+        return;
+      });
 
-    await command.action(logger, { options: { webUrl: webUrl, parentNodeId: parentNodeId, title: title, url: nodeUrl, audienceIds: audienceIds, openInNewWindow: true, verbose: true } });
-    assert(loggerLogSpy.calledWith(nodeAddResponse));
-    assert.strictEqual(saveCalled, true);
-  });
+      await command.action(logger, { options: { webUrl: webUrl, parentNodeId: parentNodeId, title: title, url: nodeUrl, audienceIds: audienceIds, openInNewWindow: true, verbose: true } });
+      assert(loggerLogSpy.calledWith(nodeAddResponse));
+      assert.strictEqual(saveCalled, true);
+    }
+  );
 
   it('adds new navigation node below an existing node', async () => {
     const nodeAddResponse = {
@@ -197,7 +200,7 @@ describe(commands.NAVIGATION_NODE_ADD, () => {
       "Url": "/sites/team-a/sitepages/about.aspx"
     };
     const parentNodeId = 1000;
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/web/navigation/GetNodeById(${parentNodeId})/Children` &&
         JSON.stringify(opts.data) === JSON.stringify({
           Title: title,
@@ -214,74 +217,78 @@ describe(commands.NAVIGATION_NODE_ADD, () => {
     assert(loggerLogSpy.calledWith(nodeAddResponse));
   });
 
-  it('adds new navigation node to the top navigation with audience targetting and opens it in new window', async () => {
-    let saveCalled = false;
-    const nodeAddResponse = {
-      "AudienceIds": audienceIds.split(','),
-      "CurrentLCID": 1033,
-      "Id": 2001,
-      "IsDocLib": true,
-      "IsExternal": false,
-      "IsVisible": true,
-      "ListTemplateType": 0,
-      "Title": "About",
-      "Url": "/sites/team-a/sitepages/about.aspx"
-    };
+  it('adds new navigation node to the top navigation with audience targetting and opens it in new window',
+    async () => {
+      let saveCalled = false;
+      const nodeAddResponse = {
+        "AudienceIds": audienceIds.split(','),
+        "CurrentLCID": 1033,
+        "Id": 2001,
+        "IsDocLib": true,
+        "IsExternal": false,
+        "IsVisible": true,
+        "ListTemplateType": 0,
+        "Title": "About",
+        "Url": "/sites/team-a/sitepages/about.aspx"
+      };
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/navigation/topnavigationbar`) {
-        return nodeAddResponse;
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/navigation/topnavigationbar`) {
+          return nodeAddResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(spo, 'getTopNavigationMenuState').callsFake(async () => {
-      return topNavigationResponse;
-    });
+      jest.spyOn(spo, 'getTopNavigationMenuState').mockClear().mockImplementation(async () => {
+        return topNavigationResponse;
+      });
 
-    sinon.stub(spo, 'saveMenuState').callsFake(async () => {
-      saveCalled = true;
-      return;
-    });
+      jest.spyOn(spo, 'saveMenuState').mockClear().mockImplementation(async () => {
+        saveCalled = true;
+        return;
+      });
 
 
-    await command.action(logger, { options: { webUrl: webUrl, location: 'TopNavigationBar', title: title, url: nodeUrl, audienceIds: audienceIds, openInNewWindow: true, verbose: true } });
-    assert(loggerLogSpy.calledWith(nodeAddResponse));
-    assert.strictEqual(saveCalled, true);
-  });
+      await command.action(logger, { options: { webUrl: webUrl, location: 'TopNavigationBar', title: title, url: nodeUrl, audienceIds: audienceIds, openInNewWindow: true, verbose: true } });
+      assert(loggerLogSpy.calledWith(nodeAddResponse));
+      assert.strictEqual(saveCalled, true);
+    }
+  );
 
-  it('adds new linkless navigation node to the top navigation with', async () => {
-    const requestBody = {
-      AudienceIds: undefined,
-      Title: title,
-      Url: 'http://linkless.header/',
-      IsExternal: false
-    };
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/navigation/topnavigationbar`) {
-        return {
-          "AudienceIds": null,
-          "CurrentLCID": 1033,
-          "Id": 2001,
-          "IsDocLib": true,
-          "IsExternal": false,
-          "IsVisible": true,
-          "ListTemplateType": 0,
-          "Title": title,
-          "Url": "http://linkless.header/"
-        };
-      }
+  it('adds new linkless navigation node to the top navigation with',
+    async () => {
+      const requestBody = {
+        AudienceIds: undefined,
+        Title: title,
+        Url: 'http://linkless.header/',
+        IsExternal: false
+      };
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/navigation/topnavigationbar`) {
+          return {
+            "AudienceIds": null,
+            "CurrentLCID": 1033,
+            "Id": 2001,
+            "IsDocLib": true,
+            "IsExternal": false,
+            "IsVisible": true,
+            "ListTemplateType": 0,
+            "Title": title,
+            "Url": "http://linkless.header/"
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { webUrl: webUrl, location: 'TopNavigationBar', title: title, verbose: true } });
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, requestBody);
-  });
+      await command.action(logger, { options: { webUrl: webUrl, location: 'TopNavigationBar', title: title, verbose: true } });
+      assert.deepStrictEqual(postStub.mock.lastCall[0].data, requestBody);
+    }
+  );
 
   it('correctly handles random API error', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/web/navigation/topnavigationbar`) {
         throw { error: 'An error has occurred' };
       }
@@ -293,7 +300,7 @@ describe(commands.NAVIGATION_NODE_ADD, () => {
   });
 
   it('correctly handles random API error (string error)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/web/navigation/topnavigationbar`) {
         throw 'An error has occurred';
       }
@@ -309,55 +316,73 @@ describe(commands.NAVIGATION_NODE_ADD, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if the specified parentNodeId is not a number', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, title: title, url: nodeUrl, parentNodeId: 'invalid' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the specified parentNodeId is not a number',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, title: title, url: nodeUrl, parentNodeId: 'invalid' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if specified location is not valid', async () => {
     const actual = await command.validate({ options: { webUrl: webUrl, location: 'invalid', title: title, url: nodeUrl } }, commandInfo);
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if audienceIds contains an invalid audienceId', async () => {
-    const invalidAudienceIds = `${audienceIds},invalid`;
-    const actual = await command.validate({ options: { webUrl: webUrl, parentNodeId: 2000, title: title, url: nodeUrl, audienceIds: invalidAudienceIds } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if audienceIds contains an invalid audienceId',
+    async () => {
+      const invalidAudienceIds = `${audienceIds},invalid`;
+      const actual = await command.validate({ options: { webUrl: webUrl, parentNodeId: 2000, title: title, url: nodeUrl, audienceIds: invalidAudienceIds } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if audienceIds contains more than 10 guids', async () => {
-    const invalidAudienceIds = `${audienceIds},${audienceIds},${audienceIds},${audienceIds},${audienceIds},${audienceIds}`;
-    const actual = await command.validate({ options: { webUrl: webUrl, parentNodeId: 2000, title: title, url: nodeUrl, audienceIds: invalidAudienceIds } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if audienceIds contains more than 10 guids',
+    async () => {
+      const invalidAudienceIds = `${audienceIds},${audienceIds},${audienceIds},${audienceIds},${audienceIds},${audienceIds}`;
+      const actual = await command.validate({ options: { webUrl: webUrl, parentNodeId: 2000, title: title, url: nodeUrl, audienceIds: invalidAudienceIds } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when location is TopNavigationBar and all required properties are present', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, location: 'TopNavigationBar', title: title, url: nodeUrl } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when location is TopNavigationBar and all required properties are present',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, location: 'TopNavigationBar', title: title, url: nodeUrl } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when location is QuickLaunch and all required properties are present', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, location: 'QuickLaunch', title: title, url: nodeUrl } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when location is QuickLaunch and all required properties are present',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, location: 'QuickLaunch', title: title, url: nodeUrl } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when location is TopNavigationBar and the link is external', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, location: 'TopNavigationBar', title: title, url: nodeUrl, isExternal: true } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when location is TopNavigationBar and the link is external',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, location: 'TopNavigationBar', title: title, url: nodeUrl, isExternal: true } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when location is QuickLaunch and the link is external', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, location: 'QuickLaunch', title: title, url: nodeUrl, isExternal: true } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when location is QuickLaunch and the link is external',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, location: 'QuickLaunch', title: title, url: nodeUrl, isExternal: true } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when location is not specified but parentNodeId is', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, parentNodeId: 2000, title: title, url: nodeUrl } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when location is not specified but parentNodeId is',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, parentNodeId: 2000, title: title, url: nodeUrl } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when audienceIds contains less than 10 ids and all are valid', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, parentNodeId: 2000, title: title, url: nodeUrl, audienceIds: audienceIds } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when audienceIds contains less than 10 ids and all are valid',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, parentNodeId: 2000, title: title, url: nodeUrl, audienceIds: audienceIds } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

@@ -1,11 +1,10 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Logger } from '../../../../cli/Logger.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import { WebProperties } from '../web/WebProperties.js';
@@ -56,11 +55,11 @@ describe(commands.SITE_ENSURE, () => {
     AssociatedVisitorGroup: ''
   };
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
   });
 
@@ -80,15 +79,15 @@ describe(commands.SITE_ENSURE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       spo.getWeb,
       spo.addSite,
       spo.updateSite
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -101,99 +100,117 @@ describe(commands.SITE_ENSURE, () => {
   });
 
   it('creates modern team site if no site found', async () => {
-    sinon.stub(spo, 'getWeb').rejects({ error: '404 FILE NOT FOUND' });
-    sinon.stub(spo, 'addSite').resolves();
+    jest.spyOn(spo, 'getWeb').mockClear().mockImplementation().rejects({ error: '404 FILE NOT FOUND' });
+    jest.spyOn(spo, 'addSite').mockClear().mockImplementation().resolves();
 
     await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/team1', alias: 'team1', title: 'Team 1' } } as any);
   });
 
-  it('creates modern communication site if no site found (debug)', async () => {
-    sinon.stub(spo, 'getWeb').rejects({ error: '404 FILE NOT FOUND' });
-    sinon.stub(spo, 'addSite').resolves();
+  it('creates modern communication site if no site found (debug)',
+    async () => {
+      jest.spyOn(spo, 'getWeb').mockClear().mockImplementation().rejects({ error: '404 FILE NOT FOUND' });
+      jest.spyOn(spo, 'addSite').mockClear().mockImplementation().resolves();
 
-    await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/comms', title: 'Comms', type: 'CommunicationSite', debug: true } } as any);
-  });
+      await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/comms', title: 'Comms', type: 'CommunicationSite', debug: true } } as any);
+    }
+  );
 
-  it('updates modern team site if existing modern team site found (no type specified)', async () => {
-    sinon.stub(spo, 'getWeb').resolves(webResponse);
-    sinon.stub(spo, 'updateSite').resolves();
+  it('updates modern team site if existing modern team site found (no type specified)',
+    async () => {
+      jest.spyOn(spo, 'getWeb').mockClear().mockImplementation().resolves(webResponse);
+      jest.spyOn(spo, 'updateSite').mockClear().mockImplementation().resolves();
 
-    await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/team1', alias: 'team1', title: 'Team 1' } } as any);
-  });
+      await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/team1', alias: 'team1', title: 'Team 1' } } as any);
+    }
+  );
 
-  it('updates modern team site if existing modern team site found (type specified)', async () => {
-    sinon.stub(spo, 'getWeb').resolves(webResponse);
-    sinon.stub(spo, 'updateSite').resolves();
+  it('updates modern team site if existing modern team site found (type specified)',
+    async () => {
+      jest.spyOn(spo, 'getWeb').mockClear().mockImplementation().resolves(webResponse);
+      jest.spyOn(spo, 'updateSite').mockClear().mockImplementation().resolves();
 
-    await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/team1', alias: 'team1', title: 'Team 1', type: 'TeamSite' } } as any);
-  });
+      await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/team1', alias: 'team1', title: 'Team 1', type: 'TeamSite' } } as any);
+    }
+  );
 
-  it('updates modern communication site if existing modern communication site found (no type specified; debug)', async () => {
-    const webResponseSitePagePublishing = { ...webResponse };
-    webResponseSitePagePublishing.WebTemplate = 'SITEPAGEPUBLISHING';
+  it('updates modern communication site if existing modern communication site found (no type specified; debug)',
+    async () => {
+      const webResponseSitePagePublishing = { ...webResponse };
+      webResponseSitePagePublishing.WebTemplate = 'SITEPAGEPUBLISHING';
 
-    sinon.stub(spo, 'getWeb').resolves(webResponseSitePagePublishing);
-    sinon.stub(spo, 'updateSite').resolves();
+      jest.spyOn(spo, 'getWeb').mockClear().mockImplementation().resolves(webResponseSitePagePublishing);
+      jest.spyOn(spo, 'updateSite').mockClear().mockImplementation().resolves();
 
-    await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/commsite1', title: 'CommSite1', debug: true } } as any);
-  });
+      await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/commsite1', title: 'CommSite1', debug: true } } as any);
+    }
+  );
 
-  it('updates modern communication site if existing modern communication site found (type specified)', async () => {
-    const webResponseSitePagePublishing = { ...webResponse };
-    webResponseSitePagePublishing.WebTemplate = 'SITEPAGEPUBLISHING';
+  it('updates modern communication site if existing modern communication site found (type specified)',
+    async () => {
+      const webResponseSitePagePublishing = { ...webResponse };
+      webResponseSitePagePublishing.WebTemplate = 'SITEPAGEPUBLISHING';
 
-    sinon.stub(spo, 'getWeb').resolves(webResponseSitePagePublishing);
-    sinon.stub(spo, 'updateSite').resolves();
+      jest.spyOn(spo, 'getWeb').mockClear().mockImplementation().resolves(webResponseSitePagePublishing);
+      jest.spyOn(spo, 'updateSite').mockClear().mockImplementation().resolves();
 
-    await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/commsite1', title: 'CommSite1', type: 'CommunicationSite' } } as any);
-  });
+      await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/commsite1', title: 'CommSite1', type: 'CommunicationSite' } } as any);
+    }
+  );
 
-  it('updates classic site if an existing classic site found (type specified)', async () => {
-    const webResponseSts = { ...webResponse };
-    webResponseSts.WebTemplate = 'STS';
+  it('updates classic site if an existing classic site found (type specified)',
+    async () => {
+      const webResponseSts = { ...webResponse };
+      webResponseSts.WebTemplate = 'STS';
 
-    sinon.stub(spo, 'getWeb').resolves(webResponseSts);
-    sinon.stub(spo, 'updateSite').resolves();
+      jest.spyOn(spo, 'getWeb').mockClear().mockImplementation().resolves(webResponseSts);
+      jest.spyOn(spo, 'updateSite').mockClear().mockImplementation().resolves();
 
-    await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/classic', title: 'Classic', type: 'ClassicSite' } } as any);
-  });
+      await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/classic', title: 'Classic', type: 'ClassicSite' } } as any);
+    }
+  );
 
   it(`updates site's visibility and sharing options`, async () => {
-    sinon.stub(spo, 'getWeb').resolves(webResponse);
-    sinon.stub(spo, 'updateSite').resolves();
+    jest.spyOn(spo, 'getWeb').mockClear().mockImplementation().resolves(webResponse);
+    jest.spyOn(spo, 'updateSite').mockClear().mockImplementation().resolves();
 
     await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/team1', alias: 'team1', title: 'Team 1', isPublic: true, shareByEmailEnabled: true } } as any);
   });
 
-  it('returns error when validation of options for creating site failed', async () => {
-    sinon.stub(spo, 'getWeb').rejects(new Error('404 FILE NOT FOUND'));
+  it('returns error when validation of options for creating site failed',
+    async () => {
+      jest.spyOn(spo, 'getWeb').mockClear().mockImplementation().rejects(new Error('404 FILE NOT FOUND'));
 
-    await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/team1', title: 'Team 1' } } as any));
-  });
+      await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/team1', title: 'Team 1' } } as any));
+    }
+  );
 
-  it('returns error when an error has occurred when checking if a site exists at the specified URL', async () => {
-    sinon.stub(spo, 'getWeb').rejects(new Error('An error has occurred'));
+  it('returns error when an error has occurred when checking if a site exists at the specified URL',
+    async () => {
+      jest.spyOn(spo, 'getWeb').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
-    await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/team1', title: 'Team 1' } } as any));
-  });
+      await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/team1', title: 'Team 1' } } as any));
+    }
+  );
 
   it('returns error when the specified site type is invalid', async () => {
     const webResponseSts = { ...webResponse };
     webResponseSts.WebTemplate = 'STS';
 
-    sinon.stub(spo, 'getWeb').resolves(webResponseSts);
+    jest.spyOn(spo, 'getWeb').mockClear().mockImplementation().resolves(webResponseSts);
 
     await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/classic', title: 'Classic', type: 'Invalid' } } as any));
   });
 
-  it('returns error when a communication site expected but a team site found', async () => {
-    sinon.stub(spo, 'getWeb').resolves(webResponse);
+  it('returns error when a communication site expected but a team site found',
+    async () => {
+      jest.spyOn(spo, 'getWeb').mockClear().mockImplementation().resolves(webResponse);
 
-    await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/team1', title: 'Team 1', type: 'CommunicationSite' } } as any));
-  });
+      await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/team1', title: 'Team 1', type: 'CommunicationSite' } } as any));
+    }
+  );
 
   it('returns error when no properties to update specified', async () => {
-    sinon.stub(spo, 'getWeb').resolves(webResponse);
+    jest.spyOn(spo, 'getWeb').mockClear().mockImplementation().resolves(webResponse);
 
     await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/team1' } } as any));
   });

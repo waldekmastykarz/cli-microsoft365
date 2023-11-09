@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import { SpoPropertyBagBaseCommand } from '../propertybag/propertybag-base.js';
@@ -18,16 +17,16 @@ import command from './web-reindex.js';
 describe(commands.WEB_REINDEX, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogToStderrSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'ABC',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -50,12 +49,12 @@ describe(commands.WEB_REINDEX, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post,
       SpoPropertyBagBaseCommand.isNoScriptSite,
@@ -64,8 +63,8 @@ describe(commands.WEB_REINDEX, () => {
     (command as any).reindexedLists = false;
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -77,96 +76,100 @@ describe(commands.WEB_REINDEX, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('requests reindexing site that is not a no-script site for the first time', async () => {
-    let propertyName: string = '';
-    let propertyValue: string = '';
+  it('requests reindexing site that is not a no-script site for the first time',
+    async () => {
+      let propertyName: string = '';
+      let propertyValue: string = '';
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_vti_bin/client.svc/ProcessQuery`) > -1) {
-        if (opts.data.indexOf(`<Query Id="1" ObjectPathId="5">`) > -1) {
-          return JSON.stringify([{
-            "SchemaVersion": "15.0.0.0",
-            "LibraryVersion": "16.0.7331.1206",
-            "ErrorInfo": null,
-            "TraceCorrelationId": "38e4499e-10a2-5000-ce25-77d4ccc2bd96"
-          }, 7, {
-            "_ObjectType_": "SP.Web",
-            "_ObjectIdentity_": "38e4499e-10a2-5000-ce25-77d4ccc2bd96|740c6a0b-85e2-48a0-a494-e0f1759d4a77:site:f3806c23-0c9f-42d3-bc7d-3895acc06d73:web:5a39e548-b3d7-4090-9cb9-0ce7cd85d275",
-            "ServerRelativeUrl": "\u002fsites\u002fteam-a"
-          }]);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_vti_bin/client.svc/ProcessQuery`) > -1) {
+          if (opts.data.indexOf(`<Query Id="1" ObjectPathId="5">`) > -1) {
+            return JSON.stringify([{
+              "SchemaVersion": "15.0.0.0",
+              "LibraryVersion": "16.0.7331.1206",
+              "ErrorInfo": null,
+              "TraceCorrelationId": "38e4499e-10a2-5000-ce25-77d4ccc2bd96"
+            }, 7, {
+              "_ObjectType_": "SP.Web",
+              "_ObjectIdentity_": "38e4499e-10a2-5000-ce25-77d4ccc2bd96|740c6a0b-85e2-48a0-a494-e0f1759d4a77:site:f3806c23-0c9f-42d3-bc7d-3895acc06d73:web:5a39e548-b3d7-4090-9cb9-0ce7cd85d275",
+              "ServerRelativeUrl": "\u002fsites\u002fteam-a"
+            }]);
+          }
         }
-      }
 
-      return 'Invalid request';
-    });
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/web/allproperties') > -1) {
-        return {};
-      }
-
-      return 'Invalid request';
-    });
-    sinon.stub(SpoPropertyBagBaseCommand, 'isNoScriptSite').resolves(false);
-    sinon.stub(SpoPropertyBagBaseCommand, 'setProperty').callsFake(async (_propertyName, _propertyValue) => {
-      propertyName = _propertyName;
-      propertyValue = _propertyValue;
-      return JSON.stringify({});
-    });
-
-    await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/team-a' } });
-    assert(loggerLogSpy.notCalled, 'Something has been logged');
-    assert.strictEqual(propertyName, 'vti_searchversion', 'Incorrect property stored in the property bag');
-    assert.strictEqual(propertyValue, '1', 'Incorrect property value stored in the property bag');
-  });
-
-  it('requests reindexing site that is not a no-script site for the second time', async () => {
-    let propertyName: string = '';
-    let propertyValue: string = '';
-
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_vti_bin/client.svc/ProcessQuery`) > -1) {
-        if (opts.data.indexOf(`<Query Id="1" ObjectPathId="5">`) > -1) {
-          return JSON.stringify([{
-            "SchemaVersion": "15.0.0.0",
-            "LibraryVersion": "16.0.7331.1206",
-            "ErrorInfo": null,
-            "TraceCorrelationId": "38e4499e-10a2-5000-ce25-77d4ccc2bd96"
-          }, 7, {
-            "_ObjectType_": "SP.Web",
-            "_ObjectIdentity_": "38e4499e-10a2-5000-ce25-77d4ccc2bd96|740c6a0b-85e2-48a0-a494-e0f1759d4a77:site:f3806c23-0c9f-42d3-bc7d-3895acc06d73:web:5a39e548-b3d7-4090-9cb9-0ce7cd85d275",
-            "ServerRelativeUrl": "\u002fsites\u002fteam-a"
-          }]);
+        return 'Invalid request';
+      });
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/web/allproperties') > -1) {
+          return {};
         }
-      }
 
-      return 'Invalid request';
-    });
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/web/allproperties') > -1) {
-        return {
-          vti_x005f_searchversion: '1'
-        };
-      }
+        return 'Invalid request';
+      });
+      jest.spyOn(SpoPropertyBagBaseCommand, 'isNoScriptSite').mockClear().mockImplementation().resolves(false);
+      jest.spyOn(SpoPropertyBagBaseCommand, 'setProperty').mockClear().mockImplementation(async (_propertyName, _propertyValue) => {
+        propertyName = _propertyName;
+        propertyValue = _propertyValue;
+        return JSON.stringify({});
+      });
 
-      return 'Invalid request';
-    });
-    sinon.stub(SpoPropertyBagBaseCommand, 'isNoScriptSite').resolves(false);
-    sinon.stub(SpoPropertyBagBaseCommand, 'setProperty').callsFake(async (_propertyName, _propertyValue) => {
-      propertyName = _propertyName;
-      propertyValue = _propertyValue;
-      return JSON.stringify({});
-    });
+      await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/team-a' } });
+      assert(loggerLogSpy.notCalled, 'Something has been logged');
+      assert.strictEqual(propertyName, 'vti_searchversion', 'Incorrect property stored in the property bag');
+      assert.strictEqual(propertyValue, '1', 'Incorrect property value stored in the property bag');
+    }
+  );
 
-    await command.action(logger, { options: { debug: true, url: 'https://contoso.sharepoint.com/sites/team-a' } });
-    assert.strictEqual(propertyName, 'vti_searchversion', 'Incorrect property stored in the property bag');
-    assert.strictEqual(propertyValue, '2', 'Incorrect property value stored in the property bag');
-  });
+  it('requests reindexing site that is not a no-script site for the second time',
+    async () => {
+      let propertyName: string = '';
+      let propertyValue: string = '';
+
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_vti_bin/client.svc/ProcessQuery`) > -1) {
+          if (opts.data.indexOf(`<Query Id="1" ObjectPathId="5">`) > -1) {
+            return JSON.stringify([{
+              "SchemaVersion": "15.0.0.0",
+              "LibraryVersion": "16.0.7331.1206",
+              "ErrorInfo": null,
+              "TraceCorrelationId": "38e4499e-10a2-5000-ce25-77d4ccc2bd96"
+            }, 7, {
+              "_ObjectType_": "SP.Web",
+              "_ObjectIdentity_": "38e4499e-10a2-5000-ce25-77d4ccc2bd96|740c6a0b-85e2-48a0-a494-e0f1759d4a77:site:f3806c23-0c9f-42d3-bc7d-3895acc06d73:web:5a39e548-b3d7-4090-9cb9-0ce7cd85d275",
+              "ServerRelativeUrl": "\u002fsites\u002fteam-a"
+            }]);
+          }
+        }
+
+        return 'Invalid request';
+      });
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/web/allproperties') > -1) {
+          return {
+            vti_x005f_searchversion: '1'
+          };
+        }
+
+        return 'Invalid request';
+      });
+      jest.spyOn(SpoPropertyBagBaseCommand, 'isNoScriptSite').mockClear().mockImplementation().resolves(false);
+      jest.spyOn(SpoPropertyBagBaseCommand, 'setProperty').mockClear().mockImplementation(async (_propertyName, _propertyValue) => {
+        propertyName = _propertyName;
+        propertyValue = _propertyValue;
+        return JSON.stringify({});
+      });
+
+      await command.action(logger, { options: { debug: true, url: 'https://contoso.sharepoint.com/sites/team-a' } });
+      assert.strictEqual(propertyName, 'vti_searchversion', 'Incorrect property stored in the property bag');
+      assert.strictEqual(propertyValue, '2', 'Incorrect property value stored in the property bag');
+    }
+  );
 
   it('requests reindexing no-script site', async () => {
     const propertyName: string[] = [];
     const propertyValue: string[] = [];
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_vti_bin/client.svc/ProcessQuery`) > -1) {
         if (opts.data.indexOf(`<Query Id="1" ObjectPathId="5">`) > -1) {
           return JSON.stringify([{
@@ -200,7 +203,7 @@ describe(commands.WEB_REINDEX, () => {
 
       return 'Invalid request';
     });
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/lists') > -1) {
         return {
           value: [
@@ -236,8 +239,8 @@ describe(commands.WEB_REINDEX, () => {
 
       return 'Invalid request';
     });
-    sinon.stub(SpoPropertyBagBaseCommand, 'isNoScriptSite').resolves(true);
-    sinon.stub(SpoPropertyBagBaseCommand, 'setProperty').callsFake(async (_propertyName, _propertyValue) => {
+    jest.spyOn(SpoPropertyBagBaseCommand, 'isNoScriptSite').mockClear().mockImplementation().resolves(true);
+    jest.spyOn(SpoPropertyBagBaseCommand, 'setProperty').mockClear().mockImplementation(async (_propertyName, _propertyValue) => {
       propertyName.push(_propertyName);
       propertyValue.push(_propertyValue);
       return JSON.stringify({});
@@ -255,7 +258,7 @@ describe(commands.WEB_REINDEX, () => {
     const propertyName: string[] = [];
     const propertyValue: string[] = [];
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_vti_bin/client.svc/ProcessQuery`) > -1) {
         if (opts.data.indexOf(`<Query Id="1" ObjectPathId="5">`) > -1) {
           return JSON.stringify([{
@@ -289,7 +292,7 @@ describe(commands.WEB_REINDEX, () => {
 
       return 'Invalid request';
     });
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/lists') > -1) {
         return {
           value: [
@@ -325,8 +328,8 @@ describe(commands.WEB_REINDEX, () => {
 
       return 'Invalid request';
     });
-    sinon.stub(SpoPropertyBagBaseCommand, 'isNoScriptSite').resolves(true);
-    sinon.stub(SpoPropertyBagBaseCommand, 'setProperty').callsFake(async (_propertyName, _propertyValue) => {
+    jest.spyOn(SpoPropertyBagBaseCommand, 'isNoScriptSite').mockClear().mockImplementation().resolves(true);
+    jest.spyOn(SpoPropertyBagBaseCommand, 'setProperty').mockClear().mockImplementation(async (_propertyName, _propertyValue) => {
       propertyName.push(_propertyName);
       propertyValue.push(_propertyValue);
       return JSON.stringify({});
@@ -341,7 +344,7 @@ describe(commands.WEB_REINDEX, () => {
   });
 
   it('correctly handles error while requiring reindexing a list', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_vti_bin/client.svc/ProcessQuery`) > -1) {
         if (opts.data.indexOf(`<Query Id="1" ObjectPathId="5">`) > -1) {
           return JSON.stringify([{
@@ -375,7 +378,7 @@ describe(commands.WEB_REINDEX, () => {
 
       return 'Invalid request';
     });
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/lists') > -1) {
         return {
           value: [
@@ -407,8 +410,8 @@ describe(commands.WEB_REINDEX, () => {
 
       return 'Invalid request';
     });
-    sinon.stub(SpoPropertyBagBaseCommand, 'isNoScriptSite').resolves(true);
-    sinon.stub(SpoPropertyBagBaseCommand, 'setProperty').rejects(new Error('ClientSvc unknown error'));
+    jest.spyOn(SpoPropertyBagBaseCommand, 'isNoScriptSite').mockClear().mockImplementation().resolves(true);
+    jest.spyOn(SpoPropertyBagBaseCommand, 'setProperty').mockClear().mockImplementation().rejects(new Error('ClientSvc unknown error'));
 
     await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/team-a' } } as any), new CommandError('ClientSvc unknown error'));
   });

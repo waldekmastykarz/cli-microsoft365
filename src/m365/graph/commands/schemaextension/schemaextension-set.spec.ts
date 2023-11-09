@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,21 +8,21 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './schemaextension-set.js';
 
 describe(commands.SCHEMAEXTENSION_SET, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogToStderrSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -41,18 +40,18 @@ describe(commands.SCHEMAEXTENSION_SET, () => {
         log.push(msg);
       }
     };
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.patch
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -65,7 +64,7 @@ describe(commands.SCHEMAEXTENSION_SET, () => {
   });
 
   it('updates schema extension', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/schemaExtensions/ext6kguklm2_TestSchemaExtension`) {
         return {
           "id": "ext6kguklm2_TestSchemaExtension",
@@ -105,7 +104,7 @@ describe(commands.SCHEMAEXTENSION_SET, () => {
   });
 
   it('updates schema extension (debug)', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/schemaExtensions/ext6kguklm2_TestSchemaExtension`) {
         return;
       }
@@ -128,7 +127,7 @@ describe(commands.SCHEMAEXTENSION_SET, () => {
   });
 
   it('updates schema extension (verbose)', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/schemaExtensions/ext6kguklm2_TestSchemaExtension`) {
         return;
       }
@@ -149,7 +148,7 @@ describe(commands.SCHEMAEXTENSION_SET, () => {
   });
 
   it('handles error correctly', async () => {
-    sinon.stub(request, 'patch').rejects(new Error('An error has occurred'));
+    jest.spyOn(request, 'patch').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
     await assert.rejects(command.action(logger, {
       options: {
@@ -237,18 +236,20 @@ describe(commands.SCHEMAEXTENSION_SET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if properties JSON string is not an array', async () => {
-    const actual = await command.validate({
-      options: {
-        id: 'TestSchemaExtension',
-        description: 'Test Description',
-        owner: 'b07a45b3-f7b7-489b-9269-da6f3f93dff0',
-        targetTypes: 'Group',
-        properties: '{}'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if properties JSON string is not an array',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          id: 'TestSchemaExtension',
+          description: 'Test Description',
+          owner: 'b07a45b3-f7b7-489b-9269-da6f3f93dff0',
+          targetTypes: 'Group',
+          properties: '{}'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if status is not valid', async () => {
     const actual = await command.validate({
@@ -262,16 +263,18 @@ describe(commands.SCHEMAEXTENSION_SET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('passes validation if required parameters are set and at least one property to update (description) is specified', async () => {
-    const actual = await command.validate({
-      options: {
-        id: 'TestSchemaExtension',
-        owner: 'b07a45b3-f7b7-489b-9269-da6f3f93dff0',
-        description: 'test'
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if required parameters are set and at least one property to update (description) is specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          id: 'TestSchemaExtension',
+          owner: 'b07a45b3-f7b7-489b-9269-da6f3f93dff0',
+          description: 'test'
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('passes validation if the property type is Binary', async () => {
     const actual = await command.validate({

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { powerPlatform } from '../../../../utils/powerPlatform.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import ppSolutionGetCommand from './solution-get.js';
 import command from './solution-publish.js';
@@ -41,13 +40,13 @@ describe(commands.SOLUTION_PUBLISH, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogToStderrSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -65,11 +64,11 @@ describe(commands.SOLUTION_PUBLISH, () => {
         log.push(msg);
       }
     };
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       request.get,
       powerPlatform.getDynamicsInstanceApiUrl,
@@ -78,8 +77,8 @@ describe(commands.SOLUTION_PUBLISH, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -116,118 +115,122 @@ describe(commands.SOLUTION_PUBLISH, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('publishes the components of a specified solution owned by the currently signed-in user', async () => {
-    sinon.stub(powerPlatform, 'getDynamicsInstanceApiUrl').callsFake(async () => envUrl);
+  it('publishes the components of a specified solution owned by the currently signed-in user',
+    async () => {
+      jest.spyOn(powerPlatform, 'getDynamicsInstanceApiUrl').mockClear().mockImplementation(async () => envUrl);
 
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command): Promise<any> => {
-      if (command === ppSolutionGetCommand) {
-        return ({
-          stdout: `{
-            "solutionid": "${validId}",
-            "uniquename": "${validName}",
-            "version": "1.0.0.0",
-            "installedon": "2022-10-30T13:59:26Z",
-            "solutionpackageversion": null,
-            "friendlyname": "${validName}",
-            "versionnumber": 1209676,
-            "publisherid": {
-              "friendlyname": "Default Publisher for org1547b730",
-              "publisherid": "d21aab71-79e7-11dd-8874-00188b01e34f"
-            }
-          }`
-        });
-      }
-
-      throw new CommandError('Unknown case');
-    });
-
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.0/msdyn_solutioncomponentsummaries?$filter=(msdyn_solutionid eq ${validId})&$select=msdyn_componentlogicalname,msdyn_name&$orderby=msdyn_componentlogicalname asc&api-version=9.1`) {
-        return validSolutionComponentsResult;
-      }
-
-      throw 'Invalid request';
-    });
-
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.0/PublishXml`) {
-        if (JSON.stringify(opts.data) === JSON.stringify(validParameterXmlData)) {
-          return;
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command): Promise<any> => {
+        if (command === ppSolutionGetCommand) {
+          return ({
+            stdout: `{
+              "solutionid": "${validId}",
+              "uniquename": "${validName}",
+              "version": "1.0.0.0",
+              "installedon": "2022-10-30T13:59:26Z",
+              "solutionpackageversion": null,
+              "friendlyname": "${validName}",
+              "versionnumber": 1209676,
+              "publisherid": {
+                "friendlyname": "Default Publisher for org1547b730",
+                "publisherid": "d21aab71-79e7-11dd-8874-00188b01e34f"
+              }
+            }`
+          });
         }
-      }
 
-      throw 'Invalid request';
-    });
+        throw new CommandError('Unknown case');
+      });
 
-    await assert.doesNotReject(command.action(logger, {
-      options: {
-        debug: true,
-        environmentName: validEnvironment,
-        name: validName
-      }
-    }));
-  });
-
-  it('publishes the components of a specified solution owned by the currently signed-in user and waits for completion', async () => {
-    sinon.stub(powerPlatform, 'getDynamicsInstanceApiUrl').callsFake(async () => envUrl);
-
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command): Promise<any> => {
-      if (command === ppSolutionGetCommand) {
-        return ({
-          stdout: `{
-            "solutionid": "${validId}",
-            "uniquename": "${validName}",
-            "version": "1.0.0.0",
-            "installedon": "2022-10-30T13:59:26Z",
-            "solutionpackageversion": null,
-            "friendlyname": "${validName}",
-            "versionnumber": 1209676,
-            "publisherid": {
-              "friendlyname": "Default Publisher for org1547b730",
-              "publisherid": "d21aab71-79e7-11dd-8874-00188b01e34f"
-            }
-          }`
-        });
-      }
-
-      throw new CommandError('Unknown case');
-    });
-
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.0/msdyn_solutioncomponentsummaries?$filter=(msdyn_solutionid eq ${validId})&$select=msdyn_componentlogicalname,msdyn_name&$orderby=msdyn_componentlogicalname asc&api-version=9.1`) {
-        return validSolutionComponentsResult;
-      }
-
-      throw 'Invalid request';
-    });
-
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.0/PublishXml`) {
-        if (JSON.stringify(opts.data) === JSON.stringify(validParameterXmlData)) {
-          return;
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.0/msdyn_solutioncomponentsummaries?$filter=(msdyn_solutionid eq ${validId})&$select=msdyn_componentlogicalname,msdyn_name&$orderby=msdyn_componentlogicalname asc&api-version=9.1`) {
+          return validSolutionComponentsResult;
         }
-      }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        environmentName: validEnvironment,
-        name: validName,
-        wait: true
-      }
-    });
-    assert(loggerLogToStderrSpy.called);
-  });
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.0/PublishXml`) {
+          if (JSON.stringify(opts.data) === JSON.stringify(validParameterXmlData)) {
+            return;
+          }
+        }
+
+        throw 'Invalid request';
+      });
+
+      await assert.doesNotReject(command.action(logger, {
+        options: {
+          debug: true,
+          environmentName: validEnvironment,
+          name: validName
+        }
+      }));
+    }
+  );
+
+  it('publishes the components of a specified solution owned by the currently signed-in user and waits for completion',
+    async () => {
+      jest.spyOn(powerPlatform, 'getDynamicsInstanceApiUrl').mockClear().mockImplementation(async () => envUrl);
+
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command): Promise<any> => {
+        if (command === ppSolutionGetCommand) {
+          return ({
+            stdout: `{
+              "solutionid": "${validId}",
+              "uniquename": "${validName}",
+              "version": "1.0.0.0",
+              "installedon": "2022-10-30T13:59:26Z",
+              "solutionpackageversion": null,
+              "friendlyname": "${validName}",
+              "versionnumber": 1209676,
+              "publisherid": {
+                "friendlyname": "Default Publisher for org1547b730",
+                "publisherid": "d21aab71-79e7-11dd-8874-00188b01e34f"
+              }
+            }`
+          });
+        }
+
+        throw new CommandError('Unknown case');
+      });
+
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.0/msdyn_solutioncomponentsummaries?$filter=(msdyn_solutionid eq ${validId})&$select=msdyn_componentlogicalname,msdyn_name&$orderby=msdyn_componentlogicalname asc&api-version=9.1`) {
+          return validSolutionComponentsResult;
+        }
+
+        throw 'Invalid request';
+      });
+
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.0/PublishXml`) {
+          if (JSON.stringify(opts.data) === JSON.stringify(validParameterXmlData)) {
+            return;
+          }
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger, {
+        options: {
+          debug: true,
+          environmentName: validEnvironment,
+          name: validName,
+          wait: true
+        }
+      });
+      assert(loggerLogToStderrSpy.called);
+    }
+  );
 
   it('correctly handles API OData error', async () => {
     const errorMessage = 'Something went wrong';
 
-    sinon.stub(powerPlatform, 'getDynamicsInstanceApiUrl').callsFake(async () => envUrl);
+    jest.spyOn(powerPlatform, 'getDynamicsInstanceApiUrl').mockClear().mockImplementation(async () => envUrl);
 
-    sinon.stub(request, 'get').callsFake(async () => { throw { error: { error: { message: errorMessage } } }; });
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async () => { throw { error: { error: { message: errorMessage } } }; });
 
     await assert.rejects(command.action(logger, {
       options: {

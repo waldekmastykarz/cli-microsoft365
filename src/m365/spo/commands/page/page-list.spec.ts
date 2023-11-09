@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './page-list.js';
 import { fileApiListData, mockPageListData, mockPagesListOutput } from './page-list.mock.js';
@@ -17,14 +16,14 @@ import { fileApiListData, mockPageListData, mockPagesListOutput } from './page-l
 describe(commands.PAGE_LIST, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -42,17 +41,17 @@ describe(commands.PAGE_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -69,7 +68,7 @@ describe(commands.PAGE_LIST, () => {
   });
 
   it('lists all modern pages', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages?$orderby=Title`) > -1) {
         return { value: mockPageListData };
       }
@@ -86,7 +85,7 @@ describe(commands.PAGE_LIST, () => {
   });
 
   it('lists all modern pages (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages?$orderby=Title`) > -1) {
         return { value: mockPageListData };
       }
@@ -103,7 +102,7 @@ describe(commands.PAGE_LIST, () => {
   });
 
   it('correctly handles no modern pages', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages?$orderby=Title`) > -1) {
         return { value: [] };
       }
@@ -120,7 +119,7 @@ describe(commands.PAGE_LIST, () => {
   });
 
   it('correctly handles OData error when retrieving pages', async () => {
-    sinon.stub(request, 'get').callsFake(() => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
       throw { error: { 'odata.error': { message: { value: 'An error has occurred' } } } };
     });
 
@@ -128,13 +127,17 @@ describe(commands.PAGE_LIST, () => {
       new CommandError('An error has occurred'));
   });
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when the webUrl is a valid SharePoint URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when the webUrl is a valid SharePoint URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

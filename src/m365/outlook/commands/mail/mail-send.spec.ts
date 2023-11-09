@@ -1,6 +1,5 @@
 import assert from 'assert';
 import fs from 'fs';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -12,7 +11,7 @@ import { accessToken } from '../../../../utils/accessToken.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './mail-send.js';
 
@@ -21,11 +20,11 @@ describe(commands.MAIL_SEND, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.accessTokens[auth.defaultResource] = {
       expiresOn: 'abc',
@@ -48,11 +47,11 @@ describe(commands.MAIL_SEND, () => {
       }
     };
     (command as any).items = [];
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(false);
+    jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(false);
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       accessToken.isAppOnlyAccessToken,
       fs.existsSync,
@@ -61,8 +60,8 @@ describe(commands.MAIL_SEND, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.accessTokens = {};
   });
@@ -88,7 +87,7 @@ describe(commands.MAIL_SEND, () => {
       },
       saveToSentItems: undefined
     });
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       actual = JSON.stringify(opts.data);
       if (opts.url === `https://graph.microsoft.com/v1.0/me/sendMail`) {
         return;
@@ -114,7 +113,7 @@ describe(commands.MAIL_SEND, () => {
       },
       saveToSentItems: undefined
     });
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       actual = JSON.stringify(opts.data);
       if (opts.url === `https://graph.microsoft.com/v1.0/me/sendMail`) {
         return;
@@ -143,7 +142,7 @@ describe(commands.MAIL_SEND, () => {
       },
       saveToSentItems: undefined
     });
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       actual = JSON.stringify(opts.data);
       if (opts.url === `https://graph.microsoft.com/v1.0/me/sendMail`) {
         return;
@@ -176,7 +175,7 @@ describe(commands.MAIL_SEND, () => {
       },
       saveToSentItems: undefined
     });
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       actual = JSON.stringify(opts.data);
       if (opts.url === `https://graph.microsoft.com/v1.0/me/sendMail`) {
         return;
@@ -209,7 +208,7 @@ describe(commands.MAIL_SEND, () => {
       },
       saveToSentItems: undefined
     });
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       actual = JSON.stringify(opts.data);
       if (opts.url === `https://graph.microsoft.com/v1.0/me/sendMail`) {
         return;
@@ -236,7 +235,7 @@ describe(commands.MAIL_SEND, () => {
       saveToSentItems: false
     });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       actual = JSON.stringify(opts.data);
       if (opts.url === `https://graph.microsoft.com/v1.0/me/sendMail`) {
         return;
@@ -251,9 +250,9 @@ describe(commands.MAIL_SEND, () => {
 
   it('sends email with multiple attachments', async () => {
     const fileContentBase64 = 'TG9yZW0gaXBzdW0gZG9sb3Igc2l0IGFtZXQsIGNvbnNlY3RldHVyIGFkaXBpc2NpbmcgZWxpdC4=';
-    sinon.stub(fs, 'readFileSync').returns(fileContentBase64);
+    jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue(fileContentBase64);
 
-    const requestPostStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const requestPostStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/me/sendMail`) {
         return;
       }
@@ -269,14 +268,14 @@ describe(commands.MAIL_SEND, () => {
         attachment: ['C:/File1.txt', 'C:/File2.txt']
       }
     });
-    assert.deepStrictEqual(requestPostStub.lastCall.args[0].data.message.attachments, [{ '@odata.type': '#microsoft.graph.fileAttachment', name: 'File1.txt', contentBytes: fileContentBase64 }, { '@odata.type': '#microsoft.graph.fileAttachment', name: 'File2.txt', contentBytes: fileContentBase64 }]);
+    assert.deepStrictEqual(requestPostStub.mock.lastCall[0].data.message.attachments, [{ '@odata.type': '#microsoft.graph.fileAttachment', name: 'File1.txt', contentBytes: fileContentBase64 }, { '@odata.type': '#microsoft.graph.fileAttachment', name: 'File2.txt', contentBytes: fileContentBase64 }]);
   });
 
   it('sends email with single attachment', async () => {
     const fileContentBase64 = 'TG9yZW0gaXBzdW0gZG9sb3Igc2l0IGFtZXQsIGNvbnNlY3RldHVyIGFkaXBpc2NpbmcgZWxpdC4=';
-    sinon.stub(fs, 'readFileSync').returns(fileContentBase64);
+    jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue(fileContentBase64);
 
-    const requestPostStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const requestPostStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/me/sendMail`) {
         return;
       }
@@ -292,11 +291,11 @@ describe(commands.MAIL_SEND, () => {
         attachment: 'C:/File1.txt'
       }
     });
-    assert.deepStrictEqual(requestPostStub.lastCall.args[0].data.message.attachments, [{ '@odata.type': '#microsoft.graph.fileAttachment', name: 'File1.txt', contentBytes: fileContentBase64 }]);
+    assert.deepStrictEqual(requestPostStub.mock.lastCall[0].data.message.attachments, [{ '@odata.type': '#microsoft.graph.fileAttachment', name: 'File1.txt', contentBytes: fileContentBase64 }]);
   });
 
   it('correctly handles error', async () => {
-    sinon.stub(request, 'post').rejects({
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects({
       "error": {
         "code": "Error",
         "message": "An error has occurred",
@@ -322,8 +321,8 @@ describe(commands.MAIL_SEND, () => {
   });
 
   it('fails validation if file doesn\'t exist', async () => {
-    sinon.stub(fs, 'lstatSync').returns({ isFile: () => true } as any);
-    sinon.stub(fs, 'existsSync').callsFake(path => {
+    jest.spyOn(fs, 'lstatSync').mockClear().mockReturnValue({ isFile: () => true } as any);
+    jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(path => {
       if (path.toString() === 'C:/File2.txt') {
         return false;
       }
@@ -336,8 +335,8 @@ describe(commands.MAIL_SEND, () => {
   });
 
   it('fails validation if attachment is not a file', async () => {
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'lstatSync').callsFake(path => {
+    jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+    jest.spyOn(fs, 'lstatSync').mockClear().mockImplementation(path => {
       if (path.toString() === 'C:/File2.txt') {
         return { isFile: () => false } as any;
       }
@@ -350,9 +349,9 @@ describe(commands.MAIL_SEND, () => {
   });
 
   it('fails validation if attachments are too large', async () => {
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'lstatSync').returns({ isFile: () => true } as any);
-    sinon.stub(fs, 'readFileSync').callsFake(path => {
+    jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+    jest.spyOn(fs, 'lstatSync').mockClear().mockReturnValue({ isFile: () => true } as any);
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(path => {
       if (path.toString() === 'C:/File.txt') {
         return 'A'.repeat(4_250_000);
       }
@@ -364,20 +363,24 @@ describe(commands.MAIL_SEND, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('passes validation when subject, to and bodyContents are specified', async () => {
-    const actual = await command.validate({ options: { subject: 'Lorem ipsum', to: 'mail@domain.com', bodyContents: 'Lorem ipsum' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when subject, to and bodyContents are specified',
+    async () => {
+      const actual = await command.validate({ options: { subject: 'Lorem ipsum', to: 'mail@domain.com', bodyContents: 'Lorem ipsum' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('passes validation when multiple to emails are specified', async () => {
     const actual = await command.validate({ options: { subject: 'Lorem ipsum', to: 'mail@domain.com,mail2@domain.com', bodyContents: 'Lorem ipsum' } }, commandInfo);
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation when multiple to emails separated with command and space are specified', async () => {
-    const actual = await command.validate({ options: { subject: 'Lorem ipsum', to: 'mail@domain.com, mail2@domain.com', bodyContents: 'Lorem ipsum' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when multiple to emails separated with command and space are specified',
+    async () => {
+      const actual = await command.validate({ options: { subject: 'Lorem ipsum', to: 'mail@domain.com, mail2@domain.com', bodyContents: 'Lorem ipsum' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('passes validation when bodyContentType is set to Text', async () => {
     const actual = await command.validate({ options: { subject: 'Lorem ipsum', to: 'mail@domain.com', bodyContents: 'Lorem ipsum', bodyContentType: 'Text' } }, commandInfo);
@@ -413,7 +416,7 @@ describe(commands.MAIL_SEND, () => {
       },
       saveToSentItems: undefined
     });
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       actual = JSON.stringify(opts.data);
       if (opts.url === `https://graph.microsoft.com/v1.0/me/sendMail`) {
         return;
@@ -439,7 +442,7 @@ describe(commands.MAIL_SEND, () => {
       },
       saveToSentItems: undefined
     });
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       actual = JSON.stringify(opts.data);
       if (opts.url === `https://graph.microsoft.com/v1.0/users/${formatting.encodeQueryParameter('some-user@domain.com')}/sendMail`) {
         return;
@@ -452,16 +455,18 @@ describe(commands.MAIL_SEND, () => {
     assert.strictEqual(actual, expected);
   });
 
-  it('throws an error when the sender is not defined when signed in using app only authentication', async () => {
-    sinonUtil.restore([accessToken.isAppOnlyAccessToken]);
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
+  it('throws an error when the sender is not defined when signed in using app only authentication',
+    async () => {
+      jestUtil.restore([accessToken.isAppOnlyAccessToken]);
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        subject: 'Lorem ipsum',
-        to: 'mail@domain.com',
-        bodyContents: 'Lorem ipsum'
-      }
-    } as any), new CommandError(`Specify a upn or user id in the 'sender' option when using app only authentication.`));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          subject: 'Lorem ipsum',
+          to: 'mail@domain.com',
+          bodyContents: 'Lorem ipsum'
+        }
+      } as any), new CommandError(`Specify a upn or user id in the 'sender' option when using app only authentication.`));
+    }
+  );
 });

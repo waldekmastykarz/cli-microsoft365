@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import { urlUtil } from '../../../../utils/urlUtil.js';
 import commands from '../../commands.js';
@@ -26,15 +25,15 @@ describe(commands.LIST_VIEW_SET, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'ABC',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -57,17 +56,17 @@ describe(commands.LIST_VIEW_SET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.patch
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -99,13 +98,15 @@ describe(commands.LIST_VIEW_SET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('passes validation when id and listId specified as valid GUIDs', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, listId: listId, id: viewId } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when id and listId specified as valid GUIDs',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, listId: listId, id: viewId } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('ignores global options when creating request data', async () => {
-    const patchRequest: sinon.SinonStub = sinon.stub(request, 'patch').callsFake(async (opts) => {
+    const patchRequest: jest.Mock = jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/web/lists/GetByTitle('${formatting.encodeQueryParameter(listTitle)}')/views/GetByTitle('${formatting.encodeQueryParameter(viewTitle)}')`) {
         if (opts.headers &&
           opts.headers.accept &&
@@ -120,65 +121,71 @@ describe(commands.LIST_VIEW_SET, () => {
     });
 
     await command.action(logger, { options: { verbose: false, output: "text", webUrl: webUrl, listTitle: listTitle, title: viewTitle, Title: 'All events' } });
-    assert.deepEqual(patchRequest.lastCall.args[0].data, { Title: 'All events' });
+    assert.deepEqual(patchRequest.mock.lastCall[0].data, { Title: 'All events' });
   });
 
-  it('updates the Title of the list view specified using its name', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/lists/GetByTitle('${formatting.encodeQueryParameter(listTitle)}')/views/GetByTitle('${formatting.encodeQueryParameter(viewTitle)}')`) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0 &&
-          opts.headers['X-RequestDigest'] &&
-          JSON.stringify(opts.data) === JSON.stringify({ Title: 'All events' })) {
-          return;
+  it('updates the Title of the list view specified using its name',
+    async () => {
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/lists/GetByTitle('${formatting.encodeQueryParameter(listTitle)}')/views/GetByTitle('${formatting.encodeQueryParameter(viewTitle)}')`) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0 &&
+            opts.headers['X-RequestDigest'] &&
+            JSON.stringify(opts.data) === JSON.stringify({ Title: 'All events' })) {
+            return;
+          }
         }
-      }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { webUrl: webUrl, listTitle: listTitle, title: viewTitle, Title: 'All events' } });
-    assert(loggerLogSpy.notCalled);
-  });
+      await command.action(logger, { options: { webUrl: webUrl, listTitle: listTitle, title: viewTitle, Title: 'All events' } });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
-  it('updates the Title and CustomFormatter of the list view specified using its ID', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/lists(guid'${formatting.encodeQueryParameter(listId)}')/views/GetById('${formatting.encodeQueryParameter(viewId)}')`) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0 &&
-          opts.headers['X-RequestDigest'] &&
-          JSON.stringify(opts.data) === JSON.stringify({ Title: 'All events', CustomFormatter: 'abc' })) {
-          return;
+  it('updates the Title and CustomFormatter of the list view specified using its ID',
+    async () => {
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/lists(guid'${formatting.encodeQueryParameter(listId)}')/views/GetById('${formatting.encodeQueryParameter(viewId)}')`) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0 &&
+            opts.headers['X-RequestDigest'] &&
+            JSON.stringify(opts.data) === JSON.stringify({ Title: 'All events', CustomFormatter: 'abc' })) {
+            return;
+          }
         }
-      }
 
-      return Promise.reject('Invalid request');
-    });
+        return Promise.reject('Invalid request');
+      });
 
-    await command.action(logger, { options: { debug: true, webUrl: webUrl, listId: listId, id: viewId, Title: 'All events', CustomFormatter: 'abc' } });
-  });
+      await command.action(logger, { options: { debug: true, webUrl: webUrl, listId: listId, id: viewId, Title: 'All events', CustomFormatter: 'abc' } });
+    }
+  );
 
-  it('updates the Title and CustomFormatter of the list view specified using its Url', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
-      const serverRelativeUrl: string = urlUtil.getServerRelativePath(webUrl, listUrl);
+  it('updates the Title and CustomFormatter of the list view specified using its Url',
+    async () => {
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
+        const serverRelativeUrl: string = urlUtil.getServerRelativePath(webUrl, listUrl);
 
-      if (opts.url === `${webUrl}/_api/web/GetList('${formatting.encodeQueryParameter(serverRelativeUrl)}')/views/GetById('${formatting.encodeQueryParameter(viewId)}')`) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0 &&
-          opts.headers['X-RequestDigest'] &&
-          JSON.stringify(opts.data) === JSON.stringify({ Title: 'All events', CustomFormatter: 'abc' })) {
-          return;
+        if (opts.url === `${webUrl}/_api/web/GetList('${formatting.encodeQueryParameter(serverRelativeUrl)}')/views/GetById('${formatting.encodeQueryParameter(viewId)}')`) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0 &&
+            opts.headers['X-RequestDigest'] &&
+            JSON.stringify(opts.data) === JSON.stringify({ Title: 'All events', CustomFormatter: 'abc' })) {
+            return;
+          }
         }
-      }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, webUrl: webUrl, listUrl: listUrl, id: viewId, Title: 'All events', CustomFormatter: 'abc' } });
-  });
+      await command.action(logger, { options: { debug: true, webUrl: webUrl, listUrl: listUrl, id: viewId, Title: 'All events', CustomFormatter: 'abc' } });
+    }
+  );
 
   it('correctly handles error when updating existing list view', async () => {
     const errorMessage = 'request rejected';
@@ -192,7 +199,7 @@ describe(commands.LIST_VIEW_SET, () => {
         }
       }
     };
-    sinon.stub(request, 'patch').rejects(error);
+    jest.spyOn(request, 'patch').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, {
       options: {

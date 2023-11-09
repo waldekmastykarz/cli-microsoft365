@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../Auth.js';
 import { Cli } from '../../../cli/Cli.js';
 import { CommandInfo } from '../../../cli/CommandInfo.js';
@@ -8,7 +7,7 @@ import { CommandError } from '../../../Command.js';
 import { telemetry } from '../../../telemetry.js';
 import { pid } from '../../../utils/pid.js';
 import { session } from '../../../utils/session.js';
-import { sinonUtil } from '../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../utils/jestUtil.js';
 import commands from '../commands.js';
 import command from './spo-set.js';
 
@@ -17,12 +16,12 @@ describe(commands.SET, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(auth, 'storeConnectionInfo').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -46,8 +45,8 @@ describe(commands.SET, () => {
     auth.service.spoUrl = undefined;
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -73,17 +72,19 @@ describe(commands.SET, () => {
     assert.strictEqual(auth.service.spoUrl, 'https://contoso.sharepoint.com');
   });
 
-  it('throws error when trying to set SPO URL when not logged in to M365', async () => {
-    auth.service.connected = false;
+  it('throws error when trying to set SPO URL when not logged in to M365',
+    async () => {
+      auth.service.connected = false;
 
-    await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com' } } as any), new CommandError('Log in to Microsoft 365 first'));
-    assert.strictEqual(auth.service.spoUrl, undefined);
-  });
+      await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com' } } as any), new CommandError('Log in to Microsoft 365 first'));
+      assert.strictEqual(auth.service.spoUrl, undefined);
+    }
+  );
 
   it('throws error when setting the password fails', async () => {
     auth.service.connected = true;
-    sinonUtil.restore(auth.storeConnectionInfo);
-    sinon.stub(auth, 'storeConnectionInfo').rejects(new Error('An error has occurred while setting the password'));
+    jestUtil.restore(auth.storeConnectionInfo);
+    jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation().rejects(new Error('An error has occurred while setting the password'));
 
     await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com' } } as any), new CommandError('An error has occurred while setting the password'));
   });

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -8,7 +7,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { CommandError } from '../../../../Command.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { urlUtil } from '../../../../utils/urlUtil.js';
 import commands from '../../commands.js';
 import spoListItemAddCommand from '../listitem/listitem-add.js';
@@ -34,11 +33,11 @@ describe(commands.TENANT_APPLICATIONCUSTOMIZER_ADD, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -59,14 +58,14 @@ describe(commands.TENANT_APPLICATIONCUSTOMIZER_ADD, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       Cli.executeCommand,
       Cli.executeCommandWithOutput
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -80,7 +79,7 @@ describe(commands.TENANT_APPLICATIONCUSTOMIZER_ADD, () => {
 
   it('adds a tenant-wide application customizer', async () => {
     let executeCommandCalled = false;
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
+    jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
       if (command === spoListItemListCommand) {
         if (args.options.listUrl === `${urlUtil.getServerRelativeSiteUrl(appCatalogUrl)}/Lists/ComponentManifests`) {
           return { 'stdout': JSON.stringify(solutionResponse) };
@@ -95,7 +94,7 @@ describe(commands.TENANT_APPLICATIONCUSTOMIZER_ADD, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(Cli, 'executeCommand').callsFake(async (command): Promise<void> => {
+    jest.spyOn(Cli, 'executeCommand').mockClear().mockImplementation(async (command): Promise<void> => {
       if (command === spoListItemAddCommand) {
         executeCommandCalled = true;
         return;
@@ -107,37 +106,39 @@ describe(commands.TENANT_APPLICATIONCUSTOMIZER_ADD, () => {
     assert.strictEqual(executeCommandCalled, true);
   });
 
-  it('adds a tenant-wide application customizer to a specific webtemplate including clientSideComponentProperties', async () => {
-    let executeCommandCalled = false;
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
-      if (command === spoListItemListCommand) {
-        if (args.options.listUrl === `${urlUtil.getServerRelativeSiteUrl(appCatalogUrl)}/Lists/ComponentManifests`) {
-          return { 'stdout': JSON.stringify(solutionResponse) };
+  it('adds a tenant-wide application customizer to a specific webtemplate including clientSideComponentProperties',
+    async () => {
+      let executeCommandCalled = false;
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
+        if (command === spoListItemListCommand) {
+          if (args.options.listUrl === `${urlUtil.getServerRelativeSiteUrl(appCatalogUrl)}/Lists/ComponentManifests`) {
+            return { 'stdout': JSON.stringify(solutionResponse) };
+          }
+          if (args.options.listUrl === `${urlUtil.getServerRelativeSiteUrl(appCatalogUrl)}/AppCatalog`) {
+            return { 'stdout': JSON.stringify(applicationResponse) };
+          }
         }
-        if (args.options.listUrl === `${urlUtil.getServerRelativeSiteUrl(appCatalogUrl)}/AppCatalog`) {
-          return { 'stdout': JSON.stringify(applicationResponse) };
+        if (command === spoTenantAppCatalogUrlGetCommand) {
+          return { 'stdout': appCatalogUrl };
         }
-      }
-      if (command === spoTenantAppCatalogUrlGetCommand) {
-        return { 'stdout': appCatalogUrl };
-      }
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(Cli, 'executeCommand').callsFake(async (command): Promise<void> => {
-      if (command === spoListItemAddCommand) {
-        executeCommandCalled = true;
-        return;
-      }
-      throw 'Invalid request';
-    });
+      jest.spyOn(Cli, 'executeCommand').mockClear().mockImplementation(async (command): Promise<void> => {
+        if (command === spoListItemAddCommand) {
+          executeCommandCalled = true;
+          return;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { clientSideComponentId: clientSideComponentId, title: customizerTitle, webTemplate: webTemplate, clientSideComponentProperties: clientSideComponentProperties, verbose: true } });
-    assert.strictEqual(executeCommandCalled, true);
-  });
+      await command.action(logger, { options: { clientSideComponentId: clientSideComponentId, title: customizerTitle, webTemplate: webTemplate, clientSideComponentProperties: clientSideComponentProperties, verbose: true } });
+      assert.strictEqual(executeCommandCalled, true);
+    }
+  );
 
   it('throws an error when no app catalog is found', async () => {
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command): Promise<any> => {
+    jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command): Promise<any> => {
       if (command === spoTenantAppCatalogUrlGetCommand) {
         return { 'stdout': null };
       }
@@ -148,45 +149,49 @@ describe(commands.TENANT_APPLICATIONCUSTOMIZER_ADD, () => {
       new CommandError('Cannot add tenant-wide application customizer as app catalog cannot be found'));
   });
 
-  it('throws an error when specific client side component is not found in manifest list', async () => {
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
-      if (command === spoListItemListCommand) {
-        if (args.options.listUrl === `${urlUtil.getServerRelativeSiteUrl(appCatalogUrl)}/Lists/ComponentManifests`) {
-          return { 'stdout': JSON.stringify([]) };
+  it('throws an error when specific client side component is not found in manifest list',
+    async () => {
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
+        if (command === spoListItemListCommand) {
+          if (args.options.listUrl === `${urlUtil.getServerRelativeSiteUrl(appCatalogUrl)}/Lists/ComponentManifests`) {
+            return { 'stdout': JSON.stringify([]) };
+          }
         }
-      }
-      if (command === spoTenantAppCatalogUrlGetCommand) {
-        return { 'stdout': appCatalogUrl };
-      }
-      throw 'Invalid request';
-    });
-
-    await assert.rejects(command.action(logger, { options: { title: customizerTitle, clientSideComponentId: clientSideComponentId, verbose: true } }),
-      new CommandError('No component found with the specified clientSideComponentId found in the component manifest list. Make sure that the application is added to the application catalog'));
-  });
-
-  it('throws an error when the manifest of a specific client side component is not of type application customizer', async () => {
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
-      if (command === spoListItemListCommand) {
-        if (args.options.listUrl === `${urlUtil.getServerRelativeSiteUrl(appCatalogUrl)}/Lists/ComponentManifests`) {
-          const faultyClientComponentManifest = "{\"id\":\"6b2a54c5-3317-49eb-8621-1bbb76263629\",\"alias\":\"HelloWorldApplicationCustomizer\",\"componentType\":\"Extension\",\"extensionType\":\"FormCustomizer\",\"version\":\"0.0.1\",\"manifestVersion\":2,\"loaderConfig\":{\"internalModuleBaseUrls\":[\"HTTPS://SPCLIENTSIDEASSETLIBRARY/\"],\"entryModuleId\":\"hello-world-application-customizer\",\"scriptResources\":{\"hello-world-application-customizer\":{\"type\":\"path\",\"path\":\"hello-world-application-customizer_b47769f9eca3d3b6c4d5.js\"},\"HelloWorldApplicationCustomizerStrings\":{\"type\":\"path\",\"path\":\"HelloWorldApplicationCustomizerStrings_en-us_72ca11838ac9bae2790a8692c260e1ac.js\"},\"@microsoft/sp-application-base\":{\"type\":\"component\",\"id\":\"4df9bb86-ab0a-4aab-ab5f-48bf167048fb\",\"version\":\"1.15.2\"},\"@microsoft/sp-core-library\":{\"type\":\"component\",\"id\":\"7263c7d0-1d6a-45ec-8d85-d4d1d234171b\",\"version\":\"1.15.2\"}}},\"mpnId\":\"Undefined-1.15.2\",\"clientComponentDeveloper\":\"\"}";
-          const solutionDuplicate = { ...solution };
-          solutionDuplicate.ClientComponentManifest = faultyClientComponentManifest;
-          return { 'stdout': JSON.stringify([solutionDuplicate]) };
+        if (command === spoTenantAppCatalogUrlGetCommand) {
+          return { 'stdout': appCatalogUrl };
         }
-      }
-      if (command === spoTenantAppCatalogUrlGetCommand) {
-        return { 'stdout': appCatalogUrl };
-      }
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, { options: { title: customizerTitle, clientSideComponentId: clientSideComponentId, verbose: true } }),
-      new CommandError(`The extension type of this component is not of type 'ApplicationCustomizer' but of type 'FormCustomizer'`));
-  });
+      await assert.rejects(command.action(logger, { options: { title: customizerTitle, clientSideComponentId: clientSideComponentId, verbose: true } }),
+        new CommandError('No component found with the specified clientSideComponentId found in the component manifest list. Make sure that the application is added to the application catalog'));
+    }
+  );
+
+  it('throws an error when the manifest of a specific client side component is not of type application customizer',
+    async () => {
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
+        if (command === spoListItemListCommand) {
+          if (args.options.listUrl === `${urlUtil.getServerRelativeSiteUrl(appCatalogUrl)}/Lists/ComponentManifests`) {
+            const faultyClientComponentManifest = "{\"id\":\"6b2a54c5-3317-49eb-8621-1bbb76263629\",\"alias\":\"HelloWorldApplicationCustomizer\",\"componentType\":\"Extension\",\"extensionType\":\"FormCustomizer\",\"version\":\"0.0.1\",\"manifestVersion\":2,\"loaderConfig\":{\"internalModuleBaseUrls\":[\"HTTPS://SPCLIENTSIDEASSETLIBRARY/\"],\"entryModuleId\":\"hello-world-application-customizer\",\"scriptResources\":{\"hello-world-application-customizer\":{\"type\":\"path\",\"path\":\"hello-world-application-customizer_b47769f9eca3d3b6c4d5.js\"},\"HelloWorldApplicationCustomizerStrings\":{\"type\":\"path\",\"path\":\"HelloWorldApplicationCustomizerStrings_en-us_72ca11838ac9bae2790a8692c260e1ac.js\"},\"@microsoft/sp-application-base\":{\"type\":\"component\",\"id\":\"4df9bb86-ab0a-4aab-ab5f-48bf167048fb\",\"version\":\"1.15.2\"},\"@microsoft/sp-core-library\":{\"type\":\"component\",\"id\":\"7263c7d0-1d6a-45ec-8d85-d4d1d234171b\",\"version\":\"1.15.2\"}}},\"mpnId\":\"Undefined-1.15.2\",\"clientComponentDeveloper\":\"\"}";
+            const solutionDuplicate = { ...solution };
+            solutionDuplicate.ClientComponentManifest = faultyClientComponentManifest;
+            return { 'stdout': JSON.stringify([solutionDuplicate]) };
+          }
+        }
+        if (command === spoTenantAppCatalogUrlGetCommand) {
+          return { 'stdout': appCatalogUrl };
+        }
+        throw 'Invalid request';
+      });
+
+      await assert.rejects(command.action(logger, { options: { title: customizerTitle, clientSideComponentId: clientSideComponentId, verbose: true } }),
+        new CommandError(`The extension type of this component is not of type 'ApplicationCustomizer' but of type 'FormCustomizer'`));
+    }
+  );
 
   it('throws an error when solution is not found in app catalog', async () => {
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
+    jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
       if (command === spoListItemListCommand) {
         if (args.options.listUrl === `${urlUtil.getServerRelativeSiteUrl(appCatalogUrl)}/Lists/ComponentManifests`) {
           return { 'stdout': JSON.stringify(solutionResponse) };
@@ -205,30 +210,32 @@ describe(commands.TENANT_APPLICATIONCUSTOMIZER_ADD, () => {
       new CommandError(`No component found with the solution id ${solutionId}. Make sure that the solution is available in the app catalog`));
   });
 
-  it('throws an error when solution does not contain extension that can be deployed tenant-wide', async () => {
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
-      if (command === spoListItemListCommand) {
-        if (args.options.listUrl === `${urlUtil.getServerRelativeSiteUrl(appCatalogUrl)}/Lists/ComponentManifests`) {
-          return { 'stdout': JSON.stringify(solutionResponse) };
+  it('throws an error when solution does not contain extension that can be deployed tenant-wide',
+    async () => {
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
+        if (command === spoListItemListCommand) {
+          if (args.options.listUrl === `${urlUtil.getServerRelativeSiteUrl(appCatalogUrl)}/Lists/ComponentManifests`) {
+            return { 'stdout': JSON.stringify(solutionResponse) };
+          }
+          if (args.options.listUrl === `${urlUtil.getServerRelativeSiteUrl(appCatalogUrl)}/AppCatalog`) {
+            const faultyApplication = { ...application };
+            faultyApplication.ContainsTenantWideExtension = false;
+            return { 'stdout': JSON.stringify([faultyApplication]) };
+          }
         }
-        if (args.options.listUrl === `${urlUtil.getServerRelativeSiteUrl(appCatalogUrl)}/AppCatalog`) {
-          const faultyApplication = { ...application };
-          faultyApplication.ContainsTenantWideExtension = false;
-          return { 'stdout': JSON.stringify([faultyApplication]) };
+        if (command === spoTenantAppCatalogUrlGetCommand) {
+          return { 'stdout': appCatalogUrl };
         }
-      }
-      if (command === spoTenantAppCatalogUrlGetCommand) {
-        return { 'stdout': appCatalogUrl };
-      }
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, { options: { title: customizerTitle, clientSideComponentId: clientSideComponentId, verbose: true } }),
-      new CommandError(`The solution does not contain an extension that can be deployed to all sites. Make sure that you've entered the correct component Id.`));
-  });
+      await assert.rejects(command.action(logger, { options: { title: customizerTitle, clientSideComponentId: clientSideComponentId, verbose: true } }),
+        new CommandError(`The solution does not contain an extension that can be deployed to all sites. Make sure that you've entered the correct component Id.`));
+    }
+  );
 
   it('throws an error when solution is not deployed globally', async () => {
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
+    jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
       if (command === spoListItemListCommand) {
         if (args.options.listUrl === `${urlUtil.getServerRelativeSiteUrl(appCatalogUrl)}/Lists/ComponentManifests`) {
           return { 'stdout': JSON.stringify(solutionResponse) };
@@ -249,10 +256,12 @@ describe(commands.TENANT_APPLICATIONCUSTOMIZER_ADD, () => {
       new CommandError(`The solution has not been deployed to all sites. Make sure to deploy this solution to all sites.`));
   });
 
-  it('fails validation if clientSideComponentId is not a valid Guid', async () => {
-    const actual = await command.validate({ options: { title: customizerTitle, clientSideComponentId: 'foo' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if clientSideComponentId is not a valid Guid',
+    async () => {
+      const actual = await command.validate({ options: { title: customizerTitle, clientSideComponentId: 'foo' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation when all properties are specified', async () => {
     const actual = await command.validate({ options: { title: customizerTitle, clientSideComponentId: clientSideComponentId, webTemplate: webTemplate, clientSideComponentProperties: clientSideComponentProperties } }, commandInfo);

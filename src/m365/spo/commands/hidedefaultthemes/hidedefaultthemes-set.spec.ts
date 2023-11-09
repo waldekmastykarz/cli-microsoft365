@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './hidedefaultthemes-set.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -21,12 +20,12 @@ describe(commands.HIDEDEFAULTTHEMES_SET, () => {
   let commandInfo: CommandInfo;
   let requests: any[];
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.spoUrl = 'https://contoso.sharepoint.com';
     commandInfo = Cli.getCommandInfo(command);
@@ -49,14 +48,14 @@ describe(commands.HIDEDEFAULTTHEMES_SET, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -70,7 +69,7 @@ describe(commands.HIDEDEFAULTTHEMES_SET, () => {
   });
 
   it('sets the value of the HideDefaultThemes setting', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
       if ((opts.url as string).indexOf('/_api/thememanager/SetHideDefaultThemes') > -1) {
         return 'Correct Url';
@@ -97,7 +96,7 @@ describe(commands.HIDEDEFAULTTHEMES_SET, () => {
   });
 
   it('sets the value of the HideDefaultThemes setting (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
       if ((opts.url as string).indexOf('/_api/thememanager/SetHideDefaultThemes') > -1) {
         return 'Correct Url';
@@ -124,37 +123,39 @@ describe(commands.HIDEDEFAULTTHEMES_SET, () => {
     assert(correctRequestIssued);
   });
 
-  it('handles error when setting the value of the HideDefaultThemes setting', async () => {
-    const error = {
-      error: {
-        'odata.error': {
-          code: '-1, Microsoft.SharePoint.Client.InvalidOperationException',
-          message: {
-            value: 'An error has occurred'
+  it('handles error when setting the value of the HideDefaultThemes setting',
+    async () => {
+      const error = {
+        error: {
+          'odata.error': {
+            code: '-1, Microsoft.SharePoint.Client.InvalidOperationException',
+            message: {
+              value: 'An error has occurred'
+            }
           }
         }
-      }
-    };
+      };
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      requests.push(opts);
-      if ((opts.url as string).indexOf('/_api/thememanager/SetHideDefaultThemes') > -1) {
-        throw error;
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        requests.push(opts);
+        if ((opts.url as string).indexOf('/_api/thememanager/SetHideDefaultThemes') > -1) {
+          throw error;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        debug: true,
-        hideDefaultThemes: true
-      }
-    } as any), new CommandError('An error has occurred'));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          debug: true,
+          hideDefaultThemes: true
+        }
+      } as any), new CommandError('An error has occurred'));
+    }
+  );
 
   it('fails validation if hideDefaultThemes is not set', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }

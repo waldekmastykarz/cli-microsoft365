@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import spoListItemRetentionLabelRemoveCommand from '../listitem/listitem-retentionlabel-remove.js';
 import command from './file-retentionlabel-remove.js';
@@ -37,12 +36,12 @@ describe(commands.FILE_RETENTIONLABEL_REMOVE, () => {
   let commandInfo: CommandInfo;
   let promptOptions: any;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -60,14 +59,14 @@ describe(commands.FILE_RETENTIONLABEL_REMOVE, () => {
         log.push(msg);
       }
     };
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       Cli.prompt,
       Cli.executeCommandWithOutput,
@@ -75,8 +74,8 @@ describe(commands.FILE_RETENTIONLABEL_REMOVE, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -88,94 +87,102 @@ describe(commands.FILE_RETENTIONLABEL_REMOVE, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('prompts before removing retentionlabel from a file when confirmation argument not passed', async () => {
-    await command.action(logger, { options: { webUrl: webUrl, fileUrl: fileUrl } });
-    let promptIssued = false;
+  it('prompts before removing retentionlabel from a file when confirmation argument not passed',
+    async () => {
+      await command.action(logger, { options: { webUrl: webUrl, fileUrl: fileUrl } });
+      let promptIssued = false;
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+
+      assert(promptIssued);
     }
+  );
 
-    assert(promptIssued);
-  });
+  it('aborts removing file retention label when prompt not confirmed',
+    async () => {
+      const postSpy = jest.spyOn(request, 'delete').mockClear();
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: false });
 
-  it('aborts removing file retention label when prompt not confirmed', async () => {
-    const postSpy = sinon.spy(request, 'delete');
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: false });
+      await command.action(logger, {
+        options: {
+          fileUrl: fileUrl,
+          webUrl: webUrl
+        }
+      });
+      assert(postSpy.notCalled);
+    }
+  );
 
-    await command.action(logger, {
-      options: {
-        fileUrl: fileUrl,
-        webUrl: webUrl
-      }
-    });
-    assert(postSpy.notCalled);
-  });
+  it('removes the retentionlabel from a file based on fileUrl when prompt confirmed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/_api/web/GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(fileUrl)}')?$expand=ListItemAllFields,ListItemAllFields/ParentList&$select=ListItemAllFields/ParentList/Id,ListItemAllFields/Id`) {
+          return fileResponse;
+        }
 
-  it('removes the retentionlabel from a file based on fileUrl when prompt confirmed', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/_api/web/GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(fileUrl)}')?$expand=ListItemAllFields,ListItemAllFields/ParentList&$select=ListItemAllFields/ParentList/Id,ListItemAllFields/Id`) {
-        return fileResponse;
-      }
+        throw 'Invalid request';
+      });
 
-      throw 'Invalid request';
-    });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command): Promise<any> => {
+        if (command === spoListItemRetentionLabelRemoveCommand) {
+          return ({
+            stdout: SpoListItemRetentionLabelRemoveCommandOutput
+          });
+        }
 
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command): Promise<any> => {
-      if (command === spoListItemRetentionLabelRemoveCommand) {
-        return ({
-          stdout: SpoListItemRetentionLabelRemoveCommandOutput
-        });
-      }
+        throw new CommandError('Unknown case');
+      });
 
-      throw new CommandError('Unknown case');
-    });
+      await assert.doesNotReject(command.action(logger, {
+        options: {
+          fileUrl: fileUrl,
+          webUrl: webUrl
+        }
+      }));
+    }
+  );
 
-    await assert.doesNotReject(command.action(logger, {
-      options: {
-        fileUrl: fileUrl,
-        webUrl: webUrl
-      }
-    }));
-  });
+  it('removes the retentionlabel from a file based on fileId when prompt confirmed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/_api/web/GetFileById('${fileId}')?$expand=ListItemAllFields,ListItemAllFields/ParentList&$select=ListItemAllFields/ParentList/Id,ListItemAllFields/Id`) {
+          return fileResponse;
+        }
 
-  it('removes the retentionlabel from a file based on fileId when prompt confirmed', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/_api/web/GetFileById('${fileId}')?$expand=ListItemAllFields,ListItemAllFields/ParentList&$select=ListItemAllFields/ParentList/Id,ListItemAllFields/Id`) {
-        return fileResponse;
-      }
+        throw 'Invalid request';
+      });
 
-      throw 'Invalid request';
-    });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command): Promise<any> => {
+        if (command === spoListItemRetentionLabelRemoveCommand) {
+          return ({
+            stdout: SpoListItemRetentionLabelRemoveCommandOutput
+          });
+        }
 
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command): Promise<any> => {
-      if (command === spoListItemRetentionLabelRemoveCommand) {
-        return ({
-          stdout: SpoListItemRetentionLabelRemoveCommandOutput
-        });
-      }
+        throw new CommandError('Unknown case');
+      });
 
-      throw new CommandError('Unknown case');
-    });
-
-    await assert.doesNotReject(command.action(logger, {
-      options: {
-        fileId: fileId,
-        webUrl: webUrl,
-        listItemId: 1
-      }
-    }));
-  });
+      await assert.doesNotReject(command.action(logger, {
+        options: {
+          fileId: fileId,
+          webUrl: webUrl,
+          listItemId: 1
+        }
+      }));
+    }
+  );
 
   it('removes the retentionlabel from a file based on fileId', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/_api/web/GetFileById('${fileId}')?$expand=ListItemAllFields,ListItemAllFields/ParentList&$select=ListItemAllFields/ParentList/Id,ListItemAllFields/Id`) {
         return fileResponse;
       }
@@ -183,7 +190,7 @@ describe(commands.FILE_RETENTIONLABEL_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command): Promise<any> => {
+    jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command): Promise<any> => {
       if (command === spoListItemRetentionLabelRemoveCommand) {
         return ({
           stdout: SpoListItemRetentionLabelRemoveCommandOutput
@@ -207,7 +214,7 @@ describe(commands.FILE_RETENTIONLABEL_REMOVE, () => {
   it('correctly handles API OData error', async () => {
     const errorMessage = 'Something went wrong';
 
-    sinon.stub(request, 'get').rejects({ error: { error: { message: errorMessage } } });
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects({ error: { error: { message: errorMessage } } });
 
     await assert.rejects(command.action(logger, {
       options: {
@@ -219,28 +226,34 @@ describe(commands.FILE_RETENTIONLABEL_REMOVE, () => {
     }), new CommandError(errorMessage));
   });
 
-  it('fails validation if both fileUrl or fileId options are not passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both fileUrl or fileId options are not passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: webUrl } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: webUrl } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if the url option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', fileUrl: fileUrl } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the url option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', fileUrl: fileUrl } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the url option is a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, fileUrl: fileUrl } }, commandInfo);
-    assert(actual);
-  });
+  it('passes validation if the url option is a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, fileUrl: fileUrl } }, commandInfo);
+      assert(actual);
+    }
+  );
 
   it('fails validation if the fileId option is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: webUrl, fileId: '12345' } }, commandInfo);
@@ -252,16 +265,18 @@ describe(commands.FILE_RETENTIONLABEL_REMOVE, () => {
     assert(actual);
   });
 
-  it('fails validation if both fileId and fileUrl options are passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both fileId and fileUrl options are passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: webUrl, fileId: fileId, fileUrl: fileUrl } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: webUrl, fileId: fileId, fileUrl: fileUrl } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 });

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -12,7 +11,7 @@ import { aadUser } from '../../../../utils/aadUser.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './owner-ensure.js';
 
@@ -30,11 +29,11 @@ describe(commands.OWNER_ENSURE, () => {
   let commandInfo: CommandInfo;
   let cli: Cli;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
     cli = Cli.getInstance();
@@ -56,7 +55,7 @@ describe(commands.OWNER_ENSURE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post,
       aadGroup.getGroupByDisplayName,
@@ -66,8 +65,8 @@ describe(commands.OWNER_ENSURE, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -94,10 +93,12 @@ describe(commands.OWNER_ENSURE, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if username is not a valid user principal name', async () => {
-    const actual = await command.validate({ options: { environmentName: validEnvironmentName, flowName: validFlowName, userName: 'invalid', roleName: validRoleName } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if username is not a valid user principal name',
+    async () => {
+      const actual = await command.validate({ options: { environmentName: validEnvironmentName, flowName: validFlowName, userName: 'invalid', roleName: validRoleName } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if roleName is not a valid role name', async () => {
     const actual = await command.validate({ options: { environmentName: validEnvironmentName, flowName: validFlowName, userName: validUserName, roleName: 'invalid' } }, commandInfo);
@@ -124,7 +125,7 @@ describe(commands.OWNER_ENSURE, () => {
       ]
     };
 
-    const postRequestStub = sinon.stub(request, 'post').callsFake(async opts => {
+    const postRequestStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if (opts.url === `https://management.azure.com/providers/Microsoft.ProcessSimple/environments/${formatting.encodeQueryParameter(validEnvironmentName)}/flows/${formatting.encodeQueryParameter(validFlowName)}/modifyPermissions?api-version=2016-11-01`) {
         return;
       }
@@ -133,7 +134,7 @@ describe(commands.OWNER_ENSURE, () => {
     });
 
     await command.action(logger, { options: { verbose: true, environmentName: validEnvironmentName, flowName: validFlowName, userId: validUserId, roleName: 'CanView' } });
-    assert.deepStrictEqual(postRequestStub.lastCall.args[0].data, requestBody);
+    assert.deepStrictEqual(postRequestStub.mock.lastCall[0].data, requestBody);
   });
 
   it('adds owner to the flow with userName', async () => {
@@ -151,9 +152,9 @@ describe(commands.OWNER_ENSURE, () => {
       ]
     };
 
-    sinon.stub(aadUser, 'getUserIdByUpn').resolves(validUserId);
+    jest.spyOn(aadUser, 'getUserIdByUpn').mockClear().mockImplementation().resolves(validUserId);
 
-    const postRequestStub = sinon.stub(request, 'post').callsFake(async opts => {
+    const postRequestStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if (opts.url === `https://management.azure.com/providers/Microsoft.ProcessSimple/environments/${formatting.encodeQueryParameter(validEnvironmentName)}/flows/${formatting.encodeQueryParameter(validFlowName)}/modifyPermissions?api-version=2016-11-01`) {
         return;
       }
@@ -162,7 +163,7 @@ describe(commands.OWNER_ENSURE, () => {
     });
 
     await command.action(logger, { options: { verbose: true, environmentName: validEnvironmentName, flowName: validFlowName, userName: validUserName, roleName: validRoleName } });
-    assert.deepStrictEqual(postRequestStub.lastCall.args[0].data, requestBody);
+    assert.deepStrictEqual(postRequestStub.mock.lastCall[0].data, requestBody);
   });
 
   it('adds owner to the flow with groupId as admin', async () => {
@@ -180,7 +181,7 @@ describe(commands.OWNER_ENSURE, () => {
       ]
     };
 
-    const postRequestStub = sinon.stub(request, 'post').callsFake(async opts => {
+    const postRequestStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if (opts.url === `https://management.azure.com/providers/Microsoft.ProcessSimple/scopes/admin/environments/${formatting.encodeQueryParameter(validEnvironmentName)}/flows/${formatting.encodeQueryParameter(validFlowName)}/modifyPermissions?api-version=2016-11-01`) {
         return;
       }
@@ -189,7 +190,7 @@ describe(commands.OWNER_ENSURE, () => {
     });
 
     await command.action(logger, { options: { verbose: true, environmentName: validEnvironmentName, flowName: validFlowName, groupId: validGroupId, roleName: validRoleName, asAdmin: true } });
-    assert.deepStrictEqual(postRequestStub.lastCall.args[0].data, requestBody);
+    assert.deepStrictEqual(postRequestStub.mock.lastCall[0].data, requestBody);
   });
 
   it('adds owner to the flow with groupName as admin', async () => {
@@ -207,9 +208,9 @@ describe(commands.OWNER_ENSURE, () => {
       ]
     };
 
-    sinon.stub(aadGroup, 'getGroupIdByDisplayName').resolves(validGroupId);
+    jest.spyOn(aadGroup, 'getGroupIdByDisplayName').mockClear().mockImplementation().resolves(validGroupId);
 
-    const postRequestStub = sinon.stub(request, 'post').callsFake(async opts => {
+    const postRequestStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if (opts.url === `https://management.azure.com/providers/Microsoft.ProcessSimple/scopes/admin/environments/${formatting.encodeQueryParameter(validEnvironmentName)}/flows/${formatting.encodeQueryParameter(validFlowName)}/modifyPermissions?api-version=2016-11-01`) {
         return;
       }
@@ -218,50 +219,52 @@ describe(commands.OWNER_ENSURE, () => {
     });
 
     await command.action(logger, { options: { verbose: true, environmentName: validEnvironmentName, flowName: validFlowName, groupName: validGroupName, roleName: validRoleName, asAdmin: true } });
-    assert.deepStrictEqual(postRequestStub.lastCall.args[0].data, requestBody);
+    assert.deepStrictEqual(postRequestStub.mock.lastCall[0].data, requestBody);
   });
 
-  it('handles selecting single result when multiple groups with the specified name found and cli is set to prompt', async () => {
-    const requestBody = {
-      put: [
-        {
-          properties: {
-            principal: {
-              id: validGroupId,
-              type: 'Group'
-            },
-            roleName: 'CanEdit'
+  it('handles selecting single result when multiple groups with the specified name found and cli is set to prompt',
+    async () => {
+      const requestBody = {
+        put: [
+          {
+            properties: {
+              principal: {
+                id: validGroupId,
+                type: 'Group'
+              },
+              roleName: 'CanEdit'
+            }
           }
+        ]
+      };
+
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validGroupName)}'&$select=id`) {
+          return {
+            value: [
+              { id: validGroupId },
+              { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67g' }
+            ]
+          };
         }
-      ]
-    };
 
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validGroupName)}'&$select=id`) {
-        return {
-          value: [
-            { id: validGroupId },
-            { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67g' }
-          ]
-        };
-      }
+        throw 'Invalid request';
+      });
 
-      throw 'Invalid request';
-    });
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves({ id: validGroupId });
 
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves({ id: validGroupId });
+      const postRequestStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://management.azure.com/providers/Microsoft.ProcessSimple/scopes/admin/environments/${formatting.encodeQueryParameter(validEnvironmentName)}/flows/${formatting.encodeQueryParameter(validFlowName)}/modifyPermissions?api-version=2016-11-01`) {
+          return;
+        }
 
-    const postRequestStub = sinon.stub(request, 'post').callsFake(async opts => {
-      if (opts.url === `https://management.azure.com/providers/Microsoft.ProcessSimple/scopes/admin/environments/${formatting.encodeQueryParameter(validEnvironmentName)}/flows/${formatting.encodeQueryParameter(validFlowName)}/modifyPermissions?api-version=2016-11-01`) {
-        return;
-      }
+        throw 'Invalid request';
+      });
 
-      throw 'Invalid request';
-    });
-
-    await command.action(logger, { options: { verbose: true, environmentName: validEnvironmentName, flowName: validFlowName, groupName: validGroupName, roleName: validRoleName, asAdmin: true } });
-    assert.deepStrictEqual(postRequestStub.lastCall.args[0].data, requestBody);
-  });
+      await command.action(logger, { options: { verbose: true, environmentName: validEnvironmentName, flowName: validFlowName, groupName: validGroupName, roleName: validRoleName, asAdmin: true } });
+      assert.deepStrictEqual(postRequestStub.mock.lastCall[0].data, requestBody);
+    }
+  );
 
   it('correctly handles API OData error', async () => {
     const error = {
@@ -269,7 +272,7 @@ describe(commands.OWNER_ENSURE, () => {
         message: 'Could not find flow'
       }
     };
-    sinon.stub(request, 'post').rejects(error);
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, { options: { environmentName: validEnvironmentName, flowName: validFlowName, roleName: validRoleName, userId: validUserId } } as any),
       new CommandError(error.error.message));

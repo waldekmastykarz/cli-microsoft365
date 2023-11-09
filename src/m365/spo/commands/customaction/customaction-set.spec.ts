@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './customaction-set.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -18,12 +17,12 @@ describe(commands.CUSTOMACTION_SET, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogToStderrSpy: jest.SpyInstance;
   let defaultCommandOptions: any;
-  const initDefaultPostStubs = (): sinon.SinonStub => {
-    return sinon.stub(request, 'post').callsFake(async (opts) => {
+  const initDefaultPostStubs = (): jest.Mock => {
+    return jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/Web/UserCustomActions') > -1) {
         return 'abc';
       }
@@ -36,12 +35,12 @@ describe(commands.CUSTOMACTION_SET, () => {
     });
   };
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -59,8 +58,8 @@ describe(commands.CUSTOMACTION_SET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
     defaultCommandOptions = {
       webUrl: 'https://contoso.sharepoint.com',
       id: '058140e3-0e37-44fc-a1d3-79c487d371a3',
@@ -69,7 +68,7 @@ describe(commands.CUSTOMACTION_SET, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       (command as any).updateCustomAction,
       (command as any).searchAllScopes,
@@ -77,8 +76,8 @@ describe(commands.CUSTOMACTION_SET, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -94,228 +93,244 @@ describe(commands.CUSTOMACTION_SET, () => {
     assert.strictEqual((command as any)['permissionsKindMap'].length, 37);
   });
 
-  it('correct https body send when custom action with location StandardMenu', async () => {
-    const postRequestSpy = initDefaultPostStubs();
-    const options: any = {
-      webUrl: 'https://contoso.sharepoint.com',
-      title: 'title1',
-      name: 'name1',
-      sequence: 102,
-      location: 'Microsoft.SharePoint.StandardMenu',
-      description: 'description1',
-      group: 'SiteActions',
-      actionUrl: '~site/Shared%20Documents/Forms/AllItems.aspx'
-    };
+  it('correct https body send when custom action with location StandardMenu',
+    async () => {
+      const postRequestSpy = initDefaultPostStubs();
+      const options: any = {
+        webUrl: 'https://contoso.sharepoint.com',
+        title: 'title1',
+        name: 'name1',
+        sequence: 102,
+        location: 'Microsoft.SharePoint.StandardMenu',
+        description: 'description1',
+        group: 'SiteActions',
+        actionUrl: '~site/Shared%20Documents/Forms/AllItems.aspx'
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(postRequestSpy.calledWith(sinon.match({
-      data: {
-        Title: 'title1',
-        Name: 'name1',
-        Location: 'Microsoft.SharePoint.StandardMenu',
-        Group: 'SiteActions',
-        Description: 'description1',
-        Sequence: 102,
-        Url: '~site/Shared%20Documents/Forms/AllItems.aspx'
-      }
-    })));
-  });
+      await command.action(logger, { options: options } as any);
+      assert(postRequestSpy.calledWith(expect.objectContaining({
+        data: {
+          Title: 'title1',
+          Name: 'name1',
+          Location: 'Microsoft.SharePoint.StandardMenu',
+          Group: 'SiteActions',
+          Description: 'description1',
+          Sequence: 102,
+          Url: '~site/Shared%20Documents/Forms/AllItems.aspx'
+        }
+      })));
+    }
+  );
 
-  it('correct https data send when custom action with location ClientSideExtension.ApplicationCustomizer', async () => {
-    const postRequestSpy = initDefaultPostStubs();
-    const options: any = {
-      webUrl: 'https://contoso.sharepoint.com',
-      title: 'title1',
-      name: 'name1',
-      sequence: 101,
-      location: 'ClientSideExtension.ApplicationCustomizer',
-      description: 'description1',
-      clientSideComponentId: 'b41916e7-e69d-467f-b37f-ff8ecf8f99f2',
-      clientSideComponentProperties: '{"testMessage":"Test message"}',
-      debug: true
-    };
+  it('correct https data send when custom action with location ClientSideExtension.ApplicationCustomizer',
+    async () => {
+      const postRequestSpy = initDefaultPostStubs();
+      const options: any = {
+        webUrl: 'https://contoso.sharepoint.com',
+        title: 'title1',
+        name: 'name1',
+        sequence: 101,
+        location: 'ClientSideExtension.ApplicationCustomizer',
+        description: 'description1',
+        clientSideComponentId: 'b41916e7-e69d-467f-b37f-ff8ecf8f99f2',
+        clientSideComponentProperties: '{"testMessage":"Test message"}',
+        debug: true
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(postRequestSpy.calledWith(sinon.match({
-      data: {
-        Title: 'title1',
-        Name: 'name1',
-        Location: 'ClientSideExtension.ApplicationCustomizer',
-        Description: 'description1',
-        Sequence: 101,
-        ClientSideComponentId: 'b41916e7-e69d-467f-b37f-ff8ecf8f99f2',
-        ClientSideComponentProperties: '{"testMessage":"Test message"}'
-      }
-    })));
-  });
+      await command.action(logger, { options: options } as any);
+      assert(postRequestSpy.calledWith(expect.objectContaining({
+        data: {
+          Title: 'title1',
+          Name: 'name1',
+          Location: 'ClientSideExtension.ApplicationCustomizer',
+          Description: 'description1',
+          Sequence: 101,
+          ClientSideComponentId: 'b41916e7-e69d-467f-b37f-ff8ecf8f99f2',
+          ClientSideComponentProperties: '{"testMessage":"Test message"}'
+        }
+      })));
+    }
+  );
 
-  it('correct https data send when custom action with location ClientSideExtension.ListViewCommandSet', async () => {
-    const postRequestSpy = initDefaultPostStubs();
-    const options: any = {
-      webUrl: 'https://contoso.sharepoint.com',
-      title: 'title1',
-      name: 'name1',
-      sequence: 103,
-      location: 'ClientSideExtension.ListViewCommandSet',
-      description: 'description1',
-      clientSideComponentId: 'db3e6e35-363c-42b9-a254-ca661e437848',
-      clientSideComponentProperties: '{"sampleTextOne":"One item is selected in the list.", "sampleTextTwo":"This command is always visible."}',
-      registrationId: 100,
-      registrationType: 'List'
-    };
+  it('correct https data send when custom action with location ClientSideExtension.ListViewCommandSet',
+    async () => {
+      const postRequestSpy = initDefaultPostStubs();
+      const options: any = {
+        webUrl: 'https://contoso.sharepoint.com',
+        title: 'title1',
+        name: 'name1',
+        sequence: 103,
+        location: 'ClientSideExtension.ListViewCommandSet',
+        description: 'description1',
+        clientSideComponentId: 'db3e6e35-363c-42b9-a254-ca661e437848',
+        clientSideComponentProperties: '{"sampleTextOne":"One item is selected in the list.", "sampleTextTwo":"This command is always visible."}',
+        registrationId: 100,
+        registrationType: 'List'
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(postRequestSpy.calledWith(sinon.match({
-      data: {
-        Title: 'title1',
-        Name: 'name1',
-        Location: 'ClientSideExtension.ListViewCommandSet',
-        Description: 'description1',
-        Sequence: 103,
-        ClientSideComponentId: 'db3e6e35-363c-42b9-a254-ca661e437848',
-        ClientSideComponentProperties: '{"sampleTextOne":"One item is selected in the list.", "sampleTextTwo":"This command is always visible."}',
-        RegistrationId: '100',
-        RegistrationType: 1
-      }
-    })));
-  });
+      await command.action(logger, { options: options } as any);
+      assert(postRequestSpy.calledWith(expect.objectContaining({
+        data: {
+          Title: 'title1',
+          Name: 'name1',
+          Location: 'ClientSideExtension.ListViewCommandSet',
+          Description: 'description1',
+          Sequence: 103,
+          ClientSideComponentId: 'db3e6e35-363c-42b9-a254-ca661e437848',
+          ClientSideComponentProperties: '{"sampleTextOne":"One item is selected in the list.", "sampleTextTwo":"This command is always visible."}',
+          RegistrationId: '100',
+          RegistrationType: 1
+        }
+      })));
+    }
+  );
 
-  it('correct https data send when custom action with location EditControlBlock', async () => {
-    const postRequestSpy = initDefaultPostStubs();
-    const options: any = {
-      webUrl: 'https://contoso.sharepoint.com',
-      title: 'title1',
-      name: 'name1',
-      sequence: 104,
-      location: 'EditControlBlock',
-      description: 'description1',
-      actionUrl: 'javascript:(function(){ return console.log("CLI for Microsoft 365 rocks!"); })();',
-      registrationId: 101,
-      registrationType: 'List'
-    };
+  it('correct https data send when custom action with location EditControlBlock',
+    async () => {
+      const postRequestSpy = initDefaultPostStubs();
+      const options: any = {
+        webUrl: 'https://contoso.sharepoint.com',
+        title: 'title1',
+        name: 'name1',
+        sequence: 104,
+        location: 'EditControlBlock',
+        description: 'description1',
+        actionUrl: 'javascript:(function(){ return console.log("CLI for Microsoft 365 rocks!"); })();',
+        registrationId: 101,
+        registrationType: 'List'
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(postRequestSpy.calledWith(sinon.match({
-      data: {
-        Title: 'title1',
-        Name: 'name1',
-        Location: 'EditControlBlock',
-        Description: 'description1',
-        Sequence: 104,
-        Url: 'javascript:(function(){ return console.log("CLI for Microsoft 365 rocks!"); })();',
-        RegistrationId: '101',
-        RegistrationType: 1
-      }
-    })));
-  });
+      await command.action(logger, { options: options } as any);
+      assert(postRequestSpy.calledWith(expect.objectContaining({
+        data: {
+          Title: 'title1',
+          Name: 'name1',
+          Location: 'EditControlBlock',
+          Description: 'description1',
+          Sequence: 104,
+          Url: 'javascript:(function(){ return console.log("CLI for Microsoft 365 rocks!"); })();',
+          RegistrationId: '101',
+          RegistrationType: 1
+        }
+      })));
+    }
+  );
 
-  it('correct https data send when custom action with location ScriptLink', async () => {
-    const postRequestSpy = initDefaultPostStubs();
-    const options: any = {
-      webUrl: 'https://contoso.sharepoint.com',
-      title: 'title1',
-      name: 'name1',
-      sequence: 105,
-      location: 'ScriptLink',
-      description: 'description1',
-      scriptSrc: '~sitecollection/SiteAssets/YourScript.js',
-      scope: 'Site'
-    };
+  it('correct https data send when custom action with location ScriptLink',
+    async () => {
+      const postRequestSpy = initDefaultPostStubs();
+      const options: any = {
+        webUrl: 'https://contoso.sharepoint.com',
+        title: 'title1',
+        name: 'name1',
+        sequence: 105,
+        location: 'ScriptLink',
+        description: 'description1',
+        scriptSrc: '~sitecollection/SiteAssets/YourScript.js',
+        scope: 'Site'
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(postRequestSpy.calledWith(sinon.match({
-      data: {
-        Title: 'title1',
-        Name: 'name1',
-        Location: 'ScriptLink',
-        Description: 'description1',
-        Sequence: 105,
-        ScriptSrc: '~sitecollection/SiteAssets/YourScript.js'
-      }
-    })));
-  });
+      await command.action(logger, { options: options } as any);
+      assert(postRequestSpy.calledWith(expect.objectContaining({
+        data: {
+          Title: 'title1',
+          Name: 'name1',
+          Location: 'ScriptLink',
+          Description: 'description1',
+          Sequence: 105,
+          ScriptSrc: '~sitecollection/SiteAssets/YourScript.js'
+        }
+      })));
+    }
+  );
 
-  it('correct https data send when custom action with location ScriptLink and ScriptBlock', async () => {
-    const postRequestSpy = initDefaultPostStubs();
-    const options: any = {
-      webUrl: 'https://contoso.sharepoint.com',
-      title: 'title1',
-      name: 'name1',
-      sequence: 108,
-      location: 'ScriptLink',
-      scriptBlock: '(function(){ return console.log("Hello CLI for Microsoft 365!"); })();'
-    };
+  it('correct https data send when custom action with location ScriptLink and ScriptBlock',
+    async () => {
+      const postRequestSpy = initDefaultPostStubs();
+      const options: any = {
+        webUrl: 'https://contoso.sharepoint.com',
+        title: 'title1',
+        name: 'name1',
+        sequence: 108,
+        location: 'ScriptLink',
+        scriptBlock: '(function(){ return console.log("Hello CLI for Microsoft 365!"); })();'
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(postRequestSpy.calledWith(sinon.match({
-      data: {
-        Title: 'title1',
-        Name: 'name1',
-        Location: 'ScriptLink',
-        Sequence: 108,
-        ScriptBlock: '(function(){ return console.log("Hello CLI for Microsoft 365!"); })();'
-      }
-    })));
-  });
+      await command.action(logger, { options: options } as any);
+      assert(postRequestSpy.calledWith(expect.objectContaining({
+        data: {
+          Title: 'title1',
+          Name: 'name1',
+          Location: 'ScriptLink',
+          Sequence: 108,
+          ScriptBlock: '(function(){ return console.log("Hello CLI for Microsoft 365!"); })();'
+        }
+      })));
+    }
+  );
 
-  it('correct https data send when custom action with location CommandUI.Ribbon', async () => {
-    const postRequestSpy = initDefaultPostStubs();
-    const options: any = {
-      webUrl: 'https://contoso.sharepoint.com',
-      title: 'title1',
-      name: 'name1',
-      sequence: 106,
-      location: 'CommandUI.Ribbon',
-      imageUrl: '_layouts/15/images/placeholder32x32.png',
-      description: 'description1',
-      commandUIExtension: '<CommandUIExtension><CommandUIDefinitions><CommandUIDefinition Location = "Ribbon.List.Share.Controls._children"><Button Id = "Ribbon.List.Share.GetItemsCountButton" Alt = "Get list items count" Sequence = "11" Command = "Invoke_GetItemsCountButtonRequest" LabelText = "Get Items Count" TemplateAlias = "o1" Image32by32 = "_layouts/15/images/placeholder32x32.png" Image16by16 = "_layouts/15/images/placeholder16x16.png" /></CommandUIDefinition></CommandUIDefinitions><CommandUIHandlers><CommandUIHandler Command = "Invoke_GetItemsCountButtonRequest" CommandAction = "javascript: alert(ctx.TotalListItems);" EnabledScript = "javascript: function checkEnable() { return (true);} checkEnable();"/></CommandUIHandlers></CommandUIExtension>',
-      scope: 'Web'
-    };
+  it('correct https data send when custom action with location CommandUI.Ribbon',
+    async () => {
+      const postRequestSpy = initDefaultPostStubs();
+      const options: any = {
+        webUrl: 'https://contoso.sharepoint.com',
+        title: 'title1',
+        name: 'name1',
+        sequence: 106,
+        location: 'CommandUI.Ribbon',
+        imageUrl: '_layouts/15/images/placeholder32x32.png',
+        description: 'description1',
+        commandUIExtension: '<CommandUIExtension><CommandUIDefinitions><CommandUIDefinition Location = "Ribbon.List.Share.Controls._children"><Button Id = "Ribbon.List.Share.GetItemsCountButton" Alt = "Get list items count" Sequence = "11" Command = "Invoke_GetItemsCountButtonRequest" LabelText = "Get Items Count" TemplateAlias = "o1" Image32by32 = "_layouts/15/images/placeholder32x32.png" Image16by16 = "_layouts/15/images/placeholder16x16.png" /></CommandUIDefinition></CommandUIDefinitions><CommandUIHandlers><CommandUIHandler Command = "Invoke_GetItemsCountButtonRequest" CommandAction = "javascript: alert(ctx.TotalListItems);" EnabledScript = "javascript: function checkEnable() { return (true);} checkEnable();"/></CommandUIHandlers></CommandUIExtension>',
+        scope: 'Web'
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(postRequestSpy.calledWith(sinon.match({
-      data: {
-        Title: 'title1',
-        Name: 'name1',
-        Location: 'CommandUI.Ribbon',
-        Description: 'description1',
-        Sequence: 106,
-        ImageUrl: '_layouts/15/images/placeholder32x32.png',
-        CommandUIExtension: '<CommandUIExtension><CommandUIDefinitions><CommandUIDefinition Location = "Ribbon.List.Share.Controls._children"><Button Id = "Ribbon.List.Share.GetItemsCountButton" Alt = "Get list items count" Sequence = "11" Command = "Invoke_GetItemsCountButtonRequest" LabelText = "Get Items Count" TemplateAlias = "o1" Image32by32 = "_layouts/15/images/placeholder32x32.png" Image16by16 = "_layouts/15/images/placeholder16x16.png" /></CommandUIDefinition></CommandUIDefinitions><CommandUIHandlers><CommandUIHandler Command = "Invoke_GetItemsCountButtonRequest" CommandAction = "javascript: alert(ctx.TotalListItems);" EnabledScript = "javascript: function checkEnable() { return (true);} checkEnable();"/></CommandUIHandlers></CommandUIExtension>'
-      }
-    })));
-  });
+      await command.action(logger, { options: options } as any);
+      assert(postRequestSpy.calledWith(expect.objectContaining({
+        data: {
+          Title: 'title1',
+          Name: 'name1',
+          Location: 'CommandUI.Ribbon',
+          Description: 'description1',
+          Sequence: 106,
+          ImageUrl: '_layouts/15/images/placeholder32x32.png',
+          CommandUIExtension: '<CommandUIExtension><CommandUIDefinitions><CommandUIDefinition Location = "Ribbon.List.Share.Controls._children"><Button Id = "Ribbon.List.Share.GetItemsCountButton" Alt = "Get list items count" Sequence = "11" Command = "Invoke_GetItemsCountButtonRequest" LabelText = "Get Items Count" TemplateAlias = "o1" Image32by32 = "_layouts/15/images/placeholder32x32.png" Image16by16 = "_layouts/15/images/placeholder16x16.png" /></CommandUIDefinition></CommandUIDefinitions><CommandUIHandlers><CommandUIHandler Command = "Invoke_GetItemsCountButtonRequest" CommandAction = "javascript: alert(ctx.TotalListItems);" EnabledScript = "javascript: function checkEnable() { return (true);} checkEnable();"/></CommandUIHandlers></CommandUIExtension>'
+        }
+      })));
+    }
+  );
 
-  it('correct https data send when custom action with delegated rights', async () => {
-    const postRequestSpy = initDefaultPostStubs();
-    const options: any = {
-      webUrl: 'https://contoso.sharepoint.com',
-      title: 'title1',
-      name: 'name1',
-      sequence: 107,
-      location: 'Microsoft.SharePoint.StandardMenu',
-      group: 'SiteActions',
-      actionUrl: '~site/SitePages/Home.aspx',
-      rights: 'AddListItems,DeleteListItems,ManageLists',
-      debug: true
-    };
+  it('correct https data send when custom action with delegated rights',
+    async () => {
+      const postRequestSpy = initDefaultPostStubs();
+      const options: any = {
+        webUrl: 'https://contoso.sharepoint.com',
+        title: 'title1',
+        name: 'name1',
+        sequence: 107,
+        location: 'Microsoft.SharePoint.StandardMenu',
+        group: 'SiteActions',
+        actionUrl: '~site/SitePages/Home.aspx',
+        rights: 'AddListItems,DeleteListItems,ManageLists',
+        debug: true
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(postRequestSpy.calledWith(sinon.match({
-      data: {
-        Title: 'title1',
-        Name: 'name1',
-        Location: 'Microsoft.SharePoint.StandardMenu',
-        Group: 'SiteActions',
-        Url: '~site/SitePages/Home.aspx',
-        Sequence: 107,
-        Rights: { High: '0', Low: '2058' }
-      }
-    })));
-  });
+      await command.action(logger, { options: options } as any);
+      assert(postRequestSpy.calledWith(expect.objectContaining({
+        data: {
+          Title: 'title1',
+          Name: 'name1',
+          Location: 'Microsoft.SharePoint.StandardMenu',
+          Group: 'SiteActions',
+          Url: '~site/SitePages/Home.aspx',
+          Sequence: 107,
+          Rights: { High: '0', Low: '2058' }
+        }
+      })));
+    }
+  );
 
   it('updateCustomAction called once when scope is Web', async () => {
-    const postRequestSpy = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postRequestSpy = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/Web/UserCustomActions(') > -1) {
         return 'abc';
       }
@@ -323,7 +338,7 @@ describe(commands.CUSTOMACTION_SET, () => {
       throw 'Invalid request';
     });
 
-    const updateCustomActionSpy = sinon.spy((command as any), 'updateCustomAction');
+    const updateCustomActionSpy = jest.spyOn((command as any), 'updateCustomAction').mockClear();
     const options = {
       id: 'b2307a39-e878-458b-bc90-03bc578531d6',
       webUrl: 'https://contoso.sharepoint.com',
@@ -341,7 +356,7 @@ describe(commands.CUSTOMACTION_SET, () => {
   });
 
   it('updateCustomAction called once when scope is Site', async () => {
-    const postRequestSpy = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postRequestSpy = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/Site/UserCustomActions(') > -1) {
         return 'abc';
       }
@@ -349,7 +364,7 @@ describe(commands.CUSTOMACTION_SET, () => {
       throw 'Invalid request';
     });
 
-    const updateCustomActionSpy = sinon.spy((command as any), 'updateCustomAction');
+    const updateCustomActionSpy = jest.spyOn((command as any), 'updateCustomAction').mockClear();
     const options = {
       id: 'b2307a39-e878-458b-bc90-03bc578531d6',
       webUrl: 'https://contoso.sharepoint.com',
@@ -367,56 +382,60 @@ describe(commands.CUSTOMACTION_SET, () => {
     assert(updateCustomActionSpy.calledOnce, 'updateCustomActionSpy.calledOnce');
   });
 
-  it('updateCustomAction called once when scope is All, but item found on web level', async () => {
-    const postRequestSpy = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/Web/UserCustomActions(') > -1) {
-        return 'abc';
-      }
+  it('updateCustomAction called once when scope is All, but item found on web level',
+    async () => {
+      const postRequestSpy = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/Web/UserCustomActions(') > -1) {
+          return 'abc';
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    const updateCustomActionSpy = sinon.spy((command as any), 'updateCustomAction');
+      const updateCustomActionSpy = jest.spyOn((command as any), 'updateCustomAction').mockClear();
 
-    await command.action(logger, {
-      options: {
-        id: 'b2307a39-e878-458b-bc90-03bc578531d6',
-        webUrl: 'https://contoso.sharepoint.com',
-        scope: 'All',
-        title: 'title'
-      }
-    });
-    assert(postRequestSpy.calledOnce, 'postRequest');
-    assert(updateCustomActionSpy.calledOnce, 'updateCustomAction');
-  });
+      await command.action(logger, {
+        options: {
+          id: 'b2307a39-e878-458b-bc90-03bc578531d6',
+          webUrl: 'https://contoso.sharepoint.com',
+          scope: 'All',
+          title: 'title'
+        }
+      });
+      assert(postRequestSpy.calledOnce, 'postRequest');
+      assert(updateCustomActionSpy.calledOnce, 'updateCustomAction');
+    }
+  );
 
-  it('updateCustomAction called twice when scope is All, but item not found on web level', async () => {
-    const postRequestSpy = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/Web/UserCustomActions(') > -1) {
-        return { "odata.null": true };
-      }
+  it('updateCustomAction called twice when scope is All, but item not found on web level',
+    async () => {
+      const postRequestSpy = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/Web/UserCustomActions(') > -1) {
+          return { "odata.null": true };
+        }
 
-      if ((opts.url as string).indexOf('/_api/Site/UserCustomActions(') > -1) {
-        return 'abc';
-      }
+        if ((opts.url as string).indexOf('/_api/Site/UserCustomActions(') > -1) {
+          return 'abc';
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    const updateCustomActionSpy = sinon.spy((command as any), 'updateCustomAction');
+      const updateCustomActionSpy = jest.spyOn((command as any), 'updateCustomAction').mockClear();
 
-    await command.action(logger, {
-      options: {
-        id: 'b2307a39-e878-458b-bc90-03bc578531d6',
-        webUrl: 'https://contoso.sharepoint.com'
-      }
-    });
-    assert(postRequestSpy.calledTwice, 'postRequest');
-    assert(updateCustomActionSpy.calledTwice, 'updateCustomAction');
-  });
+      await command.action(logger, {
+        options: {
+          id: 'b2307a39-e878-458b-bc90-03bc578531d6',
+          webUrl: 'https://contoso.sharepoint.com'
+        }
+      });
+      assert(postRequestSpy.calledTwice, 'postRequest');
+      assert(updateCustomActionSpy.calledTwice, 'updateCustomAction');
+    }
+  );
 
   it('searchAllScopes called when scope is All', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/Web/UserCustomActions(') > -1) {
         return 'abc';
       }
@@ -424,7 +443,7 @@ describe(commands.CUSTOMACTION_SET, () => {
       throw 'Invalid request';
     });
 
-    const searchAllScopesSpy = sinon.spy((command as any), 'searchAllScopes');
+    const searchAllScopesSpy = jest.spyOn((command as any), 'searchAllScopes').mockClear();
     const options = {
       id: 'b2307a39-e878-458b-bc90-03bc578531d6',
       webUrl: 'https://contoso.sharepoint.com',
@@ -432,144 +451,152 @@ describe(commands.CUSTOMACTION_SET, () => {
     };
 
     await command.action(logger, { options: options } as any);
-    assert(searchAllScopesSpy.calledWith(sinon.match(
-      {
-        id: 'b2307a39-e878-458b-bc90-03bc578531d6',
-        webUrl: 'https://contoso.sharepoint.com'
-      })), 'searchAllScopesSpy.calledWith');
+    assert(searchAllScopesSpy.calledWith(expect.objectContaining({
+      id: 'b2307a39-e878-458b-bc90-03bc578531d6',
+      webUrl: 'https://contoso.sharepoint.com'
+    })), 'searchAllScopesSpy.calledWith');
     assert(searchAllScopesSpy.calledOnce, 'searchAllScopesSpy.calledOnce');
   });
 
-  it('searchAllScopes correctly handles custom action odata.null when All scope specified', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/Web/UserCustomActions(') > -1) {
-        return { "odata.null": true };
-      }
+  it('searchAllScopes correctly handles custom action odata.null when All scope specified',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/Web/UserCustomActions(') > -1) {
+          return { "odata.null": true };
+        }
 
-      if ((opts.url as string).indexOf('/_api/Site/UserCustomActions(') > -1) {
-        return { "odata.null": true };
-      }
+        if ((opts.url as string).indexOf('/_api/Site/UserCustomActions(') > -1) {
+          return { "odata.null": true };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: defaultCommandOptions
-    });
-    assert(loggerLogSpy.notCalled);
-  });
+      await command.action(logger, {
+        options: defaultCommandOptions
+      });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
-  it('searchAllScopes correctly handles custom action Web odata.null when All scope specified', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/Web/UserCustomActions(') > -1) {
-        return { "odata.null": true };
-      }
+  it('searchAllScopes correctly handles custom action Web odata.null when All scope specified',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/Web/UserCustomActions(') > -1) {
+          return { "odata.null": true };
+        }
 
-      if ((opts.url as string).indexOf('/_api/Site/UserCustomActions(') > -1) {
-        return 'abc';
-      }
+        if ((opts.url as string).indexOf('/_api/Site/UserCustomActions(') > -1) {
+          return 'abc';
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    const updateCustomActionSpy = sinon.spy((command as any), 'updateCustomAction');
-    const searchAllScopesSpy = sinon.spy((command as any), 'searchAllScopes');
-    const options = {
-      id: 'b2307a39-e878-458b-bc90-03bc578531d6',
-      webUrl: 'https://contoso.sharepoint.com',
-      scope: "All",
-      debug: true
-    };
+      const updateCustomActionSpy = jest.spyOn((command as any), 'updateCustomAction').mockClear();
+      const searchAllScopesSpy = jest.spyOn((command as any), 'searchAllScopes').mockClear();
+      const options = {
+        id: 'b2307a39-e878-458b-bc90-03bc578531d6',
+        webUrl: 'https://contoso.sharepoint.com',
+        scope: "All",
+        debug: true
+      };
 
-    await command.action(logger, {
-      options: options
-    });
-    assert(searchAllScopesSpy.calledOnce);
-    assert(updateCustomActionSpy.calledTwice);
-    assert(updateCustomActionSpy.calledWith(sinon.match(
-      {
+      await command.action(logger, {
+        options: options
+      });
+      assert(searchAllScopesSpy.calledOnce);
+      assert(updateCustomActionSpy.calledTwice);
+      assert(updateCustomActionSpy.calledWith(expect.objectContaining({
         id: 'b2307a39-e878-458b-bc90-03bc578531d6',
         webUrl: 'https://contoso.sharepoint.com',
         scope: 'Site'
       })), 'searchAllScopesSpy.calledWith');
-  });
+    }
+  );
 
-  it('searchAllScopes correctly handles custom action odata.null when All scope specified (verbose)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/Web/UserCustomActions(') > -1) {
-        return { "odata.null": true };
+  it('searchAllScopes correctly handles custom action odata.null when All scope specified (verbose)',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/Web/UserCustomActions(') > -1) {
+          return { "odata.null": true };
+        }
+
+        if ((opts.url as string).indexOf('/_api/Site/UserCustomActions(') > -1) {
+          return { "odata.null": true };
+        }
+
+        throw 'Invalid request';
+      });
+
+      const actionId: string = 'b2307a39-e878-458b-bc90-03bc578531d6';
+
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          id: actionId,
+          webUrl: 'https://contoso.sharepoint.com',
+          scope: 'All'
+        }
+      });
+      assert(loggerLogToStderrSpy.calledWith(`Custom action with id ${actionId} not found`));
+    }
+  );
+
+  it('searchAllScopes correctly handles web custom action reject request',
+    async () => {
+      const err = 'Invalid custom action request';
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/Web/UserCustomActions(') > -1) {
+          throw err;
+        }
+        throw 'Invalid request';
+      });
+
+      const actionId: string = 'b2307a39-e878-458b-bc90-03bc578531d6';
+
+      try {
+        await assert.rejects(command.action(logger, {
+          options: {
+            id: actionId,
+            webUrl: 'https://contoso.sharepoint.com',
+            scope: 'All'
+          }
+        }), new CommandError(err));
       }
-
-      if ((opts.url as string).indexOf('/_api/Site/UserCustomActions(') > -1) {
-        return { "odata.null": true };
+      finally {
+        jestUtil.restore(request.post);
       }
+    }
+  );
 
-      throw 'Invalid request';
-    });
+  it('searchAllScopes correctly handles site custom action reject request',
+    async () => {
+      const err = 'Invalid custom action request';
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/Web/UserCustomActions(') > -1) {
+          return { "odata.null": true };
+        }
 
-    const actionId: string = 'b2307a39-e878-458b-bc90-03bc578531d6';
+        if ((opts.url as string).indexOf('/_api/Site/UserCustomActions(') > -1) {
+          throw err;
+        }
 
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        id: actionId,
-        webUrl: 'https://contoso.sharepoint.com',
-        scope: 'All'
-      }
-    });
-    assert(loggerLogToStderrSpy.calledWith(`Custom action with id ${actionId} not found`));
-  });
+        throw 'Invalid request';
+      });
 
-  it('searchAllScopes correctly handles web custom action reject request', async () => {
-    const err = 'Invalid custom action request';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/Web/UserCustomActions(') > -1) {
-        throw err;
-      }
-      throw 'Invalid request';
-    });
+      const actionId: string = 'b2307a39-e878-458b-bc90-03bc578531d6';
 
-    const actionId: string = 'b2307a39-e878-458b-bc90-03bc578531d6';
-
-    try {
       await assert.rejects(command.action(logger, {
         options: {
+          verbose: true,
           id: actionId,
           webUrl: 'https://contoso.sharepoint.com',
           scope: 'All'
         }
       }), new CommandError(err));
     }
-    finally {
-      sinonUtil.restore(request.post);
-    }
-  });
-
-  it('searchAllScopes correctly handles site custom action reject request', async () => {
-    const err = 'Invalid custom action request';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/Web/UserCustomActions(') > -1) {
-        return { "odata.null": true };
-      }
-
-      if ((opts.url as string).indexOf('/_api/Site/UserCustomActions(') > -1) {
-        throw err;
-      }
-
-      throw 'Invalid request';
-    });
-
-    const actionId: string = 'b2307a39-e878-458b-bc90-03bc578531d6';
-
-    await assert.rejects(command.action(logger, {
-      options: {
-        verbose: true,
-        id: actionId,
-        webUrl: 'https://contoso.sharepoint.com',
-        scope: 'All'
-      }
-    }), new CommandError(err));
-  });
+  );
 
   it('offers autocomplete for the registrationType option', () => {
     const options = command.options;
@@ -614,25 +641,33 @@ describe(commands.CUSTOMACTION_SET, () => {
     assert(registrationType === 1);
   });
 
-  it('getRegistrationType returns 2 if registrationType value is ContentType', () => {
-    const registrationType: number = (command as any)['getRegistrationType']('ContentType');
-    assert(registrationType === 2);
-  });
+  it('getRegistrationType returns 2 if registrationType value is ContentType',
+    () => {
+      const registrationType: number = (command as any)['getRegistrationType']('ContentType');
+      assert(registrationType === 2);
+    }
+  );
 
-  it('getRegistrationType returns 3 if registrationType value is ProgId', () => {
-    const registrationType: number = (command as any)['getRegistrationType']('ProgId');
-    assert(registrationType === 3);
-  });
+  it('getRegistrationType returns 3 if registrationType value is ProgId',
+    () => {
+      const registrationType: number = (command as any)['getRegistrationType']('ProgId');
+      assert(registrationType === 3);
+    }
+  );
 
-  it('getRegistrationType returns 4 if registrationType value is FileType', () => {
-    const registrationType: number = (command as any)['getRegistrationType']('FileType');
-    assert(registrationType === 4);
-  });
+  it('getRegistrationType returns 4 if registrationType value is FileType',
+    () => {
+      const registrationType: number = (command as any)['getRegistrationType']('FileType');
+      assert(registrationType === 4);
+    }
+  );
 
-  it('fails validation if no other fields specified than url, id, scope', async () => {
-    const actual = await command.validate({ options: { id: '058140e3-0e37-44fc-a1d3-79c487d371a3', webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
-    assert.strictEqual(actual, 'Please specify option to be updated');
-  });
+  it('fails validation if no other fields specified than url, id, scope',
+    async () => {
+      const actual = await command.validate({ options: { id: '058140e3-0e37-44fc-a1d3-79c487d371a3', webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
+      assert.strictEqual(actual, 'Please specify option to be updated');
+    }
+  );
 
   it('fails if the specified URL is invalid', async () => {
     defaultCommandOptions.webUrl = 'foo';
@@ -666,7 +701,7 @@ describe(commands.CUSTOMACTION_SET, () => {
   });
 
   it('fails validation if undefined id', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -716,18 +751,20 @@ describe(commands.CUSTOMACTION_SET, () => {
     assert.strictEqual(actual, `Either option scriptSrc or scriptBlock can be specified, but not both`);
   });
 
-  it('success if location that requires group option is set, but group is also set', async () => {
-    defaultCommandOptions.location = 'Microsoft.SharePoint.StandardMenu';
-    defaultCommandOptions.group = 'SiteActions';
-    const actual = await command.validate({ options: defaultCommandOptions }, commandInfo);
-    assert(actual === true);
-  });
+  it('success if location that requires group option is set, but group is also set',
+    async () => {
+      defaultCommandOptions.location = 'Microsoft.SharePoint.StandardMenu';
+      defaultCommandOptions.group = 'SiteActions';
+      const actual = await command.validate({ options: defaultCommandOptions }, commandInfo);
+      assert(actual === true);
+    }
+  );
 
   it('calls the correct endpoint (url) when scope is Web', async () => {
     const postRequestSpy = initDefaultPostStubs();
 
     await command.action(logger, { options: defaultCommandOptions } as any);
-    assert(postRequestSpy.calledWith(sinon.match({
+    assert(postRequestSpy.calledWith(expect.objectContaining({
       url: `https://contoso.sharepoint.com/_api/Web/UserCustomActions('${defaultCommandOptions.id}')`
     })));
   });
@@ -737,7 +774,7 @@ describe(commands.CUSTOMACTION_SET, () => {
 
     defaultCommandOptions.scope = "Site";
     await command.action(logger, { options: defaultCommandOptions } as any);
-    assert(postRequestSpy.calledWith(sinon.match({
+    assert(postRequestSpy.calledWith(expect.objectContaining({
       url: `https://contoso.sharepoint.com/_api/Site/UserCustomActions('${defaultCommandOptions.id}')`
     })));
   });
@@ -746,7 +783,7 @@ describe(commands.CUSTOMACTION_SET, () => {
     const postRequestSpy = initDefaultPostStubs();
 
     await command.action(logger, { options: defaultCommandOptions } as any);
-    assert(postRequestSpy.calledWith(sinon.match({
+    assert(postRequestSpy.calledWith(expect.objectContaining({
       headers: {
         accept: 'application/json;odata=nometadata',
         'X-HTTP-Method': 'MERGE'
@@ -759,7 +796,7 @@ describe(commands.CUSTOMACTION_SET, () => {
 
     defaultCommandOptions.scope = "Site";
     await command.action(logger, { options: defaultCommandOptions } as any);
-    assert(postRequestSpy.calledWith(sinon.match({
+    assert(postRequestSpy.calledWith(expect.objectContaining({
       headers: {
         accept: 'application/json;odata=nometadata',
         'X-HTTP-Method': 'MERGE'
@@ -775,13 +812,15 @@ describe(commands.CUSTOMACTION_SET, () => {
     assert.strictEqual(actual, `${defaultCommandOptions.scope} is not a valid custom action scope. Allowed values are Site|Web|All`);
   });
 
-  it('doesn\'t fail validation if the optional scope option not specified', async () => {
-    const actual = await command.validate(
-      {
-        options: defaultCommandOptions
-      }, commandInfo);
-    assert(actual === true);
-  });
+  it('doesn\'t fail validation if the optional scope option not specified',
+    async () => {
+      const actual = await command.validate(
+        {
+          options: defaultCommandOptions
+        }, commandInfo);
+      assert(actual === true);
+    }
+  );
 
   it('supports specifying scope', () => {
     const options = command.options;

@@ -12,18 +12,20 @@ describe('FN012002_TSC_moduleResolution', () => {
     rule = new FN012002_TSC_moduleResolution('node');
   });
 
-  it('doesn\'t return notification if moduleResolution is already up-to-date', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      tsConfigJson: {
-        compilerOptions: {
-          moduleResolution: 'node'
+  it('doesn\'t return notification if moduleResolution is already up-to-date',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        tsConfigJson: {
+          compilerOptions: {
+            moduleResolution: 'node'
+          }
         }
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
   it('returns notification if moduleResolution is not up-to-date', () => {
     const project: Project = {

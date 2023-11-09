@@ -12,18 +12,20 @@ describe('FN012001_TSC_module', () => {
     rule = new FN012001_TSC_module('esnext');
   });
 
-  it('doesn\'t return notification if module type is already up-to-date', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      tsConfigJson: {
-        compilerOptions: {
-          module: 'esnext'
+  it('doesn\'t return notification if module type is already up-to-date',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        tsConfigJson: {
+          compilerOptions: {
+            module: 'esnext'
+          }
         }
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
   it('returns notification if module type is not up-to-date', () => {
     const project: Project = {

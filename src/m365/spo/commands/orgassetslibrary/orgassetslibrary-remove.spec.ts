@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { Logger } from '../../../../cli/Logger.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './orgassetslibrary-remove.js';
@@ -19,12 +18,12 @@ describe(commands.ORGASSETSLIBRARY_REMOVE, () => {
   let logger: Logger;
   let promptOptions: any;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'ABC',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -47,7 +46,7 @@ describe(commands.ORGASSETSLIBRARY_REMOVE, () => {
         log.push(msg);
       }
     };
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
@@ -55,14 +54,14 @@ describe(commands.ORGASSETSLIBRARY_REMOVE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -75,33 +74,37 @@ describe(commands.ORGASSETSLIBRARY_REMOVE, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('prompts before removing the Org Assets Library when confirm option is not passed', async () => {
-    await command.action(logger, { options: { debug: true } } as any);
+  it('prompts before removing the Org Assets Library when confirm option is not passed',
+    async () => {
+      await command.action(logger, { options: { debug: true } } as any);
 
-    let promptIssued = false;
+      let promptIssued = false;
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+      assert(promptIssued);
     }
-    assert(promptIssued);
-  });
+  );
 
-  it('aborts removing the Org Assets Library when confirm option is not passed and prompt not confirmed', async () => {
-    const postSpy = sinon.spy(request, 'post');
+  it('aborts removing the Org Assets Library when confirm option is not passed and prompt not confirmed',
+    async () => {
+      const postSpy = jest.spyOn(request, 'post').mockClear();
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: false }
-    ));
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: false }
+      ));
 
-    await command.action(logger, { options: {} });
-    assert(postSpy.notCalled);
-  });
+      await command.action(logger, { options: {} });
+      assert(postSpy.notCalled);
+    }
+  );
 
   it('removes the Org Assets Library when prompt confirmed', async () => {
     let orgAssetLibRemoveCallIssued = false;
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="9" ObjectPathId="8" /><Method Name="RemoveFromOrgAssets" Id="10" ObjectPathId="8"><Parameters><Parameter Type="String">/sites/branding/assets</Parameter><Parameter Type="Guid">{00000000-0000-0000-0000-000000000000}</Parameter></Parameters></Method></Actions><ObjectPaths><Constructor Id="8" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /></ObjectPaths></Request>`) {
 
         orgAssetLibRemoveCallIssued = true;
@@ -120,8 +123,8 @@ describe(commands.ORGASSETSLIBRARY_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: true }
     ));
     await command.action(logger, { options: { libraryUrl: '/sites/branding/assets' } });
@@ -131,7 +134,7 @@ describe(commands.ORGASSETSLIBRARY_REMOVE, () => {
   it('removes the Org Assets Library without confirm prompt', async () => {
     let orgAssetLibRemoveCallIssued = false;
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="9" ObjectPathId="8" /><Method Name="RemoveFromOrgAssets" Id="10" ObjectPathId="8"><Parameters><Parameter Type="String">/sites/branding/assets</Parameter><Parameter Type="Guid">{00000000-0000-0000-0000-000000000000}</Parameter></Parameters></Method></Actions><ObjectPaths><Constructor Id="8" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /></ObjectPaths></Request>`) {
 
         orgAssetLibRemoveCallIssued = true;
@@ -154,60 +157,64 @@ describe(commands.ORGASSETSLIBRARY_REMOVE, () => {
     assert(orgAssetLibRemoveCallIssued);
   });
 
-  it('removes the Org Assets Library when prompt confirmed and output set to JSON', async () => {
-    let orgAssetLibRemoveCallIssued = false;
+  it('removes the Org Assets Library when prompt confirmed and output set to JSON',
+    async () => {
+      let orgAssetLibRemoveCallIssued = false;
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="9" ObjectPathId="8" /><Method Name="RemoveFromOrgAssets" Id="10" ObjectPathId="8"><Parameters><Parameter Type="String">/sites/branding/assets</Parameter><Parameter Type="Guid">{00000000-0000-0000-0000-000000000000}</Parameter></Parameters></Method></Actions><ObjectPaths><Constructor Id="8" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /></ObjectPaths></Request>`) {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="9" ObjectPathId="8" /><Method Name="RemoveFromOrgAssets" Id="10" ObjectPathId="8"><Parameters><Parameter Type="String">/sites/branding/assets</Parameter><Parameter Type="Guid">{00000000-0000-0000-0000-000000000000}</Parameter></Parameters></Method></Actions><ObjectPaths><Constructor Id="8" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /></ObjectPaths></Request>`) {
 
-        orgAssetLibRemoveCallIssued = true;
+          orgAssetLibRemoveCallIssued = true;
 
-        return JSON.stringify(
-          [
-            {
-              "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.19520.12061", "ErrorInfo": null, "TraceCorrelationId": "f4e1279f-100c-9000-7ea4-40fa74757476"
-            }, 9, {
-              "IsNull": false
-            }
-          ]
-        );
-      }
+          return JSON.stringify(
+            [
+              {
+                "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.19520.12061", "ErrorInfo": null, "TraceCorrelationId": "f4e1279f-100c-9000-7ea4-40fa74757476"
+              }, 9, {
+                "IsNull": false
+              }
+            ]
+          );
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: true }
-    ));
-    await command.action(logger, { options: { libraryUrl: '/sites/branding/assets', output: 'json' } });
-    assert(orgAssetLibRemoveCallIssued);
-  });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: true }
+      ));
+      await command.action(logger, { options: { libraryUrl: '/sites/branding/assets', output: 'json' } });
+      assert(orgAssetLibRemoveCallIssued);
+    }
+  );
 
-  it('correctly handles error when removing a non-existing Org Asset Library', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="9" ObjectPathId="8" /><Method Name="RemoveFromOrgAssets" Id="10" ObjectPathId="8"><Parameters><Parameter Type="String">/sites/branding/assets</Parameter><Parameter Type="Guid">{00000000-0000-0000-0000-000000000000}</Parameter></Parameters></Method></Actions><ObjectPaths><Constructor Id="8" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /></ObjectPaths></Request>`) {
+  it('correctly handles error when removing a non-existing Org Asset Library',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="9" ObjectPathId="8" /><Method Name="RemoveFromOrgAssets" Id="10" ObjectPathId="8"><Parameters><Parameter Type="String">/sites/branding/assets</Parameter><Parameter Type="Guid">{00000000-0000-0000-0000-000000000000}</Parameter></Parameters></Method></Actions><ObjectPaths><Constructor Id="8" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /></ObjectPaths></Request>`) {
 
-        return JSON.stringify(
-          [
-            {
-              "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.19520.12061", "ErrorInfo": {
-                "ErrorMessage": "Run Add-SPOOrgAssetsLibrary first to set up the organization assets library feature for your organization.", "ErrorValue": null, "TraceCorrelationId": "5fe2279f-40d7-9000-7e58-51033180e44d", "ErrorCode": -2147024809, "ErrorTypeName": "System.ArgumentException"
-              }, "TraceCorrelationId": "5fe2279f-40d7-9000-7e58-51033180e44d"
-            }
-          ]
-        );
-      }
+          return JSON.stringify(
+            [
+              {
+                "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.19520.12061", "ErrorInfo": {
+                  "ErrorMessage": "Run Add-SPOOrgAssetsLibrary first to set up the organization assets library feature for your organization.", "ErrorValue": null, "TraceCorrelationId": "5fe2279f-40d7-9000-7e58-51033180e44d", "ErrorCode": -2147024809, "ErrorTypeName": "System.ArgumentException"
+                }, "TraceCorrelationId": "5fe2279f-40d7-9000-7e58-51033180e44d"
+              }
+            ]
+          );
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, { options: { libraryUrl: '/sites/branding/assets', debug: true, force: true } } as any),
-      new CommandError(`Run Add-SPOOrgAssetsLibrary first to set up the organization assets library feature for your organization.`));
-  });
+      await assert.rejects(command.action(logger, { options: { libraryUrl: '/sites/branding/assets', debug: true, force: true } } as any),
+        new CommandError(`Run Add-SPOOrgAssetsLibrary first to set up the organization assets library feature for your organization.`));
+    }
+  );
 
   it('correctly handles random API error', async () => {
-    sinon.stub(request, 'post').rejects(new Error('An error has occurred'));
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
     await assert.rejects(command.action(logger, {
       options: {

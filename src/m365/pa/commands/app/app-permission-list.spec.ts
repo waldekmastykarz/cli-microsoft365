@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './app-permission-list.js';
 
@@ -70,14 +69,14 @@ describe(commands.APP_PERMISSION_LIST, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -95,17 +94,17 @@ describe(commands.APP_PERMISSION_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -121,24 +120,26 @@ describe(commands.APP_PERMISSION_LIST, () => {
     assert.deepStrictEqual(command.defaultProperties(), ['roleName', 'principalId', 'principalType']);
   });
 
-  it('correctly retrieves all permissions when asAdmin and environmentName is passed', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://api.powerapps.com/providers/Microsoft.PowerApps/scopes/admin/environments/${formatting.encodeQueryParameter(environmentName)}/apps/${appName}/permissions?api-version=2022-11-01`) {
-        return { value: permissionsResponse };
-      }
-      throw 'Invalid request';
-    });
+  it('correctly retrieves all permissions when asAdmin and environmentName is passed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://api.powerapps.com/providers/Microsoft.PowerApps/scopes/admin/environments/${formatting.encodeQueryParameter(environmentName)}/apps/${appName}/permissions?api-version=2022-11-01`) {
+          return { value: permissionsResponse };
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { appName: appName, asAdmin: true, environmentName: environmentName, verbose: true } });
-    assert(loggerLogSpy.calledWith(permissionsResponseFormatted));
-  });
+      await command.action(logger, { options: { appName: appName, asAdmin: true, environmentName: environmentName, verbose: true } });
+      assert(loggerLogSpy.calledWith(permissionsResponseFormatted));
+    }
+  );
 
   it('correctly filters permissions when roleName is passed', async () => {
     const permissionsWithDifferentRoleName = { 'name': 'fe36f75e-c103-410b-a18a-2bf6df06ac3a', 'id': '/providers/Microsoft.PowerApps/apps/37ea6004-f07b-46ca-8ef3-a256b67b4dbb/permissions/fe36f75e-c103-410b-a18a-2bf6df06ac3a', 'type': 'Microsoft.PowerApps/apps/permissions', 'properties': { 'roleName': 'CanEdit', 'principal': { 'id': 'fe36f75e-c103-410b-a18a-2bf6df06ac3a', 'displayName': 'John Doe', 'email': 'john@contoso.com', 'type': 'User', 'tenantId': 'e1dd4023-a656-480a-8a0e-c1b1eec51e1d' }, 'scope': '/providers/Microsoft.PowerApps/environments/Default-e1dd4023-a656-480a-8a0e-c1b1eec51e1d/apps/37ea6004-f07b-46ca-8ef3-a256b67b4dbb', 'notifyShareTargetOption': 'NotSpecified', 'inviteGuestToTenant': false, 'createdOn': '2022-10-25T21:28:14.2122305Z', 'createdBy': 'f0db9c91-3dae-49c8-98fa-8059b8909d45' } };
     const permissionsResponseClone = [...permissionsResponse];
     permissionsResponseClone.push(permissionsWithDifferentRoleName);
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://api.powerapps.com/providers/Microsoft.PowerApps/apps/${appName}/permissions?api-version=2022-11-01`) {
         return { value: permissionsResponseClone };
       }
@@ -150,32 +151,36 @@ describe(commands.APP_PERMISSION_LIST, () => {
   });
 
   it('correctly handles no permissions found', async () => {
-    sinon.stub(request, 'get').resolves({ value: [] });
+    jest.spyOn(request, 'get').mockClear().mockImplementation().resolves({ value: [] });
 
     await command.action(logger, { options: { appName: appName, verbose: true } });
     assert(loggerLogSpy.calledWith([]));
   });
 
-  it('correctly handles no permissions found with specific roleName', async () => {
-    const roleName = 'CanEdit';
-    sinon.stub(request, 'get').resolves({ value: permissionsResponse });
+  it('correctly handles no permissions found with specific roleName',
+    async () => {
+      const roleName = 'CanEdit';
+      jest.spyOn(request, 'get').mockClear().mockImplementation().resolves({ value: permissionsResponse });
 
-    await command.action(logger, { options: { appName: appName, roleName: roleName, verbose: true } });
-    assert(loggerLogSpy.calledWith([]));
-  });
+      await command.action(logger, { options: { appName: appName, roleName: roleName, verbose: true } });
+      assert(loggerLogSpy.calledWith([]));
+    }
+  );
 
-  it('correctly handles API error when app not found or no access', async () => {
-    const error = {
-      error: {
-        code: 'Forbidden',
-        message: `The user with object id 'fe36f75e-c103-410b-a18a-2bf6df06ac3a' does not have permission to access this.`
-      }
-    };
-    sinon.stub(request, 'get').rejects(error);
+  it('correctly handles API error when app not found or no access',
+    async () => {
+      const error = {
+        error: {
+          code: 'Forbidden',
+          message: `The user with object id 'fe36f75e-c103-410b-a18a-2bf6df06ac3a' does not have permission to access this.`
+        }
+      };
+      jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(error);
 
-    await assert.rejects(command.action(logger, { options: { appName: appName } } as any),
-      new CommandError(error.error.message));
-  });
+      await assert.rejects(command.action(logger, { options: { appName: appName } } as any),
+        new CommandError(error.error.message));
+    }
+  );
 
   it('passes validation if asAdmin specified with environment', async () => {
     const actual = await command.validate({ options: { appName: appName, asAdmin: true, environmentName: environmentName } }, commandInfo);
@@ -197,13 +202,17 @@ describe(commands.APP_PERMISSION_LIST, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if asAdmin specified without environmentName', async () => {
-    const actual = await command.validate({ options: { appName: appName, asAdmin: true } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if asAdmin specified without environmentName',
+    async () => {
+      const actual = await command.validate({ options: { appName: appName, asAdmin: true } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if environmentName specified without asAdmin', async () => {
-    const actual = await command.validate({ options: { appName: appName, environmentName: environmentName } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if environmentName specified without asAdmin',
+    async () => {
+      const actual = await command.validate({ options: { appName: appName, environmentName: environmentName } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 });

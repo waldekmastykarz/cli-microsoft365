@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,14 +8,14 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './group-list.js';
 
 describe(commands.GROUP_LIST, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
   const groupsFirstBatchList: any = [
@@ -183,11 +182,11 @@ describe(commands.GROUP_LIST, () => {
       }
     }];
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -205,18 +204,18 @@ describe(commands.GROUP_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -233,7 +232,7 @@ describe(commands.GROUP_LIST, () => {
   });
 
   it('correctly handles error', async () => {
-    sinon.stub(request, 'get').callsFake(async () => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async () => {
       throw {
         "error": {
           "base": "An error has occurred."
@@ -265,7 +264,7 @@ describe(commands.GROUP_LIST, () => {
   });
 
   it('returns groups without more results', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/groups.json?page=1') {
         return groupsSecondBatchList;
       }
@@ -274,7 +273,7 @@ describe(commands.GROUP_LIST, () => {
 
     await command.action(logger, { options: {} } as any);
 
-    assert.strictEqual(loggerLogSpy.lastCall.args[0][0].id, 4708910);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0][0].id, 4708910);
   });
 
   it('returns more than 50 groups correctly', async () => {
@@ -284,7 +283,7 @@ describe(commands.GROUP_LIST, () => {
       first50Groups = first50Groups.concat(groupsFirstBatchList);
     }
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/groups.json?page=1') {
         return first50Groups;
       }
@@ -296,11 +295,11 @@ describe(commands.GROUP_LIST, () => {
 
     await command.action(logger, { options: { output: 'json' } } as any);
 
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].length, 53);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].length, 53);
   });
 
   it('returns zero groups when none are found', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/groups.json?page=1') {
         return [];
       }
@@ -309,21 +308,21 @@ describe(commands.GROUP_LIST, () => {
 
     await command.action(logger, { options: { output: 'json' } } as any);
 
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].length, 0);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].length, 0);
   });
 
   it('returns groups with a specific limit', async () => {
-    sinon.stub(request, 'get').callsFake(async () => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async () => {
       return groupsFirstBatchList;
     });
 
     await command.action(logger, { options: { limit: 1, output: 'json' } } as any);
 
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].length, 1);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].length, 1);
   });
 
   it('handles correct parameters userId', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/groups/for_user/10123190123128.json?page=1') {
         return groupsSecondBatchList;
       }
@@ -332,6 +331,6 @@ describe(commands.GROUP_LIST, () => {
 
     await command.action(logger, { options: { userId: 10123190123128, output: 'json' } } as any);
 
-    assert.strictEqual(loggerLogSpy.lastCall.args[0][0].id, 4708910);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0][0].id, 4708910);
   });
 });

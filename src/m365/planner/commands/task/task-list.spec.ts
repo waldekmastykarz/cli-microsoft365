@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './task-list.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -271,15 +270,15 @@ describe(commands.TASK_LIST, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.accessTokens[(command as any).resource] = {
       accessToken: 'abc',
@@ -289,7 +288,7 @@ describe(commands.TASK_LIST, () => {
   });
 
   beforeEach(() => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter('My Planner Group')}'`) {
         return groupByDisplayNameResponse;
       }
@@ -334,19 +333,19 @@ describe(commands.TASK_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.accessTokens = {};
   });
@@ -363,136 +362,150 @@ describe(commands.TASK_LIST, () => {
     assert.deepStrictEqual(command.defaultProperties(), ['id', 'title', 'startDateTime', 'dueDateTime', 'completedDateTime']);
   });
 
-  it('fails validation when both bucketId and bucketName are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation when both bucketId and bucketName are specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        bucketId: 'FtzysDykv0-9s9toWiZhdskAD67z',
-        bucketName: 'Planner Bucket A'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          bucketId: 'FtzysDykv0-9s9toWiZhdskAD67z',
+          bucketName: 'Planner Bucket A'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when bucketName is specified without planId, planTitle, or rosterId', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation when bucketName is specified without planId, planTitle, or rosterId',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        bucketName: 'Planner Bucket A'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          bucketName: 'Planner Bucket A'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when bucketName is specified with planId, planTitle, and rosterId', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation when bucketName is specified with planId, planTitle, and rosterId',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        bucketName: 'Planner Bucket A',
-        planId: 'iVPMIgdku0uFlou-KLNg6MkAE1O2',
-        planTitle: 'My Planner Plan',
-        rosterId: 'DjL5xiKO10qut8LQgztpKskABWna'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          bucketName: 'Planner Bucket A',
+          planId: 'iVPMIgdku0uFlou-KLNg6MkAE1O2',
+          planTitle: 'My Planner Plan',
+          rosterId: 'DjL5xiKO10qut8LQgztpKskABWna'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when bucketName is specified with neither the planId, planTitle, nor rosterId', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation when bucketName is specified with neither the planId, planTitle, nor rosterId',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        debug: true,
-        bucketName: 'Planner Bucket A'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          debug: true,
+          bucketName: 'Planner Bucket A'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when planId, planTitle, and rosterId are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation when planId, planTitle, and rosterId are specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        bucketName: 'Planner Bucket A',
-        planId: 'iVPMIgdku0uFlou-KLNg6MkAE1O2',
-        planTitle: 'My Planner',
-        rosterId: 'DjL5xiKO10qut8LQgztpKskABWna'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          bucketName: 'Planner Bucket A',
+          planId: 'iVPMIgdku0uFlou-KLNg6MkAE1O2',
+          planTitle: 'My Planner',
+          rosterId: 'DjL5xiKO10qut8LQgztpKskABWna'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when planTitle is specified without ownerGroupId or ownerGroupName', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation when planTitle is specified without ownerGroupId or ownerGroupName',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        bucketName: 'Planner Bucket A',
-        planTitle: 'My Planner Plan'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          bucketName: 'Planner Bucket A',
+          planTitle: 'My Planner Plan'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when planTitle is specified with both ownerGroupId and ownerGroupName', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation when planTitle is specified with both ownerGroupId and ownerGroupName',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        bucketName: 'Planner Bucket A',
-        planTitle: 'My Planner Plan',
-        ownerGroupId: '0d0402ee-970f-4951-90b5-2f24519d2e40',
-        ownerGroupName: 'My Planner Group'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          bucketName: 'Planner Bucket A',
+          planTitle: 'My Planner Plan',
+          ownerGroupId: '0d0402ee-970f-4951-90b5-2f24519d2e40',
+          ownerGroupName: 'My Planner Group'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation when owner group id is not a valid guid', async () => {
     const actual = await command.validate({
@@ -515,59 +528,69 @@ describe(commands.TASK_LIST, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation when valid planTitle and ownerGroupId are specified', async () => {
-    const actual = await command.validate({
-      options: {
-        planTitle: 'My Planner Plan',
-        bucketName: 'Planner Bucket A',
-        ownerGroupId: '0d0402ee-970f-4951-90b5-2f24519d2e40'
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when valid planTitle and ownerGroupId are specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          planTitle: 'My Planner Plan',
+          bucketName: 'Planner Bucket A',
+          ownerGroupId: '0d0402ee-970f-4951-90b5-2f24519d2e40'
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when valid planTitle and ownerGroupName are specified', async () => {
-    const actual = await command.validate({
-      options: {
-        planTitle: 'My Planner Plan',
-        bucketName: 'Planner Bucket A',
-        ownerGroupName: 'My Planner Group'
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when valid planTitle and ownerGroupName are specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          planTitle: 'My Planner Plan',
+          bucketName: 'Planner Bucket A',
+          ownerGroupName: 'My Planner Group'
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when bucketName and planId are specified', async () => {
-    const actual = await command.validate({
-      options: {
-        planId: 'iVPMIgdku0uFlou-KLNg6MkAE1O2',
-        bucketName: 'Planner Bucket A'
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when bucketName and planId are specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          planId: 'iVPMIgdku0uFlou-KLNg6MkAE1O2',
+          bucketName: 'Planner Bucket A'
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when bucketName, planTitle, and ownerGroupId are specified', async () => {
-    const actual = await command.validate({
-      options: {
-        planTitle: 'My Planner Plan',
-        bucketName: 'Planner Bucket A',
-        ownerGroupId: '0d0402ee-970f-4951-90b5-2f24519d2e40'
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when bucketName, planTitle, and ownerGroupId are specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          planTitle: 'My Planner Plan',
+          bucketName: 'Planner Bucket A',
+          ownerGroupId: '0d0402ee-970f-4951-90b5-2f24519d2e40'
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when bucketName, planTitle, and ownerGroupName are specified', async () => {
-    const actual = await command.validate({
-      options: {
-        planTitle: 'My Planner Plan',
-        bucketName: 'Planner Bucket A',
-        ownerGroupName: 'My Planner Group'
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when bucketName, planTitle, and ownerGroupName are specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          planTitle: 'My Planner Plan',
+          bucketName: 'Planner Bucket A',
+          ownerGroupName: 'My Planner Group'
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('passes validation when no arguments are specified', async () => {
     const actual = await command.validate({
@@ -577,7 +600,7 @@ describe(commands.TASK_LIST, () => {
   });
 
   it('fails validation if the ownerGroupId is not a valid guid.', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -595,8 +618,8 @@ describe(commands.TASK_LIST, () => {
   });
 
   it('fails validation when ownerGroupName not found', async () => {
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jestUtil.restore(request.get);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/groups?$filter=displayName') > -1) {
         return { value: [] };
       }
@@ -612,8 +635,8 @@ describe(commands.TASK_LIST, () => {
   });
 
   it('fails validation when bucketName not found', async () => {
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jestUtil.restore(request.get);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter('My Planner Group')}'`) {
         return groupByDisplayNameResponse;
       }
@@ -661,25 +684,29 @@ describe(commands.TASK_LIST, () => {
     assert(loggerLogSpy.called);
   });
 
-  it('correctly lists planner tasks with planTitle and ownerGroupId', async () => {
-    const options: any = {
-      planTitle: 'My Planner Plan',
-      ownerGroupId: '0d0402ee-970f-4951-90b5-2f24519d2e40'
-    };
+  it('correctly lists planner tasks with planTitle and ownerGroupId',
+    async () => {
+      const options: any = {
+        planTitle: 'My Planner Plan',
+        ownerGroupId: '0d0402ee-970f-4951-90b5-2f24519d2e40'
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(loggerLogSpy.calledWith(taskListResponseBetaValue));
-  });
+      await command.action(logger, { options: options } as any);
+      assert(loggerLogSpy.calledWith(taskListResponseBetaValue));
+    }
+  );
 
-  it('correctly lists planner tasks with planTitle and ownerGroupName', async () => {
-    const options: any = {
-      planTitle: 'My Planner Plan',
-      ownerGroupName: 'My Planner Group'
-    };
+  it('correctly lists planner tasks with planTitle and ownerGroupName',
+    async () => {
+      const options: any = {
+        planTitle: 'My Planner Plan',
+        ownerGroupName: 'My Planner Group'
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(loggerLogSpy.calledWith(taskListResponseBetaValue));
-  });
+      await command.action(logger, { options: options } as any);
+      assert(loggerLogSpy.calledWith(taskListResponseBetaValue));
+    }
+  );
 
   it('correctly lists planner tasks with bucketId', async () => {
     const options: any = {
@@ -701,27 +728,31 @@ describe(commands.TASK_LIST, () => {
     assert(loggerLogSpy.calledWith(taskListResponseBetaValue));
   });
 
-  it('correctly lists planner tasks with bucketName, planTitle, and ownerGroupId', async () => {
-    const options: any = {
-      bucketName: 'Planner Bucket A',
-      planTitle: 'My Planner Plan',
-      ownerGroupId: '0d0402ee-970f-4951-90b5-2f24519d2e40'
-    };
+  it('correctly lists planner tasks with bucketName, planTitle, and ownerGroupId',
+    async () => {
+      const options: any = {
+        bucketName: 'Planner Bucket A',
+        planTitle: 'My Planner Plan',
+        ownerGroupId: '0d0402ee-970f-4951-90b5-2f24519d2e40'
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(loggerLogSpy.calledWith(taskListResponseBetaValue));
-  });
+      await command.action(logger, { options: options } as any);
+      assert(loggerLogSpy.calledWith(taskListResponseBetaValue));
+    }
+  );
 
-  it('correctly lists planner tasks with bucketName, planTitle, and ownerGroupName', async () => {
-    const options: any = {
-      bucketName: 'Planner Bucket A',
-      planTitle: 'My Planner Plan',
-      ownerGroupName: 'My Planner Group'
-    };
+  it('correctly lists planner tasks with bucketName, planTitle, and ownerGroupName',
+    async () => {
+      const options: any = {
+        bucketName: 'Planner Bucket A',
+        planTitle: 'My Planner Plan',
+        ownerGroupName: 'My Planner Group'
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(loggerLogSpy.calledWith(taskListResponseBetaValue));
-  });
+      await command.action(logger, { options: options } as any);
+      assert(loggerLogSpy.calledWith(taskListResponseBetaValue));
+    }
+  );
 
   it('correctly lists planner tasks with bucketId and rosterId', async () => {
     const options: any = {
@@ -734,8 +765,8 @@ describe(commands.TASK_LIST, () => {
   });
 
   it('correctly handles random API error', async () => {
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').rejects(new Error('An error has occurred'));
+    jestUtil.restore(request.get);
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
     await assert.rejects(command.action(logger, { options: {} } as any), new CommandError('An error has occurred'));
   });

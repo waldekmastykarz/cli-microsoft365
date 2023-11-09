@@ -32,7 +32,7 @@ describe('ResolutionRule', () => {
   let depRule2: ResRule;
   let findings: Finding[];
 
-  before(() => {
+  beforeAll(() => {
     depRule = new ResRule();
     depRule2 = new ResRule2();
   });
@@ -60,19 +60,21 @@ describe('ResolutionRule', () => {
     assert.strictEqual(findings.length, 0);
   });
 
-  it('doesn\'t return notification if the resolution is already up-to-date', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      packageJson: {
-        dependencies: {},
-        resolutions: {
-          'test-package': '1.0.0'
+  it('doesn\'t return notification if the resolution is already up-to-date',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        packageJson: {
+          dependencies: {},
+          resolutions: {
+            'test-package': '1.0.0'
+          }
         }
-      }
-    };
-    depRule2.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+      };
+      depRule2.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
   it('returns notification if the resolution is not up-to-date', () => {
     const project: Project = {

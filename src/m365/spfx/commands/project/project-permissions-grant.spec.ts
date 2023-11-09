@@ -2,7 +2,6 @@ import assert from 'assert';
 import chalk from 'chalk';
 import fs from 'fs';
 import path from 'path';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { Logger } from '../../../../cli/Logger.js';
@@ -10,7 +9,7 @@ import { CommandError } from '../../../../Command.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import spoServicePrincipalGrantAddCommand from '../../../spo/commands/serviceprincipal/serviceprincipal-grant-add.js';
 import commands from '../../commands.js';
 import command from './project-permissions-grant.js';
@@ -18,8 +17,8 @@ import command from './project-permissions-grant.js';
 describe(commands.PROJECT_PERMISSIONS_GRANT, () => {
   let log: any[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
-  let loggerStderrLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
+  let loggerStderrLogSpy: jest.SpyInstance;
   const projectPath: string = 'src/m365/spfx/commands/project/test-projects/spfx-182-webpart-react';
   const packagejsonContent = `{
     "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/package-solution.schema.json",
@@ -78,11 +77,11 @@ describe(commands.PROJECT_PERMISSIONS_GRANT, () => {
     "Scope": "User.ReadBasic.All"
   };
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
   });
 
@@ -99,12 +98,12 @@ describe(commands.PROJECT_PERMISSIONS_GRANT, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
-    loggerStderrLogSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    loggerStderrLogSpy = jest.spyOn(logger, 'logToStderr').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       (command as any).getProjectRoot,
       fs.existsSync,
       fs.readFileSync,
@@ -112,8 +111,8 @@ describe(commands.PROJECT_PERMISSIONS_GRANT, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -126,42 +125,46 @@ describe(commands.PROJECT_PERMISSIONS_GRANT, () => {
   });
 
   it('shows error if the project path couldn\'t be determined', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(null);
+    jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(null);
 
     await assert.rejects(command.action(logger, { options: {} } as any),
       new CommandError(`Couldn't find project root folder`, 1));
   });
 
-  it('handles correctly when the package-solution.json file is not found', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), projectPath));
+  it('handles correctly when the package-solution.json file is not found',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), projectPath));
 
-    sinon.stub(fs, 'existsSync').returns(false);
+      jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(false);
 
-    await assert.rejects(command.action(logger, { options: {} } as any),
-      new CommandError(`The package-solution.json file could not be found`));
-  });
+      await assert.rejects(command.action(logger, { options: {} } as any),
+        new CommandError(`The package-solution.json file could not be found`));
+    }
+  );
 
-  it('grant the specified permissions from the package-solution.json file', async () => {
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'readFileSync').returns(packagejsonContent);
+  it('grant the specified permissions from the package-solution.json file',
+    async () => {
+      jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+      jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue(packagejsonContent);
 
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command): Promise<any> => {
-      if (command === spoServicePrincipalGrantAddCommand) {
-        return ({
-          stdout: `{ "ClientId": "90a2c08e-e786-4100-9ea9-36c261be6c0d", "ConsentType": "AllPrincipals", "IsDomainIsolated": false, "ObjectId": "jsCikIbnAEGeqTbCYb5sDZXCr9YICndHoJUQvLfiOQM", "PackageName": null, "Resource": "Microsoft Graph", "ResourceId": "d6afc295-0a08-4777-a095-10bcb7e23903", "Scope": "User.ReadBasic.All"}`
-        });
-      }
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command): Promise<any> => {
+        if (command === spoServicePrincipalGrantAddCommand) {
+          return ({
+            stdout: `{ "ClientId": "90a2c08e-e786-4100-9ea9-36c261be6c0d", "ConsentType": "AllPrincipals", "IsDomainIsolated": false, "ObjectId": "jsCikIbnAEGeqTbCYb5sDZXCr9YICndHoJUQvLfiOQM", "PackageName": null, "Resource": "Microsoft Graph", "ResourceId": "d6afc295-0a08-4777-a095-10bcb7e23903", "Scope": "User.ReadBasic.All"}`
+          });
+        }
 
-      throw new CommandError('Unknown case');
-    });
+        throw new CommandError('Unknown case');
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: true
-      }
-    });
-    assert(loggerLogSpy.calledWith(grantResponse));
-  });
+      await command.action(logger, {
+        options: {
+          debug: true
+        }
+      });
+      assert(loggerLogSpy.calledWith(grantResponse));
+    }
+  );
 
   it('shows warning when permission already exist', async () => {
     const grantExistError = {
@@ -171,10 +174,10 @@ describe(commands.PROJECT_PERMISSIONS_GRANT, () => {
       stderr: ''
     };
 
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'readFileSync').returns(packagejsonContent);
+    jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+    jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue(packagejsonContent);
 
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command): Promise<any> => {
+    jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command): Promise<any> => {
       if (command === spoServicePrincipalGrantAddCommand) {
         throw grantExistError;
       }
@@ -189,19 +192,21 @@ describe(commands.PROJECT_PERMISSIONS_GRANT, () => {
     assert.strictEqual(loggerStderrLogSpy.calledWith(chalk.yellow("An OAuth permission with the resource Microsoft Graph and scope User.ReadBasic.All already exists.Parameter name: permissionRequest")), true);
   });
 
-  it('correctly handles error when something went wrong when granting permission', async () => {
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'readFileSync').returns(packagejsonContent);
+  it('correctly handles error when something went wrong when granting permission',
+    async () => {
+      jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+      jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue(packagejsonContent);
 
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command): Promise<any> => {
-      if (command === spoServicePrincipalGrantAddCommand) {
-        throw 'Something went wrong';
-      }
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command): Promise<any> => {
+        if (command === spoServicePrincipalGrantAddCommand) {
+          throw 'Something went wrong';
+        }
 
-      throw new CommandError('Unknown case');
-    });
+        throw new CommandError('Unknown case');
+      });
 
-    await assert.rejects(command.action(logger, { options: {} } as any),
-      new CommandError(`Something went wrong`));
-  });
+      await assert.rejects(command.action(logger, { options: {} } as any),
+        new CommandError(`Something went wrong`));
+    }
+  );
 });

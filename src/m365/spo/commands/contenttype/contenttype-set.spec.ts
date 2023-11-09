@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -11,7 +10,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { urlUtil } from '../../../../utils/urlUtil.js';
 import commands from '../../commands.js';
 import command from './contenttype-set.js';
@@ -41,14 +40,14 @@ describe(commands.CONTENTTYPE_SET, () => {
 
   let log: any[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -66,18 +65,18 @@ describe(commands.CONTENTTYPE_SET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -94,10 +93,12 @@ describe(commands.CONTENTTYPE_SET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if id is specified and is not a valid GUID', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, id: id, listId: 'invalid' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if id is specified and is not a valid GUID',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, id: id, listId: 'invalid' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if listId and listTitle is specified', async () => {
     const actual = await command.validate({ options: { webUrl: webUrl, id: id, listId: listId, listTitle: listTitle } }, commandInfo);
@@ -119,30 +120,40 @@ describe(commands.CONTENTTYPE_SET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if listId is specified together with updateChildren', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, id: id, listId: listId, updateChildren: true } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if listId is specified together with updateChildren',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, id: id, listId: listId, updateChildren: true } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if listTitle is specified together with updateChildren', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, id: id, listTitle: listTitle, updateChildren: true } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if listTitle is specified together with updateChildren',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, id: id, listTitle: listTitle, updateChildren: true } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if listUrl is specified together with updateChildren', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, id: id, listUrl: listUrl, updateChildren: true } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if listUrl is specified together with updateChildren',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, id: id, listUrl: listUrl, updateChildren: true } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when webUrl, id and listId are specified', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, id: id, listId: listId } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when webUrl, id and listId are specified',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, id: id, listId: listId } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when webUrl, name are specified together with updateChildren', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, name: name, updateChildren: true } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when webUrl, name are specified together with updateChildren',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, name: name, updateChildren: true } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('allows unknown options', () => {
     const allowUnknownOptions = command.allowUnknownOptions();
@@ -150,7 +161,7 @@ describe(commands.CONTENTTYPE_SET, () => {
   });
 
   it('correctly updates content type with id', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url === `${webUrl}/_api/site?$select=Id`) {
         return { Id: siteId };
       }
@@ -160,7 +171,7 @@ describe(commands.CONTENTTYPE_SET, () => {
 
       throw `Invalid GET-request ${JSON.stringify(opts)}`;
     });
-    sinon.stub(request, 'post').callsFake(async opts => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if (opts.url === `${webUrl}/_vti_bin/client.svc/ProcessQuery`
         && opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><SetProperty Id="12" ObjectPathId="9" Name="Name"><Parameter Type="String">${newName}</Parameter></SetProperty><Method Name="Update" Id="13" ObjectPathId="9"><Parameters><Parameter Type="Boolean">false</Parameter></Parameters></Method></Actions><ObjectPaths><Identity Id="9" Name="fc4179a0-e0d7-5000-c38b-bc3506fbab6f|740c6a0b-85e2-48a0-a494-e0f1759d4aa7:site:${siteId}:web:${webId}:contenttype:${formatting.escapeXml(id)}" /></ObjectPaths></Request>`) {
         return `[
@@ -181,7 +192,7 @@ describe(commands.CONTENTTYPE_SET, () => {
   });
 
   it('correctly updates content type with name', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/site?$select=Id`) {
         return { Id: siteId };
       }
@@ -194,7 +205,7 @@ describe(commands.CONTENTTYPE_SET, () => {
 
       throw `Invalid GET-request ${JSON.stringify(opts)}`;
     });
-    sinon.stub(request, 'post').callsFake(async opts => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if (opts.url === `${webUrl}/_vti_bin/client.svc/ProcessQuery`
         && opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><SetProperty Id="12" ObjectPathId="9" Name="Name"><Parameter Type="String">${newName}</Parameter></SetProperty><Method Name="Update" Id="13" ObjectPathId="9"><Parameters><Parameter Type="Boolean">false</Parameter></Parameters></Method></Actions><ObjectPaths><Identity Id="9" Name="fc4179a0-e0d7-5000-c38b-bc3506fbab6f|740c6a0b-85e2-48a0-a494-e0f1759d4aa7:site:${siteId}:web:${webId}:contenttype:${formatting.escapeXml(id)}" /></ObjectPaths></Request>`) {
         return (`[
@@ -215,7 +226,7 @@ describe(commands.CONTENTTYPE_SET, () => {
   });
 
   it('correctly updates content type with name and listId', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/site?$select=Id`) {
         return { Id: siteId };
       }
@@ -228,7 +239,7 @@ describe(commands.CONTENTTYPE_SET, () => {
 
       throw `Invalid GET-request ${JSON.stringify(opts)}`;
     });
-    sinon.stub(request, 'post').callsFake(async opts => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if (opts.url === `${webUrl}/_vti_bin/client.svc/ProcessQuery`
         && opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><SetProperty Id="12" ObjectPathId="9" Name="Name"><Parameter Type="String">${newName}</Parameter></SetProperty><Method Name="Update" Id="13" ObjectPathId="9"><Parameters><Parameter Type="Boolean">false</Parameter></Parameters></Method></Actions><ObjectPaths><Identity Id="9" Name="fc4179a0-e0d7-5000-c38b-bc3506fbab6f|740c6a0b-85e2-48a0-a494-e0f1759d4aa7:site:${siteId}:web:${webId}:list:${listId}:contenttype:${formatting.escapeXml(id)}" /></ObjectPaths></Request>`) {
         return `[
@@ -249,7 +260,7 @@ describe(commands.CONTENTTYPE_SET, () => {
   });
 
   it('correctly updates content type with name and listTitle', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/site?$select=Id`) {
         return { Id: siteId };
       }
@@ -265,7 +276,7 @@ describe(commands.CONTENTTYPE_SET, () => {
 
       throw `Invalid GET-request ${JSON.stringify(opts)}`;
     });
-    sinon.stub(request, 'post').callsFake(async opts => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if (opts.url === `${webUrl}/_vti_bin/client.svc/ProcessQuery`
         && opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><SetProperty Id="12" ObjectPathId="9" Name="Name"><Parameter Type="String">${newName}</Parameter></SetProperty><Method Name="Update" Id="13" ObjectPathId="9"><Parameters><Parameter Type="Boolean">false</Parameter></Parameters></Method></Actions><ObjectPaths><Identity Id="9" Name="fc4179a0-e0d7-5000-c38b-bc3506fbab6f|740c6a0b-85e2-48a0-a494-e0f1759d4aa7:site:${siteId}:web:${webId}:list:${listId}:contenttype:${formatting.escapeXml(id)}" /></ObjectPaths></Request>`) {
         return `[
@@ -287,7 +298,7 @@ describe(commands.CONTENTTYPE_SET, () => {
 
   it('correctly updates content type with name and listUrl', async () => {
     const listServerRelativeUrl: string = urlUtil.getServerRelativePath(webUrl, listUrl);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/site?$select=Id`) {
         return { Id: siteId };
       }
@@ -303,7 +314,7 @@ describe(commands.CONTENTTYPE_SET, () => {
 
       throw `Invalid GET-request ${JSON.stringify(opts)}`;
     });
-    sinon.stub(request, 'post').callsFake(async opts => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if (opts.url === `${webUrl}/_vti_bin/client.svc/ProcessQuery`
         && opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><SetProperty Id="12" ObjectPathId="9" Name="Name"><Parameter Type="String">${newName}</Parameter></SetProperty><Method Name="Update" Id="13" ObjectPathId="9"><Parameters><Parameter Type="Boolean">false</Parameter></Parameters></Method></Actions><ObjectPaths><Identity Id="9" Name="fc4179a0-e0d7-5000-c38b-bc3506fbab6f|740c6a0b-85e2-48a0-a494-e0f1759d4aa7:site:${siteId}:web:${webId}:list:${listId}:contenttype:${formatting.escapeXml(id)}" /></ObjectPaths></Request>`) {
         return `[
@@ -323,53 +334,57 @@ describe(commands.CONTENTTYPE_SET, () => {
     assert(loggerLogSpy.notCalled);
   });
 
-  it('correctly updates content type with id and pushing changes to children', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `${webUrl}/_api/site?$select=Id`) {
-        return { Id: siteId };
-      }
-      else if (opts.url === `${webUrl}/_api/web?$select=Id`) {
-        return { Id: webId };
-      }
+  it('correctly updates content type with id and pushing changes to children',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `${webUrl}/_api/site?$select=Id`) {
+          return { Id: siteId };
+        }
+        else if (opts.url === `${webUrl}/_api/web?$select=Id`) {
+          return { Id: webId };
+        }
 
-      throw `Invalid GET-request ${JSON.stringify(opts)}`;
-    });
-    sinon.stub(request, 'post').callsFake(async opts => {
-      if (opts.url === `${webUrl}/_vti_bin/client.svc/ProcessQuery`
-        && opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><SetProperty Id="12" ObjectPathId="9" Name="Name"><Parameter Type="String">${newName}</Parameter></SetProperty><Method Name="Update" Id="13" ObjectPathId="9"><Parameters><Parameter Type="Boolean">true</Parameter></Parameters></Method></Actions><ObjectPaths><Identity Id="9" Name="fc4179a0-e0d7-5000-c38b-bc3506fbab6f|740c6a0b-85e2-48a0-a494-e0f1759d4aa7:site:${siteId}:web:${webId}:contenttype:${formatting.escapeXml(id)}" /></ObjectPaths></Request>`) {
-        return `[
-          {
-            "SchemaVersion": "15.0.0.0",
-            "LibraryVersion": "16.0.7911.1206",
-            "ErrorInfo": null,
-            "TraceCorrelationId": "e5547d9e-705d-0000-22fb-8faca5696ed8"
-          }
-        ]`;
-      }
+        throw `Invalid GET-request ${JSON.stringify(opts)}`;
+      });
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
+        if (opts.url === `${webUrl}/_vti_bin/client.svc/ProcessQuery`
+          && opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><SetProperty Id="12" ObjectPathId="9" Name="Name"><Parameter Type="String">${newName}</Parameter></SetProperty><Method Name="Update" Id="13" ObjectPathId="9"><Parameters><Parameter Type="Boolean">true</Parameter></Parameters></Method></Actions><ObjectPaths><Identity Id="9" Name="fc4179a0-e0d7-5000-c38b-bc3506fbab6f|740c6a0b-85e2-48a0-a494-e0f1759d4aa7:site:${siteId}:web:${webId}:contenttype:${formatting.escapeXml(id)}" /></ObjectPaths></Request>`) {
+          return `[
+            {
+              "SchemaVersion": "15.0.0.0",
+              "LibraryVersion": "16.0.7911.1206",
+              "ErrorInfo": null,
+              "TraceCorrelationId": "e5547d9e-705d-0000-22fb-8faca5696ed8"
+            }
+          ]`;
+        }
 
-      throw `Invalid POST-request ${JSON.stringify(opts)}`;
-    });
+        throw `Invalid POST-request ${JSON.stringify(opts)}`;
+      });
 
-    await command.action(logger, { options: { webUrl: webUrl, id: id, Name: newName, updateChildren: true } } as any);
-    assert(loggerLogSpy.notCalled);
-  });
+      await command.action(logger, { options: { webUrl: webUrl, id: id, Name: newName, updateChildren: true } } as any);
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
-  it('fails to update content type with name and listUrl when content type does not exist', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/Web/ContentTypes?$filter=Name eq '${name}'&$select=Id`) {
-        return { value: [] };
-      }
+  it('fails to update content type with name and listUrl when content type does not exist',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/Web/ContentTypes?$filter=Name eq '${name}'&$select=Id`) {
+          return { value: [] };
+        }
 
-      throw 'Invalid request url: ' + opts.url;
-    });
-    const patchStub = sinon.stub(request, 'patch').resolves();
+        throw 'Invalid request url: ' + opts.url;
+      });
+      const patchStub = jest.spyOn(request, 'patch').mockClear().mockImplementation().resolves();
 
-    await assert.rejects(command.action(logger, { options: { webUrl: webUrl, name: name, Name: newName } } as any), new CommandError(`The specified content type '${name}' does not exist`));
-    assert(patchStub.notCalled);
-  });
+      await assert.rejects(command.action(logger, { options: { webUrl: webUrl, name: name, Name: newName } } as any), new CommandError(`The specified content type '${name}' does not exist`));
+      assert(patchStub.notCalled);
+    }
+  );
 
   it('correctly handles random API error', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url === `${webUrl}/_api/site?$select=Id`) {
         return { Id: siteId };
       }
@@ -379,7 +394,7 @@ describe(commands.CONTENTTYPE_SET, () => {
 
       throw `Invalid GET-request ${JSON.stringify(opts)}`;
     });
-    sinon.stub(request, 'post').callsFake(async opts => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if (opts.url === `${webUrl}/_vti_bin/client.svc/ProcessQuery`
         && opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><SetProperty Id="12" ObjectPathId="9" Name="Name"><Parameter Type="String">${newName}</Parameter></SetProperty><Method Name="Update" Id="13" ObjectPathId="9"><Parameters><Parameter Type="Boolean">false</Parameter></Parameters></Method></Actions><ObjectPaths><Identity Id="9" Name="fc4179a0-e0d7-5000-c38b-bc3506fbab6f|740c6a0b-85e2-48a0-a494-e0f1759d4aa7:site:${siteId}:web:${webId}:contenttype:${formatting.escapeXml(id)}" /></ObjectPaths></Request>`) {
         return `[

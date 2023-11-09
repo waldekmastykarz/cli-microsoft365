@@ -20,14 +20,16 @@ describe('FN010010_YORC_sdkVersions_teams_js', () => {
     assert.strictEqual(findings.length, 0);
   });
 
-  it(`returns notification when @microsoft/generator-sharepoint is not set`, () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      yoRcJson: {}
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 1);
-  });
+  it(`returns notification when @microsoft/generator-sharepoint is not set`,
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        yoRcJson: {}
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 1);
+    }
+  );
 
   it(`returns notification when sdkVersions is not set`, () => {
     const project: Project = {
@@ -53,18 +55,20 @@ describe('FN010010_YORC_sdkVersions_teams_js', () => {
     assert.strictEqual(findings.length, 1);
   });
 
-  it(`returns notification when @microsoft/teams-js version doesn't match the required version`, () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      yoRcJson: {
-        "@microsoft/generator-sharepoint": {
-          sdkVersions: {
-            "@microsoft/teams-js": "2.4.0"
+  it(`returns notification when @microsoft/teams-js version doesn't match the required version`,
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        yoRcJson: {
+          "@microsoft/generator-sharepoint": {
+            sdkVersions: {
+              "@microsoft/teams-js": "2.4.0"
+            }
           }
         }
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 1);
-  });
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 1);
+    }
+  );
 });

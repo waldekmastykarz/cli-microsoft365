@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,21 +8,21 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './sitedesign-apply.js';
 
 describe(commands.SITEDESIGN_APPLY, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.spoUrl = 'https://contoso.sharepoint.com';
     commandInfo = Cli.getCommandInfo(command);
@@ -42,17 +41,17 @@ describe(commands.SITEDESIGN_APPLY, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -66,7 +65,7 @@ describe(commands.SITEDESIGN_APPLY, () => {
   });
 
   it('applies site design', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.ApplySiteDesign`) > -1 &&
         JSON.stringify(opts.data) === JSON.stringify({
           siteDesignId: '9b142c22-037f-4a7f-9017-e9d8c0e34b98',
@@ -90,7 +89,7 @@ describe(commands.SITEDESIGN_APPLY, () => {
   });
 
   it('applies site design (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.ApplySiteDesign`) > -1 &&
         JSON.stringify(opts.data) === JSON.stringify({
           siteDesignId: '9b142c22-037f-4a7f-9017-e9d8c0e34b98',
@@ -115,7 +114,7 @@ describe(commands.SITEDESIGN_APPLY, () => {
   });
 
   it('applies site design as task', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.AddSiteDesignTask`) > -1 &&
         JSON.stringify(opts.data) === JSON.stringify({
           siteDesignId: '9b142c22-037f-4a7f-9017-e9d8c0e34b98',
@@ -138,7 +137,7 @@ describe(commands.SITEDESIGN_APPLY, () => {
   });
 
   it('correctly handles OData error when applying site design', async () => {
-    sinon.stub(request, 'post').callsFake(() => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(() => {
       throw { error: { 'odata.error': { message: { value: 'An error has occurred' } } } };
     });
 

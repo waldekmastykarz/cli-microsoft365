@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './app-role-list.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -18,15 +17,15 @@ describe(commands.APP_ROLE_LIST, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -44,20 +43,20 @@ describe(commands.APP_ROLE_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       cli.getSettingWithDefaultValue,
       Cli.handleMultipleResultsFound
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -74,7 +73,7 @@ describe(commands.APP_ROLE_LIST, () => {
   });
 
   it('lists roles for the specified appId (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq 'bc724b77-da87-43a9-b385-6ebaaf969db8'&$select=id`) {
         return {
           value: [{
@@ -143,7 +142,7 @@ describe(commands.APP_ROLE_LIST, () => {
   });
 
   it('lists roles for the specified appName (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=displayName eq 'My%20app'&$select=id`) {
         return {
           value: [{
@@ -212,7 +211,7 @@ describe(commands.APP_ROLE_LIST, () => {
   });
 
   it('lists roles for the specified appId', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications/5b31c38c-2584-42f0-aa47-657fb3a84230/appRoles`) {
         return {
           value: [
@@ -273,7 +272,7 @@ describe(commands.APP_ROLE_LIST, () => {
   });
 
   it(`returns an empty array if the specified app has no roles`, async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications/5b31c38c-2584-42f0-aa47-657fb3a84230/appRoles`) {
         return { value: [] };
       }
@@ -285,187 +284,201 @@ describe(commands.APP_ROLE_LIST, () => {
     assert(loggerLogSpy.calledWith([]));
   });
 
-  it('handles error when the app specified with appObjectId not found', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === 'https://graph.microsoft.com/v1.0/myorganization/applications/5b31c38c-2584-42f0-aa47-657fb3a84230/appRoles') {
-        throw {
-          "error": {
-            "code": "Request_ResourceNotFound",
-            "message": "Resource '5b31c38c-2584-42f0-aa47-657fb3a84230' does not exist or one of its queried reference-property objects are not present.",
-            "innerError": {
-              "date": "2021-04-20T17:22:30",
-              "request-id": "f58cc4de-b427-41de-b37c-46ee4925a26d",
-              "client-request-id": "f58cc4de-b427-41de-b37c-46ee4925a26d"
+  it('handles error when the app specified with appObjectId not found',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === 'https://graph.microsoft.com/v1.0/myorganization/applications/5b31c38c-2584-42f0-aa47-657fb3a84230/appRoles') {
+          throw {
+            "error": {
+              "code": "Request_ResourceNotFound",
+              "message": "Resource '5b31c38c-2584-42f0-aa47-657fb3a84230' does not exist or one of its queried reference-property objects are not present.",
+              "innerError": {
+                "date": "2021-04-20T17:22:30",
+                "request-id": "f58cc4de-b427-41de-b37c-46ee4925a26d",
+                "client-request-id": "f58cc4de-b427-41de-b37c-46ee4925a26d"
+              }
             }
-          }
-        };
-      }
+          };
+        }
 
-      throw `Invalid request ${JSON.stringify(opts)}`;
-    });
+        throw `Invalid request ${JSON.stringify(opts)}`;
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        appObjectId: '5b31c38c-2584-42f0-aa47-657fb3a84230'
-      }
-    }), new CommandError(`Resource '5b31c38c-2584-42f0-aa47-657fb3a84230' does not exist or one of its queried reference-property objects are not present.`));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          appObjectId: '5b31c38c-2584-42f0-aa47-657fb3a84230'
+        }
+      }), new CommandError(`Resource '5b31c38c-2584-42f0-aa47-657fb3a84230' does not exist or one of its queried reference-property objects are not present.`));
+    }
+  );
 
-  it('handles error when the app specified with the appId not found', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '9b1b1e42-794b-4c71-93ac-5ed92488b67f'&$select=id`) {
-        return { value: [] };
-      }
+  it('handles error when the app specified with the appId not found',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '9b1b1e42-794b-4c71-93ac-5ed92488b67f'&$select=id`) {
+          return { value: [] };
+        }
 
-      throw `Invalid request ${JSON.stringify(opts)}`;
-    });
+        throw `Invalid request ${JSON.stringify(opts)}`;
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f'
-      }
-    }), new CommandError(`No Azure AD application registration with ID 9b1b1e42-794b-4c71-93ac-5ed92488b67f found`));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f'
+        }
+      }), new CommandError(`No Azure AD application registration with ID 9b1b1e42-794b-4c71-93ac-5ed92488b67f found`));
+    }
+  );
 
-  it('handles error when the app specified with appName not found', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=displayName eq 'My%20app'&$select=id`) {
-        return { value: [] };
-      }
+  it('handles error when the app specified with appName not found',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=displayName eq 'My%20app'&$select=id`) {
+          return { value: [] };
+        }
 
-      throw `Invalid request ${JSON.stringify(opts)}`;
-    });
+        throw `Invalid request ${JSON.stringify(opts)}`;
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        appName: 'My app'
-      }
-    }), new CommandError(`No Azure AD application registration with name My app found`));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          appName: 'My app'
+        }
+      }), new CommandError(`No Azure AD application registration with name My app found`));
+    }
+  );
 
-  it('handles error when multiple apps with the specified appName found', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('handles error when multiple apps with the specified appName found',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=displayName eq 'My%20app'&$select=id`) {
-        return {
-          value: [
-            { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67f' },
-            { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67g' }
-          ]
-        };
-      }
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=displayName eq 'My%20app'&$select=id`) {
+          return {
+            value: [
+              { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67f' },
+              { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67g' }
+            ]
+          };
+        }
 
-      throw `Invalid request ${JSON.stringify(opts)}`;
-    });
+        throw `Invalid request ${JSON.stringify(opts)}`;
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        appName: 'My app'
-      }
-    }), new CommandError(`Multiple Azure AD application registration with name 'My app' found. Found: 9b1b1e42-794b-4c71-93ac-5ed92488b67f, 9b1b1e42-794b-4c71-93ac-5ed92488b67g.`));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          appName: 'My app'
+        }
+      }), new CommandError(`Multiple Azure AD application registration with name 'My app' found. Found: 9b1b1e42-794b-4c71-93ac-5ed92488b67f, 9b1b1e42-794b-4c71-93ac-5ed92488b67g.`));
+    }
+  );
 
-  it('handles selecting single result when multiple apps with the specified name found and cli is set to prompt', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=displayName eq 'My%20app'&$select=id`) {
-        return {
-          value: [
-            { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67f' },
-            { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67g' }
-          ]
-        };
-      }
+  it('handles selecting single result when multiple apps with the specified name found and cli is set to prompt',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=displayName eq 'My%20app'&$select=id`) {
+          return {
+            value: [
+              { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67f' },
+              { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67g' }
+            ]
+          };
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications/5b31c38c-2584-42f0-aa47-657fb3a84230/appRoles`) {
-        return {
-          value: [
-            {
-              "allowedMemberTypes": [
-                "User"
-              ],
-              "description": "Readers",
-              "displayName": "Readers",
-              "id": "ca12d0da-cd83-4dc9-8e4c-b6a529bebbb4",
-              "isEnabled": true,
-              "origin": "Application",
-              "value": "readers"
-            },
-            {
-              "allowedMemberTypes": [
-                "User"
-              ],
-              "description": "Writers",
-              "displayName": "Writers",
-              "id": "85c03d41-b438-48ea-bccd-8389c0e327bc",
-              "isEnabled": true,
-              "origin": "Application",
-              "value": "writers"
-            }
-          ]
-        };
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications/5b31c38c-2584-42f0-aa47-657fb3a84230/appRoles`) {
+          return {
+            value: [
+              {
+                "allowedMemberTypes": [
+                  "User"
+                ],
+                "description": "Readers",
+                "displayName": "Readers",
+                "id": "ca12d0da-cd83-4dc9-8e4c-b6a529bebbb4",
+                "isEnabled": true,
+                "origin": "Application",
+                "value": "readers"
+              },
+              {
+                "allowedMemberTypes": [
+                  "User"
+                ],
+                "description": "Writers",
+                "displayName": "Writers",
+                "id": "85c03d41-b438-48ea-bccd-8389c0e327bc",
+                "isEnabled": true,
+                "origin": "Application",
+                "value": "writers"
+              }
+            ]
+          };
+        }
 
-      throw `Invalid request ${JSON.stringify(opts)}`;
-    });
+        throw `Invalid request ${JSON.stringify(opts)}`;
+      });
 
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves({ id: '5b31c38c-2584-42f0-aa47-657fb3a84230' });
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves({ id: '5b31c38c-2584-42f0-aa47-657fb3a84230' });
 
-    await command.action(logger, { options: { appName: 'My app' } });
-    assert(loggerLogSpy.calledWith([
-      {
-        "allowedMemberTypes": [
-          "User"
-        ],
-        "description": "Readers",
-        "displayName": "Readers",
-        "id": "ca12d0da-cd83-4dc9-8e4c-b6a529bebbb4",
-        "isEnabled": true,
-        "origin": "Application",
-        "value": "readers"
-      },
-      {
-        "allowedMemberTypes": [
-          "User"
-        ],
-        "description": "Writers",
-        "displayName": "Writers",
-        "id": "85c03d41-b438-48ea-bccd-8389c0e327bc",
-        "isEnabled": true,
-        "origin": "Application",
-        "value": "writers"
-      }
-    ]));
-  });
+      await command.action(logger, { options: { appName: 'My app' } });
+      assert(loggerLogSpy.calledWith([
+        {
+          "allowedMemberTypes": [
+            "User"
+          ],
+          "description": "Readers",
+          "displayName": "Readers",
+          "id": "ca12d0da-cd83-4dc9-8e4c-b6a529bebbb4",
+          "isEnabled": true,
+          "origin": "Application",
+          "value": "readers"
+        },
+        {
+          "allowedMemberTypes": [
+            "User"
+          ],
+          "description": "Writers",
+          "displayName": "Writers",
+          "id": "85c03d41-b438-48ea-bccd-8389c0e327bc",
+          "isEnabled": true,
+          "origin": "Application",
+          "value": "writers"
+        }
+      ]));
+    }
+  );
 
-  it('handles error when retrieving information about app through appId failed', async () => {
-    sinon.stub(request, 'get').rejects(new Error('An error has occurred'));
+  it('handles error when retrieving information about app through appId failed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f'
-      }
-    } as any), new CommandError('An error has occurred'));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f'
+        }
+      } as any), new CommandError('An error has occurred'));
+    }
+  );
 
-  it('handles error when retrieving information about app through appName failed', async () => {
-    sinon.stub(request, 'get').rejects(new Error('An error has occurred'));
+  it('handles error when retrieving information about app through appName failed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        appName: 'My app'
-      }
-    } as any), new CommandError('An error has occurred'));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          appName: 'My app'
+        }
+      } as any), new CommandError('An error has occurred'));
+    }
+  );
 
   it('fails validation if appId and appObjectId specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -478,7 +491,7 @@ describe(commands.APP_ROLE_LIST, () => {
   });
 
   it('fails validation if appId and appName specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -491,7 +504,7 @@ describe(commands.APP_ROLE_LIST, () => {
   });
 
   it('fails validation if appObjectId and appName specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -503,18 +516,20 @@ describe(commands.APP_ROLE_LIST, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if neither appId, appObjectId nor appName specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if neither appId, appObjectId nor appName specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: {} }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: {} }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation if appId specified', async () => {
     const actual = await command.validate({ options: { appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f' } }, commandInfo);

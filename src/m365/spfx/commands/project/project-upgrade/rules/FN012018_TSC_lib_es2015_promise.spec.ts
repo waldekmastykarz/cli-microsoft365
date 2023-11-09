@@ -12,18 +12,20 @@ describe('FN012018_TSC_lib_es2015_promise', () => {
     rule = new FN012018_TSC_lib_es2015_promise();
   });
 
-  it('doesn\'t return notification if es2015.promise is already present', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      tsConfigJson: {
-        compilerOptions: {
-          lib: ['es2015.promise']
+  it('doesn\'t return notification if es2015.promise is already present',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        tsConfigJson: {
+          compilerOptions: {
+            lib: ['es2015.promise']
+          }
         }
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
   it('returns notification if es2015.promise is not present', () => {
     const project: Project = {

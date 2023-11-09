@@ -1,8 +1,7 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import request from '../../../../request.js';
 import { SpoAppBaseCommand } from './SpoAppBaseCommand.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 
 class MockCommand extends SpoAppBaseCommand {
   public get name(): string {
@@ -32,13 +31,13 @@ describe('SpoAppBaseCommand', () => {
   };
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
   });
 
   it('returns site collection URL correctly', async () => {
@@ -52,63 +51,73 @@ describe('SpoAppBaseCommand', () => {
     assert.strictEqual(actual, 'https://contoso.sharepoint.com/sites/project-x');
   });
 
-  it('returns site collection URL correctly when it has a trailing slash', async () => {
-    const actual = await cmd.getAppCatalogSiteUrl(logger, authSiteUrl, {
-      options: {
-        appCatalogUrl: 'https://contoso.sharepoint.com/sites/project-x/',
-        appCatalogScope: 'sitecollection'
-      }
-    });
+  it('returns site collection URL correctly when it has a trailing slash',
+    async () => {
+      const actual = await cmd.getAppCatalogSiteUrl(logger, authSiteUrl, {
+        options: {
+          appCatalogUrl: 'https://contoso.sharepoint.com/sites/project-x/',
+          appCatalogScope: 'sitecollection'
+        }
+      });
 
-    assert.strictEqual(actual, 'https://contoso.sharepoint.com/sites/project-x');
-  });
+      assert.strictEqual(actual, 'https://contoso.sharepoint.com/sites/project-x');
+    }
+  );
 
-  it('returns site collection URL correctly when site collection app catalog URL is specified', async () => {
-    const actual = await cmd.getAppCatalogSiteUrl(logger, authSiteUrl, {
-      options: {
-        appCatalogUrl: 'https://contoso.sharepoint.com/sites/project-x/AppCatalog',
-        appCatalogScope: 'sitecollection'
-      }
-    });
+  it('returns site collection URL correctly when site collection app catalog URL is specified',
+    async () => {
+      const actual = await cmd.getAppCatalogSiteUrl(logger, authSiteUrl, {
+        options: {
+          appCatalogUrl: 'https://contoso.sharepoint.com/sites/project-x/AppCatalog',
+          appCatalogScope: 'sitecollection'
+        }
+      });
 
-    assert.strictEqual(actual, 'https://contoso.sharepoint.com/sites/project-x');
-  });
+      assert.strictEqual(actual, 'https://contoso.sharepoint.com/sites/project-x');
+    }
+  );
 
-  it('returns site collection URL correctly when site collection app catalog URL is specified with trailing slash', async () => {
-    const actual = await cmd.getAppCatalogSiteUrl(logger, authSiteUrl, {
-      options: {
-        appCatalogUrl: 'https://contoso.sharepoint.com/sites/project-x/AppCatalog/',
-        appCatalogScope: 'sitecollection'
-      }
-    });
+  it('returns site collection URL correctly when site collection app catalog URL is specified with trailing slash',
+    async () => {
+      const actual = await cmd.getAppCatalogSiteUrl(logger, authSiteUrl, {
+        options: {
+          appCatalogUrl: 'https://contoso.sharepoint.com/sites/project-x/AppCatalog/',
+          appCatalogScope: 'sitecollection'
+        }
+      });
 
-    assert.strictEqual(actual, 'https://contoso.sharepoint.com/sites/project-x');
-  });
+      assert.strictEqual(actual, 'https://contoso.sharepoint.com/sites/project-x');
+    }
+  );
 
-  it(`returns site collection URL correctly when site collection is called 'appcatalog'`, async () => {
-    const actual = await cmd.getAppCatalogSiteUrl(logger, authSiteUrl, {
-      options: {
-        appCatalogUrl: 'https://contoso.sharepoint.com/sites/AppCatalog',
-        appCatalogScope: 'sitecollection'
-      }
-    });
+  it(`returns site collection URL correctly when site collection is called 'appcatalog'`,
+    async () => {
+      const actual = await cmd.getAppCatalogSiteUrl(logger, authSiteUrl, {
+        options: {
+          appCatalogUrl: 'https://contoso.sharepoint.com/sites/AppCatalog',
+          appCatalogScope: 'sitecollection'
+        }
+      });
 
-    assert.strictEqual(actual, 'https://contoso.sharepoint.com/sites/AppCatalog');
-  });
+      assert.strictEqual(actual, 'https://contoso.sharepoint.com/sites/AppCatalog');
+    }
+  );
 
-  it(`returns site collection URL correctly when site collection is called 'appcatalog' and app catalog URL is specified with trailing slash`, async () => {
-    const actual = await cmd.getAppCatalogSiteUrl(logger, authSiteUrl, {
-      options: {
-        appCatalogUrl: 'https://contoso.sharepoint.com/sites/AppCatalog/AppCatalog/',
-        appCatalogScope: 'sitecollection'
-      }
-    });
+  it(`returns site collection URL correctly when site collection is called 'appcatalog' and app catalog URL is specified with trailing slash`,
+    async () => {
+      const actual = await cmd.getAppCatalogSiteUrl(logger, authSiteUrl, {
+        options: {
+          appCatalogUrl: 'https://contoso.sharepoint.com/sites/AppCatalog/AppCatalog/',
+          appCatalogScope: 'sitecollection'
+        }
+      });
 
-    assert.strictEqual(actual, 'https://contoso.sharepoint.com/sites/AppCatalog');
-  });
+      assert.strictEqual(actual, 'https://contoso.sharepoint.com/sites/AppCatalog');
+    }
+  );
 
   it('returns tenant app catalog URL correctly', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url === `${authSiteUrl}/_api/SP_TenantSettings_Current`) {
         return {
           CorporateCatalogUrl: tenantAppCatalogUrl
@@ -123,7 +132,7 @@ describe('SpoAppBaseCommand', () => {
   });
 
   it('throws error when there is no tenant app catalog', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url === `${authSiteUrl}/_api/SP_TenantSettings_Current`) {
         return {
           CorporateCatalogUrl: null

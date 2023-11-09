@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './list-contenttype-add.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -45,15 +44,15 @@ describe(commands.LIST_CONTENTTYPE_ADD, () => {
   let cli: Cli;
   let log: any[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -71,18 +70,18 @@ describe(commands.LIST_CONTENTTYPE_ADD, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -94,115 +93,123 @@ describe(commands.LIST_CONTENTTYPE_ADD, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('adds content type to the specific list if listTitle option is passed (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/sites/dummy/_api/web/lists/getByTitle('Documents')/ContentTypes/AddAvailableContentType`) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0 &&
-          JSON.stringify(opts.data) === JSON.stringify({
-            contentTypeId: '0x0120'
-          })) {
-          return response;
+  it('adds content type to the specific list if listTitle option is passed (debug)',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/sites/dummy/_api/web/lists/getByTitle('Documents')/ContentTypes/AddAvailableContentType`) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0 &&
+            JSON.stringify(opts.data) === JSON.stringify({
+              contentTypeId: '0x0120'
+            })) {
+            return response;
+          }
         }
-      }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        listTitle: 'Documents',
-        webUrl: 'https://contoso.sharepoint.com/sites/dummy',
-        id: '0x0120'
-      }
-    });
-    assert(loggerLogSpy.calledWith(response));
-  });
-
-  it('adds content type to the specific list if listTitle option is passed', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/sites/dummy/_api/web/lists/getByTitle('Documents')/ContentTypes/AddAvailableContentType`) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0 &&
-          JSON.stringify(opts.data) === JSON.stringify({
-            contentTypeId: '0x0120'
-          })) {
-          return response;
+      await command.action(logger, {
+        options: {
+          debug: true,
+          listTitle: 'Documents',
+          webUrl: 'https://contoso.sharepoint.com/sites/dummy',
+          id: '0x0120'
         }
-      }
+      });
+      assert(loggerLogSpy.calledWith(response));
+    }
+  );
 
-      throw 'Invalid request';
-    });
-
-    await command.action(logger, {
-      options: {
-        listTitle: 'Documents',
-        webUrl: 'https://contoso.sharepoint.com/sites/dummy',
-        id: '0x0120'
-      }
-    });
-    assert(loggerLogSpy.calledWith(response));
-  });
-
-  it('adds content type to the specific list if listId option is passed (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/sites/dummy/_api/web/lists(guid'dfddade1-4729-428d-881e-7fedf3cae50d')/ContentTypes/AddAvailableContentType`) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0 &&
-          JSON.stringify(opts.data) === JSON.stringify({
-            contentTypeId: '0x0120'
-          })) {
-          return response;
+  it('adds content type to the specific list if listTitle option is passed',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/sites/dummy/_api/web/lists/getByTitle('Documents')/ContentTypes/AddAvailableContentType`) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0 &&
+            JSON.stringify(opts.data) === JSON.stringify({
+              contentTypeId: '0x0120'
+            })) {
+            return response;
+          }
         }
-      }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        listId: 'dfddade1-4729-428d-881e-7fedf3cae50d',
-        webUrl: 'https://contoso.sharepoint.com/sites/dummy',
-        id: '0x0120'
-      }
-    });
-    assert(loggerLogSpy.calledWith(response));
-  });
-
-  it('adds content type to the specific list if listId option is passed', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/sites/dummy/_api/web/lists(guid'dfddade1-4729-428d-881e-7fedf3cae50d')/ContentTypes/AddAvailableContentType`) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0 &&
-          JSON.stringify(opts.data) === JSON.stringify({
-            contentTypeId: '0x0120'
-          })) {
-          return response;
+      await command.action(logger, {
+        options: {
+          listTitle: 'Documents',
+          webUrl: 'https://contoso.sharepoint.com/sites/dummy',
+          id: '0x0120'
         }
-      }
+      });
+      assert(loggerLogSpy.calledWith(response));
+    }
+  );
 
-      throw 'Invalid request';
-    });
+  it('adds content type to the specific list if listId option is passed (debug)',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/sites/dummy/_api/web/lists(guid'dfddade1-4729-428d-881e-7fedf3cae50d')/ContentTypes/AddAvailableContentType`) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0 &&
+            JSON.stringify(opts.data) === JSON.stringify({
+              contentTypeId: '0x0120'
+            })) {
+            return response;
+          }
+        }
 
-    await command.action(logger, {
-      options: {
-        listId: 'dfddade1-4729-428d-881e-7fedf3cae50d',
-        webUrl: 'https://contoso.sharepoint.com/sites/dummy',
-        id: '0x0120'
-      }
-    });
-    assert(loggerLogSpy.calledWith(response));
-  });
+        throw 'Invalid request';
+      });
+
+      await command.action(logger, {
+        options: {
+          debug: true,
+          listId: 'dfddade1-4729-428d-881e-7fedf3cae50d',
+          webUrl: 'https://contoso.sharepoint.com/sites/dummy',
+          id: '0x0120'
+        }
+      });
+      assert(loggerLogSpy.calledWith(response));
+    }
+  );
+
+  it('adds content type to the specific list if listId option is passed',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/sites/dummy/_api/web/lists(guid'dfddade1-4729-428d-881e-7fedf3cae50d')/ContentTypes/AddAvailableContentType`) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0 &&
+            JSON.stringify(opts.data) === JSON.stringify({
+              contentTypeId: '0x0120'
+            })) {
+            return response;
+          }
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger, {
+        options: {
+          listId: 'dfddade1-4729-428d-881e-7fedf3cae50d',
+          webUrl: 'https://contoso.sharepoint.com/sites/dummy',
+          id: '0x0120'
+        }
+      });
+      assert(loggerLogSpy.calledWith(response));
+    }
+  );
 
   it('command correctly handles list get reject request', async () => {
     const err = 'list retrieve error';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/_api/web/lists/getByTitle('Documents')/ContentTypes/AddAvailableContentType`) {
         throw err;
       }
@@ -221,7 +228,7 @@ describe(commands.LIST_CONTENTTYPE_ADD, () => {
   });
 
   it('uses correct API url when listTitle option is passed', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/_api/web/lists/getByTitle('Documents')/ContentTypes/AddAvailableContentType`) {
         return response;
       }
@@ -240,7 +247,7 @@ describe(commands.LIST_CONTENTTYPE_ADD, () => {
   });
 
   it('uses correct API url when listId option is passed', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/_api/web/lists(guid'dfddade1-4729-428d-881e-7fedf3cae50d')/ContentTypes/AddAvailableContentType`) {
         return response;
       }
@@ -259,7 +266,7 @@ describe(commands.LIST_CONTENTTYPE_ADD, () => {
   });
 
   it('adds contenttype to list when list url is used', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://contoso.sharepoint.com/_api/web/GetList(\'%2Fsites%2Fdocuments\')/ContentTypes/AddAvailableContentType') {
         return response;
       }
@@ -278,7 +285,7 @@ describe(commands.LIST_CONTENTTYPE_ADD, () => {
   });
 
   it('adds contenttype to list when list url is used (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://contoso.sharepoint.com/_api/web/GetList(\'%2Fsites%2Fdocuments\')/ContentTypes/AddAvailableContentType') {
         return response;
       }
@@ -297,28 +304,34 @@ describe(commands.LIST_CONTENTTYPE_ADD, () => {
     assert(loggerLogSpy.calledWith(response));
   });
 
-  it('fails validation if both listId and listTitle options are not passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both listId and listTitle options are not passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '0x0120' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '0x0120' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF', id: '0x0120' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF', id: '0x0120' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the webUrl option is a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF', id: '0x0120' } }, commandInfo);
-    assert(actual);
-  });
+  it('passes validation if the webUrl option is a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF', id: '0x0120' } }, commandInfo);
+      assert(actual);
+    }
+  );
 
   it('fails validation if the listId option is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '12345', id: '0x0120' } }, commandInfo);
@@ -335,34 +348,38 @@ describe(commands.LIST_CONTENTTYPE_ADD, () => {
     assert(actual);
   });
 
-  it('fails validation if both listId and listTitle options are passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both listId and listTitle options are passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF', listTitle: 'Documents', id: '0x0120' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF', listTitle: 'Documents', id: '0x0120' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if the contentTypeId option is not passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if the contentTypeId option is not passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF', listTitle: 'Documents' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF', listTitle: 'Documents' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if listId and listUrl are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -375,7 +392,7 @@ describe(commands.LIST_CONTENTTYPE_ADD, () => {
   });
 
   it('fails validation if listTitle and listUrl are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -387,18 +404,20 @@ describe(commands.LIST_CONTENTTYPE_ADD, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation neither listTitle nor listId or listUrl is specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation neither listTitle nor listId or listUrl is specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('configures command types', () => {
     assert.notStrictEqual(typeof command.types, 'undefined', 'command types undefined');

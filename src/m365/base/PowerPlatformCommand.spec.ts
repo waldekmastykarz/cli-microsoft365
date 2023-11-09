@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth, { CloudType } from '../../Auth.js';
 import { CommandError } from '../../Command.js';
 import { telemetry } from '../../telemetry.js';
@@ -25,12 +24,12 @@ describe('PowerPlatformCommand', () => {
   const cmd = new MockCommand();
   const cloudError = new CommandError(`Power Platform commands only support the public cloud at the moment. We'll add support for other clouds in the future. Sorry for the inconvenience.`);
 
-  before(() => {
-    sinon.stub(telemetry, 'trackEvent').returns();
+  beforeAll(() => {
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
   });
 
   it('returns correct bapi resource', () => {

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './m365group-renew.js';
 import { aadGroup } from '../../../../utils/aadGroup.js';
@@ -17,16 +16,16 @@ import { aadGroup } from '../../../../utils/aadGroup.js';
 describe(commands.M365GROUP_RENEW, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogToStderrSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(aadGroup, 'isUnifiedGroup').resolves(true);
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(aadGroup, 'isUnifiedGroup').mockClear().mockImplementation().resolves(true);
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -44,19 +43,19 @@ describe(commands.M365GROUP_RENEW, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       global.setTimeout
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -69,7 +68,7 @@ describe(commands.M365GROUP_RENEW, () => {
   });
 
   it('renews expiration the specified group', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/groups/28beab62-7540-4db1-a23f-29a6018a3848/renew/') {
         return;
       }
@@ -82,7 +81,7 @@ describe(commands.M365GROUP_RENEW, () => {
   });
 
   it('renews expiration the specified group (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/groups/28beab62-7540-4db1-a23f-29a6018a3848/renew/') {
         return;
       }
@@ -95,7 +94,7 @@ describe(commands.M365GROUP_RENEW, () => {
   });
 
   it('correctly handles error when group is not found', async () => {
-    sinon.stub(request, 'post').rejects({ error: { 'odata.error': { message: { value: 'The remote server returned an error: (404) Not Found.' } } } });
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects({ error: { 'odata.error': { message: { value: 'The remote server returned an error: (404) Not Found.' } } } });
 
     await assert.rejects(command.action(logger, { options: { id: '28beab62-7540-4db1-a23f-29a6018a3848' } } as any),
       new CommandError('The remote server returned an error: (404) Not Found.'));
@@ -125,8 +124,8 @@ describe(commands.M365GROUP_RENEW, () => {
   it('throws error when the group is not a unified group', async () => {
     const groupId = '3f04e370-cbc6-4091-80fe-1d038be2ad06';
 
-    sinonUtil.restore(aadGroup.isUnifiedGroup);
-    sinon.stub(aadGroup, 'isUnifiedGroup').resolves(false);
+    jestUtil.restore(aadGroup.isUnifiedGroup);
+    jest.spyOn(aadGroup, 'isUnifiedGroup').mockClear().mockImplementation().resolves(false);
 
     await assert.rejects(command.action(logger, { options: { id: groupId } } as any),
       new CommandError(`Specified group with id '${groupId}' is not a Microsoft 365 group.`));

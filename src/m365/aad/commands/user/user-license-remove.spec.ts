@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './user-license-remove.js';
 
@@ -26,11 +25,11 @@ describe(commands.USER_LICENSE_REMOVE, () => {
   let logger: Logger;
   let promptOptions: any;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -48,7 +47,7 @@ describe(commands.USER_LICENSE_REMOVE, () => {
         log.push(msg);
       }
     };
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
@@ -56,14 +55,14 @@ describe(commands.USER_LICENSE_REMOVE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -107,112 +106,126 @@ describe(commands.USER_LICENSE_REMOVE, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation if required options specified (userName)', async () => {
-    const actual = await command.validate({ options: { ids: validIds, userName: validUserName } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
-
-  it('prompts before removing the specified user licenses when confirm option not passed', async () => {
-    await command.action(logger, {
-      options: {
-        ids: validIds,
-        userId: validUserId
-      }
-    });
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+  it('passes validation if required options specified (userName)',
+    async () => {
+      const actual = await command.validate({ options: { ids: validIds, userName: validUserName } }, commandInfo);
+      assert.strictEqual(actual, true);
     }
+  );
 
-    assert(promptIssued);
-  });
+  it('prompts before removing the specified user licenses when confirm option not passed',
+    async () => {
+      await command.action(logger, {
+        options: {
+          ids: validIds,
+          userId: validUserId
+        }
+      });
+      let promptIssued = false;
 
-  it('aborts removing the specified user licenses when confirm option not passed and prompt not confirmed', async () => {
-    const postSpy = sinon.spy(request, 'delete');
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: false });
-
-    await command.action(logger, {
-      options: {
-        ids: validIds,
-        userId: validUserId
-      }
-    });
-    assert(postSpy.notCalled);
-  });
-
-  it('removes a single user license by userId without confirmation prompt', async () => {
-    const postSpy = sinon.stub(request, 'post').callsFake(async opts => {
-      if ((opts.url === `https://graph.microsoft.com/v1.0/users/${validUserId}/assignLicense`)) {
-        return;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
       }
 
-      throw `Invalid request ${opts.url}`;
-    });
+      assert(promptIssued);
+    }
+  );
 
-    await command.action(logger, { options: { userId: validUserId, ids: validIdsSingle, force: true } });
-    assert(postSpy.called);
-  });
+  it('aborts removing the specified user licenses when confirm option not passed and prompt not confirmed',
+    async () => {
+      const postSpy = jest.spyOn(request, 'delete').mockClear();
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: false });
 
-  it('removes the specified user licenses by userName when prompt confirmed', async () => {
-    const postSpy = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users/${validUserName}/assignLicense`) {
-        return;
-      }
+      await command.action(logger, {
+        options: {
+          ids: validIds,
+          userId: validUserId
+        }
+      });
+      assert(postSpy.notCalled);
+    }
+  );
 
-      throw 'Invalid request';
-    });
+  it('removes a single user license by userId without confirmation prompt',
+    async () => {
+      const postSpy = jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
+        if ((opts.url === `https://graph.microsoft.com/v1.0/users/${validUserId}/assignLicense`)) {
+          return;
+        }
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+        throw `Invalid request ${opts.url}`;
+      });
 
-    await command.action(logger, {
-      options: {
-        verbose: true, userName: validUserName, ids: validIds
-      }
-    });
-    assert(postSpy.called);
-  });
+      await command.action(logger, { options: { userId: validUserId, ids: validIdsSingle, force: true } });
+      assert(postSpy.called);
+    }
+  );
 
-  it('removes the specified user licenses by userId without confirmation prompt', async () => {
-    const postSpy = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users/${validUserId}/assignLicense`) {
-        return;
-      }
+  it('removes the specified user licenses by userName when prompt confirmed',
+    async () => {
+      const postSpy = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users/${validUserName}/assignLicense`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        verbose: true, userId: validUserId, ids: validIds, force: true
-      }
-    });
-    assert(postSpy.called);
-  });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-  it('fails when removing one license is not a valid company license', async () => {
-    const error = {
-      error: {
-        message: 'License 0118a350-71fc-4ec3-8f0c-6a1cb8867561 does not correspond to a valid company License.'
-      }
-    };
+      await command.action(logger, {
+        options: {
+          verbose: true, userName: validUserName, ids: validIds
+        }
+      });
+      assert(postSpy.called);
+    }
+  );
 
-    sinon.stub(request, 'post').callsFake(async opts => {
-      if ((opts.url === `https://graph.microsoft.com/v1.0/users/${validUserId}/assignLicense`)) {
-        throw error;
-      }
+  it('removes the specified user licenses by userId without confirmation prompt',
+    async () => {
+      const postSpy = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users/${validUserId}/assignLicense`) {
+          return;
+        }
 
-      throw `Invalid request ${opts.url}`;
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        verbose: true, userId: validUserId, ids: validIdsSingle, force: true
-      }
-    }), new CommandError(error.error.message));
-  });
+      await command.action(logger, {
+        options: {
+          verbose: true, userId: validUserId, ids: validIds, force: true
+        }
+      });
+      assert(postSpy.called);
+    }
+  );
+
+  it('fails when removing one license is not a valid company license',
+    async () => {
+      const error = {
+        error: {
+          message: 'License 0118a350-71fc-4ec3-8f0c-6a1cb8867561 does not correspond to a valid company License.'
+        }
+      };
+
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
+        if ((opts.url === `https://graph.microsoft.com/v1.0/users/${validUserId}/assignLicense`)) {
+          throw error;
+        }
+
+        throw `Invalid request ${opts.url}`;
+      });
+
+      await assert.rejects(command.action(logger, {
+        options: {
+          verbose: true, userId: validUserId, ids: validIdsSingle, force: true
+        }
+      }), new CommandError(error.error.message));
+    }
+  );
 
   it('correctly handles random API error', async () => {
     const error = {
@@ -220,7 +233,7 @@ describe(commands.USER_LICENSE_REMOVE, () => {
         message: 'The license cannot be removes.'
       }
     };
-    sinon.stub(request, 'post').callsFake(async () => { throw error; });
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async () => { throw error; });
 
     await assert.rejects(command.action(logger, {
       options: {

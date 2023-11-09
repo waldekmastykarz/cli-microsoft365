@@ -2,11 +2,10 @@ import assert, { fail } from 'assert';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import sinon from 'sinon';
 import url from 'url';
 import Command from './Command.js';
 import { Cli } from './cli/Cli.js';
-import { sinonUtil } from './utils/sinonUtil.js';
+import { jestUtil } from './utils/jestUtil.js';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
@@ -100,9 +99,9 @@ describe('autocomplete', () => {
   };
   let cli: Cli;
 
-  before(async () => {
+  beforeAll(async () => {
     cli = Cli.getInstance();
-    sinon.stub(fs, 'existsSync').callsFake(() => false);
+    jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(() => false);
     autocomplete = (await import('./autocomplete.js')).autocomplete;
   });
 
@@ -110,12 +109,12 @@ describe('autocomplete', () => {
     (cli as any).commands = [];
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
   });
 
   it('writes sh completion to disk', () => {
-    const writeFileSyncStub = sinon.stub(fs, 'writeFileSync').callsFake(() => { });
+    const writeFileSyncStub = jest.spyOn(fs, 'writeFileSync').mockClear().mockImplementation(() => { });
     (cli as any).loadCommand(new SimpleCommand());
     autocomplete.generateShCompletion();
     assert(writeFileSyncStub.calledWith(path.join(__dirname, `..${path.sep}commands.json`), JSON.stringify({
@@ -138,14 +137,14 @@ describe('autocomplete', () => {
     const fakeOmelette = {
       setupShellInitFile: () => { }
     };
-    const setupSpy = sinon.spy(fakeOmelette, 'setupShellInitFile');
+    const setupSpy = jest.spyOn(fakeOmelette, 'setupShellInitFile').mockClear();
     sandbox.stub(autocomplete, 'omelette').value(fakeOmelette);
     autocomplete.setupShCompletion();
     try {
       assert(setupSpy.called);
     }
     catch {
-      sinonUtil.restore([
+      jestUtil.restore([
         setupSpy,
         autocomplete.omelette,
         sandbox
@@ -219,9 +218,9 @@ describe('autocomplete', () => {
   });
 
   it('loads generated commands info from the file system', () => {
-    sinonUtil.restore(fs.existsSync);
-    sinon.stub(fs, 'existsSync').callsFake(() => true);
-    const readFileSyncStub = sinon.stub(fs, 'readFileSync').callsFake(() => JSON.stringify({}));
+    jestUtil.restore(fs.existsSync);
+    jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(() => true);
+    const readFileSyncStub = jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(() => JSON.stringify({}));
     (autocomplete as any).init();
     try {
       assert(readFileSyncStub.calledWith(path.join(__dirname, `..${path.sep}commands.json`), 'utf-8'));
@@ -230,7 +229,7 @@ describe('autocomplete', () => {
       fail(e);
     }
     finally {
-      sinonUtil.restore([
+      jestUtil.restore([
         fs.existsSync,
         fs.readFileSync,
         readFileSyncStub
@@ -239,9 +238,9 @@ describe('autocomplete', () => {
   });
 
   it('doesnt fail when the commands file is empty', () => {
-    sinonUtil.restore(fs.existsSync);
-    sinon.stub(fs, 'existsSync').callsFake(() => true);
-    const readFileSyncStub = sinon.stub(fs, 'readFileSync').callsFake(() => '');
+    jestUtil.restore(fs.existsSync);
+    jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(() => true);
+    const readFileSyncStub = jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(() => '');
     (autocomplete as any).init();
     try {
       assert.strictEqual(JSON.stringify((autocomplete as any).commands), JSON.stringify({}));
@@ -250,7 +249,7 @@ describe('autocomplete', () => {
       fail(e);
     }
     finally {
-      sinonUtil.restore([
+      jestUtil.restore([
         fs.existsSync,
         fs.readFileSync,
         readFileSyncStub
@@ -258,48 +257,52 @@ describe('autocomplete', () => {
     }
   });
 
-  it('correctly lists available services when completing first fragment and it\'s empty', () => {
-    const evtData = {
-      before: "m365",
-      fragment: 1,
-      line: "m365 ",
-      reply: (_data: any | string[]) => { }
-    };
-    const replies: any[] = [];
-    const replyStub = sinon.stub(evtData, 'reply').callsFake((r) => {
-      replies.push(r);
-    });
-    autocomplete.commands = commandInfo;
-    autocomplete.handleAutocomplete(undefined, evtData);
-    assert(replyStub.calledWith(['help', 'aad', 'spo']));
-  });
+  it('correctly lists available services when completing first fragment and it\'s empty',
+    () => {
+      const evtData = {
+        before: "m365",
+        fragment: 1,
+        line: "m365 ",
+        reply: (_data: any | string[]) => { }
+      };
+      const replies: any[] = [];
+      const replyStub = jest.spyOn(evtData, 'reply').mockClear().mockImplementation((r) => {
+        replies.push(r);
+      });
+      autocomplete.commands = commandInfo;
+      autocomplete.handleAutocomplete(undefined, evtData);
+      assert(replyStub.calledWith(['help', 'aad', 'spo']));
+    }
+  );
 
-  it('correctly returns list of spo commands when first fragment is spo', () => {
-    const evtData = {
-      before: "spo",
-      fragment: 2,
-      line: "m365 spo ",
-      reply: (_data: any | string[]) => { }
-    };
-    const replies: any[] = [];
-    const replyStub = sinon.stub(evtData, 'reply').callsFake((r) => {
-      replies.push(r);
-    });
-    autocomplete.commands = commandInfo;
-    autocomplete.handleAutocomplete(undefined, evtData);
-    assert(replyStub.calledWith(['app',
-      'cdn',
-      'connect',
-      'customaction',
-      'disconnect',
-      'externaluser',
-      'serviceprincipal',
-      'sp',
-      'site',
-      'sitescript',
-      'status',
-      'storageentity']));
-  });
+  it('correctly returns list of spo commands when first fragment is spo',
+    () => {
+      const evtData = {
+        before: "spo",
+        fragment: 2,
+        line: "m365 spo ",
+        reply: (_data: any | string[]) => { }
+      };
+      const replies: any[] = [];
+      const replyStub = jest.spyOn(evtData, 'reply').mockClear().mockImplementation((r) => {
+        replies.push(r);
+      });
+      autocomplete.commands = commandInfo;
+      autocomplete.handleAutocomplete(undefined, evtData);
+      assert(replyStub.calledWith(['app',
+        'cdn',
+        'connect',
+        'customaction',
+        'disconnect',
+        'externaluser',
+        'serviceprincipal',
+        'sp',
+        'site',
+        'sitescript',
+        'status',
+        'storageentity']));
+    }
+  );
 
   it('suggests command options when line matches a command', () => {
     const evtData = {
@@ -309,7 +312,7 @@ describe('autocomplete', () => {
       reply: (_data: any | string[]) => { }
     };
     const replies: any[] = [];
-    const replyStub = sinon.stub(evtData, 'reply').callsFake((r) => {
+    const replyStub = jest.spyOn(evtData, 'reply').mockClear().mockImplementation((r) => {
       replies.push(r);
     });
     autocomplete.commands = commandInfo;
@@ -325,7 +328,7 @@ describe('autocomplete', () => {
       reply: (_data: any | string[]) => { }
     };
     const replies: any[] = [];
-    const replyStub = sinon.stub(evtData, 'reply').callsFake((r) => {
+    const replyStub = jest.spyOn(evtData, 'reply').mockClear().mockImplementation((r) => {
       replies.push(r);
     });
     autocomplete.commands = commandInfo;
@@ -333,21 +336,23 @@ describe('autocomplete', () => {
     assert(replyStub.calledWith(['json', 'text']));
   });
 
-  it('suggests other available options after specifying option\'s value', () => {
-    const evtData = {
-      before: "json",
-      fragment: 5,
-      line: "m365 spo status --output json ",
-      reply: (_data: any | string[]) => { }
-    };
-    const replies: any[] = [];
-    const replyStub = sinon.stub(evtData, 'reply').callsFake((r) => {
-      replies.push(r);
-    });
-    autocomplete.commands = commandInfo;
-    autocomplete.handleAutocomplete(undefined, evtData);
-    assert(replyStub.calledWith(['-o', '--verbose', '--debug', '--help']));
-  });
+  it('suggests other available options after specifying option\'s value',
+    () => {
+      const evtData = {
+        before: "json",
+        fragment: 5,
+        line: "m365 spo status --output json ",
+        reply: (_data: any | string[]) => { }
+      };
+      const replies: any[] = [];
+      const replyStub = jest.spyOn(evtData, 'reply').mockClear().mockImplementation((r) => {
+        replies.push(r);
+      });
+      autocomplete.commands = commandInfo;
+      autocomplete.handleAutocomplete(undefined, evtData);
+      assert(replyStub.calledWith(['-o', '--verbose', '--debug', '--help']));
+    }
+  );
 
   it('suggests other available options if the option is a switch', () => {
     const evtData = {
@@ -357,7 +362,7 @@ describe('autocomplete', () => {
       reply: (_data: any | string[]) => { }
     };
     const replies: any[] = [];
-    const replyStub = sinon.stub(evtData, 'reply').callsFake((r) => {
+    const replyStub = jest.spyOn(evtData, 'reply').mockClear().mockImplementation((r) => {
       replies.push(r);
     });
     autocomplete.commands = commandInfo;
@@ -365,35 +370,39 @@ describe('autocomplete', () => {
     assert(replyStub.calledWith(['-o', '--verbose', '--help']));
   });
 
-  it('doesn\'t return suggestions when the input doesn\'t match any command (completing fragment)', () => {
-    const evtData = {
-      before: "def",
-      fragment: 2,
-      line: "m365 abc def",
-      reply: (_data: any | string[]) => { }
-    };
-    const replies: any[] = [];
-    const replyStub = sinon.stub(evtData, 'reply').callsFake((r) => {
-      replies.push(r);
-    });
-    autocomplete.commands = commandInfo;
-    autocomplete.handleAutocomplete(undefined, evtData);
-    assert(replyStub.calledWith([]));
-  });
+  it('doesn\'t return suggestions when the input doesn\'t match any command (completing fragment)',
+    () => {
+      const evtData = {
+        before: "def",
+        fragment: 2,
+        line: "m365 abc def",
+        reply: (_data: any | string[]) => { }
+      };
+      const replies: any[] = [];
+      const replyStub = jest.spyOn(evtData, 'reply').mockClear().mockImplementation((r) => {
+        replies.push(r);
+      });
+      autocomplete.commands = commandInfo;
+      autocomplete.handleAutocomplete(undefined, evtData);
+      assert(replyStub.calledWith([]));
+    }
+  );
 
-  it('doesn\'t return suggestions when the input doesn\'t match any command (new fragment)', () => {
-    const evtData = {
-      before: "def",
-      fragment: 3,
-      line: "m365 abc def ",
-      reply: (_data: any | string[]) => { }
-    };
-    const replies: any[] = [];
-    const replyStub = sinon.stub(evtData, 'reply').callsFake((r) => {
-      replies.push(r);
-    });
-    autocomplete.commands = commandInfo;
-    autocomplete.handleAutocomplete(undefined, evtData);
-    assert(replyStub.calledWith([]));
-  });
+  it('doesn\'t return suggestions when the input doesn\'t match any command (new fragment)',
+    () => {
+      const evtData = {
+        before: "def",
+        fragment: 3,
+        line: "m365 abc def ",
+        reply: (_data: any | string[]) => { }
+      };
+      const replies: any[] = [];
+      const replyStub = jest.spyOn(evtData, 'reply').mockClear().mockImplementation((r) => {
+        replies.push(r);
+      });
+      autocomplete.commands = commandInfo;
+      autocomplete.handleAutocomplete(undefined, evtData);
+      assert(replyStub.calledWith([]));
+    }
+  );
 });

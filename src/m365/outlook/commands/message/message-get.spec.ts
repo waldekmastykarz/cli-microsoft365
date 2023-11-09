@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { accessToken } from '../../../../utils/accessToken.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './message-get.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -76,15 +75,15 @@ describe(commands.MESSAGE_GET, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.accessTokens[auth.defaultResource] = {
       expiresOn: 'abc',
@@ -106,21 +105,21 @@ describe(commands.MESSAGE_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(false);
+    jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(false);
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       accessToken.isAppOnlyAccessToken,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.accessTokens = {};
   });
@@ -134,7 +133,7 @@ describe(commands.MESSAGE_GET, () => {
   });
 
   it('retrieves specific message using delegated permissions', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/me/messages/${messageId}`) {
         return emailResponse;
       }
@@ -146,107 +145,121 @@ describe(commands.MESSAGE_GET, () => {
     assert(loggerLogSpy.calledWith(emailResponse));
   });
 
-  it('retrieves specific message using delegated permissions from a shared mailbox using userPrincipalName as option', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users/${userPrincipalName}/messages/${messageId}`) {
-        return emailResponse;
-      }
+  it('retrieves specific message using delegated permissions from a shared mailbox using userPrincipalName as option',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users/${userPrincipalName}/messages/${messageId}`) {
+          return emailResponse;
+        }
 
-      throw `Invalid request`;
-    });
+        throw `Invalid request`;
+      });
 
-    await command.action(logger, { options: { verbose: true, id: messageId, userPrincipalName: userPrincipalName } });
-    assert(loggerLogSpy.calledWith(emailResponse));
-  });
+      await command.action(logger, { options: { verbose: true, id: messageId, userPrincipalName: userPrincipalName } });
+      assert(loggerLogSpy.calledWith(emailResponse));
+    }
+  );
 
-  it('retrieves specific message using delegated permissions from a shared mailbox using userId as option', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users/${userId}/messages/${messageId}`) {
-        return emailResponse;
-      }
+  it('retrieves specific message using delegated permissions from a shared mailbox using userId as option',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users/${userId}/messages/${messageId}`) {
+          return emailResponse;
+        }
 
-      throw `Invalid request`;
-    });
+        throw `Invalid request`;
+      });
 
-    await command.action(logger, { options: { verbose: true, id: messageId, userId: userId } });
-    assert(loggerLogSpy.calledWith(emailResponse));
-  });
+      await command.action(logger, { options: { verbose: true, id: messageId, userId: userId } });
+      assert(loggerLogSpy.calledWith(emailResponse));
+    }
+  );
 
-  it('throws error if something fails using delegated permissions', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/me/messages/${messageId}`) {
-        throw `Graph error occurred`;
-      }
+  it('throws error if something fails using delegated permissions',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/me/messages/${messageId}`) {
+          throw `Graph error occurred`;
+        }
 
-      throw `Invalid request`;
-    });
+        throw `Invalid request`;
+      });
 
-    await assert.rejects(command.action(logger, { options: { id: messageId } } as any),
-      new CommandError(`Graph error occurred`));
-  });
+      await assert.rejects(command.action(logger, { options: { id: messageId } } as any),
+        new CommandError(`Graph error occurred`));
+    }
+  );
 
-  it('retrieves specific message using application permissions and using userPrincipalName as option', async () => {
-    sinonUtil.restore([accessToken.isAppOnlyAccessToken]);
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users/${userPrincipalName}/messages/${messageId}`) {
-        return emailResponse;
-      }
+  it('retrieves specific message using application permissions and using userPrincipalName as option',
+    async () => {
+      jestUtil.restore([accessToken.isAppOnlyAccessToken]);
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users/${userPrincipalName}/messages/${messageId}`) {
+          return emailResponse;
+        }
 
-      throw `Invalid request`;
-    });
+        throw `Invalid request`;
+      });
 
-    await command.action(logger, { options: { verbose: true, id: messageId, userPrincipalName: userPrincipalName } });
-    assert(loggerLogSpy.calledWith(emailResponse));
-  });
+      await command.action(logger, { options: { verbose: true, id: messageId, userPrincipalName: userPrincipalName } });
+      assert(loggerLogSpy.calledWith(emailResponse));
+    }
+  );
 
-  it('retrieves specific message using application permissions and using userId as option', async () => {
-    sinonUtil.restore([accessToken.isAppOnlyAccessToken]);
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users/${userId}/messages/${messageId}`) {
-        return emailResponse;
-      }
+  it('retrieves specific message using application permissions and using userId as option',
+    async () => {
+      jestUtil.restore([accessToken.isAppOnlyAccessToken]);
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users/${userId}/messages/${messageId}`) {
+          return emailResponse;
+        }
 
-      throw `Invalid request`;
-    });
+        throw `Invalid request`;
+      });
 
-    await command.action(logger, { options: { verbose: true, id: messageId, userId: userId } });
-    assert(loggerLogSpy.calledWith(emailResponse));
-  });
+      await command.action(logger, { options: { verbose: true, id: messageId, userId: userId } });
+      assert(loggerLogSpy.calledWith(emailResponse));
+    }
+  );
 
-  it('throws error if something fails using application permissions and userId as option', async () => {
-    sinonUtil.restore([accessToken.isAppOnlyAccessToken]);
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users/${userId}/messages/${messageId}`) {
-        throw `Graph error occurred`;
-      }
+  it('throws error if something fails using application permissions and userId as option',
+    async () => {
+      jestUtil.restore([accessToken.isAppOnlyAccessToken]);
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users/${userId}/messages/${messageId}`) {
+          throw `Graph error occurred`;
+        }
 
-      throw `Invalid request`;
-    });
+        throw `Invalid request`;
+      });
 
-    await assert.rejects(command.action(logger, { options: { id: messageId, userId: userId } } as any),
-      new CommandError(`Graph error occurred`));
-  });
+      await assert.rejects(command.action(logger, { options: { id: messageId, userId: userId } } as any),
+        new CommandError(`Graph error occurred`));
+    }
+  );
 
-  it('throws error if something fails using application permissions and userPrincipalName as option', async () => {
-    sinonUtil.restore([accessToken.isAppOnlyAccessToken]);
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users/${userPrincipalName}/messages/${messageId}`) {
-        throw `Graph error occurred`;
-      }
+  it('throws error if something fails using application permissions and userPrincipalName as option',
+    async () => {
+      jestUtil.restore([accessToken.isAppOnlyAccessToken]);
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users/${userPrincipalName}/messages/${messageId}`) {
+          throw `Graph error occurred`;
+        }
 
-      throw `Invalid request`;
-    });
+        throw `Invalid request`;
+      });
 
-    await assert.rejects(command.action(logger, { options: { id: messageId, userPrincipalName: userPrincipalName } } as any),
-      new CommandError(`Graph error occurred`));
-  });
+      await assert.rejects(command.action(logger, { options: { id: messageId, userPrincipalName: userPrincipalName } } as any),
+        new CommandError(`Graph error occurred`));
+    }
+  );
 
   it('fails validation if id is empty', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -262,27 +275,33 @@ describe(commands.MESSAGE_GET, () => {
     assert.equal(actual, true);
   });
 
-  it('throws an error when the upn or userprincipalname is not defined when signed in using app only authentication', async () => {
-    sinonUtil.restore([accessToken.isAppOnlyAccessToken]);
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
+  it('throws an error when the upn or userprincipalname is not defined when signed in using app only authentication',
+    async () => {
+      jestUtil.restore([accessToken.isAppOnlyAccessToken]);
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
 
-    await assert.rejects(command.action(logger, { options: { id: messageId } } as any),
-      new CommandError(`The option 'userId' or 'userPrincipalName' is required when retrieving an email using app only credentials`));
-  });
+      await assert.rejects(command.action(logger, { options: { id: messageId } } as any),
+        new CommandError(`The option 'userId' or 'userPrincipalName' is required when retrieving an email using app only credentials`));
+    }
+  );
 
-  it('throws an error when the upn or userprincipalname are both defined when signed in using app only authentication', async () => {
-    sinonUtil.restore([accessToken.isAppOnlyAccessToken]);
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
+  it('throws an error when the upn or userprincipalname are both defined when signed in using app only authentication',
+    async () => {
+      jestUtil.restore([accessToken.isAppOnlyAccessToken]);
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
 
-    await assert.rejects(command.action(logger, { options: { id: messageId, userId: userId, userPrincipalName: userPrincipalName } } as any),
-      new CommandError(`Both options 'userId' and 'userPrincipalName' cannot be set when retrieving an email using app only credentials`));
-  });
+      await assert.rejects(command.action(logger, { options: { id: messageId, userId: userId, userPrincipalName: userPrincipalName } } as any),
+        new CommandError(`Both options 'userId' and 'userPrincipalName' cannot be set when retrieving an email using app only credentials`));
+    }
+  );
 
-  it('throws an error when the upn and userprincipalname are both filled in when signed in using delegated authentication', async () => {
-    sinonUtil.restore([accessToken.isAppOnlyAccessToken]);
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(false);
+  it('throws an error when the upn and userprincipalname are both filled in when signed in using delegated authentication',
+    async () => {
+      jestUtil.restore([accessToken.isAppOnlyAccessToken]);
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(false);
 
-    await assert.rejects(command.action(logger, { options: { id: messageId, userId: userId, userPrincipalName: userPrincipalName } } as any),
-      new CommandError(`Both options 'userId' and 'userPrincipalName' cannot be set when retrieving an email using delegated credentials`));
-  });
+      await assert.rejects(command.action(logger, { options: { id: messageId, userId: userId, userPrincipalName: userPrincipalName } } as any),
+        new CommandError(`Both options 'userId' and 'userPrincipalName' cannot be set when retrieving an email using delegated credentials`));
+    }
+  );
 });

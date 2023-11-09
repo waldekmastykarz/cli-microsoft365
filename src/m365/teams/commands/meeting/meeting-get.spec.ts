@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -12,7 +11,7 @@ import { accessToken } from '../../../../utils/accessToken.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './meeting-get.js';
 
@@ -108,14 +107,14 @@ describe(commands.MEETING_GET, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.accessTokens[auth.defaultResource] = {
       expiresOn: 'abc',
@@ -137,11 +136,11 @@ describe(commands.MEETING_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       accessToken.isAppOnlyAccessToken,
       request.get,
       aadUser.getUserIdByEmail,
@@ -149,8 +148,8 @@ describe(commands.MEETING_GET, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.accessTokens = {};
   });
@@ -184,8 +183,8 @@ describe(commands.MEETING_GET, () => {
   });
 
   it('retrieves specific meeting details using userId (debug)', async () => {
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings?$filter=JoinWebUrl eq '${formatting.encodeQueryParameter(joinUrl)}'`) {
         return meetingResponse;
       }
@@ -206,10 +205,10 @@ describe(commands.MEETING_GET, () => {
   });
 
   it('retrieves specific meeting details using userName', async () => {
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
-    sinon.stub(aadUser, 'getUserIdByUpn').resolves(userId);
+    jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
+    jest.spyOn(aadUser, 'getUserIdByUpn').mockClear().mockImplementation().resolves(userId);
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings?$filter=JoinWebUrl eq '${formatting.encodeQueryParameter(joinUrl)}'`) {
         return meetingResponse;
       }
@@ -229,9 +228,9 @@ describe(commands.MEETING_GET, () => {
   });
 
   it('retrieves specific meeting details using email', async () => {
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
-    sinon.stub(aadUser, 'getUserIdByEmail').resolves(userId);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
+    jest.spyOn(aadUser, 'getUserIdByEmail').mockClear().mockImplementation().resolves(userId);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings?$filter=JoinWebUrl eq '${formatting.encodeQueryParameter(joinUrl)}'`) {
         return meetingResponse;
       }
@@ -250,80 +249,90 @@ describe(commands.MEETING_GET, () => {
     assert(loggerLogSpy.calledWith(meetingResponse.value[0]));
   });
 
-  it('retrieves specific meeting details using delegated permissions', async () => {
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(false);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/me/onlineMeetings?$filter=JoinWebUrl eq '${formatting.encodeQueryParameter(joinUrl)}'`) {
-        return meetingResponse;
-      }
+  it('retrieves specific meeting details using delegated permissions',
+    async () => {
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(false);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/me/onlineMeetings?$filter=JoinWebUrl eq '${formatting.encodeQueryParameter(joinUrl)}'`) {
+          return meetingResponse;
+        }
 
-      throw `Invalid request`;
-    });
+        throw `Invalid request`;
+      });
 
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        joinUrl: joinUrl
-      }
-    });
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          joinUrl: joinUrl
+        }
+      });
 
-    assert(loggerLogSpy.calledWith(meetingResponse.value[0]));
-  });
+      assert(loggerLogSpy.calledWith(meetingResponse.value[0]));
+    }
+  );
 
-  it('correctly handles error when the meeting with join URL not found', async () => {
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings?$filter=JoinWebUrl eq '${formatting.encodeQueryParameter(joinUrl)}'`) {
-        return { value: [] };
-      }
+  it('correctly handles error when the meeting with join URL not found',
+    async () => {
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings?$filter=JoinWebUrl eq '${formatting.encodeQueryParameter(joinUrl)}'`) {
+          return { value: [] };
+        }
 
-      throw `The specified meeting was not found`;
-    });
+        throw `The specified meeting was not found`;
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        verbose: true,
-        userId: userId,
-        joinUrl: joinUrl
-      }
-    }), new CommandError(`The specified meeting was not found`));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          verbose: true,
+          userId: userId,
+          joinUrl: joinUrl
+        }
+      }), new CommandError(`The specified meeting was not found`));
+    }
+  );
 
-  it('correctly handles error when getting specified meeting details', async () => {
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(false);
-    const errorMessage = 'An error has occurred.';
-    sinon.stub(request, 'get').callsFake(async () => { throw { error: { error: { message: errorMessage } } }; });
+  it('correctly handles error when getting specified meeting details',
+    async () => {
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(false);
+      const errorMessage = 'An error has occurred.';
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async () => { throw { error: { error: { message: errorMessage } } }; });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        verbose: true,
-        joinUrl: joinUrl
-      }
-    }), new CommandError(errorMessage));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          verbose: true,
+          joinUrl: joinUrl
+        }
+      }), new CommandError(errorMessage));
+    }
+  );
 
-  it('correctly handles error when getting specified meeting details using app only permissions', async () => {
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
-    const errorMessage = `The option 'userId', 'userName' or 'email' is required when retrieving meetings using app only permissions`;
+  it('correctly handles error when getting specified meeting details using app only permissions',
+    async () => {
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
+      const errorMessage = `The option 'userId', 'userName' or 'email' is required when retrieving meetings using app only permissions`;
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        verbose: true,
-        joinUrl: joinUrl
-      }
-    }), new CommandError(errorMessage));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          verbose: true,
+          joinUrl: joinUrl
+        }
+      }), new CommandError(errorMessage));
+    }
+  );
 
-  it('correctly handles error when getting specified meeting details using delegated permissions', async () => {
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(false);
-    const errorMessage = `The options 'userId', 'userName' and 'email' cannot be used when retrieving meetings using delegated permissions`;
+  it('correctly handles error when getting specified meeting details using delegated permissions',
+    async () => {
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(false);
+      const errorMessage = `The options 'userId', 'userName' and 'email' cannot be used when retrieving meetings using delegated permissions`;
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        verbose: true,
-        userId: userId,
-        joinUrl: joinUrl
-      }
-    }), new CommandError(errorMessage));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          verbose: true,
+          userId: userId,
+          joinUrl: joinUrl
+        }
+      }), new CommandError(errorMessage));
+    }
+  );
 });

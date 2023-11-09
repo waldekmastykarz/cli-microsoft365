@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 
 import command from './message-like-set.js';
@@ -20,11 +19,11 @@ describe(commands.MESSAGE_LIKE_SET, () => {
   let requests: any[];
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -43,22 +42,22 @@ describe(commands.MESSAGE_LIKE_SET, () => {
       }
     };
     requests = [];
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.delete,
       request.post,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -71,7 +70,7 @@ describe(commands.MESSAGE_LIKE_SET, () => {
   });
 
   it('correctly handles error', async () => {
-    sinon.stub(request, 'post').rejects({
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects({
       "error": {
         "base": "An error has occurred."
       }
@@ -113,7 +112,7 @@ describe(commands.MESSAGE_LIKE_SET, () => {
   });
 
   it('calls the service when liking a message', async () => {
-    const requestPostedStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const requestPostedStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/messages/liked_by/current.json') {
         return;
       }
@@ -124,32 +123,36 @@ describe(commands.MESSAGE_LIKE_SET, () => {
     assert(requestPostedStub.called);
   });
 
-  it('calls the service when liking a message and confirm passed', async () => {
-    const requestPostedStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === 'https://www.yammer.com/api/v1/messages/liked_by/current.json') {
-        return;
-      }
-      throw 'Invalid request';
-    });
+  it('calls the service when liking a message and confirm passed',
+    async () => {
+      const requestPostedStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://www.yammer.com/api/v1/messages/liked_by/current.json') {
+          return;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, messageId: 1231231, force: true } });
-    assert(requestPostedStub.called);
-  });
+      await command.action(logger, { options: { debug: true, messageId: 1231231, force: true } });
+      assert(requestPostedStub.called);
+    }
+  );
 
-  it('calls the service when liking a message and enabled set to true', async () => {
-    const requestPostedStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === 'https://www.yammer.com/api/v1/messages/liked_by/current.json') {
-        return;
-      }
-      throw 'Invalid request';
-    });
+  it('calls the service when liking a message and enabled set to true',
+    async () => {
+      const requestPostedStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://www.yammer.com/api/v1/messages/liked_by/current.json') {
+          return;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, messageId: 1231231, enable: true } });
-    assert(requestPostedStub.called);
-  });
+      await command.action(logger, { options: { debug: true, messageId: 1231231, enable: true } });
+      assert(requestPostedStub.called);
+    }
+  );
 
   it('calls the service when disliking a message and confirming', async () => {
-    const requestPostedStub = sinon.stub(request, 'delete').callsFake(async (opts) => {
+    const requestPostedStub = jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/messages/liked_by/current.json') {
         return;
       }
@@ -160,42 +163,48 @@ describe(commands.MESSAGE_LIKE_SET, () => {
     assert(requestPostedStub.called);
   });
 
-  it('prompts when disliking and confirmation parameter is denied', async () => {
-    await command.action(logger, { options: { messageId: 1231231, enable: false, force: false } });
+  it('prompts when disliking and confirmation parameter is denied',
+    async () => {
+      await command.action(logger, { options: { messageId: 1231231, enable: false, force: false } });
 
-    let promptIssued = false;
+      let promptIssued = false;
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
-    }
-
-    assert(promptIssued);
-  });
-
-  it('calls the service when disliking a message and confirmation is hit', async () => {
-    const requestDeleteStub = sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === 'https://www.yammer.com/api/v1/messages/liked_by/current.json') {
-        return;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
       }
-      throw 'Invalid request';
-    });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: true }
-    ));
+      assert(promptIssued);
+    }
+  );
 
-    await command.action(logger, { options: { debug: true, messageId: 1231231, enable: false } });
-    assert(requestDeleteStub.called);
-  });
+  it('calls the service when disliking a message and confirmation is hit',
+    async () => {
+      const requestDeleteStub = jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://www.yammer.com/api/v1/messages/liked_by/current.json') {
+          return;
+        }
+        throw 'Invalid request';
+      });
 
-  it('Aborts execution when enabled set to false and confirmation is not given', async () => {
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: false }
-    ));
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: true }
+      ));
 
-    await command.action(logger, { options: { messageId: 1231231, enable: false } });
-    assert(requests.length === 0);
-  });
+      await command.action(logger, { options: { debug: true, messageId: 1231231, enable: false } });
+      assert(requestDeleteStub.called);
+    }
+  );
+
+  it('Aborts execution when enabled set to false and confirmation is not given',
+    async () => {
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: false }
+      ));
+
+      await command.action(logger, { options: { messageId: 1231231, enable: false } });
+      assert(requests.length === 0);
+    }
+  );
 }); 

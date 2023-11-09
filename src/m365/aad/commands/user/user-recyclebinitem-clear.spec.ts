@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { Logger } from '../../../../cli/Logger.js';
@@ -9,7 +8,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { odata } from '../../../../utils/odata.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './user-recyclebinitem-clear.js';
 
@@ -22,11 +21,11 @@ describe(commands.USER_RECYCLEBINITEM_CLEAR, () => {
   const graphGetUrl = 'https://graph.microsoft.com/v1.0/directory/deletedItems/microsoft.graph.user?$select=id';
   const graphBatchUrl = 'https://graph.microsoft.com/v1.0/$batch';
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
   });
 
@@ -43,7 +42,7 @@ describe(commands.USER_RECYCLEBINITEM_CLEAR, () => {
         log.push(msg);
       }
     };
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
@@ -52,15 +51,15 @@ describe(commands.USER_RECYCLEBINITEM_CLEAR, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       odata.getAllItems,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -75,17 +74,17 @@ describe(commands.USER_RECYCLEBINITEM_CLEAR, () => {
   it('removes a single user when prompt confirmed', async () => {
     let amountOfBatches = 0;
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    sinon.stub(odata, 'getAllItems').callsFake(async (url) => {
+    jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url) => {
       if (url === graphGetUrl) {
         return deletedUsersResponse;
       }
       throw 'Invalid request';
     });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === graphBatchUrl) {
         amountOfBatches++;
         return;
@@ -103,14 +102,14 @@ describe(commands.USER_RECYCLEBINITEM_CLEAR, () => {
     for (let i = 0; i < 50; i++) {
       deletedUsersResponseLarge.push(deletedUsersResponse[0]);
     }
-    sinon.stub(odata, 'getAllItems').callsFake(async (url) => {
+    jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url) => {
       if (url === graphGetUrl) {
         return deletedUsersResponseLarge;
       }
       throw 'Invalid request';
     });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === graphBatchUrl) {
         amountOfBatches++;
         return;
@@ -133,9 +132,9 @@ describe(commands.USER_RECYCLEBINITEM_CLEAR, () => {
   });
 
   it('aborts removing users when prompt not confirmed', async () => {
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: false });
-    const postStub = sinon.stub(request, 'post').callsFake(async () => {
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: false });
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async () => {
       return;
     });
 
@@ -144,7 +143,7 @@ describe(commands.USER_RECYCLEBINITEM_CLEAR, () => {
   });
 
   it('correctly handles API error', async () => {
-    sinon.stub(odata, 'getAllItems').rejects({
+    jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation().rejects({
       error: {
         error: {
           code: 'Invalid_Request',

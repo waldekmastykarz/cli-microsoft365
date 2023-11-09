@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -11,7 +10,7 @@ import { accessToken } from '../../../../utils/accessToken.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './user-get.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -24,15 +23,15 @@ describe(commands.USER_GET, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     if (!auth.service.accessTokens[auth.defaultResource]) {
       auth.service.accessTokens[auth.defaultResource] = {
@@ -56,12 +55,12 @@ describe(commands.USER_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       accessToken.getUserIdFromAccessToken,
       accessToken.getUserNameFromAccessToken,
@@ -70,8 +69,8 @@ describe(commands.USER_GET, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -84,7 +83,7 @@ describe(commands.USER_GET, () => {
   });
 
   it('retrieves user using id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=id eq '${userId}'`) {
         return { value: [resultValue] };
       }
@@ -97,7 +96,7 @@ describe(commands.USER_GET, () => {
   });
 
   it('retrieves user using @userid token', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=id eq '${userId}'`) {
         return { value: [resultValue] };
       }
@@ -105,14 +104,14 @@ describe(commands.USER_GET, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(accessToken, 'getUserIdFromAccessToken').callsFake(() => { return userId; });
+    jest.spyOn(accessToken, 'getUserIdFromAccessToken').mockClear().mockImplementation(() => { return userId; });
 
     await command.action(logger, { options: { id: '@meid' } });
     assert(loggerLogSpy.calledWith(resultValue));
   });
 
   it('retrieves user using id (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=id eq '${userId}'`) {
         return { value: [resultValue] };
       }
@@ -125,7 +124,7 @@ describe(commands.USER_GET, () => {
   });
 
   it('retrieves user using user name', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=userPrincipalName eq '${formatting.encodeQueryParameter(userName)}'`) {
         return { value: [resultValue] };
       }
@@ -137,28 +136,30 @@ describe(commands.USER_GET, () => {
     assert(loggerLogSpy.calledWith(resultValue));
   });
 
-  it('retrieves user using user name and with their direct manager', async () => {
-    const resultValueWithManger: any = { ...resultValue };
-    resultValueWithManger.manager = {
-      "displayName": "John Doe",
-      "userPrincipalName": "john.doe@contoso.onmicrosoft.com",
-      "id": "eb77fbcf-6fe8-458b-985d-1747284793bc",
-      "mail": "john.doe@contoso.onmicrosoft.com"
-    };
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=userPrincipalName eq '${formatting.encodeQueryParameter(userName)}'&$expand=manager($select=displayName,userPrincipalName,id,mail)`) {
-        return { value: [resultValueWithManger] };
-      }
+  it('retrieves user using user name and with their direct manager',
+    async () => {
+      const resultValueWithManger: any = { ...resultValue };
+      resultValueWithManger.manager = {
+        "displayName": "John Doe",
+        "userPrincipalName": "john.doe@contoso.onmicrosoft.com",
+        "id": "eb77fbcf-6fe8-458b-985d-1747284793bc",
+        "mail": "john.doe@contoso.onmicrosoft.com"
+      };
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=userPrincipalName eq '${formatting.encodeQueryParameter(userName)}'&$expand=manager($select=displayName,userPrincipalName,id,mail)`) {
+          return { value: [resultValueWithManger] };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { userName: userName, withManager: true } });
-    assert(loggerLogSpy.calledWith(resultValueWithManger));
-  });
+      await command.action(logger, { options: { userName: userName, withManager: true } });
+      assert(loggerLogSpy.calledWith(resultValueWithManger));
+    }
+  );
 
   it('retrieves user using @meusername token', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=userPrincipalName eq '${formatting.encodeQueryParameter(userName)}'`) {
         return { value: [resultValue] };
       }
@@ -166,14 +167,14 @@ describe(commands.USER_GET, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(accessToken, 'getUserNameFromAccessToken').callsFake(() => { return userName; });
+    jest.spyOn(accessToken, 'getUserNameFromAccessToken').mockClear().mockImplementation(() => { return userName; });
 
     await command.action(logger, { options: { userName: '@meusername' } });
     assert(loggerLogSpy.calledWith(resultValue));
   });
 
   it('retrieves user using email', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=mail eq '${formatting.encodeQueryParameter(userName)}'`) {
         return { value: [resultValue] };
       }
@@ -186,7 +187,7 @@ describe(commands.USER_GET, () => {
   });
 
   it('retrieves only the specified properties', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=userPrincipalName eq '${formatting.encodeQueryParameter(userName)}'&$select=id,mail`) {
         return { value: [{ "id": "userId", "mail": null }] };
       }
@@ -199,7 +200,7 @@ describe(commands.USER_GET, () => {
   });
 
   it('correctly handles user not found', async () => {
-    sinon.stub(request, 'get').rejects({
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects({
       "error": {
         "code": "Request_ResourceNotFound",
         "message": "Resource '68be84bf-a585-4776-80b3-30aa5207aa22' does not exist or one of its queried reference-property objects are not present.",
@@ -214,158 +215,178 @@ describe(commands.USER_GET, () => {
       new CommandError(`Resource '68be84bf-a585-4776-80b3-30aa5207aa22' does not exist or one of its queried reference-property objects are not present.`));
   });
 
-  it('fails to get user when user with provided id does not exists', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=id eq '${userId}'`) {
-        return { value: [] };
-      }
+  it('fails to get user when user with provided id does not exists',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=id eq '${userId}'`) {
+          return { value: [] };
+        }
 
-      throw `The specified user with id ${userId} does not exist`;
-    });
+        throw `The specified user with id ${userId} does not exist`;
+      });
 
-    await assert.rejects(command.action(logger, { options: { id: userId } }),
-      new CommandError(`The specified user with id ${userId} does not exist`));
-  });
+      await assert.rejects(command.action(logger, { options: { id: userId } }),
+        new CommandError(`The specified user with id ${userId} does not exist`));
+    }
+  );
 
-  it('fails to get user when user with provided user name does not exists', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=userPrincipalName eq '${formatting.encodeQueryParameter(userName)}'`) {
-        return { value: [] };
-      }
+  it('fails to get user when user with provided user name does not exists',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=userPrincipalName eq '${formatting.encodeQueryParameter(userName)}'`) {
+          return { value: [] };
+        }
 
-      throw `The specified user with user name ${userName} does not exist`;
-    });
+        throw `The specified user with user name ${userName} does not exist`;
+      });
 
-    await assert.rejects(command.action(logger, { options: { userName: userName } }),
-      new CommandError(`The specified user with user name ${userName} does not exist`));
-  });
+      await assert.rejects(command.action(logger, { options: { userName: userName } }),
+        new CommandError(`The specified user with user name ${userName} does not exist`));
+    }
+  );
 
-  it('fails to get user when user with provided email does not exists', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=mail eq '${formatting.encodeQueryParameter(userName)}'`) {
-        return { value: [] };
-      }
+  it('fails to get user when user with provided email does not exists',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=mail eq '${formatting.encodeQueryParameter(userName)}'`) {
+          return { value: [] };
+        }
 
-      throw `The specified user with email ${userName} does not exist`;
-    });
+        throw `The specified user with email ${userName} does not exist`;
+      });
 
-    await assert.rejects(command.action(logger, { options: { email: userName } }),
-      new CommandError(`The specified user with email ${userName} does not exist`));
-  });
+      await assert.rejects(command.action(logger, { options: { email: userName } }),
+        new CommandError(`The specified user with email ${userName} does not exist`));
+    }
+  );
 
-  it('handles error when multiple users with the specified email found', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('handles error when multiple users with the specified email found',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=mail eq '${formatting.encodeQueryParameter(userName)}'`) {
-        return {
-          value: [
-            resultValue,
-            { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67f', userPrincipalName: 'DebraB@contoso.onmicrosoft.com' }
-          ]
-        };
-      }
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=mail eq '${formatting.encodeQueryParameter(userName)}'`) {
+          return {
+            value: [
+              resultValue,
+              { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67f', userPrincipalName: 'DebraB@contoso.onmicrosoft.com' }
+            ]
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        email: userName
-      }
-    }), new CommandError("Multiple users with email AarifS@contoso.onmicrosoft.com found. Found: 68be84bf-a585-4776-80b3-30aa5207aa21, 9b1b1e42-794b-4c71-93ac-5ed92488b67f."));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          email: userName
+        }
+      }), new CommandError("Multiple users with email AarifS@contoso.onmicrosoft.com found. Found: 68be84bf-a585-4776-80b3-30aa5207aa21, 9b1b1e42-794b-4c71-93ac-5ed92488b67f."));
+    }
+  );
 
-  it('handles selecting single result when multiple users with the specified email found and cli is set to prompt', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if ((opts.url as string).indexOf('https://graph.microsoft.com/v1.0/users?$filter') > -1) {
-        return {
-          value: [
-            resultValue,
-            { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67f', userPrincipalName: 'DebraB@contoso.onmicrosoft.com' }
-          ]
-        };
-      }
+  it('handles selecting single result when multiple users with the specified email found and cli is set to prompt',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if ((opts.url as string).indexOf('https://graph.microsoft.com/v1.0/users?$filter') > -1) {
+          return {
+            value: [
+              resultValue,
+              { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67f', userPrincipalName: 'DebraB@contoso.onmicrosoft.com' }
+            ]
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves(resultValue);
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves(resultValue);
 
-    await command.action(logger, { options: { email: userName } });
-    assert(loggerLogSpy.calledWith(resultValue));
-  });
+      await command.action(logger, { options: { email: userName } });
+      assert(loggerLogSpy.calledWith(resultValue));
+    }
+  );
 
-  it('fails validation if id or email or userName options are not passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if id or email or userName options are not passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: {} }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: {} }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if id, email, and userName options are passed (multiple options)', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if id, email, and userName options are passed (multiple options)',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { id: "1caf7dcd-7e83-4c3a-94f7-932a1299c844", email: "john.doe@contoso.onmicrosoft.com", userName: "i:0#.f|membership|john.doe@contoso.onmicrosoft.com" } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { id: "1caf7dcd-7e83-4c3a-94f7-932a1299c844", email: "john.doe@contoso.onmicrosoft.com", userName: "i:0#.f|membership|john.doe@contoso.onmicrosoft.com" } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if both id and email options are passed (multiple options)', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both id and email options are passed (multiple options)',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { id: "1caf7dcd-7e83-4c3a-94f7-932a1299c844", email: "john.doe@contoso.onmicrosoft.com" } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { id: "1caf7dcd-7e83-4c3a-94f7-932a1299c844", email: "john.doe@contoso.onmicrosoft.com" } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if both id and userName options are passed (multiple options)', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both id and userName options are passed (multiple options)',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { id: "1caf7dcd-7e83-4c3a-94f7-932a1299c844", userName: "john.doe@contoso.onmicrosoft.com" } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { id: "1caf7dcd-7e83-4c3a-94f7-932a1299c844", userName: "john.doe@contoso.onmicrosoft.com" } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if both email and userName options are passed (multiple options)', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both email and userName options are passed (multiple options)',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { email: "jonh.deo@contoso.com", userName: "john.doe@contoso.onmicrosoft.com" } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { email: "jonh.deo@contoso.com", userName: "john.doe@contoso.onmicrosoft.com" } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the id is not a valid GUID', async () => {
     const actual = await command.validate({ options: { id: 'invalid' } }, commandInfo);

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './message-get.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -18,17 +17,17 @@ describe(commands.MESSAGE_GET, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
   const firstMessage: any = { "sender_id": 1496550646, "replied_to_id": 1496550647, "id": 10123190123123, "thread_id": "", group_id: 11231123123, created_at: "2019/09/09 07:53:18 +0000", "content_excerpt": "message1" };
   const secondMessage: any = { "sender_id": 1496550640, "replied_to_id": "", "id": 10123190123124, "thread_id": "", group_id: "", created_at: "2019/09/08 07:53:18 +0000", "content_excerpt": "message2" };
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -46,19 +45,19 @@ describe(commands.MESSAGE_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -80,7 +79,7 @@ describe(commands.MESSAGE_GET, () => {
   });
 
   it('id is required', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -93,7 +92,7 @@ describe(commands.MESSAGE_GET, () => {
   });
 
   it('calls the messaging endpoint with the right parameters', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/messages/10123190123123.json') {
         return firstMessage;
       }
@@ -102,11 +101,11 @@ describe(commands.MESSAGE_GET, () => {
 
     await command.action(logger, { options: { id: 10123190123123, debug: true } } as any);
 
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].id, 10123190123123);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].id, 10123190123123);
   });
 
   it('correctly handles error', async () => {
-    sinon.stub(request, 'get').callsFake(async () => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async () => {
       throw {
         "error": {
           "base": "An error has occurred."
@@ -118,7 +117,7 @@ describe(commands.MESSAGE_GET, () => {
   });
 
   it('calls the messaging endpoint with id and json and json', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/messages/10123190123124.json') {
         return secondMessage;
       }
@@ -127,7 +126,7 @@ describe(commands.MESSAGE_GET, () => {
 
     await command.action(logger, { options: { debug: true, id: 10123190123124, output: "json" } } as any);
 
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].id, 10123190123124);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].id, 10123190123124);
   });
 
   it('passes validation with parameters', async () => {

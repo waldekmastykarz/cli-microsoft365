@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './homesite-set.js';
 
@@ -41,11 +40,11 @@ describe(commands.HOMESITE_SET, () => {
     }
   };
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.spoUrl = 'https://contoso.sharepoint.com';
     commandInfo = Cli.getCommandInfo(command);
@@ -67,13 +66,13 @@ describe(commands.HOMESITE_SET, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -88,7 +87,7 @@ describe(commands.HOMESITE_SET, () => {
 
   it('sets the specified site as the Home Site', async () => {
     const requestBody = { sphSiteUrl: siteUrl };
-    const postRequestStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postRequestStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso-admin.sharepoint.com/_api/SPO.Tenant/SetSPHSite`) {
         return defaultResponse;
       }
@@ -102,29 +101,31 @@ describe(commands.HOMESITE_SET, () => {
         verbose: true
       }
     } as any);
-    assert.deepStrictEqual(postRequestStub.lastCall.args[0].data, requestBody);
+    assert.deepStrictEqual(postRequestStub.mock.lastCall[0].data, requestBody);
   });
 
-  it('sets the specified site as the Home Site and sets the Viva Connections default experience to True', async () => {
-    const requestBody = { sphSiteUrl: siteUrl, configuration: { vivaConnectionsDefaultStart: true } };
-    const postRequestStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso-admin.sharepoint.com/_api/SPO.Tenant/SetSPHSiteWithConfiguration`) {
-        return vivaConnectionDefaultResponse;
-      }
-      return 'Invalid request';
-    });
+  it('sets the specified site as the Home Site and sets the Viva Connections default experience to True',
+    async () => {
+      const requestBody = { sphSiteUrl: siteUrl, configuration: { vivaConnectionsDefaultStart: true } };
+      const postRequestStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso-admin.sharepoint.com/_api/SPO.Tenant/SetSPHSiteWithConfiguration`) {
+          return vivaConnectionDefaultResponse;
+        }
+        return 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        siteUrl: siteUrl,
-        vivaConnectionsDefaultStart: true
-      }
-    } as any);
-    assert.deepStrictEqual(postRequestStub.lastCall.args[0].data, requestBody);
-  });
+      await command.action(logger, {
+        options: {
+          siteUrl: siteUrl,
+          vivaConnectionsDefaultStart: true
+        }
+      } as any);
+      assert.deepStrictEqual(postRequestStub.mock.lastCall[0].data, requestBody);
+    }
+  );
 
   it('correctly handles error when setting the Home Site', async () => {
-    sinon.stub(request, 'post').callsFake(async () => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async () => {
       throw errorResponse;
     });
 
@@ -135,13 +136,17 @@ describe(commands.HOMESITE_SET, () => {
     } as any), new CommandError(outputErrorResponse));
   });
 
-  it('fails validation if the siteUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { siteUrl: 'foo' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the siteUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { siteUrl: 'foo' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the siteUrl option is a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { siteUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if the siteUrl option is a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { siteUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

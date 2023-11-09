@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { accessToken } from '../../../../utils/accessToken.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './info-get.js';
 
@@ -25,15 +24,15 @@ describe(commands.INFO_GET, () => {
   };
 
   let log: any[];
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
     if (!auth.service.accessTokens[auth.defaultResource]) {
@@ -57,17 +56,17 @@ describe(commands.INFO_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -89,31 +88,35 @@ describe(commands.INFO_GET, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('fails validation if both domainName and tenantId are specified', async () => {
-    const actual = await command.validate({ options: { domainName: domainName, tenantId: tenantId } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if both domainName and tenantId are specified',
+    async () => {
+      const actual = await command.validate({ options: { domainName: domainName, tenantId: tenantId } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('gets tenant information for the currently signed in user if no domain name or tenantId is passed', async () => {
-    sinon.stub(accessToken, 'getUserNameFromAccessToken').callsFake(() => {
-      return 'admin@contoso.com';
-    });
+  it('gets tenant information for the currently signed in user if no domain name or tenantId is passed',
+    async () => {
+      jest.spyOn(accessToken, 'getUserNameFromAccessToken').mockClear().mockImplementation(() => {
+        return 'admin@contoso.com';
+      });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/tenantRelationships/findTenantInformationByDomainName(domainName='contoso.com')`) {
-        return tenantInfoResponse;
-      }
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/tenantRelationships/findTenantInformationByDomainName(domainName='contoso.com')`) {
+          return tenantInfoResponse;
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    await command.action(logger, { options: { verbose: true } });
-    assert(loggerLogSpy.calledOnceWithExactly(tenantInfoResponse));
-    sinonUtil.restore(accessToken.getUserNameFromAccessToken);
-  });
+      await command.action(logger, { options: { verbose: true } });
+      assert(loggerLogSpy.calledOnceWithExactly(tenantInfoResponse));
+      jestUtil.restore(accessToken.getUserNameFromAccessToken);
+    }
+  );
 
   it('gets tenant information with correct domain name', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/tenantRelationships/findTenantInformationByDomainName(domainName='contoso.com')`) {
         return tenantInfoResponse;
       }
@@ -126,7 +129,7 @@ describe(commands.INFO_GET, () => {
   });
 
   it('gets tenant information with correct tenant id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/tenantRelationships/findTenantInformationByTenantId(tenantId='e65b162c-6f87-4eb1-a24e-1b37d3504663')`) {
         return tenantInfoResponse;
       }
@@ -138,52 +141,56 @@ describe(commands.INFO_GET, () => {
     assert(loggerLogSpy.calledOnceWithExactly(tenantInfoResponse));
   });
 
-  it('handles error when trying to retrieve information for a non-existant tenant by id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/tenantRelationships/findTenantInformationByTenantId(tenantId='e65b162c-6f87-4eb1-a24e-1b37d3504663')`) {
-        throw {
-          "error": {
-            "code": "Directory_ObjectNotFound",
-            "message": "Unable to read the company information from the directory.",
-            "innerError": {
-              "date": "2023-09-14T14:07:47",
-              "request-id": "3b91132c-5c79-454b-8dd4-06964e788a24",
-              "client-request-id": "2147e6c6-8036-cc2f-f4d0-eec89dbc48d7"
+  it('handles error when trying to retrieve information for a non-existant tenant by id',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/tenantRelationships/findTenantInformationByTenantId(tenantId='e65b162c-6f87-4eb1-a24e-1b37d3504663')`) {
+          throw {
+            "error": {
+              "code": "Directory_ObjectNotFound",
+              "message": "Unable to read the company information from the directory.",
+              "innerError": {
+                "date": "2023-09-14T14:07:47",
+                "request-id": "3b91132c-5c79-454b-8dd4-06964e788a24",
+                "client-request-id": "2147e6c6-8036-cc2f-f4d0-eec89dbc48d7"
+              }
             }
-          }
-        };
-      }
+          };
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    await assert.rejects(command.action(logger, { options: { tenantId: tenantId } } as any), new CommandError("Unable to read the company information from the directory."));
-  });
+      await assert.rejects(command.action(logger, { options: { tenantId: tenantId } } as any), new CommandError("Unable to read the company information from the directory."));
+    }
+  );
 
-  it('handles error when trying to retrieve information for a non-existant tenant by domain name', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/tenantRelationships/findTenantInformationByDomainName(domainName='xyz.com')`) {
-        throw {
-          "error": {
-            "code": "Directory_ObjectNotFound",
-            "message": "Unable to read the company information from the directory.",
-            "innerError": {
-              "date": "2023-09-14T14:07:47",
-              "request-id": "3b91132c-5c79-454b-8dd4-06964e788a24",
-              "client-request-id": "2147e6c6-8036-cc2f-f4d0-eec89dbc48d7"
+  it('handles error when trying to retrieve information for a non-existant tenant by domain name',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/tenantRelationships/findTenantInformationByDomainName(domainName='xyz.com')`) {
+          throw {
+            "error": {
+              "code": "Directory_ObjectNotFound",
+              "message": "Unable to read the company information from the directory.",
+              "innerError": {
+                "date": "2023-09-14T14:07:47",
+                "request-id": "3b91132c-5c79-454b-8dd4-06964e788a24",
+                "client-request-id": "2147e6c6-8036-cc2f-f4d0-eec89dbc48d7"
+              }
             }
-          }
-        };
-      }
+          };
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    await assert.rejects(command.action(logger, { options: { domainName: 'xyz.com' } } as any), new CommandError("Unable to read the company information from the directory."));
-  });
+      await assert.rejects(command.action(logger, { options: { domainName: 'xyz.com' } } as any), new CommandError("Unable to read the company information from the directory."));
+    }
+  );
 
   it('correctly handles random API error', async () => {
-    sinon.stub(request, 'get').rejects(new Error('An error has occurred'));
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
     await assert.rejects(command.action(logger, { options: { domainName: 'xyz.com' } } as any), new CommandError('An error has occurred'));
   });
 });

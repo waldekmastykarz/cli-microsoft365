@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Logger } from '../../../../cli/Logger.js';
 import { CommandError } from '../../../../Command.js';
@@ -7,7 +6,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './user-guest-add.js';
 
@@ -39,13 +38,13 @@ describe(commands.USER_GUEST_ADD, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
   });
 
@@ -62,18 +61,18 @@ describe(commands.USER_GUEST_ADD, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -90,7 +89,7 @@ describe(commands.USER_GUEST_ADD, () => {
   });
 
   it('correctly logs the API response', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/invitations') {
         return requestResponse;
       }
@@ -109,7 +108,7 @@ describe(commands.USER_GUEST_ADD, () => {
   });
 
   it('invites user with all options', async () => {
-    const postRequestStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postRequestStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/invitations') {
         return;
       }
@@ -145,11 +144,11 @@ describe(commands.USER_GUEST_ADD, () => {
       }
     };
 
-    assert.deepStrictEqual(postRequestStub.lastCall.args[0].data, requestBody);
+    assert.deepStrictEqual(postRequestStub.mock.lastCall[0].data, requestBody);
   });
 
   it('invites user with default values', async () => {
-    const postRequestStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postRequestStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/invitations') {
         return;
       }
@@ -163,12 +162,12 @@ describe(commands.USER_GUEST_ADD, () => {
       }
     });
 
-    assert.strictEqual(postRequestStub.lastCall.args[0].data.inviteRedirectUrl, 'https://myapplications.microsoft.com');
-    assert.strictEqual(postRequestStub.lastCall.args[0].data.invitedUserMessageInfo.messageLanguage, 'en-US');
+    assert.strictEqual(postRequestStub.mock.lastCall[0].data.inviteRedirectUrl, 'https://myapplications.microsoft.com');
+    assert.strictEqual(postRequestStub.mock.lastCall[0].data.invitedUserMessageInfo.messageLanguage, 'en-US');
   });
 
   it('invites user with ccRecipients', async () => {
-    const postRequestStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postRequestStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/invitations') {
         return;
       }
@@ -184,12 +183,12 @@ describe(commands.USER_GUEST_ADD, () => {
       }
     });
 
-    assert.deepStrictEqual(postRequestStub.lastCall.args[0].data.invitedUserMessageInfo.ccRecipients, [{ emailAddress: { address: ccRecipient } }]);
+    assert.deepStrictEqual(postRequestStub.mock.lastCall[0].data.invitedUserMessageInfo.ccRecipients, [{ emailAddress: { address: ccRecipient } }]);
   });
 
   it('handles random API error', async () => {
     const errorMessage = 'Something went wrong';
-    sinon.stub(request, 'post').rejects({ error: { message: errorMessage } });
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects({ error: { message: errorMessage } });
 
     await assert.rejects(command.action(logger, {
       options: {

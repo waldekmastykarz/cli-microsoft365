@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './serviceannouncement-health-list.js';
 
@@ -101,14 +100,14 @@ describe(commands.SERVICEANNOUNCEMENT_HEALTH_LIST, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -126,20 +125,20 @@ describe(commands.SERVICEANNOUNCEMENT_HEALTH_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
     (command as any).planId = undefined;
     (command as any).bucketId = undefined;
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -166,7 +165,7 @@ describe(commands.SERVICEANNOUNCEMENT_HEALTH_LIST, () => {
   });
 
   it('correctly returns list', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/admin/serviceAnnouncement/healthOverviews`) {
         return {
           value: serviceHealthResponse
@@ -183,7 +182,7 @@ describe(commands.SERVICEANNOUNCEMENT_HEALTH_LIST, () => {
   });
 
   it('correctly returns list as csv with issues flag', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/admin/serviceAnnouncement/healthOverviews`) {
         return {
           value: serviceHealthResponseCSV
@@ -203,7 +202,7 @@ describe(commands.SERVICEANNOUNCEMENT_HEALTH_LIST, () => {
   });
 
   it('correctly returns list with issues', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/admin/serviceAnnouncement/healthOverviews?$expand=issues`) {
         return {
           value: serviceHealthIssuesResponse
@@ -222,7 +221,7 @@ describe(commands.SERVICEANNOUNCEMENT_HEALTH_LIST, () => {
   });
 
   it('fails when serviceAnnouncement endpoint fails', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/admin/serviceAnnouncement/healthOverviews`) {
         return {};
       }
@@ -234,8 +233,8 @@ describe(commands.SERVICEANNOUNCEMENT_HEALTH_LIST, () => {
   });
 
   it('correctly handles random API error', async () => {
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').rejects(new Error('An error has occurred'));
+    jestUtil.restore(request.get);
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
     await assert.rejects(command.action(logger, { options: {} } as any), new CommandError('An error has occurred'));
   });

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import { urlUtil } from '../../../../utils/urlUtil.js';
 import commands from '../../commands.js';
@@ -98,13 +97,13 @@ describe(commands.LISTITEM_RECORD_DECLARE, () => {
     throw 'Invalid request';
   };
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').callsFake(() => Promise.resolve());
-    sinon.stub(telemetry, 'trackEvent').callsFake(() => { });
-    sinon.stub(pid, 'getProcessName').callsFake(() => '');
-    sinon.stub(session, 'getId').callsFake(() => '');
-    sinon.stub(spo, 'getRequestDigest').callsFake(() => Promise.resolve({
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation(() => Promise.resolve());
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockImplementation(() => { });
+    jest.spyOn(pid, 'getProcessName').mockClear().mockImplementation(() => '');
+    jest.spyOn(session, 'getId').mockClear().mockImplementation(() => '');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation(() => Promise.resolve({
       FormDigestValue: 'ABC',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -130,15 +129,15 @@ describe(commands.LISTITEM_RECORD_DECLARE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       request.get,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -151,8 +150,8 @@ describe(commands.LISTITEM_RECORD_DECLARE, () => {
   });
 
   it('declares a record using list title is specified', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+    jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
     const options: any = {
       debug: true,
@@ -167,8 +166,8 @@ describe(commands.LISTITEM_RECORD_DECLARE, () => {
   });
 
   it('declares a record using list url is specified', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+    jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
     const options: any = {
       verbose: true,
@@ -183,8 +182,8 @@ describe(commands.LISTITEM_RECORD_DECLARE, () => {
   });
 
   it('declares a record using list id is passed as an option', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+    jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
     const options: any = {
       listId: '99a14fe8-781c-3ce1-a1d5-c6e6a14561da',
@@ -199,8 +198,8 @@ describe(commands.LISTITEM_RECORD_DECLARE, () => {
   });
 
   it('declares a record when specifying a date in debug mode', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+    jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
     const options: any = {
       debug: true,
@@ -216,8 +215,8 @@ describe(commands.LISTITEM_RECORD_DECLARE, () => {
   });
 
   it('declares a record when specifying a date', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+    jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
     const options: any = {
       listId: '99a14fe8-781c-3ce1-a1d5-c6e6a14561da',
@@ -231,53 +230,59 @@ describe(commands.LISTITEM_RECORD_DECLARE, () => {
     assert(declareItemAsRecordFakeCalled);
   });
 
-  it('it reports an error correctly when an item is already declared', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+  it('it reports an error correctly when an item is already declared',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    const options: any = {
-      debug: true,
-      listId: '99a14fe8-781c-3ce1-a1d5-c6e6a14561da',
-      listItemId: 147,
-      date: '2019-03-14',
-      webUrl: `https://alreadydeclared.sharepoint.com/sites/project-y/`
-    };
+      const options: any = {
+        debug: true,
+        listId: '99a14fe8-781c-3ce1-a1d5-c6e6a14561da',
+        listItemId: 147,
+        date: '2019-03-14',
+        webUrl: `https://alreadydeclared.sharepoint.com/sites/project-y/`
+      };
 
-    await assert.rejects(command.action(logger, { options: options } as any), new CommandError('This item has already been declared a record.'));
-  });
+      await assert.rejects(command.action(logger, { options: options } as any), new CommandError('This item has already been declared a record.'));
+    }
+  );
 
-  it('fails to get _ObjecttIdentity_ when an error is returned by the _ObjectIdentity_ CSOM request', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+  it('fails to get _ObjecttIdentity_ when an error is returned by the _ObjectIdentity_ CSOM request',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    const options: any = {
-      debug: true,
-      listId: '99a14fe8-781c-3ce1-a1d5-c6e6a14561da',
-      listItemId: 147,
-      date: '2019-03-14',
-      webUrl: `https://returnerror.sharepoint.com/sites/project-y/`
-    };
+      const options: any = {
+        debug: true,
+        listId: '99a14fe8-781c-3ce1-a1d5-c6e6a14561da',
+        listItemId: 147,
+        date: '2019-03-14',
+        webUrl: `https://returnerror.sharepoint.com/sites/project-y/`
+      };
 
-    declareItemAsRecordFakeCalled = false;
-    await assert.rejects(command.action(logger, { options: options } as any), new CommandError('error occurred'));
-    assert.notStrictEqual(declareItemAsRecordFakeCalled, true);
-  });
+      declareItemAsRecordFakeCalled = false;
+      await assert.rejects(command.action(logger, { options: options } as any), new CommandError('error occurred'));
+      assert.notStrictEqual(declareItemAsRecordFakeCalled, true);
+    }
+  );
 
-  it('fails to declare a list item as a record when an error is returned', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+  it('fails to declare a list item as a record when an error is returned',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    const options: any = {
-      debug: true,
-      listTitle: 'Test List',
-      listItemId: 147,
-      webUrl: 'https://rejectme.sharepoint.com/sites/project-y'
-    };
+      const options: any = {
+        debug: true,
+        listTitle: 'Test List',
+        listItemId: 147,
+        webUrl: 'https://rejectme.sharepoint.com/sites/project-y'
+      };
 
-    declareItemAsRecordFakeCalled = false;
-    await assert.rejects(command.action(logger, { options: options } as any), new CommandError('Failed request'));
-    assert.notStrictEqual(declareItemAsRecordFakeCalled, true);
-  });
+      declareItemAsRecordFakeCalled = false;
+      await assert.rejects(command.action(logger, { options: options } as any), new CommandError('Failed request'));
+      assert.notStrictEqual(declareItemAsRecordFakeCalled, true);
+    }
+  );
 
   it('supports specifying URL', () => {
     const options = command.options;
@@ -290,36 +295,42 @@ describe(commands.LISTITEM_RECORD_DECLARE, () => {
     assert(containsTypeOption);
   });
 
-  it('fails validation if listTitle and listId option not specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if listTitle and listId option not specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listItemId: '1' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listItemId: '1' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if listTitle and listId are specified together', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if listTitle and listId are specified together',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Test List', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF', listItemId: '1' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Test List', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF', listItemId: '1' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', listTitle: 'Test List', listItemId: '1' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', listTitle: 'Test List', listItemId: '1' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the item ID is not a number', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Test List', listItemId: 'foo' } }, commandInfo);
@@ -331,10 +342,12 @@ describe(commands.LISTITEM_RECORD_DECLARE, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('passes validation if the webUrl option is a valid SharePoint site URL and numerical ID specified', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Test List', listItemId: '1' } }, commandInfo);
-    assert(actual);
-  });
+  it('passes validation if the webUrl option is a valid SharePoint site URL and numerical ID specified',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Test List', listItemId: '1' } }, commandInfo);
+      assert(actual);
+    }
+  );
 
   it('fails validation if the listId option is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: 'foo', listItemId: '1' } }, commandInfo);
@@ -346,10 +359,12 @@ describe(commands.LISTITEM_RECORD_DECLARE, () => {
     assert(actual);
   });
 
-  it('fails validation if the date passed in is not in ISO format', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF', listItemId: '1', date: 'foo', debug: true } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the date passed in is not in ISO format',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF', listItemId: '1', date: 'foo', debug: true } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation if the date passed in is in ISO format', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF', listItemId: '1', date: 'foo', debug: true } }, commandInfo);

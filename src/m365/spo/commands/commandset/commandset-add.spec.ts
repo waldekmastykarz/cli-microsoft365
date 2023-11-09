@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './commandset-add.js';
 
@@ -17,7 +16,7 @@ describe(commands.COMMANDSET_ADD, () => {
   let commandInfo: CommandInfo;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   const validTitle = 'CLI Custom Action';
   const validClientSideComponentId = 'b206e130-1a5b-4ae7-86a7-4f91c9924d0a';
   const validWebUrl = 'https://contoso.sharepoint.com';
@@ -49,11 +48,11 @@ describe(commands.COMMANDSET_ADD, () => {
     VersionOfUserCustomAction: "16.0.1.0"
   };
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -71,17 +70,17 @@ describe(commands.COMMANDSET_ADD, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -160,23 +159,25 @@ describe(commands.COMMANDSET_ADD, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('adds commandset with scope Web, list type list and location Both', async () => {
-    sinon.stub(request, 'post').callsFake(async opts => {
-      if ((opts.url === `https://contoso.sharepoint.com/_api/Web/UserCustomActions`)) {
-        {
-          return commandactionResponse;
+  it('adds commandset with scope Web, list type list and location Both',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
+        if ((opts.url === `https://contoso.sharepoint.com/_api/Web/UserCustomActions`)) {
+          {
+            return commandactionResponse;
+          }
         }
-      }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, webUrl: validWebUrl, title: validTitle, clientSideComponentId: validClientSideComponentId, clientSideComponentProperties: validClientSideComponentProperties, listType: validListType, scope: 'Web', location: 'Both' } });
-    assert(loggerLogSpy.calledWith(commandactionResponse));
-  });
+      await command.action(logger, { options: { debug: true, webUrl: validWebUrl, title: validTitle, clientSideComponentId: validClientSideComponentId, clientSideComponentProperties: validClientSideComponentProperties, listType: validListType, scope: 'Web', location: 'Both' } });
+      assert(loggerLogSpy.calledWith(commandactionResponse));
+    }
+  );
 
   it('adds commandset with scope Web and list type library', async () => {
-    sinon.stub(request, 'post').callsFake(async opts => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if ((opts.url === `https://contoso.sharepoint.com/_api/Web/UserCustomActions`)) {
         {
           return commandactionResponse;
@@ -190,29 +191,31 @@ describe(commands.COMMANDSET_ADD, () => {
     assert(loggerLogSpy.calledWith(commandactionResponse));
   });
 
-  it('adds commandset with location ContextMenu and listType SitePages', async () => {
-    const response = commandactionResponse;
-    response.Location = 'ClientSideExtension.ListViewCommandSet.ContextMenu';
+  it('adds commandset with location ContextMenu and listType SitePages',
+    async () => {
+      const response = commandactionResponse;
+      response.Location = 'ClientSideExtension.ListViewCommandSet.ContextMenu';
 
-    sinon.stub(request, 'post').callsFake(async opts => {
-      if ((opts.url === `https://contoso.sharepoint.com/_api/Site/UserCustomActions`)) {
-        {
-          return response;
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
+        if ((opts.url === `https://contoso.sharepoint.com/_api/Site/UserCustomActions`)) {
+          {
+            return response;
+          }
         }
-      }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { webUrl: validWebUrl, title: validTitle, clientSideComponentId: validClientSideComponentId, clientSideComponentProperties: validClientSideComponentProperties, scope: 'Site', listType: 'SitePages', location: 'ContextMenu' } });
-    assert(loggerLogSpy.calledWith(response));
-  });
+      await command.action(logger, { options: { webUrl: validWebUrl, title: validTitle, clientSideComponentId: validClientSideComponentId, clientSideComponentProperties: validClientSideComponentProperties, scope: 'Site', listType: 'SitePages', location: 'ContextMenu' } });
+      assert(loggerLogSpy.calledWith(response));
+    }
+  );
 
   it('adds commandset with location CommandBar', async () => {
     const response = commandactionResponse;
     response.Location = 'ClientSideExtension.ListViewCommandSet.CommandBar';
 
-    sinon.stub(request, 'post').callsFake(async opts => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if ((opts.url === `https://contoso.sharepoint.com/_api/Site/UserCustomActions`)) {
         {
           return response;
@@ -233,7 +236,7 @@ describe(commands.COMMANDSET_ADD, () => {
       }
     };
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/_api/Site/UserCustomActions`) {
         throw error;
       }

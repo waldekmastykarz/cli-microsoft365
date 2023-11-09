@@ -1,23 +1,22 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import { telemetry } from '../../../../telemetry.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { Logger } from '../../../../cli/Logger.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './config-list.js';
 
 describe(commands.CONFIG_LIST, () => {
   let log: any[];
   let logger: Logger;
-  let loggerSpy: sinon.SinonSpy;
+  let loggerSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
   });
 
   beforeEach(() => {
@@ -33,15 +32,15 @@ describe(commands.CONFIG_LIST, () => {
         log.push(msg);
       }
     };
-    loggerSpy = sinon.spy(logger, 'log');
+    loggerSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore(Cli.getInstance().config.all);
+    jestUtil.restore(Cli.getInstance().config.all);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
   });
 
   it('has correct name', () => {
@@ -54,7 +53,7 @@ describe(commands.CONFIG_LIST, () => {
 
   it('returns a list of all the self set properties', async () => {
     const config = Cli.getInstance().config;
-    sinon.stub(config, 'all').value({ 'errorOutput': 'stdout' });
+    jest.spyOn(config, 'all').mockClear().mockImplementation().value({ 'errorOutput': 'stdout' });
 
     await command.action(logger, { options: {} });
     assert(loggerSpy.calledWith({ 'errorOutput': 'stdout' }));

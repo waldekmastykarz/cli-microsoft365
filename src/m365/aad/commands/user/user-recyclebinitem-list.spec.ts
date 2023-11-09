@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Logger } from '../../../../cli/Logger.js';
@@ -7,7 +6,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { odata } from '../../../../utils/odata.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './user-recyclebinitem-list.js';
 
@@ -17,13 +16,13 @@ describe(commands.USER_RECYCLEBINITEM_LIST, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
   });
 
@@ -40,17 +39,17 @@ describe(commands.USER_RECYCLEBINITEM_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       odata.getAllItems
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -67,7 +66,7 @@ describe(commands.USER_RECYCLEBINITEM_LIST, () => {
   });
 
   it('retrieves deleted users', async () => {
-    sinon.stub(odata, 'getAllItems').callsFake(async (url) => {
+    jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url) => {
       if (url === graphGetUrl) {
         return deletedUsersResponse;
       }
@@ -79,7 +78,7 @@ describe(commands.USER_RECYCLEBINITEM_LIST, () => {
   });
 
   it('correctly handles API error', async () => {
-    sinon.stub(odata, 'getAllItems').rejects({
+    jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation().rejects({
       "error": {
         "code": "Invalid_Request",
         "message": "An error has occurred while processing this request.",

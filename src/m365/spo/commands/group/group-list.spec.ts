@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './group-list.js';
 
@@ -85,13 +84,13 @@ describe(commands.GROUP_LIST, () => {
 
   let log: any[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -109,17 +108,17 @@ describe(commands.GROUP_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -136,7 +135,7 @@ describe(commands.GROUP_LIST, () => {
   });
 
   it('retrieves all site groups', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/sitegroups') > -1) {
         return groupsResponseValue;
       }
@@ -152,7 +151,7 @@ describe(commands.GROUP_LIST, () => {
   });
 
   it('retrieves associated groups from the site', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web?$expand=') > -1) {
         return JSON.stringify(associatedGroupsResponse);
       }
@@ -168,41 +167,45 @@ describe(commands.GROUP_LIST, () => {
     assert(loggerLogSpy.calledOnceWith(JSON.stringify(associatedGroupsResponse)));
   });
 
-  it('retrieves associated groups from the site with return type json', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/web?$expand=') > -1) {
-        return JSON.stringify(associatedGroupsResponse);
-      }
-      throw 'Invalid request';
-    });
+  it('retrieves associated groups from the site with return type json',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/web?$expand=') > -1) {
+          return JSON.stringify(associatedGroupsResponse);
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        webUrl: 'https://contoso.sharepoint.com',
-        associatedGroupsOnly: true,
-        output: 'json'
-      }
-    });
-    assert(loggerLogSpy.calledOnceWith(JSON.stringify(associatedGroupsResponse)));
-  });
+      await command.action(logger, {
+        options: {
+          webUrl: 'https://contoso.sharepoint.com',
+          associatedGroupsOnly: true,
+          output: 'json'
+        }
+      });
+      assert(loggerLogSpy.calledOnceWith(JSON.stringify(associatedGroupsResponse)));
+    }
+  );
 
-  it('retrieves associated groups from the site with return type text', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/web?$expand=') > -1) {
-        return associatedGroupsResponse;
-      }
-      throw 'Invalid request';
-    });
+  it('retrieves associated groups from the site with return type text',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/web?$expand=') > -1) {
+          return associatedGroupsResponse;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        webUrl: 'https://contoso.sharepoint.com',
-        associatedGroupsOnly: true,
-        output: 'text'
-      }
-    });
-    assert(loggerLogSpy.calledOnceWith(associatedGroupsResponseText));
-  });
+      await command.action(logger, {
+        options: {
+          webUrl: 'https://contoso.sharepoint.com',
+          associatedGroupsOnly: true,
+          output: 'text'
+        }
+      });
+      assert(loggerLogSpy.calledOnceWith(associatedGroupsResponseText));
+    }
+  );
 
   it('command correctly handles group list reject request', async () => {
     const error = {
@@ -215,7 +218,7 @@ describe(commands.GROUP_LIST, () => {
         }
       }
     };
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/sitegroups') > -1) {
         throw error;
       }
@@ -231,10 +234,12 @@ describe(commands.GROUP_LIST, () => {
     }), new CommandError(error.error['odata.error'].message.value));
   });
 
-  it('fails validation if the url option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the url option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation url is valid', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);

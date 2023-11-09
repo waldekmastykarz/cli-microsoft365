@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './list-webhook-list.js';
 
@@ -37,15 +36,15 @@ describe(commands.LIST_WEBHOOK_LIST, () => {
   };
   let log: any[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogToStderrSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -63,18 +62,18 @@ describe(commands.LIST_WEBHOOK_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -90,124 +89,134 @@ describe(commands.LIST_WEBHOOK_LIST, () => {
     assert.deepStrictEqual(command.defaultProperties(), ['id', 'clientState', 'expirationDateTime', 'resource']);
   });
 
-  it('retrieves all webhooks of the specific list if listTitle option is passed', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`https://contoso.sharepoint.com/sites/ninja/_api/web/lists/GetByTitle('Documents')/Subscriptions`) > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return webhookListResponse;
+  it('retrieves all webhooks of the specific list if listTitle option is passed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`https://contoso.sharepoint.com/sites/ninja/_api/web/lists/GetByTitle('Documents')/Subscriptions`) > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return webhookListResponse;
+          }
         }
-      }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        listTitle: 'Documents',
-        webUrl: 'https://contoso.sharepoint.com/sites/ninja',
-        verbose: true
-      }
-    });
-    assert(loggerLogSpy.calledWith(webhookListResponse.value));
-  });
-
-  it('retrieves all webhooks of the specific list if listId option is passed', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`https://contoso.sharepoint.com/sites/ninja/_api/web/lists(guid'dfddade1-4729-428d-881e-7fedf3cae50d')/Subscriptions`) > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return webhookListResponse;
+      await command.action(logger, {
+        options: {
+          listTitle: 'Documents',
+          webUrl: 'https://contoso.sharepoint.com/sites/ninja',
+          verbose: true
         }
-      }
+      });
+      assert(loggerLogSpy.calledWith(webhookListResponse.value));
+    }
+  );
 
-      throw 'Invalid request';
-    });
-
-    await command.action(logger, {
-      options: {
-        listId: 'dfddade1-4729-428d-881e-7fedf3cae50d',
-        webUrl: 'https://contoso.sharepoint.com/sites/ninja',
-        verbose: true
-      }
-    });
-    assert(loggerLogSpy.calledWith(webhookListResponse.value));
-  });
-
-  it('retrieves all webhooks of the specific list if listUrl option is passed', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/sites/ninja/_api/web/GetList('${formatting.encodeQueryParameter('/sites/ninja/lists/Documents')}')/Subscriptions`) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return webhookListResponse;
+  it('retrieves all webhooks of the specific list if listId option is passed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`https://contoso.sharepoint.com/sites/ninja/_api/web/lists(guid'dfddade1-4729-428d-881e-7fedf3cae50d')/Subscriptions`) > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return webhookListResponse;
+          }
         }
-      }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        listUrl: '/sites/ninja/lists/Documents',
-        webUrl: 'https://contoso.sharepoint.com/sites/ninja'
-      }
-    });
-    assert(loggerLogSpy.calledWith(webhookListResponse.value));
-  });
-
-  it('renders empty string for clientState, if no value for clientState was specified in the webhook', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`https://contoso.sharepoint.com/sites/ninja/_api/web/lists(guid'dfddade1-4729-428d-881e-7fedf3cae50d')/Subscriptions`) > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return webhookListResponse;
+      await command.action(logger, {
+        options: {
+          listId: 'dfddade1-4729-428d-881e-7fedf3cae50d',
+          webUrl: 'https://contoso.sharepoint.com/sites/ninja',
+          verbose: true
         }
-      }
+      });
+      assert(loggerLogSpy.calledWith(webhookListResponse.value));
+    }
+  );
 
-      throw 'Invalid request';
-    });
-
-    await command.action(logger, {
-      options: {
-        listId: 'dfddade1-4729-428d-881e-7fedf3cae50d',
-        webUrl: 'https://contoso.sharepoint.com/sites/ninja'
-      }
-    });
-    assert(loggerLogSpy.calledWith(webhookListResponse.value));
-  });
-
-  it('outputs user-friendly message when no webhooks found in verbose mode', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`https://contoso.sharepoint.com/sites/ninja/_api/web/lists(guid'dfddade1-4729-428d-881e-7fedf3cae50d')/Subscriptions`) > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return {
-            "value": []
-          };
+  it('retrieves all webhooks of the specific list if listUrl option is passed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/sites/ninja/_api/web/GetList('${formatting.encodeQueryParameter('/sites/ninja/lists/Documents')}')/Subscriptions`) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return webhookListResponse;
+          }
         }
-      }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        listId: 'dfddade1-4729-428d-881e-7fedf3cae50d',
-        webUrl: 'https://contoso.sharepoint.com/sites/ninja'
-      }
-    });
-    assert(loggerLogToStderrSpy.calledWith('No webhooks found'));
-  });
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          listUrl: '/sites/ninja/lists/Documents',
+          webUrl: 'https://contoso.sharepoint.com/sites/ninja'
+        }
+      });
+      assert(loggerLogSpy.calledWith(webhookListResponse.value));
+    }
+  );
+
+  it('renders empty string for clientState, if no value for clientState was specified in the webhook',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`https://contoso.sharepoint.com/sites/ninja/_api/web/lists(guid'dfddade1-4729-428d-881e-7fedf3cae50d')/Subscriptions`) > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return webhookListResponse;
+          }
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger, {
+        options: {
+          listId: 'dfddade1-4729-428d-881e-7fedf3cae50d',
+          webUrl: 'https://contoso.sharepoint.com/sites/ninja'
+        }
+      });
+      assert(loggerLogSpy.calledWith(webhookListResponse.value));
+    }
+  );
+
+  it('outputs user-friendly message when no webhooks found in verbose mode',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`https://contoso.sharepoint.com/sites/ninja/_api/web/lists(guid'dfddade1-4729-428d-881e-7fedf3cae50d')/Subscriptions`) > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return {
+              "value": []
+            };
+          }
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          listId: 'dfddade1-4729-428d-881e-7fedf3cae50d',
+          webUrl: 'https://contoso.sharepoint.com/sites/ninja'
+        }
+      });
+      assert(loggerLogToStderrSpy.calledWith('No webhooks found'));
+    }
+  );
 
   it('outputs all properties when output is JSON', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`https://contoso.sharepoint.com/sites/ninja/_api/web/lists(guid'dfddade1-4729-428d-881e-7fedf3cae50d')/Subscriptions`) > -1) {
         if (opts.headers &&
           opts.headers.accept &&
@@ -230,7 +239,7 @@ describe(commands.LIST_WEBHOOK_LIST, () => {
   });
 
   it('command correctly handles list get reject request', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/contextinfo') > -1) {
         return {
           FormDigestValue: 'abc'
@@ -241,7 +250,7 @@ describe(commands.LIST_WEBHOOK_LIST, () => {
     });
 
     const err = 'Invalid request';
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/lists/GetByTitle(') > -1) {
         throw err;
       }
@@ -265,10 +274,12 @@ describe(commands.LIST_WEBHOOK_LIST, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if the webUrl option is not a valid SharePoint url', async () => {
-    const actual = await command.validate({ options: { webUrl: 'notavalidurl', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCC' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint url',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'notavalidurl', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCC' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation if the listId option is a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF' } }, commandInfo);

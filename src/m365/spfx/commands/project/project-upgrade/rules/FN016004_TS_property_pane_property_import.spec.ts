@@ -1,7 +1,6 @@
 import assert from 'assert';
 import fs from 'fs';
-import sinon from 'sinon';
-import { sinonUtil } from '../../../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../../../utils/jestUtil.js';
 import { Project, TsFile } from '../../project-model/index.js';
 import { Finding } from '../../report-model/index.js';
 import { FN016004_TS_property_pane_property_import } from './FN016004_TS_property_pane_property_import.js';
@@ -11,7 +10,7 @@ describe('FN016004_TS_property_pane_property_import', () => {
   let findings: Finding[];
   let rule: FN016004_TS_property_pane_property_import;
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       fs.existsSync,
       fs.readFileSync,
       (TsRule as any).getParentOfType
@@ -28,7 +27,7 @@ describe('FN016004_TS_property_pane_property_import', () => {
   });
 
   it('doesn\'t return notifications if no .ts files found', () => {
-    sinon.stub(fs, 'existsSync').callsFake(() => false);
+    jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(() => false);
     const project: Project = {
       path: '/usr/tmp'
     };
@@ -37,7 +36,7 @@ describe('FN016004_TS_property_pane_property_import', () => {
   });
 
   it('doesn\'t return notifications if specified .ts file not found', () => {
-    sinon.stub(fs, 'existsSync').callsFake(() => false);
+    jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(() => false);
     const project: Project = {
       path: '/usr/tmp',
       tsFiles: [
@@ -48,58 +47,64 @@ describe('FN016004_TS_property_pane_property_import', () => {
     assert.strictEqual(findings.length, 0);
   });
 
-  it('doesn\'t return notifications if @microsoft/sp-webpart-base import has values that are suppose to be there', () => {
-    sinon.stub(fs, 'existsSync').callsFake(() => true);
-    sinon.stub(fs, 'readFileSync').callsFake(() => `import {
-      BaseClientSideWebPart
-    } from '@microsoft/sp-webpart-base';`);
-    const project: Project = {
-      path: '/usr/tmp',
-      tsFiles: [
-        new TsFile('foo')
-      ]
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it('doesn\'t return notifications if @microsoft/sp-webpart-base import has values that are suppose to be there',
+    () => {
+      jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(() => true);
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(() => `import {
+        BaseClientSideWebPart
+      } from '@microsoft/sp-webpart-base';`);
+      const project: Project = {
+        path: '/usr/tmp',
+        tsFiles: [
+          new TsFile('foo')
+        ]
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
-  it('returns notification if @microsoft/sp-webpart-base import has values that are not suppose to be there', () => {
-    sinon.stub(fs, 'existsSync').callsFake(() => true);
-    sinon.stub(fs, 'readFileSync').callsFake(() => `import {
-      BaseClientSideWebPart,
-      IPropertyPaneConfiguration,
-      PropertyPaneTextField,
-      PropertyPaneLabel
-    } from '@microsoft/sp-webpart-base';`);
-    const project: Project = {
-      path: '/usr/tmp',
-      tsFiles: [
-        new TsFile('foo')
-      ]
-    };
-    rule.visit(project, findings);
-    assert(findings[0].occurrences[0].resolution.indexOf('import { IPropertyPaneConfiguration, PropertyPaneTextField, PropertyPaneLabel } from "@microsoft/sp-property-pane";') > -1);
-  });
+  it('returns notification if @microsoft/sp-webpart-base import has values that are not suppose to be there',
+    () => {
+      jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(() => true);
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(() => `import {
+        BaseClientSideWebPart,
+        IPropertyPaneConfiguration,
+        PropertyPaneTextField,
+        PropertyPaneLabel
+      } from '@microsoft/sp-webpart-base';`);
+      const project: Project = {
+        path: '/usr/tmp',
+        tsFiles: [
+          new TsFile('foo')
+        ]
+      };
+      rule.visit(project, findings);
+      assert(findings[0].occurrences[0].resolution.indexOf('import { IPropertyPaneConfiguration, PropertyPaneTextField, PropertyPaneLabel } from "@microsoft/sp-property-pane";') > -1);
+    }
+  );
 
-  it('does not return an empty import when all imports are moved to @microsoft/sp-property-pane', () => {
-    sinon.stub(fs, 'existsSync').callsFake(() => true);
-    sinon.stub(fs, 'readFileSync').callsFake(() => `import {
-      IPropertyPaneField,
-      PropertyPaneFieldType
-    } from '@microsoft/sp-webpart-base';`);
-    const project: Project = {
-      path: '/usr/tmp',
-      tsFiles: [
-        new TsFile('foo')
-      ]
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings[0].occurrences[0].resolution, 'import { IPropertyPaneField, PropertyPaneFieldType } from "@microsoft/sp-property-pane";');
-  });
+  it('does not return an empty import when all imports are moved to @microsoft/sp-property-pane',
+    () => {
+      jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(() => true);
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(() => `import {
+        IPropertyPaneField,
+        PropertyPaneFieldType
+      } from '@microsoft/sp-webpart-base';`);
+      const project: Project = {
+        path: '/usr/tmp',
+        tsFiles: [
+          new TsFile('foo')
+        ]
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings[0].occurrences[0].resolution, 'import { IPropertyPaneField, PropertyPaneFieldType } from "@microsoft/sp-property-pane";');
+    }
+  );
 
   it('does not add PropertyPaneCustomField when it is not used', () => {
-    sinon.stub(fs, 'existsSync').callsFake(() => true);
-    sinon.stub(fs, 'readFileSync').callsFake(() => `import { IPropertyPaneCustomFieldProps } from '@microsoft/sp-webpart-base';`);
+    jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(() => true);
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(() => `import { IPropertyPaneCustomFieldProps } from '@microsoft/sp-webpart-base';`);
     const project: Project = {
       path: '/usr/tmp',
       tsFiles: [

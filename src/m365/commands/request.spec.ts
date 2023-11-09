@@ -1,6 +1,5 @@
 import assert from 'assert';
 import fs from 'fs';
-import sinon from 'sinon';
 import { PassThrough } from 'stream';
 import auth from '../../Auth.js';
 import { Cli } from '../../cli/Cli.js';
@@ -11,15 +10,15 @@ import request from '../../request.js';
 import { telemetry } from '../../telemetry.js';
 import { pid } from '../../utils/pid.js';
 import { session } from '../../utils/session.js';
-import { sinonUtil } from '../../utils/sinonUtil.js';
+import { jestUtil } from '../../utils/jestUtil.js';
 import commands from './commands.js';
 import command from './request.js';
 
 describe(commands.REQUEST, () => {
   let log: any[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
+  let loggerLogToStderrSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
   //#region 
@@ -43,13 +42,13 @@ describe(commands.REQUEST, () => {
   };
   //#endregion
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').callsFake(() => Promise.resolve());
-    sinon.stub(telemetry, 'trackEvent').callsFake(() => { });
-    sinon.stub(pid, 'getProcessName').callsFake(() => '');
-    sinon.stub(session, 'getId').callsFake(() => '');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation(() => Promise.resolve());
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockImplementation(() => { });
+    jest.spyOn(pid, 'getProcessName').mockClear().mockImplementation(() => '');
+    jest.spyOn(session, 'getId').mockClear().mockImplementation(() => '');
     auth.service.connected = true;
-    sinon.stub(auth, 'ensureAccessToken').callsFake(() => Promise.resolve('ABC'));
+    jest.spyOn(auth, 'ensureAccessToken').mockClear().mockImplementation(() => Promise.resolve('ABC'));
     commandInfo = Cli.getCommandInfo(command);
   });
 
@@ -66,19 +65,19 @@ describe(commands.REQUEST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.execute,
       fs.createWriteStream
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.accessTokens = {};
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
@@ -102,16 +101,18 @@ describe(commands.REQUEST, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if body is set when content-type is not specified', async () => {
-    const actual = await command.validate({
-      options: {
-        url: 'https://contoso.sharepoint.com/_api/web',
-        body: '{ "key": "value" }',
-        method: 'post'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if body is set when content-type is not specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          url: 'https://contoso.sharepoint.com/_api/web',
+          body: '{ "key": "value" }',
+          method: 'post'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if body is set on GET requests', async () => {
     const actual = await command.validate({
@@ -126,7 +127,7 @@ describe(commands.REQUEST, () => {
   });
 
   it('fails validation if filePath doesn\'t exist', async () => {
-    sinon.stub(fs, 'existsSync').callsFake(() => false);
+    jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(() => false);
     const actual = await command.validate({
       options: {
         url: "https://contoso.sharepoint.com/_api/web/GetFileById('b2307a39-e878-458b-bc90-03bc578531d6')/$value",
@@ -134,21 +135,23 @@ describe(commands.REQUEST, () => {
         filePath: 'abc'
       }
     }, commandInfo);
-    sinonUtil.restore(fs.existsSync);
+    jestUtil.restore(fs.existsSync);
     assert.notStrictEqual(actual, true);
   });
 
-  it('passes validation with body and content-type on POST request', async () => {
-    const actual = await command.validate({
-      options: {
-        url: 'https://contoso.sharepoint.com/_api/web',
-        body: '{ "key": "value" }',
-        'content-type': 'application/json',
-        method: 'post'
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation with body and content-type on POST request',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          url: 'https://contoso.sharepoint.com/_api/web',
+          body: '{ "key": "value" }',
+          'content-type': 'application/json',
+          method: 'post'
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('passes validation with correct method set', async () => {
     const actual = await command.validate({
@@ -169,206 +172,228 @@ describe(commands.REQUEST, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('correctly defaults to a GET request accepting a json response', async () => {
-    sinon.stub(request, 'execute').callsFake((opts) => {
-      if (opts.method === 'GET' && opts.headers!.accept === 'application/json') {
-        return Promise.resolve(mockSPOWebJSONResponse);
-      }
+  it('correctly defaults to a GET request accepting a json response',
+    async () => {
+      jest.spyOn(request, 'execute').mockClear().mockImplementation((opts) => {
+        if (opts.method === 'GET' && opts.headers!.accept === 'application/json') {
+          return Promise.resolve(mockSPOWebJSONResponse);
+        }
 
-      return Promise.reject('Invalid request');
-    });
+        return Promise.reject('Invalid request');
+      });
 
-    await command.action(logger, {
-      options: {
-        url: 'https://contoso.sharepoint.com/_api/web'
-      }
-    });
-  });
+      await command.action(logger, {
+        options: {
+          url: 'https://contoso.sharepoint.com/_api/web'
+        }
+      });
+    }
+  );
 
-  it('successfully executes a GET request to a SharePoint API endpoint', async () => {
-    sinon.stub(request, 'execute').callsFake((opts) => {
-      if (opts.url === 'https://contoso.sharepoint.com/_api/web') {
-        return Promise.resolve(mockSPOWebJSONResponse);
-      }
+  it('successfully executes a GET request to a SharePoint API endpoint',
+    async () => {
+      jest.spyOn(request, 'execute').mockClear().mockImplementation((opts) => {
+        if (opts.url === 'https://contoso.sharepoint.com/_api/web') {
+          return Promise.resolve(mockSPOWebJSONResponse);
+        }
 
-      return Promise.reject('Invalid request');
-    });
+        return Promise.reject('Invalid request');
+      });
 
-    await command.action(logger, {
-      options: {
-        url: 'https://contoso.sharepoint.com/_api/web',
-        accept: 'application/json;odata=nometadata'
-      }
-    });
-    assert(loggerLogSpy.calledWith(mockSPOWebJSONResponse));
-  });
+      await command.action(logger, {
+        options: {
+          url: 'https://contoso.sharepoint.com/_api/web',
+          accept: 'application/json;odata=nometadata'
+        }
+      });
+      assert(loggerLogSpy.calledWith(mockSPOWebJSONResponse));
+    }
+  );
 
-  it('successfully executes a GET request to a SharePoint API endpoint accepting XML', async () => {
-    sinon.stub(request, 'execute').callsFake((opts) => {
-      if (opts.url === 'https://contoso.sharepoint.com/_api/web?$select=Title') {
-        return Promise.resolve(mockSPOWebXMLResponse);
-      }
+  it('successfully executes a GET request to a SharePoint API endpoint accepting XML',
+    async () => {
+      jest.spyOn(request, 'execute').mockClear().mockImplementation((opts) => {
+        if (opts.url === 'https://contoso.sharepoint.com/_api/web?$select=Title') {
+          return Promise.resolve(mockSPOWebXMLResponse);
+        }
 
-      return Promise.reject('Invalid request');
-    });
+        return Promise.reject('Invalid request');
+      });
 
-    await command.action(logger, {
-      options: {
-        url: 'https://contoso.sharepoint.com/_api/web?$select=Title',
-        accept: 'application/xml'
-      }
-    });
-    assert(loggerLogSpy.calledWith(mockSPOWebXMLResponse));
-  });
+      await command.action(logger, {
+        options: {
+          url: 'https://contoso.sharepoint.com/_api/web?$select=Title',
+          accept: 'application/xml'
+        }
+      });
+      assert(loggerLogSpy.calledWith(mockSPOWebXMLResponse));
+    }
+  );
 
-  it('successfully executes a GET request to a SharePoint API endpoint (debug)', async () => {
-    sinon.stub(request, 'execute').callsFake((opts) => {
-      if (opts.url === 'https://contoso.sharepoint.com/_api/web') {
-        return Promise.resolve(mockSPOWebJSONResponse);
-      }
+  it('successfully executes a GET request to a SharePoint API endpoint (debug)',
+    async () => {
+      jest.spyOn(request, 'execute').mockClear().mockImplementation((opts) => {
+        if (opts.url === 'https://contoso.sharepoint.com/_api/web') {
+          return Promise.resolve(mockSPOWebJSONResponse);
+        }
 
-      return Promise.reject('Invalid request');
-    });
+        return Promise.reject('Invalid request');
+      });
 
-    await command.action(logger, {
-      options: {
-        url: 'https://contoso.sharepoint.com/_api/web',
-        accept: 'application/json;odata=nometadata',
-        debug: true
-      }
-    });
-    assert(loggerLogSpy.calledWith(mockSPOWebJSONResponse));
-  });
+      await command.action(logger, {
+        options: {
+          url: 'https://contoso.sharepoint.com/_api/web',
+          accept: 'application/json;odata=nometadata',
+          debug: true
+        }
+      });
+      assert(loggerLogSpy.calledWith(mockSPOWebJSONResponse));
+    }
+  );
 
-  it('successfully executes a POST request to a SharePoint API endpoint', async () => {
-    sinon.stub(request, 'execute').callsFake((opts) => {
-      if (opts.url === 'https://contoso.sharepoint.com/_api/web') {
-        return Promise.resolve(mockSPOWebJSONResponse);
-      }
+  it('successfully executes a POST request to a SharePoint API endpoint',
+    async () => {
+      jest.spyOn(request, 'execute').mockClear().mockImplementation((opts) => {
+        if (opts.url === 'https://contoso.sharepoint.com/_api/web') {
+          return Promise.resolve(mockSPOWebJSONResponse);
+        }
 
-      return Promise.reject('Invalid request');
-    });
+        return Promise.reject('Invalid request');
+      });
 
-    await command.action(logger, {
-      options: {
-        url: 'https://contoso.sharepoint.com/_api/web',
-        accept: 'application/json;odata=nometadata',
-        'content-type': 'application/json',
-        'x-http-method': 'PATCH',
-        method: 'post'
-      }
-    });
-    assert(loggerLogSpy.calledWith(mockSPOWebJSONResponse));
-  });
+      await command.action(logger, {
+        options: {
+          url: 'https://contoso.sharepoint.com/_api/web',
+          accept: 'application/json;odata=nometadata',
+          'content-type': 'application/json',
+          'x-http-method': 'PATCH',
+          method: 'post'
+        }
+      });
+      assert(loggerLogSpy.calledWith(mockSPOWebJSONResponse));
+    }
+  );
 
-  it('successfully executes a request with a manually specified resource', async () => {
-    sinon.stub(request, 'execute').callsFake((opts) => {
-      if (opts.url === 'https://contoso.sharepoint.com/_api/web') {
-        return Promise.resolve(mockSPOWebJSONResponse);
-      }
+  it('successfully executes a request with a manually specified resource',
+    async () => {
+      jest.spyOn(request, 'execute').mockClear().mockImplementation((opts) => {
+        if (opts.url === 'https://contoso.sharepoint.com/_api/web') {
+          return Promise.resolve(mockSPOWebJSONResponse);
+        }
 
-      return Promise.reject('Invalid request');
-    });
+        return Promise.reject('Invalid request');
+      });
 
-    await command.action(logger, {
-      options: {
-        url: 'https://contoso.sharepoint.com/_api/web',
-        accept: 'application/json;odata=nometadata',
-        resource: 'https://contoso.sharepoint.com'
-      }
-    });
-    assert(loggerLogSpy.calledWith(mockSPOWebJSONResponse));
-  });
+      await command.action(logger, {
+        options: {
+          url: 'https://contoso.sharepoint.com/_api/web',
+          accept: 'application/json;odata=nometadata',
+          resource: 'https://contoso.sharepoint.com'
+        }
+      });
+      assert(loggerLogSpy.calledWith(mockSPOWebJSONResponse));
+    }
+  );
 
-  it('successfully executes a request with a manually specified resource (debug)', async () => {
-    sinon.stub(request, 'execute').callsFake((opts) => {
-      if (opts.url === 'https://contoso.sharepoint.com/_api/web') {
-        return Promise.resolve(mockSPOWebJSONResponse);
-      }
+  it('successfully executes a request with a manually specified resource (debug)',
+    async () => {
+      jest.spyOn(request, 'execute').mockClear().mockImplementation((opts) => {
+        if (opts.url === 'https://contoso.sharepoint.com/_api/web') {
+          return Promise.resolve(mockSPOWebJSONResponse);
+        }
 
-      return Promise.reject('Invalid request');
-    });
+        return Promise.reject('Invalid request');
+      });
 
-    await command.action(logger, {
-      options: {
-        url: 'https://contoso.sharepoint.com/_api/web',
-        accept: 'application/json;odata=nometadata',
-        resource: 'https://contoso.sharepoint.com',
-        debug: true
-      }
-    });
-    assert(loggerLogToStderrSpy.called);
-    assert(loggerLogSpy.calledWith(mockSPOWebJSONResponse));
-  });
+      await command.action(logger, {
+        options: {
+          url: 'https://contoso.sharepoint.com/_api/web',
+          accept: 'application/json;odata=nometadata',
+          resource: 'https://contoso.sharepoint.com',
+          debug: true
+        }
+      });
+      assert(loggerLogToStderrSpy.called);
+      assert(loggerLogSpy.calledWith(mockSPOWebJSONResponse));
+    }
+  );
 
-  it('successfully executes a GET request to a Graph API endpoint with the @graph token', async () => {
-    sinon.stub(request, 'execute').callsFake(async (opts) => {
-      if (opts.url === 'https://graph.microsoft.com/v1.0/me') {
-        return graphResponse;
-      }
+  it('successfully executes a GET request to a Graph API endpoint with the @graph token',
+    async () => {
+      jest.spyOn(request, 'execute').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://graph.microsoft.com/v1.0/me') {
+          return graphResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        url: '@graph/me',
-        accept: 'application/json;odata.metadata=none'
-      }
-    });
-    assert(loggerLogSpy.calledWith(graphResponse));
-  });
+      await command.action(logger, {
+        options: {
+          url: '@graph/me',
+          accept: 'application/json;odata.metadata=none'
+        }
+      });
+      assert(loggerLogSpy.calledWith(graphResponse));
+    }
+  );
 
 
-  it('successfully executes a GET request to a Graph API endpoint with the @graphbeta token', async () => {
-    sinon.stub(request, 'execute').callsFake(async (opts) => {
-      if (opts.url === 'https://graph.microsoft.com/beta/me') {
-        return graphResponse;
-      }
+  it('successfully executes a GET request to a Graph API endpoint with the @graphbeta token',
+    async () => {
+      jest.spyOn(request, 'execute').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://graph.microsoft.com/beta/me') {
+          return graphResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        url: '@graphbeta/me',
-        accept: 'application/json;odata.metadata=none'
-      }
-    });
-    assert(loggerLogSpy.calledWith(graphResponse));
-  });
+      await command.action(logger, {
+        options: {
+          url: '@graphbeta/me',
+          accept: 'application/json;odata.metadata=none'
+        }
+      });
+      assert(loggerLogSpy.calledWith(graphResponse));
+    }
+  );
 
-  it('successfully executes a GET request to a SharePoint API endpoint with the @spo token', async () => {
-    auth.service.spoUrl = 'https://contoso.sharepoint.com';
-    sinon.stub(request, 'execute').callsFake(async (opts) => {
-      if (opts.url === 'https://contoso.sharepoint.com/_api/web') {
-        return mockSPOWebJSONResponse;
-      }
+  it('successfully executes a GET request to a SharePoint API endpoint with the @spo token',
+    async () => {
+      auth.service.spoUrl = 'https://contoso.sharepoint.com';
+      jest.spyOn(request, 'execute').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://contoso.sharepoint.com/_api/web') {
+          return mockSPOWebJSONResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        url: '@spo/_api/web',
-        accept: 'application/json;odata=nometadata'
-      }
-    });
-    assert(loggerLogSpy.calledWith(mockSPOWebJSONResponse));
-  });
+      await command.action(logger, {
+        options: {
+          url: '@spo/_api/web',
+          accept: 'application/json;odata=nometadata'
+        }
+      });
+      assert(loggerLogSpy.calledWith(mockSPOWebJSONResponse));
+    }
+  );
 
-  it('throws error when using the @spo token when there is nog spoUrl in the auth service', async () => {
-    auth.service.spoUrl = undefined;
-    await assert.rejects(command.action(logger, {
-      options: {
-        url: '@spo/_api/web',
-        accept: 'application/json;odata=nometadata'
-      }
-    }), new CommandError(`SharePoint root site URL is unknown. Please set your SharePoint URL using command 'spo set'.`));
-  });
+  it('throws error when using the @spo token when there is nog spoUrl in the auth service',
+    async () => {
+      auth.service.spoUrl = undefined;
+      await assert.rejects(command.action(logger, {
+        options: {
+          url: '@spo/_api/web',
+          accept: 'application/json;odata=nometadata'
+        }
+      }), new CommandError(`SharePoint root site URL is unknown. Please set your SharePoint URL using command 'spo set'.`));
+    }
+  );
 
   it('correctly handles an API exception', async () => {
-    sinon.stub(request, 'execute').callsFake(_ => {
+    jest.spyOn(request, 'execute').mockClear().mockImplementation(_ => {
       return Promise.reject('Invalid request');
     });
 
@@ -380,80 +405,84 @@ describe(commands.REQUEST, () => {
   });
 
 
-  it('writeFile called when option --asFile is specified (verbose)', async () => {
-    const mockResponse = `{"data": 123}`;
-    const responseStream = new PassThrough();
-    responseStream.write(mockResponse);
-    responseStream.end(); //Mark that we pushed all the data.
+  it('writeFile called when option --asFile is specified (verbose)',
+    async () => {
+      const mockResponse = `{"data": 123}`;
+      const responseStream = new PassThrough();
+      responseStream.write(mockResponse);
+      responseStream.end(); //Mark that we pushed all the data.
 
-    const writeStream = new PassThrough();
-    const fsStub = sinon.stub(fs, 'createWriteStream').returns(writeStream as any);
+      const writeStream = new PassThrough();
+      const fsStub = jest.spyOn(fs, 'createWriteStream').mockClear().mockReturnValue(writeStream as any);
 
-    setTimeout(() => {
-      writeStream.emit('close');
-    }, 5);
+      setTimeout(() => {
+        writeStream.emit('close');
+      }, 5);
 
-    sinon.stub(request, 'execute').callsFake((opts) => {
-      if ((opts.url as string).indexOf('/_api/web/GetFileById(') > -1) {
-        return Promise.resolve({
-          data: responseStream
-        });
-      }
+      jest.spyOn(request, 'execute').mockClear().mockImplementation((opts) => {
+        if ((opts.url as string).indexOf('/_api/web/GetFileById(') > -1) {
+          return Promise.resolve({
+            data: responseStream
+          });
+        }
 
-      return Promise.reject('Invalid request');
-    });
+        return Promise.reject('Invalid request');
+      });
 
-    const options = {
-      verbose: true,
-      url: "https://contoso.sharepoint.com/_api/web/GetFileById('b2307a39-e878-458b-bc90-03bc578531d6')/$value",
-      body: '{ "key": "value" }',
-      'content-type': 'application/json',
-      method: 'get',
-      filePath: 'test1.docx'
-    };
+      const options = {
+        verbose: true,
+        url: "https://contoso.sharepoint.com/_api/web/GetFileById('b2307a39-e878-458b-bc90-03bc578531d6')/$value",
+        body: '{ "key": "value" }',
+        'content-type': 'application/json',
+        method: 'get',
+        filePath: 'test1.docx'
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(fsStub.calledOnce);
-    sinonUtil.restore([
-      fs.createWriteStream
-    ]);
-  });
+      await command.action(logger, { options: options } as any);
+      assert(fsStub.calledOnce);
+      jestUtil.restore([
+        fs.createWriteStream
+      ]);
+    }
+  );
 
-  it('fails when empty file is created file with --asFile is specified', async () => {
-    const mockResponse = `{"data": 123}`;
-    const responseStream = new PassThrough();
-    responseStream.write(mockResponse);
-    responseStream.end(); //Mark that we pushed all the data.
+  it('fails when empty file is created file with --asFile is specified',
+    async () => {
+      const mockResponse = `{"data": 123}`;
+      const responseStream = new PassThrough();
+      responseStream.write(mockResponse);
+      responseStream.end(); //Mark that we pushed all the data.
 
-    const writeStream = new PassThrough();
-    const fsStub = sinon.stub(fs, 'createWriteStream').returns(writeStream as any);
+      const writeStream = new PassThrough();
+      const fsStub = jest.spyOn(fs, 'createWriteStream').mockClear().mockReturnValue(writeStream as any);
 
-    setTimeout(() => {
-      writeStream.emit('error', "Writestream throws error");
-    }, 5);
+      setTimeout(() => {
+        writeStream.emit('error', "Writestream throws error");
+      }, 5);
 
-    sinon.stub(request, 'execute').callsFake((opts) => {
-      if ((opts.url as string).indexOf('/_api/web/GetFileById(') > -1) {
-        return Promise.resolve({
-          data: responseStream
-        });
-      }
+      jest.spyOn(request, 'execute').mockClear().mockImplementation((opts) => {
+        if ((opts.url as string).indexOf('/_api/web/GetFileById(') > -1) {
+          return Promise.resolve({
+            data: responseStream
+          });
+        }
 
-      return Promise.reject('Invalid request');
-    });
+        return Promise.reject('Invalid request');
+      });
 
-    const options = {
-      url: "https://contoso.sharepoint.com/_api/web/GetFileById('b2307a39-e878-458b-bc90-03bc578531d6')/$value",
-      body: '{ "key": "value" }',
-      'content-type': 'application/json',
-      method: 'get',
-      filePath: 'test1.docx'
-    };
+      const options = {
+        url: "https://contoso.sharepoint.com/_api/web/GetFileById('b2307a39-e878-458b-bc90-03bc578531d6')/$value",
+        body: '{ "key": "value" }',
+        'content-type': 'application/json',
+        method: 'get',
+        filePath: 'test1.docx'
+      };
 
-    await assert.rejects(command.action(logger, { options: options } as any), new CommandError('Writestream throws error'));
-    assert(fsStub.calledOnce);
-    sinonUtil.restore([
-      fs.createWriteStream
-    ]);
-  });
+      await assert.rejects(command.action(logger, { options: options } as any), new CommandError('Writestream throws error'));
+      assert(fsStub.calledOnce);
+      jestUtil.restore([
+        fs.createWriteStream
+      ]);
+    }
+  );
 });

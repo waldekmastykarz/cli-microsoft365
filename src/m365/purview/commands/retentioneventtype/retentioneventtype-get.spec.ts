@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './retentioneventtype-get.js';
 
@@ -37,14 +36,14 @@ describe(commands.RETENTIONEVENTTYPE_GET, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.accessTokens[(command as any).resource] = {
       accessToken: 'abc',
@@ -66,18 +65,18 @@ describe(commands.RETENTIONEVENTTYPE_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.accessTokens = {};
   });
@@ -101,7 +100,7 @@ describe(commands.RETENTIONEVENTTYPE_GET, () => {
   });
 
   it('retrieves retention event type by specified id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/security/triggerTypes/retentionEventTypes/${retentionEventTypeId}`) {
         return retentionEventTypeGetResponse;
       }
@@ -113,20 +112,22 @@ describe(commands.RETENTIONEVENTTYPE_GET, () => {
     assert(loggerLogSpy.calledWith(retentionEventTypeGetResponse));
   });
 
-  it('handles error when retention event type by specified id is not found', async () => {
-    const errorMessage = `Error: The operation couldn't be performed because object '${retentionEventTypeId}' couldn't be found on 'FfoConfigurationSession'.`;
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/security/triggerTypes/retentionEventTypes/${retentionEventTypeId}`) {
-        throw errorMessage;
-      }
+  it('handles error when retention event type by specified id is not found',
+    async () => {
+      const errorMessage = `Error: The operation couldn't be performed because object '${retentionEventTypeId}' couldn't be found on 'FfoConfigurationSession'.`;
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/security/triggerTypes/retentionEventTypes/${retentionEventTypeId}`) {
+          throw errorMessage;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        id: retentionEventTypeId
-      }
-    }), new CommandError(errorMessage));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          id: retentionEventTypeId
+        }
+      }), new CommandError(errorMessage));
+    }
+  );
 });

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './sitedesign-rights-grant.js';
@@ -17,15 +16,15 @@ import command from './sitedesign-rights-grant.js';
 describe(commands.SITEDESIGN_RIGHTS_GRANT, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'ABC',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -49,17 +48,17 @@ describe(commands.SITEDESIGN_RIGHTS_GRANT, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -72,86 +71,94 @@ describe(commands.SITEDESIGN_RIGHTS_GRANT, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('grants rights on the specified site design to the specified principal', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.GrantSiteDesignRights`) > -1 &&
-        JSON.stringify(opts.data) === JSON.stringify({
-          "id": "9b142c22-037f-4a7f-9017-e9d8c0e34b98",
-          "principalNames": ["PattiF"],
-          "grantedRights": "1"
-        })) {
-        return {
-          "odata.null": true
-        };
-      }
+  it('grants rights on the specified site design to the specified principal',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.GrantSiteDesignRights`) > -1 &&
+          JSON.stringify(opts.data) === JSON.stringify({
+            "id": "9b142c22-037f-4a7f-9017-e9d8c0e34b98",
+            "principalNames": ["PattiF"],
+            "grantedRights": "1"
+          })) {
+          return {
+            "odata.null": true
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { siteDesignId: '9b142c22-037f-4a7f-9017-e9d8c0e34b98', principals: 'PattiF', rights: 'View' } });
-    assert(loggerLogSpy.notCalled);
-  });
+      await command.action(logger, { options: { siteDesignId: '9b142c22-037f-4a7f-9017-e9d8c0e34b98', principals: 'PattiF', rights: 'View' } });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
-  it('grants rights on the specified site design to the specified principals', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.GrantSiteDesignRights`) > -1 &&
-        JSON.stringify(opts.data) === JSON.stringify({
-          "id": "9b142c22-037f-4a7f-9017-e9d8c0e34b98",
-          "principalNames": ["PattiF", "AdeleV"],
-          "grantedRights": "1"
-        })) {
-        return {
-          "odata.null": true
-        };
-      }
+  it('grants rights on the specified site design to the specified principals',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.GrantSiteDesignRights`) > -1 &&
+          JSON.stringify(opts.data) === JSON.stringify({
+            "id": "9b142c22-037f-4a7f-9017-e9d8c0e34b98",
+            "principalNames": ["PattiF", "AdeleV"],
+            "grantedRights": "1"
+          })) {
+          return {
+            "odata.null": true
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { siteDesignId: '9b142c22-037f-4a7f-9017-e9d8c0e34b98', principals: 'PattiF,AdeleV', rights: 'View' } });
-    assert(loggerLogSpy.notCalled);
-  });
+      await command.action(logger, { options: { siteDesignId: '9b142c22-037f-4a7f-9017-e9d8c0e34b98', principals: 'PattiF,AdeleV', rights: 'View' } });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
-  it('grants rights on the specified site design to the specified principals (email)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.GrantSiteDesignRights`) > -1 &&
-        JSON.stringify(opts.data) === JSON.stringify({
-          "id": "9b142c22-037f-4a7f-9017-e9d8c0e34b98",
-          "principalNames": ["PattiF@contoso.com", "AdeleV@contoso.com"],
-          "grantedRights": "1"
-        })) {
-        return {
-          "odata.null": true
-        };
-      }
+  it('grants rights on the specified site design to the specified principals (email)',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.GrantSiteDesignRights`) > -1 &&
+          JSON.stringify(opts.data) === JSON.stringify({
+            "id": "9b142c22-037f-4a7f-9017-e9d8c0e34b98",
+            "principalNames": ["PattiF@contoso.com", "AdeleV@contoso.com"],
+            "grantedRights": "1"
+          })) {
+          return {
+            "odata.null": true
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { siteDesignId: '9b142c22-037f-4a7f-9017-e9d8c0e34b98', principals: 'PattiF@contoso.com,AdeleV@contoso.com', rights: 'View' } });
-  });
+      await command.action(logger, { options: { siteDesignId: '9b142c22-037f-4a7f-9017-e9d8c0e34b98', principals: 'PattiF@contoso.com,AdeleV@contoso.com', rights: 'View' } });
+    }
+  );
 
-  it('grants rights on the specified site design to the specified principals separated with an extra space', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.GrantSiteDesignRights`) > -1 &&
-        JSON.stringify(opts.data) === JSON.stringify({
-          "id": "9b142c22-037f-4a7f-9017-e9d8c0e34b98",
-          "principalNames": ["PattiF", "AdeleV"],
-          "grantedRights": "1"
-        })) {
-        return {
-          "odata.null": true
-        };
-      }
+  it('grants rights on the specified site design to the specified principals separated with an extra space',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.GrantSiteDesignRights`) > -1 &&
+          JSON.stringify(opts.data) === JSON.stringify({
+            "id": "9b142c22-037f-4a7f-9017-e9d8c0e34b98",
+            "principalNames": ["PattiF", "AdeleV"],
+            "grantedRights": "1"
+          })) {
+          return {
+            "odata.null": true
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { siteDesignId: '9b142c22-037f-4a7f-9017-e9d8c0e34b98', principals: 'PattiF, AdeleV', rights: 'View' } });
-  });
+      await command.action(logger, { options: { siteDesignId: '9b142c22-037f-4a7f-9017-e9d8c0e34b98', principals: 'PattiF, AdeleV', rights: 'View' } });
+    }
+  );
 
   it('correctly handles OData error when granting rights', async () => {
-    sinon.stub(request, 'post').rejects(new Error('An error has occurred'));
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
     await assert.rejects(command.action(logger, {
       options: {
@@ -210,8 +217,10 @@ describe(commands.SITEDESIGN_RIGHTS_GRANT, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation if all required parameters are valid (multiple principals)', async () => {
-    const actual = await command.validate({ options: { siteDesignId: '9b142c22-037f-4a7f-9017-e9d8c0e34b98', principals: 'PattiF,AdeleV', rights: 'View' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if all required parameters are valid (multiple principals)',
+    async () => {
+      const actual = await command.validate({ options: { siteDesignId: '9b142c22-037f-4a7f-9017-e9d8c0e34b98', principals: 'PattiF,AdeleV', rights: 'View' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

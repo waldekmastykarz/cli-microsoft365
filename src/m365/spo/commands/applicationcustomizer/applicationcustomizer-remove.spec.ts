@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './applicationcustomizer-remove.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -101,8 +100,8 @@ describe(commands.APPLICATIONCUSTOMIZER_REMOVE, () => {
     ]
   };
 
-  const defaultDeleteCallsStub = (): sinon.SinonStub => {
-    return sinon.stub(request, 'delete').callsFake(async (opts) => {
+  const defaultDeleteCallsStub = (): jest.Mock => {
+    return jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/Web/UserCustomActions(') > -1) {
         return undefined;
       }
@@ -113,12 +112,12 @@ describe(commands.APPLICATIONCUSTOMIZER_REMOVE, () => {
     });
   };
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').callsFake(() => { });
-    sinon.stub(pid, 'getProcessName').callsFake(() => '');
-    sinon.stub(session, 'getId').callsFake(() => '');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockImplementation(() => { });
+    jest.spyOn(pid, 'getProcessName').mockClear().mockImplementation(() => '');
+    jest.spyOn(session, 'getId').mockClear().mockImplementation(() => '');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -137,7 +136,7 @@ describe(commands.APPLICATIONCUSTOMIZER_REMOVE, () => {
       }
     };
     requests = [];
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
@@ -145,7 +144,7 @@ describe(commands.APPLICATIONCUSTOMIZER_REMOVE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.delete,
       Cli.prompt,
@@ -154,8 +153,8 @@ describe(commands.APPLICATIONCUSTOMIZER_REMOVE, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -167,23 +166,29 @@ describe(commands.APPLICATIONCUSTOMIZER_REMOVE, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', id: id } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', id: id } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the webUrl option is a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, id: id } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if the webUrl option is a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, id: id } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if at least one of the parameters has a value', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, id: id } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if at least one of the parameters has a value',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, id: id } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('fails validation when all parameters are empty', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -195,10 +200,12 @@ describe(commands.APPLICATIONCUSTOMIZER_REMOVE, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if the clientSideComponentId option is not a valid GUID', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, clientSideComponentId: 'invalid' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the clientSideComponentId option is not a valid GUID',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, clientSideComponentId: 'invalid' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the id option is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: webUrl, id: 'invalid' } }, commandInfo);
@@ -210,175 +217,197 @@ describe(commands.APPLICATIONCUSTOMIZER_REMOVE, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('should prompt before removing application customizer when confirmation argument not passed', async () => {
-    await command.action(logger, { options: { webUrl: webUrl, id: id } });
-    let promptIssued = false;
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+  it('should prompt before removing application customizer when confirmation argument not passed',
+    async () => {
+      await command.action(logger, { options: { webUrl: webUrl, id: id } });
+      let promptIssued = false;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+      assert(promptIssued);
     }
-    assert(promptIssued);
-  });
+  );
 
-  it('aborts removing application customizer when prompt not confirmed', async () => {
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: false });
-    await command.action(logger, { options: { webUrl: webUrl, id: id } });
-    assert(requests.length === 0);
-  });
+  it('aborts removing application customizer when prompt not confirmed',
+    async () => {
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: false });
+      await command.action(logger, { options: { webUrl: webUrl, id: id } });
+      assert(requests.length === 0);
+    }
+  );
 
-  it('handles error when no user application customizer with the specified id found', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url?.startsWith('https://contoso.sharepoint.com/_api/') && opts.url?.endsWith(`/UserCustomActions(guid'${id}')`)) {
-        return { "odata.null": true };
-      }
-      throw 'Invalid request';
-    });
+  it('handles error when no user application customizer with the specified id found',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url?.startsWith('https://contoso.sharepoint.com/_api/') && opts.url?.endsWith(`/UserCustomActions(guid'${id}')`)) {
+          return { "odata.null": true };
+        }
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(
-      command.action(logger, {
-        options: { id: id, webUrl: webUrl, force: true }
-      }
-      ), new CommandError(`No application customizer with id '${id}' found`));
-  });
+      await assert.rejects(
+        command.action(logger, {
+          options: { id: id, webUrl: webUrl, force: true }
+        }
+        ), new CommandError(`No application customizer with id '${id}' found`));
+    }
+  );
 
-  it('handles error when no user application customizer with the specified title found', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url?.startsWith('https://contoso.sharepoint.com/_api/') && opts.url?.endsWith(`/UserCustomActions?$filter=(Title eq '${formatting.encodeQueryParameter(title)}') and (startswith(Location,'ClientSideExtension.ApplicationCustomizer'))`)) {
-        return { value: [] };
-      }
-      throw 'Invalid request';
-    });
+  it('handles error when no user application customizer with the specified title found',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url?.startsWith('https://contoso.sharepoint.com/_api/') && opts.url?.endsWith(`/UserCustomActions?$filter=(Title eq '${formatting.encodeQueryParameter(title)}') and (startswith(Location,'ClientSideExtension.ApplicationCustomizer'))`)) {
+          return { value: [] };
+        }
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(
-      command.action(logger, {
-        options: { title: title, webUrl: webUrl, force: true }
-      }
-      ), new CommandError(`No application customizer with title '${title}' found`));
-  });
+      await assert.rejects(
+        command.action(logger, {
+          options: { title: title, webUrl: webUrl, force: true }
+        }
+        ), new CommandError(`No application customizer with title '${title}' found`));
+    }
+  );
 
-  it('handles error when no user application customizer with the specified clientSideComponentId found', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url?.startsWith('https://contoso.sharepoint.com/_api/') && opts.url?.endsWith(`/UserCustomActions?$filter=(ClientSideComponentId eq guid'${formatting.encodeQueryParameter(clientSideComponentId)}') and (startswith(Location,'ClientSideExtension.ApplicationCustomizer'))`)) {
-        return { value: [] };
-      }
-      throw 'Invalid request';
-    });
+  it('handles error when no user application customizer with the specified clientSideComponentId found',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url?.startsWith('https://contoso.sharepoint.com/_api/') && opts.url?.endsWith(`/UserCustomActions?$filter=(ClientSideComponentId eq guid'${formatting.encodeQueryParameter(clientSideComponentId)}') and (startswith(Location,'ClientSideExtension.ApplicationCustomizer'))`)) {
+          return { value: [] };
+        }
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(
-      command.action(logger, {
-        options: { clientSideComponentId: clientSideComponentId, webUrl: webUrl, force: true }
-      }
-      ), new CommandError(`No application customizer with ClientSideComponentId '${clientSideComponentId}' found`));
-  });
+      await assert.rejects(
+        command.action(logger, {
+          options: { clientSideComponentId: clientSideComponentId, webUrl: webUrl, force: true }
+        }
+        ), new CommandError(`No application customizer with ClientSideComponentId '${clientSideComponentId}' found`));
+    }
+  );
 
-  it('handles error when multiple user application customizer with the specified title found', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('handles error when multiple user application customizer with the specified title found',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url?.startsWith('https://contoso.sharepoint.com/_api/') && opts.url?.endsWith(`/UserCustomActions?$filter=(Title eq '${formatting.encodeQueryParameter(title)}') and (startswith(Location,'ClientSideExtension.ApplicationCustomizer'))`)) {
-        return multipleResponse;
-      }
-      throw 'Invalid request';
-    });
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url?.startsWith('https://contoso.sharepoint.com/_api/') && opts.url?.endsWith(`/UserCustomActions?$filter=(Title eq '${formatting.encodeQueryParameter(title)}') and (startswith(Location,'ClientSideExtension.ApplicationCustomizer'))`)) {
+          return multipleResponse;
+        }
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(
-      command.action(logger, {
-        options: { title: title, webUrl: webUrl, scope: 'Site', force: true }
-      }
-      ), new CommandError("Multiple application customizer with title 'SiteGuidedTour' found. Found: a70d8013-3b9f-4601-93a5-0e453ab9a1f3, 63aa745f-b4dd-4055-a4d7-d9032a0cfc59."));
-  });
+      await assert.rejects(
+        command.action(logger, {
+          options: { title: title, webUrl: webUrl, scope: 'Site', force: true }
+        }
+        ), new CommandError("Multiple application customizer with title 'SiteGuidedTour' found. Found: a70d8013-3b9f-4601-93a5-0e453ab9a1f3, 63aa745f-b4dd-4055-a4d7-d9032a0cfc59."));
+    }
+  );
 
-  it('handles error when multiple user application customizer with the specified clientSideComponentId found', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('handles error when multiple user application customizer with the specified clientSideComponentId found',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url?.startsWith('https://contoso.sharepoint.com/_api/') && opts.url?.endsWith(`/UserCustomActions?$filter=(ClientSideComponentId eq guid'${formatting.encodeQueryParameter(clientSideComponentId)}') and (startswith(Location,'ClientSideExtension.ApplicationCustomizer'))`)) {
-        return multipleResponse;
-      }
-      throw 'Invalid request';
-    });
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url?.startsWith('https://contoso.sharepoint.com/_api/') && opts.url?.endsWith(`/UserCustomActions?$filter=(ClientSideComponentId eq guid'${formatting.encodeQueryParameter(clientSideComponentId)}') and (startswith(Location,'ClientSideExtension.ApplicationCustomizer'))`)) {
+          return multipleResponse;
+        }
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(
-      command.action(logger, {
-        options: { clientSideComponentId: clientSideComponentId, webUrl: webUrl, scope: 'Site', force: true }
-      }
-      ), new CommandError("Multiple application customizer with ClientSideComponentId '015e0fcf-fe9d-4037-95af-0a4776cdfbb4' found. Found: a70d8013-3b9f-4601-93a5-0e453ab9a1f3, 63aa745f-b4dd-4055-a4d7-d9032a0cfc59."));
-  });
+      await assert.rejects(
+        command.action(logger, {
+          options: { clientSideComponentId: clientSideComponentId, webUrl: webUrl, scope: 'Site', force: true }
+        }
+        ), new CommandError("Multiple application customizer with ClientSideComponentId '015e0fcf-fe9d-4037-95af-0a4776cdfbb4' found. Found: a70d8013-3b9f-4601-93a5-0e453ab9a1f3, 63aa745f-b4dd-4055-a4d7-d9032a0cfc59."));
+    }
+  );
 
-  it('handles selecting single result when multiple application customizers with the specified name found and cli is set to prompt', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/_api/Web/UserCustomActions?$filter=(Title eq '${formatting.encodeQueryParameter(title)}') and (startswith(Location,'ClientSideExtension.ApplicationCustomizer'))`) {
-        return multipleResponse;
-      }
-      else if (opts.url === `https://contoso.sharepoint.com/_api/Site/UserCustomActions?$filter=(Title eq '${formatting.encodeQueryParameter(title)}') and (startswith(Location,'ClientSideExtension.ApplicationCustomizer'))`) {
-        return { value: [] };
-      }
-      throw 'Invalid request';
-    });
+  it('handles selecting single result when multiple application customizers with the specified name found and cli is set to prompt',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/_api/Web/UserCustomActions?$filter=(Title eq '${formatting.encodeQueryParameter(title)}') and (startswith(Location,'ClientSideExtension.ApplicationCustomizer'))`) {
+          return multipleResponse;
+        }
+        else if (opts.url === `https://contoso.sharepoint.com/_api/Site/UserCustomActions?$filter=(Title eq '${formatting.encodeQueryParameter(title)}') and (startswith(Location,'ClientSideExtension.ApplicationCustomizer'))`) {
+          return { value: [] };
+        }
+        throw 'Invalid request';
+      });
 
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves(singleResponse.value[0]);
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves(singleResponse.value[0]);
 
-    const deleteCallsSpy: sinon.SinonStub = defaultDeleteCallsStub();
-    await command.action(logger, { options: { verbose: true, title: title, webUrl: webUrl, scope: 'Web', force: true } } as any);
-    assert(deleteCallsSpy.calledOnce);
-  });
+      const deleteCallsSpy: jest.Mock = defaultDeleteCallsStub();
+      await command.action(logger, { options: { verbose: true, title: title, webUrl: webUrl, scope: 'Web', force: true } } as any);
+      assert(deleteCallsSpy.calledOnce);
+    }
+  );
 
-  it('should remove the application customizer from the site by its ID when the prompt is confirmed', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url?.startsWith('https://contoso.sharepoint.com/_api/') && opts.url?.endsWith(`/UserCustomActions(guid'${id}')`)) {
-        return singleResponse.value[0];
-      }
-      throw 'Invalid request';
-    });
+  it('should remove the application customizer from the site by its ID when the prompt is confirmed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url?.startsWith('https://contoso.sharepoint.com/_api/') && opts.url?.endsWith(`/UserCustomActions(guid'${id}')`)) {
+          return singleResponse.value[0];
+        }
+        throw 'Invalid request';
+      });
 
-    const deleteCallsSpy: sinon.SinonStub = defaultDeleteCallsStub();
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+      const deleteCallsSpy: jest.Mock = defaultDeleteCallsStub();
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    await command.action(logger, { options: { verbose: true, id: id, webUrl: webUrl, scope: 'Web' } } as any);
-    assert(deleteCallsSpy.calledOnce);
-  });
+      await command.action(logger, { options: { verbose: true, id: id, webUrl: webUrl, scope: 'Web' } } as any);
+      assert(deleteCallsSpy.calledOnce);
+    }
+  );
 
-  it('should remove the application customizer from the site collection by its ID when the prompt is confirmed', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url?.startsWith('https://contoso.sharepoint.com/_api/') && opts.url?.endsWith(`/UserCustomActions(guid'${id}')`)) {
-        const response = singleResponse.value[0];
-        response.Scope = 2;
-        return response;
-      }
-      throw 'Invalid request';
-    });
+  it('should remove the application customizer from the site collection by its ID when the prompt is confirmed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url?.startsWith('https://contoso.sharepoint.com/_api/') && opts.url?.endsWith(`/UserCustomActions(guid'${id}')`)) {
+          const response = singleResponse.value[0];
+          response.Scope = 2;
+          return response;
+        }
+        throw 'Invalid request';
+      });
 
-    const deleteCallsSpy: sinon.SinonStub = defaultDeleteCallsStub();
-    await command.action(logger, { options: { verbose: true, id: id, webUrl: webUrl, scope: 'Site', force: true } } as any);
-    assert(deleteCallsSpy.calledOnce);
-  });
+      const deleteCallsSpy: jest.Mock = defaultDeleteCallsStub();
+      await command.action(logger, { options: { verbose: true, id: id, webUrl: webUrl, scope: 'Site', force: true } } as any);
+      assert(deleteCallsSpy.calledOnce);
+    }
+  );
 
-  it('should remove the application customizer from the site by its clientSideComponentId when the prompt is confirmed', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/_api/Web/UserCustomActions?$filter=(ClientSideComponentId eq guid'${formatting.encodeQueryParameter(clientSideComponentId)}') and (startswith(Location,'ClientSideExtension.ApplicationCustomizer'))`) {
-        return singleResponse;
-      }
-      else if (opts.url === `https://contoso.sharepoint.com/_api/Site/UserCustomActions?$filter=(ClientSideComponentId eq guid'${formatting.encodeQueryParameter(clientSideComponentId)}') and (startswith(Location,'ClientSideExtension.ApplicationCustomizer'))`) {
-        return { value: [] };
-      }
-      throw 'Invalid request';
-    });
+  it('should remove the application customizer from the site by its clientSideComponentId when the prompt is confirmed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/_api/Web/UserCustomActions?$filter=(ClientSideComponentId eq guid'${formatting.encodeQueryParameter(clientSideComponentId)}') and (startswith(Location,'ClientSideExtension.ApplicationCustomizer'))`) {
+          return singleResponse;
+        }
+        else if (opts.url === `https://contoso.sharepoint.com/_api/Site/UserCustomActions?$filter=(ClientSideComponentId eq guid'${formatting.encodeQueryParameter(clientSideComponentId)}') and (startswith(Location,'ClientSideExtension.ApplicationCustomizer'))`) {
+          return { value: [] };
+        }
+        throw 'Invalid request';
+      });
 
-    const deleteCallsSpy: sinon.SinonStub = defaultDeleteCallsStub();
-    await command.action(logger, { options: { verbose: true, clientSideComponentId: clientSideComponentId, webUrl: webUrl, scope: 'Web', force: true } } as any);
-    assert(deleteCallsSpy.calledOnce);
-  });
+      const deleteCallsSpy: jest.Mock = defaultDeleteCallsStub();
+      await command.action(logger, { options: { verbose: true, clientSideComponentId: clientSideComponentId, webUrl: webUrl, scope: 'Web', force: true } } as any);
+      assert(deleteCallsSpy.calledOnce);
+    }
+  );
 });

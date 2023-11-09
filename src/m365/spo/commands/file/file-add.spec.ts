@@ -1,6 +1,5 @@
 import assert from 'assert';
 import fs from 'fs';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './file-add.js';
@@ -18,10 +17,10 @@ import command from './file-add.js';
 describe(commands.FILE_ADD, () => {
   let log: any[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
-  let ensureFolderStub: sinon.SinonStub;
+  let loggerLogToStderrSpy: jest.SpyInstance;
+  let ensureFolderStub: jest.Mock;
 
   const stubPostResponses: any = (
     checkoutResp: any = null,
@@ -33,7 +32,7 @@ describe(commands.FILE_ADD, () => {
     checkinResp: any = null,
     validateUpdateListItemRespPass: any = null
   ) => {
-    return sinon.stub(request, 'post').callsFake(async (opts) => {
+    return jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/GetFolderByServerRelativePath(DecodedUrl=') > -1) {
         if ((opts.url as string).indexOf('/CheckOut') > -1) {
 
@@ -137,7 +136,7 @@ describe(commands.FILE_ADD, () => {
     getContentTypesResp: any = null,
     parentListRespSuccess: any = null
   ) => {
-    return sinon.stub(request, 'get').callsFake(async (opts) => {
+    return jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
 
       if ((opts.url as string).indexOf('/_api/web/GetFolderByServerRelativePath(DecodedUrl=') > -1) {
         if ((opts.url as string).indexOf('ParentList') > -1) {
@@ -187,20 +186,20 @@ describe(commands.FILE_ADD, () => {
   };
 
   const stubFs = () => {
-    sinon.stub(fs, 'readFileSync').returns(Buffer.from('abc'));
-    sinon.stub(fs, 'statSync').returns({ size: 1234 } as any);
-    sinon.stub(fs, 'openSync').returns(3);
-    sinon.stub(fs, 'readSync').returns(10485760);
-    sinon.stub(fs, 'closeSync');
+    jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue(Buffer.from('abc'));
+    jest.spyOn(fs, 'statSync').mockClear().mockReturnValue({ size: 1234 } as any);
+    jest.spyOn(fs, 'openSync').mockClear().mockReturnValue(3);
+    jest.spyOn(fs, 'readSync').mockClear().mockReturnValue(10485760);
+    jest.spyOn(fs, 'closeSync').mockClear();
   };
 
-  before(() => {
-    ensureFolderStub = sinon.stub(spo, 'ensureFolder').resolves();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(Buffer, 'alloc').returns(Buffer.from('abc'));
+  beforeAll(() => {
+    ensureFolderStub = jest.spyOn(spo, 'ensureFolder').mockClear().mockImplementation().resolves();
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(Buffer, 'alloc').mockClear().mockReturnValue(Buffer.from('abc'));
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -218,12 +217,12 @@ describe(commands.FILE_ADD, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       request.get,
       fs.existsSync,
@@ -235,8 +234,8 @@ describe(commands.FILE_ADD, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -272,22 +271,24 @@ describe(commands.FILE_ADD, () => {
     assert.strictEqual(ensureFolderStub.called, true);
   });
 
-  it('should proceed with no error if file does not exist in the folder', async () => {
-    const expectedError: any = JSON.stringify({ "odata.error": { "code": "-2130575338, Microsoft.SharePoint.SPException", "message": { "lang": "en-US", "value": "Error: File not found." } } });
+  it('should proceed with no error if file does not exist in the folder',
+    async () => {
+      const expectedError: any = JSON.stringify({ "odata.error": { "code": "-2130575338, Microsoft.SharePoint.SPException", "message": { "lang": "en-US", "value": "Error: File not found." } } });
 
-    stubPostResponses();
-    stubGetResponses(null, expectedError);
+      stubPostResponses();
+      stubGetResponses(null, expectedError);
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        webUrl: 'https://contoso.sharepoint.com/sites/project-x',
-        folder: 'Shared%20Documents/t1',
-        path: 'C:\Users\Velin\Desktop\MS365.jpg',
-        checkOut: true
-      }
-    }));
-    assert.strictEqual(loggerLogSpy.notCalled, true);
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          webUrl: 'https://contoso.sharepoint.com/sites/project-x',
+          folder: 'Shared%20Documents/t1',
+          path: 'C:\Users\Velin\Desktop\MS365.jpg',
+          checkOut: true
+        }
+      }));
+      assert.strictEqual(loggerLogSpy.notCalled, true);
+    }
+  );
 
   it('should handle checkout error', async () => {
     const expectedError: any = JSON.stringify({ "odata.error": { "code": "-2130575338, Microsoft.SharePoint.SPException", "message": { "lang": "en-US", "value": "Error: Checkout Error." } } });
@@ -360,41 +361,45 @@ describe(commands.FILE_ADD, () => {
     }), new CommandError(expectedError));
   });
 
-  it('should resolve server relative url specified for the folder option', async () => {
-    stubPostResponses();
-    stubGetResponses();
+  it('should resolve server relative url specified for the folder option',
+    async () => {
+      stubPostResponses();
+      stubGetResponses();
 
-    const folderServerRelativePath: string = '/sites/project-x/Shared%20Documents/t1';
+      const folderServerRelativePath: string = '/sites/project-x/Shared%20Documents/t1';
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        webUrl: 'https://contoso.sharepoint.com/sites/project-x',
-        folder: folderServerRelativePath,
-        path: 'C:\Users\Velin\Desktop\MS365.jpg',
-        contentType: 'abc',
-        debug: true
-      }
-    }));
-    assert.strictEqual(loggerLogToStderrSpy.calledWith(`folder path: ${folderServerRelativePath}...`), true);
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          webUrl: 'https://contoso.sharepoint.com/sites/project-x',
+          folder: folderServerRelativePath,
+          path: 'C:\Users\Velin\Desktop\MS365.jpg',
+          contentType: 'abc',
+          debug: true
+        }
+      }));
+      assert.strictEqual(loggerLogToStderrSpy.calledWith(`folder path: ${folderServerRelativePath}...`), true);
+    }
+  );
 
-  it('should resolve safe filename when path (bash) contains apostrophes in folders and filename', async () => {
-    stubPostResponses();
-    stubGetResponses();
+  it('should resolve safe filename when path (bash) contains apostrophes in folders and filename',
+    async () => {
+      stubPostResponses();
+      stubGetResponses();
 
-    const unsafePath: string = '/Users/user/Projects/TEST\'FOLDER/TEST\'FILE.txt';
+      const unsafePath: string = '/Users/user/Projects/TEST\'FOLDER/TEST\'FILE.txt';
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        webUrl: 'https://contoso.sharepoint.com/sites/project-x',
-        folder: 'Shared%20Documents/t1',
-        path: unsafePath,
-        contentType: 'abc',
-        debug: true
-      }
-    }));
-    assert.strictEqual(loggerLogToStderrSpy.calledWith(`file name: TEST''FILE.txt...`), true);
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          webUrl: 'https://contoso.sharepoint.com/sites/project-x',
+          folder: 'Shared%20Documents/t1',
+          path: unsafePath,
+          contentType: 'abc',
+          debug: true
+        }
+      }));
+      assert.strictEqual(loggerLogToStderrSpy.calledWith(`file name: TEST''FILE.txt...`), true);
+    }
+  );
 
   it('should handle non existing content type', async () => {
     stubFs();
@@ -505,26 +510,28 @@ describe(commands.FILE_ADD, () => {
     }), new CommandError(expectedError));
   });
 
-  it('should error when --publish used, but list moderation and minor ver enabled', async () => {
-    const listSettingsResp = { "EnableMinorVersions": true, "EnableModeration": true, "EnableVersioning": true, "Id": "0c7dc8ec-5871-4ac9-962c-f856102b917b" };
+  it('should error when --publish used, but list moderation and minor ver enabled',
+    async () => {
+      const listSettingsResp = { "EnableMinorVersions": true, "EnableModeration": true, "EnableVersioning": true, "Id": "0c7dc8ec-5871-4ac9-962c-f856102b917b" };
 
-    stubFs();
-    stubPostResponses();
-    stubGetResponses(null, null, null, null, listSettingsResp);
+      stubFs();
+      stubPostResponses();
+      stubGetResponses(null, null, null, null, listSettingsResp);
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        webUrl: 'https://contoso.sharepoint.com/sites/project-x',
-        folder: 'Shared%20Documents/t1',
-        path: 'C:\Users\Velin\Desktop\MS365.jpg',
-        publish: true
-      }
-    }), new CommandError('The file cannot be published without approval. Moderation for this list is enabled. Use the --approve option instead of --publish to approve and publish the file'));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          webUrl: 'https://contoso.sharepoint.com/sites/project-x',
+          folder: 'Shared%20Documents/t1',
+          path: 'C:\Users\Velin\Desktop\MS365.jpg',
+          publish: true
+        }
+      }), new CommandError('The file cannot be published without approval. Moderation for this list is enabled. Use the --approve option instead of --publish to approve and publish the file'));
+    }
+  );
 
   it('ignores global options when creating request data', async () => {
     stubFs();
-    const postRequests: sinon.SinonStub = stubPostResponses();
+    const postRequests: jest.Mock = stubPostResponses();
     stubGetResponses();
 
     await command.action(logger, {
@@ -540,40 +547,42 @@ describe(commands.FILE_ADD, () => {
         output: "text"
       }
     });
-    assert.deepEqual(postRequests.secondCall.args[0].data, {
+    assert.deepEqual(postRequests.mock.calls[1][0].data, {
       bNewDocumentUpdate: true,
       checkInComment: '',
       formValues: [{ FieldName: 'Title', FieldValue: 'abc' }, { FieldName: 'ContentType', FieldValue: 'Picture' }]
     });
   });
 
-  it('should perform single request upload for file up to 250 MB', async () => {
-    stubFs();
-    const postRequests: sinon.SinonStub = stubPostResponses();
-    stubGetResponses();
+  it('should perform single request upload for file up to 250 MB',
+    async () => {
+      stubFs();
+      const postRequests: jest.Mock = stubPostResponses();
+      stubGetResponses();
 
-    sinonUtil.restore([fs.statSync]);
-    sinon.stub(fs, 'statSync').returns({ size: 250 * 1024 * 1024 } as any); // 250 MB
+      jestUtil.restore([fs.statSync]);
+      jest.spyOn(fs, 'statSync').mockClear().mockReturnValue({ size: 250 * 1024 * 1024 } as any); // 250 MB
 
-    await command.action(logger, {
-      options: {
-        webUrl: 'https://contoso.sharepoint.com/sites/project-x',
-        folder: 'Shared%20Documents/t1',
-        path: 'C:\Users\Velin\Desktop\MS365.jpg',
-        debug: true,
-        verbose: true
-      }
-    });
-    assert.notStrictEqual(postRequests.lastCall.args[0].url.indexOf(`/GetFolderByServerRelativePath(DecodedUrl='%2Fsites%2Fproject-x%2FShared%2520Documents%2Ft1')/Files/Add`), -1);
-  });
+      await command.action(logger, {
+        options: {
+          webUrl: 'https://contoso.sharepoint.com/sites/project-x',
+          folder: 'Shared%20Documents/t1',
+          path: 'C:\Users\Velin\Desktop\MS365.jpg',
+          debug: true,
+          verbose: true
+        }
+      });
+      assert.notStrictEqual(postRequests.mock.lastCall[0].url.indexOf(`/GetFolderByServerRelativePath(DecodedUrl='%2Fsites%2Fproject-x%2FShared%2520Documents%2Ft1')/Files/Add`), -1);
+    }
+  );
 
   it('should perform chunk upload on files over 250 MB (debug)', async () => {
     stubFs();
-    const postRequests: sinon.SinonStub = stubPostResponses();
+    const postRequests: jest.Mock = stubPostResponses();
     stubGetResponses();
 
-    sinonUtil.restore([fs.statSync]);
-    sinon.stub(fs, 'statSync').returns({ size: 251 * 1024 * 1024 } as any); // 250 MB
+    jestUtil.restore([fs.statSync]);
+    jest.spyOn(fs, 'statSync').mockClear().mockReturnValue({ size: 251 * 1024 * 1024 } as any); // 250 MB
 
     await command.action(logger, {
       options: {
@@ -584,15 +593,15 @@ describe(commands.FILE_ADD, () => {
         verbose: true
       }
     });
-    assert.notStrictEqual(postRequests.firstCall.args[0].url.indexOf('/StartUpload'), -1);
-    assert.notStrictEqual(postRequests.getCalls()[2].args[0].url.indexOf('/ContinueUpload'), -1);
-    assert.notStrictEqual(postRequests.lastCall.args[0].url.indexOf('/FinishUpload'), -1);
+    assert.notStrictEqual(postRequests.mock.calls[0][0].url.indexOf('/StartUpload'), -1);
+    assert.notStrictEqual(postRequests.mock.calls[2][0].url.indexOf('/ContinueUpload'), -1);
+    assert.notStrictEqual(postRequests.mock.lastCall[0].url.indexOf('/FinishUpload'), -1);
   });
 
   it('should cancel chunk upload on files over 250 MB on error', async () => {
     stubFs();
     stubGetResponses();
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/GetFolderByServerRelativePath(DecodedUrl=') > -1) {
         if ((opts.url as string).indexOf('/StartUpload') !== -1) {
 
@@ -613,8 +622,8 @@ describe(commands.FILE_ADD, () => {
       throw 'Invalid request';
     });
 
-    sinonUtil.restore([fs.statSync]);
-    sinon.stub(fs, 'statSync').returns({ size: 251 * 1024 * 1024 } as any); // 250 MB
+    jestUtil.restore([fs.statSync]);
+    jest.spyOn(fs, 'statSync').mockClear().mockReturnValue({ size: 251 * 1024 * 1024 } as any); // 250 MB
 
     await assert.rejects(command.action(logger, {
       options: {
@@ -631,9 +640,9 @@ describe(commands.FILE_ADD, () => {
     stubGetResponses();
     stubPostResponses();
 
-    sinonUtil.restore([fs.statSync, fs.openSync]);
-    sinon.stub(fs, 'statSync').returns({ size: 251 * 1024 * 1024 } as any); // 250 MB
-    sinon.stub(fs, 'openSync').throws(new Error('openSync error'));
+    jestUtil.restore([fs.statSync, fs.openSync]);
+    jest.spyOn(fs, 'statSync').mockClear().mockReturnValue({ size: 251 * 1024 * 1024 } as any); // 250 MB
+    jest.spyOn(fs, 'openSync').mockClear().mockImplementation().throws(new Error('openSync error'));
 
     await assert.rejects(command.action(logger, {
       options: {
@@ -650,11 +659,11 @@ describe(commands.FILE_ADD, () => {
     stubGetResponses();
     stubPostResponses();
 
-    sinonUtil.restore([fs.statSync, fs.openSync, , fs.readSync, , fs.closeSync]);
-    sinon.stub(fs, 'statSync').returns({ size: 251 * 1024 * 1024 } as any); // 250 MB
-    sinon.stub(fs, 'openSync').returns(3);
-    sinon.stub(fs, 'readSync').throws(new Error('readSync error'));
-    sinon.stub(fs, 'closeSync').throws(new Error('failed to closeSync'));
+    jestUtil.restore([fs.statSync, fs.openSync, , fs.readSync, , fs.closeSync]);
+    jest.spyOn(fs, 'statSync').mockClear().mockReturnValue({ size: 251 * 1024 * 1024 } as any); // 250 MB
+    jest.spyOn(fs, 'openSync').mockClear().mockReturnValue(3);
+    jest.spyOn(fs, 'readSync').mockClear().mockImplementation().throws(new Error('readSync error'));
+    jest.spyOn(fs, 'closeSync').mockClear().mockImplementation().throws(new Error('failed to closeSync'));
 
     await assert.rejects(command.action(logger, {
       options: {
@@ -685,53 +694,55 @@ describe(commands.FILE_ADD, () => {
     assert.strictEqual(loggerLogSpy.notCalled, true);
   });
 
-  it('sets field with the same name as a command option but different casing', async () => {
-    stubFs();
-    stubGetResponses();
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/web/GetFolderByServerRelativePath(DecodedUrl=') > -1) {
-        if ((opts.url as string).indexOf('/CheckOut') > -1) {
-          return { "odata.null": true };
-        }
-        else if ((opts.url as string).indexOf('Add') > -1) {
-          return { "CheckInComment": "", "CheckOutType": 0, "ContentTag": "{B0BC16BB-C8D9-4A24-BC04-FB52045F8BEF},428,159", "CustomizedPageStatus": 0, "ETag": "\"{B0BC16BB-C8D9-4A24-BC04-FB52045F8BEF},428\"", "Exists": true, "IrmEnabled": false, "Length": "165114", "Level": 255, "LinkingUri": null, "LinkingUrl": "", "MajorVersion": 51, "MinorVersion": 15, "Name": "MS365.jpg", "ServerRelativeUrl": "/sites/VelinDev/Shared Documents/t1/MS365.jpg", "TimeCreated": "2018-10-21T21:46:08Z", "TimeLastModified": "2018-10-25T23:49:52Z", "Title": "title4", "UIVersion": 26127, "UIVersionLabel": "51.15", "UniqueId": "b0bc16bb-c8d9-4a24-bc04-fb52045f8bef" };
-        }
-        else if ((opts.url as string).indexOf('ValidateUpdateListItem') > -1) {
-          if (opts.data.formValues.filter((f: any) => f.FieldName === 'Folder').length > 0) {
-            return { "value": [{ "ErrorMessage": null, "FieldName": "Title", "FieldValue": "title4", "HasException": false, "ItemId": 212 }] };
+  it('sets field with the same name as a command option but different casing',
+    async () => {
+      stubFs();
+      stubGetResponses();
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/web/GetFolderByServerRelativePath(DecodedUrl=') > -1) {
+          if ((opts.url as string).indexOf('/CheckOut') > -1) {
+            return { "odata.null": true };
           }
-          else {
-            throw 'Field Folder missing';
+          else if ((opts.url as string).indexOf('Add') > -1) {
+            return { "CheckInComment": "", "CheckOutType": 0, "ContentTag": "{B0BC16BB-C8D9-4A24-BC04-FB52045F8BEF},428,159", "CustomizedPageStatus": 0, "ETag": "\"{B0BC16BB-C8D9-4A24-BC04-FB52045F8BEF},428\"", "Exists": true, "IrmEnabled": false, "Length": "165114", "Level": 255, "LinkingUri": null, "LinkingUrl": "", "MajorVersion": 51, "MinorVersion": 15, "Name": "MS365.jpg", "ServerRelativeUrl": "/sites/VelinDev/Shared Documents/t1/MS365.jpg", "TimeCreated": "2018-10-21T21:46:08Z", "TimeLastModified": "2018-10-25T23:49:52Z", "Title": "title4", "UIVersion": 26127, "UIVersionLabel": "51.15", "UniqueId": "b0bc16bb-c8d9-4a24-bc04-fb52045f8bef" };
+          }
+          else if ((opts.url as string).indexOf('ValidateUpdateListItem') > -1) {
+            if (opts.data.formValues.filter((f: any) => f.FieldName === 'Folder').length > 0) {
+              return { "value": [{ "ErrorMessage": null, "FieldName": "Title", "FieldValue": "title4", "HasException": false, "ItemId": 212 }] };
+            }
+            else {
+              throw 'Field Folder missing';
+            }
+          }
+          else if ((opts.url as string).indexOf('approve') > -1) {
+            return { "odata.null": true };
+          }
+          else if ((opts.url as string).indexOf('publish') > -1) {
+            return { "odata.null": true };
+          }
+          else if ((opts.url as string).indexOf('UndoCheckOut') > -1) {
+            return { "odata.null": true };
+          }
+          else if ((opts.url as string).indexOf('CheckIn') > -1) {
+            return { "odata.null": true };
           }
         }
-        else if ((opts.url as string).indexOf('approve') > -1) {
-          return { "odata.null": true };
-        }
-        else if ((opts.url as string).indexOf('publish') > -1) {
-          return { "odata.null": true };
-        }
-        else if ((opts.url as string).indexOf('UndoCheckOut') > -1) {
-          return { "odata.null": true };
-        }
-        else if ((opts.url as string).indexOf('CheckIn') > -1) {
-          return { "odata.null": true };
-        }
-      }
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        webUrl: 'https://contoso.sharepoint.com/sites/project-x',
-        folder: 'Shared%20Documents/t1',
-        path: 'C:\Users\Velin\Desktop\MS365.jpg',
-        contentType: 'Picture',
-        Title: 'abc',
-        Folder: 'Folder',
-        publish: true
-      }
-    } as any);
-  });
+      await command.action(logger, {
+        options: {
+          webUrl: 'https://contoso.sharepoint.com/sites/project-x',
+          folder: 'Shared%20Documents/t1',
+          path: 'C:\Users\Velin\Desktop\MS365.jpg',
+          contentType: 'Picture',
+          Title: 'abc',
+          Folder: 'Folder',
+          publish: true
+        }
+      } as any);
+    }
+  );
 
   it('should succeed approve', async () => {
     stubFs();
@@ -809,7 +820,7 @@ describe(commands.FILE_ADD, () => {
   });
 
   it('fails validation if the wrong path option specified', async () => {
-    sinon.stub(fs, 'existsSync').returns(false);
+    jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(false);
     const actual = await command.validate({
       options: {
         webUrl: 'https://contoso.sharepoint.com',
@@ -820,34 +831,38 @@ describe(commands.FILE_ADD, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if --approveComment specified, but not --approve', async () => {
-    sinon.stub(fs, 'existsSync').returns(true);
-    const actual = await command.validate({
-      options: {
-        webUrl: 'https://contoso.sharepoint.com',
-        folder: 'abc',
-        path: 'abc',
-        approveComment: 'abc'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if --approveComment specified, but not --approve',
+    async () => {
+      jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+      const actual = await command.validate({
+        options: {
+          webUrl: 'https://contoso.sharepoint.com',
+          folder: 'abc',
+          path: 'abc',
+          approveComment: 'abc'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if --publishComment specified, but not --publish', async () => {
-    sinon.stub(fs, 'existsSync').returns(true);
-    const actual = await command.validate({
-      options: {
-        webUrl: 'https://contoso.sharepoint.com',
-        folder: 'abc',
-        path: 'abc',
-        publishComment: 'abc'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if --publishComment specified, but not --publish',
+    async () => {
+      jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+      const actual = await command.validate({
+        options: {
+          webUrl: 'https://contoso.sharepoint.com',
+          folder: 'abc',
+          path: 'abc',
+          publishComment: 'abc'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passed validation if options correct', async () => {
-    sinon.stub(fs, 'existsSync').returns(true);
+    jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
     const actual = await command.validate({
       options: {
         webUrl: 'https://contoso.sharepoint.com',

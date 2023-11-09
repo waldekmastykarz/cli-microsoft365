@@ -1,7 +1,6 @@
 import { ISerializableTokenCache, TokenCacheContext } from '@azure/msal-node';
 import assert from 'assert';
-import sinon from 'sinon';
-import { sinonUtil } from '../utils/sinonUtil.js';
+import { jestUtil } from '../utils/jestUtil.js';
 import { msalCachePlugin } from './msalCachePlugin.js';
 
 const mockCache: ISerializableTokenCache = {
@@ -11,26 +10,26 @@ const mockCache: ISerializableTokenCache = {
 const mockCacheContext = new TokenCacheContext(mockCache, false);
 
 describe('msalCachePlugin', () => {
-  let mockCacheDeserializeSpy: sinon.SinonSpy;
-  let mockCacheSerializeSpy: sinon.SinonSpy;
+  let mockCacheDeserializeSpy: jest.SpyInstance;
+  let mockCacheSerializeSpy: jest.SpyInstance;
 
-  before(() => {
-    mockCacheDeserializeSpy = sinon.spy(mockCache, 'deserialize');
-    mockCacheSerializeSpy = sinon.spy(mockCache, 'serialize');
+  beforeAll(() => {
+    mockCacheDeserializeSpy = jest.spyOn(mockCache, 'deserialize').mockClear();
+    mockCacheSerializeSpy = jest.spyOn(mockCache, 'serialize').mockClear();
   });
 
   afterEach(() => {
-    mockCacheDeserializeSpy.resetHistory();
-    mockCacheSerializeSpy.resetHistory();
+    mockCacheDeserializeSpy.mockReset();
+    mockCacheSerializeSpy.mockReset();
     mockCacheContext.hasChanged = false;
-    sinonUtil.restore([
+    jestUtil.restore([
       (msalCachePlugin as any).fileTokenStorage.get,
       (msalCachePlugin as any).fileTokenStorage.set
     ]);
   });
 
   it(`restores token cache from the cache storage`, (done) => {
-    sinon.stub((msalCachePlugin as any).fileTokenStorage, 'get').callsFake(() => '');
+    jest.spyOn((msalCachePlugin as any).fileTokenStorage, 'get').mockClear().mockImplementation(() => '');
     msalCachePlugin
       .beforeCacheAccess(mockCacheContext)
       .then(() => {
@@ -45,7 +44,7 @@ describe('msalCachePlugin', () => {
   });
 
   it(`doesn't fail restoring cache if cache file not found`, (done) => {
-    sinon.stub((msalCachePlugin as any).fileTokenStorage, 'get').callsFake(() => Promise.reject('File not found'));
+    jest.spyOn((msalCachePlugin as any).fileTokenStorage, 'get').mockClear().mockImplementation(() => Promise.reject('File not found'));
     msalCachePlugin
       .beforeCacheAccess(mockCacheContext)
       .then(() => {
@@ -60,7 +59,7 @@ describe('msalCachePlugin', () => {
   });
 
   it(`doesn't fail restoring cache if an error has occurred`, (done) => {
-    sinon.stub((msalCachePlugin as any).fileTokenStorage, 'get').callsFake(() => Promise.reject('An error has occurred'));
+    jest.spyOn((msalCachePlugin as any).fileTokenStorage, 'get').mockClear().mockImplementation(() => Promise.reject('An error has occurred'));
     msalCachePlugin
       .beforeCacheAccess(mockCacheContext)
       .then(() => {
@@ -75,7 +74,7 @@ describe('msalCachePlugin', () => {
   });
 
   it(`persists cache on disk when cache changed`, (done) => {
-    sinon.stub((msalCachePlugin as any).fileTokenStorage, 'set').callsFake(() => Promise.resolve());
+    jest.spyOn((msalCachePlugin as any).fileTokenStorage, 'set').mockClear().mockImplementation(() => Promise.resolve());
     mockCacheContext.hasChanged = true;
     msalCachePlugin
       .afterCacheAccess(mockCacheContext)
@@ -91,7 +90,7 @@ describe('msalCachePlugin', () => {
   });
 
   it(`doesn't persist cache on disk when cache not changed`, (done) => {
-    sinon.stub((msalCachePlugin as any).fileTokenStorage, 'set').callsFake(() => Promise.resolve());
+    jest.spyOn((msalCachePlugin as any).fileTokenStorage, 'set').mockClear().mockImplementation(() => Promise.resolve());
     msalCachePlugin
       .afterCacheAccess(mockCacheContext)
       .then(() => {
@@ -106,7 +105,7 @@ describe('msalCachePlugin', () => {
   });
 
   it(`doesn't throw exception when persisting cache failed`, (done) => {
-    sinon.stub((msalCachePlugin as any).fileTokenStorage, 'set').callsFake(() => Promise.reject('An error has occurred'));
+    jest.spyOn((msalCachePlugin as any).fileTokenStorage, 'set').mockClear().mockImplementation(() => Promise.reject('An error has occurred'));
     mockCacheContext.hasChanged = true;
     msalCachePlugin
       .afterCacheAccess(mockCacheContext)

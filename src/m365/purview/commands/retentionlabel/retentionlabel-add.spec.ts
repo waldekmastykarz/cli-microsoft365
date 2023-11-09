@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './retentionlabel-add.js';
 
@@ -84,14 +83,14 @@ describe(commands.RETENTIONLABEL_ADD, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.accessTokens[(command as any).resource] = {
       accessToken: 'abc',
@@ -113,19 +112,19 @@ describe(commands.RETENTIONLABEL_ADD, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.accessTokens = {};
   });
@@ -218,7 +217,7 @@ describe(commands.RETENTIONLABEL_ADD, () => {
   });
 
   it('throws error when no retention event type found with name', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url === `https://graph.microsoft.com/beta/security/triggerTypes/retentionEventTypes`)) {
         return ({ "value": [] });
       }
@@ -239,7 +238,7 @@ describe(commands.RETENTIONLABEL_ADD, () => {
   });
 
   it('adds retention label with all options', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/beta/security/labels/retentionLabels`) {
         return requestResponse;
       }
@@ -267,7 +266,7 @@ describe(commands.RETENTIONLABEL_ADD, () => {
   });
 
   it('adds retention label with all options and eventTypeName', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url === `https://graph.microsoft.com/beta/security/triggerTypes/retentionEventTypes`)) {
         return (eventTypeResponse);
       }
@@ -275,7 +274,7 @@ describe(commands.RETENTIONLABEL_ADD, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/beta/security/labels/retentionLabels`) {
         return requestResponse;
       }
@@ -304,7 +303,7 @@ describe(commands.RETENTIONLABEL_ADD, () => {
   });
 
   it('adds retention label with all options and eventTypeId', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/beta/security/labels/retentionLabels`) {
         return requestResponse;
       }
@@ -333,7 +332,7 @@ describe(commands.RETENTIONLABEL_ADD, () => {
   });
 
   it('correctly handles random API error', async () => {
-    sinon.stub(request, 'post').callsFake(() => { throw 'An error has occurred'; });
+    jest.spyOn(request, 'post').mockClear().mockImplementation(() => { throw 'An error has occurred'; });
 
     await assert.rejects(command.action(logger, {
       options: {

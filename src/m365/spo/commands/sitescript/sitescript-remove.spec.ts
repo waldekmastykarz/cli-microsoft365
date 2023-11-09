@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './sitescript-remove.js';
@@ -20,12 +19,12 @@ describe(commands.SITESCRIPT_REMOVE, () => {
   let commandInfo: CommandInfo;
   let promptOptions: any;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'ABC',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -50,21 +49,21 @@ describe(commands.SITESCRIPT_REMOVE, () => {
       }
     };
     promptOptions = undefined;
-    sinon.stub(Cli, 'prompt').callsFake(async (options) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options) => {
       promptOptions = options;
       return { continue: false };
     });
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -77,45 +76,49 @@ describe(commands.SITESCRIPT_REMOVE, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('removes the specified site script without prompting for confirmation when confirm option specified', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.DeleteSiteScript`) > -1 &&
-        JSON.stringify(opts.data) === JSON.stringify({
-          id: '0f27a016-d277-4bb4-b3c3-b5b040c9559b'
-        })) {
-        return {
-          "odata.null": true
-        };
-      }
+  it('removes the specified site script without prompting for confirmation when confirm option specified',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.DeleteSiteScript`) > -1 &&
+          JSON.stringify(opts.data) === JSON.stringify({
+            id: '0f27a016-d277-4bb4-b3c3-b5b040c9559b'
+          })) {
+          return {
+            "odata.null": true
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { force: true, id: '0f27a016-d277-4bb4-b3c3-b5b040c9559b' } });
-  });
-
-  it('prompts before removing the specified site script when confirm option not passed', async () => {
-    await command.action(logger, { options: { id: 'b2307a39-e878-458b-bc90-03bc578531d6' } });
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      await command.action(logger, { options: { force: true, id: '0f27a016-d277-4bb4-b3c3-b5b040c9559b' } });
     }
-    assert(promptIssued);
-  });
+  );
+
+  it('prompts before removing the specified site script when confirm option not passed',
+    async () => {
+      await command.action(logger, { options: { id: 'b2307a39-e878-458b-bc90-03bc578531d6' } });
+      let promptIssued = false;
+
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+      assert(promptIssued);
+    }
+  );
 
   it('aborts removing site script when prompt not confirmed', async () => {
-    const postSpy = sinon.spy(request, 'post');
+    const postSpy = jest.spyOn(request, 'post').mockClear();
 
     await command.action(logger, { options: { id: 'b2307a39-e878-458b-bc90-03bc578531d6' } });
     assert(postSpy.notCalled);
   });
 
   it('removes the app when prompt confirmed', async () => {
-    const postStub = sinon.stub(request, 'post').resolves();
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation().resolves();
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: true }
     ));
     await command.action(logger, { options: { id: 'b2307a39-e878-458b-bc90-03bc578531d6' } });
@@ -123,7 +126,7 @@ describe(commands.SITESCRIPT_REMOVE, () => {
   });
 
   it('correctly handles error when site script not found', async () => {
-    sinon.stub(request, 'post').rejects({ error: { 'odata.error': { message: { value: 'File Not Found.' } } } });
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects({ error: { 'odata.error': { message: { value: 'File Not Found.' } } } });
 
     await assert.rejects(command.action(logger, { options: { force: true, id: '0f27a016-d277-4bb4-b3c3-b5b040c9559b' } } as any), new CommandError('File Not Found.'));
   });

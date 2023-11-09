@@ -12,37 +12,41 @@ describe('FN012005_TSC_typeRoots_microsoft', () => {
     rule = new FN012005_TSC_typeRoots_microsoft();
   });
 
-  it('doesn\'t return notification if ./node_modules/@microsoft is already present', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      tsConfigJson: {
-        compilerOptions: {
-          typeRoots: ['./node_modules/@microsoft']
+  it('doesn\'t return notification if ./node_modules/@microsoft is already present',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        tsConfigJson: {
+          compilerOptions: {
+            typeRoots: ['./node_modules/@microsoft']
+          }
         }
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
-  it('returns notification if ./node_modules/@microsoft is not present', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      tsConfigJson: {
-        compilerOptions: {
-          typeRoots: []
-        },
-        source: JSON.stringify({
+  it('returns notification if ./node_modules/@microsoft is not present',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        tsConfigJson: {
           compilerOptions: {
             typeRoots: []
-          }
-        }, null, 2)
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 1, 'Incorrect number of findings');
-    assert.strictEqual(findings[0].occurrences[0].position?.line, 3, 'Incorrect line number');
-  });
+          },
+          source: JSON.stringify({
+            compilerOptions: {
+              typeRoots: []
+            }
+          }, null, 2)
+        }
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 1, 'Incorrect number of findings');
+      assert.strictEqual(findings[0].occurrences[0].position?.line, 3, 'Incorrect line number');
+    }
+  );
 
   it('doesn\'t return notification if tsconfig is not available', () => {
     const project: Project = {

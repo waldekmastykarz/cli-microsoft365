@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './m365group-recyclebinitem-restore.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -62,12 +61,12 @@ describe(commands.M365GROUP_RECYCLEBINITEM_RESTORE, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -88,7 +87,7 @@ describe(commands.M365GROUP_RECYCLEBINITEM_RESTORE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post,
       global.setTimeout,
@@ -97,8 +96,8 @@ describe(commands.M365GROUP_RECYCLEBINITEM_RESTORE, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -121,7 +120,7 @@ describe(commands.M365GROUP_RECYCLEBINITEM_RESTORE, () => {
   });
 
   it('restores the specified group by id', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/directory/deleteditems/${validGroupId}/restore`) {
         return;
       }
@@ -138,14 +137,14 @@ describe(commands.M365GROUP_RECYCLEBINITEM_RESTORE, () => {
   });
 
   it('correctly restores group by displayName', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/directory/deletedItems/Microsoft.Graph.Group?$filter=displayName eq '${formatting.encodeQueryParameter(validGroupDisplayName)}'`) {
         return singleGroupsResponse;
       }
 
       throw 'Invalid request';
     });
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/directory/deleteditems/${validGroupId}/restore`) {
         return;
       }
@@ -162,14 +161,14 @@ describe(commands.M365GROUP_RECYCLEBINITEM_RESTORE, () => {
   });
 
   it('correctly restores group by mailNickname', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/directory/deletedItems/Microsoft.Graph.Group?$filter=mailNickname eq '${formatting.encodeQueryParameter(validGroupMailNickname)}'`) {
         return singleGroupsResponse;
       }
 
       throw 'Invalid request';
     });
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/directory/deleteditems/${validGroupId}/restore`) {
         return;
       }
@@ -186,14 +185,14 @@ describe(commands.M365GROUP_RECYCLEBINITEM_RESTORE, () => {
   });
 
   it('correctly handles error when group is not found', async () => {
-    sinon.stub(request, 'post').rejects({ error: { 'odata.error': { message: { value: 'Group Not Found.' } } } });
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects({ error: { 'odata.error': { message: { value: 'Group Not Found.' } } } });
 
     await assert.rejects(command.action(logger, { options: { id: '28beab62-7540-4db1-a23f-29a6018a3848' } } as any),
       new CommandError('Group Not Found.'));
   });
 
   it('throws error message when no group was found', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/directory/deletedItems/Microsoft.Graph.Group?$filter=mailNickname eq '${formatting.encodeQueryParameter(validGroupMailNickname)}'`) {
         return { value: [] };
       }
@@ -210,7 +209,7 @@ describe(commands.M365GROUP_RECYCLEBINITEM_RESTORE, () => {
   });
 
   it('throws error message when multiple groups were found', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -218,7 +217,7 @@ describe(commands.M365GROUP_RECYCLEBINITEM_RESTORE, () => {
       return defaultValue;
     });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/directory/deletedItems/Microsoft.Graph.Group?$filter=mailNickname eq '${formatting.encodeQueryParameter(validGroupMailNickname)}'`) {
         return multipleGroupsResponse;
       }
@@ -234,36 +233,38 @@ describe(commands.M365GROUP_RECYCLEBINITEM_RESTORE, () => {
     }), new CommandError("Multiple groups with name 'Devteam' found. Found: 00000000-0000-0000-0000-000000000000."));
   });
 
-  it('handles selecting single result when multiple groups with the specified name found and cli is set to prompt', async () => {
-    let postRequestIssued = false;
+  it('handles selecting single result when multiple groups with the specified name found and cli is set to prompt',
+    async () => {
+      let postRequestIssued = false;
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/directory/deletedItems/Microsoft.Graph.Group?$filter=displayName eq '${formatting.encodeQueryParameter(validGroupDisplayName)}'`) {
-        return multipleGroupsResponse;
-      }
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/directory/deletedItems/Microsoft.Graph.Group?$filter=displayName eq '${formatting.encodeQueryParameter(validGroupDisplayName)}'`) {
+          return multipleGroupsResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/directory/deleteditems/${validGroupId}/restore`) {
-        postRequestIssued = true;
-        return;
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/directory/deleteditems/${validGroupId}/restore`) {
+          postRequestIssued = true;
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves(singleGroupsResponse.value[0]);
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves(singleGroupsResponse.value[0]);
 
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        displayName: validGroupDisplayName
-      }
-    });
-    assert(postRequestIssued);
-  });
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          displayName: validGroupDisplayName
+        }
+      });
+      assert(postRequestIssued);
+    }
+  );
 
   it('supports specifying id', () => {
     const options = command.options;

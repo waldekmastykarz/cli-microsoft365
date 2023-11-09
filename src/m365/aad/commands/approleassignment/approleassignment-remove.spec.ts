@@ -1,6 +1,5 @@
 import assert from 'assert';
 import os from 'os';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './approleassignment-remove.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -21,14 +20,14 @@ describe(commands.APPROLEASSIGNMENT_REMOVE, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
   let promptOptions: any;
-  let deleteRequestStub: sinon.SinonStub;
+  let deleteRequestStub: jest.Mock;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -46,12 +45,12 @@ describe(commands.APPROLEASSIGNMENT_REMOVE, () => {
         log.push(msg);
       }
     };
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
     promptOptions = undefined;
-    sinon.stub(request, 'get').callsFake(async (opts: any) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts: any) => {
       if ((opts.url as string).indexOf(`/v1.0/servicePrincipals?`) > -1) {
         // fake first call for getting service principal
         if (opts.url.indexOf('startswith') === -1) {
@@ -62,7 +61,7 @@ describe(commands.APPROLEASSIGNMENT_REMOVE, () => {
       }
       throw 'Invalid request';
     });
-    deleteRequestStub = sinon.stub(request, 'delete').callsFake(async (opts: any) => {
+    deleteRequestStub = jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts: any) => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/servicePrincipals/3e64c22f-3f14-4bce-a267-cb44c9a08e17/appRoleAssignments/L8JkPhQ_zkuiZ8tEyaCOF8xDeJC6Z09PiQhDnXpNuYI' ||
         opts.url === 'https://graph.microsoft.com/v1.0/servicePrincipals/3e64c22f-3f14-4bce-a267-cb44c9a08e17/appRoleAssignments/L8JkPhQ_zkuiZ8tEyaCOFxSPOO7XQmlKmMHk580MMAg') {
         return;
@@ -72,7 +71,7 @@ describe(commands.APPROLEASSIGNMENT_REMOVE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.delete,
       Cli.prompt,
@@ -80,8 +79,8 @@ describe(commands.APPROLEASSIGNMENT_REMOVE, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -93,58 +92,70 @@ describe(commands.APPROLEASSIGNMENT_REMOVE, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('prompts before removing the app role assignment when confirm option not passed', async () => {
-    await command.action(logger, { options: { appId: 'dc311e81-e099-4c64-bd66-c7183465f3f2', resource: 'SharePoint', scopes: 'Sites.Read.All' } });
-    let promptIssued = false;
+  it('prompts before removing the app role assignment when confirm option not passed',
+    async () => {
+      await command.action(logger, { options: { appId: 'dc311e81-e099-4c64-bd66-c7183465f3f2', resource: 'SharePoint', scopes: 'Sites.Read.All' } });
+      let promptIssued = false;
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+
+      assert(promptIssued);
     }
+  );
 
-    assert(promptIssued);
-  });
+  it('prompts before removing the app role assignment when confirm option not passed (debug)',
+    async () => {
+      await command.action(logger, { options: { debug: true, appId: 'dc311e81-e099-4c64-bd66-c7183465f3f2', resource: 'SharePoint', scopes: 'Sites.Read.All' } });
+      let promptIssued = false;
 
-  it('prompts before removing the app role assignment when confirm option not passed (debug)', async () => {
-    await command.action(logger, { options: { debug: true, appId: 'dc311e81-e099-4c64-bd66-c7183465f3f2', resource: 'SharePoint', scopes: 'Sites.Read.All' } });
-    let promptIssued = false;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      assert(promptIssued);
     }
+  );
 
-    assert(promptIssued);
-  });
+  it('aborts removing the app role assignment when prompt not confirmed',
+    async () => {
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: false });
 
-  it('aborts removing the app role assignment when prompt not confirmed', async () => {
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: false });
-
-    await command.action(logger, { options: { appDisplayName: 'myapp', resource: 'SharePoint', scopes: 'Sites.Read.All' } });
-    assert(deleteRequestStub.notCalled);
-  });
+      await command.action(logger, { options: { appDisplayName: 'myapp', resource: 'SharePoint', scopes: 'Sites.Read.All' } });
+      assert(deleteRequestStub.notCalled);
+    }
+  );
 
   it('deletes app role assignment when prompt confirmed (debug)', async () => {
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
     await command.action(logger, { options: { debug: true, appDisplayName: 'myapp', resource: 'SharePoint', scopes: 'Sites.Read.All' } });
     assert(deleteRequestStub.called);
   });
 
-  it('deletes app role assignments for service principal with specified displayName', async () => {
-    await command.action(logger, { options: { appDisplayName: 'myapp', resource: 'SharePoint', scopes: 'Sites.Read.All', force: true } });
-    assert(deleteRequestStub.called);
-  });
+  it('deletes app role assignments for service principal with specified displayName',
+    async () => {
+      await command.action(logger, { options: { appDisplayName: 'myapp', resource: 'SharePoint', scopes: 'Sites.Read.All', force: true } });
+      assert(deleteRequestStub.called);
+    }
+  );
 
-  it('deletes app role assignments for service principal with specified objectId and multiple scopes', async () => {
-    await command.action(logger, { options: { appObjectId: '3e64c22f-3f14-4bce-a267-cb44c9a08e17', resource: 'SharePoint', scopes: 'Sites.Read.All,Sites.FullControl.All', force: true } });
-    assert(deleteRequestStub.calledTwice);
-  });
+  it('deletes app role assignments for service principal with specified objectId and multiple scopes',
+    async () => {
+      await command.action(logger, { options: { appObjectId: '3e64c22f-3f14-4bce-a267-cb44c9a08e17', resource: 'SharePoint', scopes: 'Sites.Read.All,Sites.FullControl.All', force: true } });
+      assert(deleteRequestStub.calledTwice);
+    }
+  );
 
-  it('deletes app role assignments for service principal with specified appId (debug)', async () => {
-    await command.action(logger, { options: { debug: true, appId: 'dc311e81-e099-4c64-bd66-c7183465f3f2', resource: 'SharePoint', scopes: 'Sites.Read.All', force: true } });
-    assert(deleteRequestStub.called);
-  });
+  it('deletes app role assignments for service principal with specified appId (debug)',
+    async () => {
+      await command.action(logger, { options: { debug: true, appId: 'dc311e81-e099-4c64-bd66-c7183465f3f2', resource: 'SharePoint', scopes: 'Sites.Read.All', force: true } });
+      assert(deleteRequestStub.called);
+    }
+  );
 
   it('handles intune alias for the resource option value', async () => {
     await command.action(logger, { options: { debug: true, appId: 'dc311e81-e099-4c64-bd66-c7183465f3f2', resource: 'intune', scopes: 'Sites.Read.All', force: true } });
@@ -162,8 +173,8 @@ describe(commands.APPROLEASSIGNMENT_REMOVE, () => {
   });
 
   it('rejects if no resource is found', async () => {
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').callsFake(async (opts: any): Promise<any> => {
+    jestUtil.restore(request.get);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts: any): Promise<any> => {
       if ((opts.url as string).indexOf(`/v1.0/servicePrincipals?`) > -1) {
         // fake first call for getting service principal
         if (opts.url.indexOf('startswith') === -1) {
@@ -180,8 +191,8 @@ describe(commands.APPROLEASSIGNMENT_REMOVE, () => {
   });
 
   it('rejects if no app roles found for the specified resource', async () => {
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').callsFake(async (opts: any): Promise<any> => {
+    jestUtil.restore(request.get);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts: any): Promise<any> => {
       if ((opts.url as string).indexOf(`/v1.0/servicePrincipals?`) > -1) {
         // fake first call for getting service principal
         if (opts.url.indexOf('startswith') === -1) {
@@ -197,27 +208,29 @@ describe(commands.APPROLEASSIGNMENT_REMOVE, () => {
       new CommandError(`The resource 'SharePoint' does not have any application permissions available.`));
   });
 
-  it('rejects if no app roles found for the specified resource option value', async () => {
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').callsFake(async (opts: any): Promise<any> => {
-      if ((opts.url as string).indexOf(`/v1.0/servicePrincipals?`) > -1) {
-        // fake first call for getting service principal
-        if (opts.url.indexOf('startswith') === -1) {
-          return { "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#servicePrincipals", "value": [{ "id": "3e64c22f-3f14-4bce-a267-cb44c9a08e17", "deletedDateTime": null, "accountEnabled": true, "alternativeNames": [], "appDisplayName": "myapp", "appDescription": null, "appId": "dc311e81-e099-4c64-bd66-c7183465f3f2", "applicationTemplateId": null, "appOwnerOrganizationId": "c8e571e1-d528-43d9-8776-dc51157d615a", "appRoleAssignmentRequired": false, "createdDateTime": "2020-08-29T18:35:13Z", "description": null, "displayName": "myapp", "homepage": null, "loginUrl": null, "logoutUrl": null, "notes": null, "notificationEmailAddresses": [], "preferredSingleSignOnMode": null, "preferredTokenSigningKeyThumbprint": null, "replyUrls": ["https://login.microsoftonline.com/common/oauth2/nativeclient"], "resourceSpecificApplicationPermissions": [], "samlSingleSignOnSettings": null, "servicePrincipalNames": ["dc311e81-e099-4c64-bd66-c7183465f3f2"], "servicePrincipalType": "Application", "signInAudience": "AzureADMyOrg", "tags": ["WindowsAzureActiveDirectoryIntegratedApp"], "tokenEncryptionKeyId": null, "verifiedPublisher": { "displayName": null, "verifiedPublisherId": null, "addedDateTime": null }, "addIns": [], "appRoles": [], "info": { "logoUrl": null, "marketingUrl": null, "privacyStatementUrl": null, "supportUrl": null, "termsOfServiceUrl": null }, "keyCredentials": [], "oauth2PermissionScopes": [], "passwordCredentials": [] }] };
+  it('rejects if no app roles found for the specified resource option value',
+    async () => {
+      jestUtil.restore(request.get);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts: any): Promise<any> => {
+        if ((opts.url as string).indexOf(`/v1.0/servicePrincipals?`) > -1) {
+          // fake first call for getting service principal
+          if (opts.url.indexOf('startswith') === -1) {
+            return { "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#servicePrincipals", "value": [{ "id": "3e64c22f-3f14-4bce-a267-cb44c9a08e17", "deletedDateTime": null, "accountEnabled": true, "alternativeNames": [], "appDisplayName": "myapp", "appDescription": null, "appId": "dc311e81-e099-4c64-bd66-c7183465f3f2", "applicationTemplateId": null, "appOwnerOrganizationId": "c8e571e1-d528-43d9-8776-dc51157d615a", "appRoleAssignmentRequired": false, "createdDateTime": "2020-08-29T18:35:13Z", "description": null, "displayName": "myapp", "homepage": null, "loginUrl": null, "logoutUrl": null, "notes": null, "notificationEmailAddresses": [], "preferredSingleSignOnMode": null, "preferredTokenSigningKeyThumbprint": null, "replyUrls": ["https://login.microsoftonline.com/common/oauth2/nativeclient"], "resourceSpecificApplicationPermissions": [], "samlSingleSignOnSettings": null, "servicePrincipalNames": ["dc311e81-e099-4c64-bd66-c7183465f3f2"], "servicePrincipalType": "Application", "signInAudience": "AzureADMyOrg", "tags": ["WindowsAzureActiveDirectoryIntegratedApp"], "tokenEncryptionKeyId": null, "verifiedPublisher": { "displayName": null, "verifiedPublisherId": null, "addedDateTime": null }, "addIns": [], "appRoles": [], "info": { "logoUrl": null, "marketingUrl": null, "privacyStatementUrl": null, "supportUrl": null, "termsOfServiceUrl": null }, "keyCredentials": [], "oauth2PermissionScopes": [], "passwordCredentials": [] }] };
+          }
+          // second get request for searching for service principals by resource options value specified
+          return { "value": [{ id: "5edf62fd-ae7a-4a99-af2e-fc5950aaed07", "appRoles": [{ value: 'Scope1', id: '1' }, { value: 'Scope2', id: '2' }] }] };
         }
-        // second get request for searching for service principals by resource options value specified
-        return { "value": [{ id: "5edf62fd-ae7a-4a99-af2e-fc5950aaed07", "appRoles": [{ value: 'Scope1', id: '1' }, { value: 'Scope2', id: '2' }] }] };
-      }
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, { options: { debug: true, appId: '3e64c22f-3f14-4bce-a267-cb44c9a08e17', resource: 'SharePoint', scopes: 'Sites.Read.All', force: true } } as any),
-      new CommandError(`The scope value 'Sites.Read.All' you have specified does not exist for SharePoint. ${os.EOL}Available scopes (application permissions) are: ${os.EOL}Scope1${os.EOL}Scope2`));
-  });
+      await assert.rejects(command.action(logger, { options: { debug: true, appId: '3e64c22f-3f14-4bce-a267-cb44c9a08e17', resource: 'SharePoint', scopes: 'Sites.Read.All', force: true } } as any),
+        new CommandError(`The scope value 'Sites.Read.All' you have specified does not exist for SharePoint. ${os.EOL}Available scopes (application permissions) are: ${os.EOL}Scope1${os.EOL}Scope2`));
+    }
+  );
 
   it('rejects if no service principal found', async () => {
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').callsFake(async (opts: any): Promise<any> => {
+    jestUtil.restore(request.get);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts: any): Promise<any> => {
       if ((opts.url as string).indexOf(`/v1.0/servicePrincipals?`) > -1) {
         // fake first call for getting service principal
         if (opts.url.indexOf('startswith') === -1) {
@@ -239,8 +252,8 @@ describe(commands.APPROLEASSIGNMENT_REMOVE, () => {
   });
 
   it('correctly handles API OData error', async () => {
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').rejects({
+    jestUtil.restore(request.get);
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects({
       error: {
         'odata.error': {
           code: '-1, InvalidOperationException',
@@ -255,18 +268,20 @@ describe(commands.APPROLEASSIGNMENT_REMOVE, () => {
       new CommandError(`Resource '' does not exist or one of its queried reference-property objects are not present`));
   });
 
-  it('fails validation if neither appId, appObjectId nor appDisplayName are not specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if neither appId, appObjectId nor appDisplayName are not specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { resource: 'abc', scopes: 'abc' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { resource: 'abc', scopes: 'abc' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the appId is not a valid GUID', async () => {
     const actual = await command.validate({ options: { appId: '123', resource: 'abc', scopes: 'abc' } }, commandInfo);
@@ -278,44 +293,50 @@ describe(commands.APPROLEASSIGNMENT_REMOVE, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if both appId and appDisplayName are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both appId and appDisplayName are specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { appId: '123', appDisplayName: 'abc', resource: 'abc', scopes: 'abc' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { appId: '123', appDisplayName: 'abc', resource: 'abc', scopes: 'abc' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if both appObjectId and appDisplayName are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both appObjectId and appDisplayName are specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { appObjectId: '123', appDisplayName: 'abc', resource: 'abc', scopes: 'abc' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { appObjectId: '123', appDisplayName: 'abc', resource: 'abc', scopes: 'abc' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if both appObjectId, appId and appDisplayName are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both appObjectId, appId and appDisplayName are specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { appId: '123', appObjectId: '123', appDisplayName: 'abc', resource: 'abc', scopes: 'abc' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { appId: '123', appObjectId: '123', appDisplayName: 'abc', resource: 'abc', scopes: 'abc' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation when the appId option specified', async () => {
     const actual = await command.validate({ options: { appId: '57907bf8-73fa-43a6-89a5-1f603e29e452', resource: 'abc', scopes: 'abc' } }, commandInfo);

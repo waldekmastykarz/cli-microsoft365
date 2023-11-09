@@ -1,6 +1,5 @@
 import assert from 'assert';
 import os from 'os';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -11,7 +10,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import { urlUtil } from '../../../../utils/urlUtil.js';
 import commands from '../../commands.js';
@@ -23,7 +22,7 @@ describe(commands.LISTITEM_ADD, () => {
   let log: any[];
   let logger: Logger;
   let commandInfo: CommandInfo;
-  let ensureFolderStub: sinon.SinonStub;
+  let ensureFolderStub: jest.Mock;
   const listUrl = 'sites/project-x/documents';
   const webUrl = 'https://contoso.sharepoint.com/sites/project-x';
   const listServerRelativeUrl: string = urlUtil.getServerRelativePath(webUrl, listUrl);
@@ -100,13 +99,13 @@ describe(commands.LISTITEM_ADD, () => {
     throw 'Invalid request';
   };
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').callsFake(() => Promise.resolve());
-    sinon.stub(telemetry, 'trackEvent').callsFake(() => { });
-    sinon.stub(pid, 'getProcessName').callsFake(() => '');
-    sinon.stub(session, 'getId').callsFake(() => '');
-    ensureFolderStub = sinon.stub(spo, 'ensureFolder').resolves();
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation(() => Promise.resolve());
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockImplementation(() => { });
+    jest.spyOn(pid, 'getProcessName').mockClear().mockImplementation(() => '');
+    jest.spyOn(session, 'getId').mockClear().mockImplementation(() => '');
+    ensureFolderStub = jest.spyOn(spo, 'ensureFolder').mockClear().mockImplementation().resolves();
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -127,15 +126,15 @@ describe(commands.LISTITEM_ADD, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       request.get,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -163,41 +162,49 @@ describe(commands.LISTITEM_ADD, () => {
     assert.notStrictEqual(command.types.string, 'undefined', 'command string types undefined');
   });
 
-  it('fails validation if listTitle and listId option not specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if listTitle and listId option not specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if listTitle and listId are specified together', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if listTitle and listId are specified together',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', listTitle: 'Demo List' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', listTitle: 'Demo List' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the webUrl option is a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List' } }, commandInfo);
-    assert(actual);
-  });
+  it('passes validation if the webUrl option is a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List' } }, commandInfo);
+      assert(actual);
+    }
+  );
 
   it('fails validation if the listId option is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: 'foo' } }, commandInfo);
@@ -209,42 +216,46 @@ describe(commands.LISTITEM_ADD, () => {
     assert(actual);
   });
 
-  it('fails to create a list item when \'fail me\' values are used', async () => {
-    actualId = 0;
+  it('fails to create a list item when \'fail me\' values are used',
+    async () => {
+      actualId = 0;
 
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    const options: any = {
-      listTitle: 'Demo List',
-      webUrl: webUrl,
-      Title: "fail adding me"
-    };
+      const options: any = {
+        listTitle: 'Demo List',
+        webUrl: webUrl,
+        Title: "fail adding me"
+      };
 
-    await assert.rejects(command.action(logger, { options: options } as any), new CommandError(`Creating the item failed with the following errors: ${os.EOL}- Title - failed updating`));
-    assert.strictEqual(actualId, 0);
-  });
+      await assert.rejects(command.action(logger, { options: options } as any), new CommandError(`Creating the item failed with the following errors: ${os.EOL}- Title - failed updating`));
+      assert.strictEqual(actualId, 0);
+    }
+  );
 
-  it('returns listItemInstance object when list item is added with correct values', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+  it('returns listItemInstance object when list item is added with correct values',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    command.allowUnknownOptions();
+      command.allowUnknownOptions();
 
-    const options: any = {
-      debug: true,
-      listTitle: 'Demo List',
-      webUrl: webUrl,
-      Title: expectedTitle
-    };
+      const options: any = {
+        debug: true,
+        listTitle: 'Demo List',
+        webUrl: webUrl,
+        Title: expectedTitle
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert.strictEqual(actualId, expectedId);
-  });
+      await command.action(logger, { options: options } as any);
+      assert.strictEqual(actualId, expectedId);
+    }
+  );
 
   it('creates list item in the list specified using ID', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+    jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
     const options: any = {
       listId: 'cf8c72a1-0207-40ee-aebd-fca67d20bc8a',
@@ -257,8 +268,8 @@ describe(commands.LISTITEM_ADD, () => {
   });
 
   it('creates list item in the list specified using URL', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+    jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
     const options: any = {
       verbose: true,
@@ -272,39 +283,43 @@ describe(commands.LISTITEM_ADD, () => {
   });
 
 
-  it('attempts to create the listitem with the contenttype of \'Item\' when content type option 0x01 is specified', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+  it('attempts to create the listitem with the contenttype of \'Item\' when content type option 0x01 is specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    const options: any = {
-      debug: true,
-      listTitle: 'Demo List',
-      webUrl: webUrl,
-      contentType: expectedContentType,
-      Title: expectedTitle
-    };
+      const options: any = {
+        debug: true,
+        listTitle: 'Demo List',
+        webUrl: webUrl,
+        contentType: expectedContentType,
+        Title: expectedTitle
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(expectedContentType === actualContentType);
-  });
+      await command.action(logger, { options: options } as any);
+      assert(expectedContentType === actualContentType);
+    }
+  );
 
-  it('fails to create the listitem when the specified contentType doesn\'t exist in the target list', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+  it('fails to create the listitem when the specified contentType doesn\'t exist in the target list',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    const options: any = {
-      listTitle: 'Demo List',
-      webUrl: webUrl,
-      contentType: "Unexpected content type",
-      Title: expectedTitle
-    };
+      const options: any = {
+        listTitle: 'Demo List',
+        webUrl: webUrl,
+        contentType: "Unexpected content type",
+        Title: expectedTitle
+      };
 
-    await assert.rejects(command.action(logger, { options: options } as any), new CommandError("Specified content type 'Unexpected content type' doesn't exist on the target list"));
-  });
+      await assert.rejects(command.action(logger, { options: options } as any), new CommandError("Specified content type 'Unexpected content type' doesn't exist on the target list"));
+    }
+  );
 
   it('should call ensure folder when folder arg specified', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+    jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
     await command.action(logger, {
       options: {
@@ -315,50 +330,54 @@ describe(commands.LISTITEM_ADD, () => {
         folder: "InsideFolder2"
       }
     });
-    assert.strictEqual(ensureFolderStub.lastCall.args[0], 'https://contoso.sharepoint.com/sites/project-x');
-    assert.strictEqual(ensureFolderStub.lastCall.args[1], '/sites/project-xxx/Lists/Demo%20List/InsideFolder2');
+    assert.strictEqual(ensureFolderStub.mock.lastCall[0], 'https://contoso.sharepoint.com/sites/project-x');
+    assert.strictEqual(ensureFolderStub.mock.lastCall[1], '/sites/project-xxx/Lists/Demo%20List/InsideFolder2');
   });
 
-  it('should call ensure folder when folder arg specified (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+  it('should call ensure folder when folder arg specified (debug)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        listTitle: 'Demo List',
-        webUrl: webUrl,
-        Title: expectedTitle,
-        contentType: expectedContentType,
-        folder: "InsideFolder2/Folder3"
-      }
-    });
-    assert.strictEqual(ensureFolderStub.lastCall.args[0], 'https://contoso.sharepoint.com/sites/project-x');
-    assert.strictEqual(ensureFolderStub.lastCall.args[1], '/sites/project-xxx/Lists/Demo%20List/InsideFolder2/Folder3');
-  });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          listTitle: 'Demo List',
+          webUrl: webUrl,
+          Title: expectedTitle,
+          contentType: expectedContentType,
+          folder: "InsideFolder2/Folder3"
+        }
+      });
+      assert.strictEqual(ensureFolderStub.mock.lastCall[0], 'https://contoso.sharepoint.com/sites/project-x');
+      assert.strictEqual(ensureFolderStub.mock.lastCall[1], '/sites/project-xxx/Lists/Demo%20List/InsideFolder2/Folder3');
+    }
+  );
 
-  it('should not have end \'/\' in the folder path when FolderPath.DecodedUrl ', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    const postStubs = sinon.stub(request, 'post').callsFake(postFakes);
+  it('should not have end \'/\' in the folder path when FolderPath.DecodedUrl ',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      const postStubs = jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        listTitle: 'Demo List',
-        webUrl: webUrl,
-        Title: expectedTitle,
-        contentType: expectedContentType,
-        folder: "InsideFolder2/Folder3/"
-      }
-    });
-    const addValidateUpdateItemUsingPathRequest = postStubs.getCall(postStubs.callCount - 1).args[0];
-    const info = addValidateUpdateItemUsingPathRequest.data.listItemCreateInfo;
-    assert.strictEqual(info.FolderPath.DecodedUrl, '/sites/project-xxx/Lists/Demo%20List/InsideFolder2/Folder3');
-  });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          listTitle: 'Demo List',
+          webUrl: webUrl,
+          Title: expectedTitle,
+          contentType: expectedContentType,
+          folder: "InsideFolder2/Folder3/"
+        }
+      });
+      const addValidateUpdateItemUsingPathRequest = postStubs.mock.calls[0][0];
+      const info = addValidateUpdateItemUsingPathRequest.data.listItemCreateInfo;
+      assert.strictEqual(info.FolderPath.DecodedUrl, '/sites/project-xxx/Lists/Demo%20List/InsideFolder2/Folder3');
+    }
+  );
 
   it('ignores global options when creating request data', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    const postStubs = sinon.stub(request, 'post').callsFake(postFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+    const postStubs = jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
     await command.action(logger, {
       options: {
@@ -372,7 +391,7 @@ describe(commands.LISTITEM_ADD, () => {
         folder: "InsideFolder2/Folder3/"
       }
     });
-    assert.deepEqual(postStubs.firstCall.args[0].data, {
+    assert.deepEqual(postStubs.mock.calls[0][0].data, {
       formValues: [{ FieldName: 'Title', FieldValue: 'List Item 1' }, { FieldName: 'ContentType', FieldValue: 'Item' }],
       listItemCreateInfo: { FolderPath: { DecodedUrl: '/sites/project-xxx/Lists/Demo%20List/InsideFolder2/Folder3' } }
     });

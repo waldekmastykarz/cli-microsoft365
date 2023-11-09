@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Logger } from '../../../../cli/Logger.js';
 import { CommandError } from '../../../../Command.js';
@@ -7,20 +6,20 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './user-password-validate.js';
 
 describe(commands.USER_PASSWORD_VALIDATE, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
   });
 
@@ -37,18 +36,18 @@ describe(commands.USER_PASSWORD_VALIDATE, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -61,7 +60,7 @@ describe(commands.USER_PASSWORD_VALIDATE, () => {
   });
 
   it('password is too short', async () => {
-    sinon.stub(request, 'post').callsFake(async opts => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if (opts.url === 'https://graph.microsoft.com/beta/users/validatePassword' &&
         JSON.stringify(opts.data) === JSON.stringify({
           "password": "cli365"
@@ -94,7 +93,7 @@ describe(commands.USER_PASSWORD_VALIDATE, () => {
   });
 
   it('password complexity is not met', async () => {
-    sinon.stub(request, 'post').callsFake(async opts => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if (opts.url === 'https://graph.microsoft.com/beta/users/validatePassword' &&
         JSON.stringify(opts.data) === JSON.stringify({
           "password": "cli365password"
@@ -128,7 +127,7 @@ describe(commands.USER_PASSWORD_VALIDATE, () => {
   });
 
   it('password is too weak', async () => {
-    sinon.stub(request, 'post').callsFake(async opts => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if (opts.url === 'https://graph.microsoft.com/beta/users/validatePassword' &&
         JSON.stringify(opts.data) === JSON.stringify({
           "password": "MyP@ssW0rd"
@@ -162,7 +161,7 @@ describe(commands.USER_PASSWORD_VALIDATE, () => {
   });
 
   it('password meets all requirements', async () => {
-    sinon.stub(request, 'post').callsFake(async opts => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if (opts.url === 'https://graph.microsoft.com/beta/users/validatePassword' &&
         JSON.stringify(opts.data) === JSON.stringify({
           "password": "cli365P@ssW0rd"
@@ -196,7 +195,7 @@ describe(commands.USER_PASSWORD_VALIDATE, () => {
   });
 
   it('correctly handles error', async () => {
-    sinon.stub(request, 'post').rejects({
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects({
       "error": {
         "code": "Error",
         "message": "An error has occurred",

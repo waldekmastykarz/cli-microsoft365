@@ -913,7 +913,7 @@ export class Cli {
     await Cli.error(errorMessage);
 
     if (showHelpIfEnabled &&
-      await this.getSettingWithDefaultValue<boolean>(settingsNames.showHelpOnFailure, showHelpIfEnabled)) {
+      (await this.getSettingWithDefaultValue<boolean>(settingsNames.showHelpOnFailure, showHelpIfEnabled))) {
       this.printHelp(await this.getHelpMode(args.options), exitCode);
     }
     else {

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,21 +8,21 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './roledefinition-list.js';
 
 describe(commands.ROLEDEFINITION_LIST, () => {
   let log: any[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -41,17 +40,17 @@ describe(commands.ROLEDEFINITION_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -67,19 +66,23 @@ describe(commands.ROLEDEFINITION_LIST, () => {
     assert.deepStrictEqual(command.defaultProperties(), ['Id', 'Name']);
   });
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the webUrl option is a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if the webUrl option is a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('list role definitions handles reject request correctly', async () => {
     const err = 'request rejected';
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://contoso.sharepoint.com/_api/web/roledefinitions') {
         throw err;
       }
@@ -96,7 +99,7 @@ describe(commands.ROLEDEFINITION_LIST, () => {
   });
 
   it('lists all role definitions from web', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://contoso.sharepoint.com/sites/cli/_api/web/roledefinitions') {
         return ({
           value:
@@ -235,55 +238,57 @@ describe(commands.ROLEDEFINITION_LIST, () => {
     ));
   });
 
-  it('should return an empty array for BasePermissionValue & not return RoleTypeKindValue with unmappable data', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === 'https://contoso.sharepoint.com/_api/web/roledefinitions') {
-        return ({
-          value:
-            [
-              {
-                "BasePermissions": {
-                  "High": "0",
-                  "Low": "0"
-                },
-                "Description": "Has no permissions.",
-                "Hidden": false,
-                "Id": 1073741822,
-                "Name": "No Permissions",
-                "Order": 1,
-                "RoleTypeKind": 9
-              }
-            ]
-        });
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger, {
-      options: {
-        output: 'json',
-        debug: true,
-        webUrl: 'https://contoso.sharepoint.com'
-      }
-    });
-    assert(loggerLogSpy.calledWith(
-      [
-        {
-          "BasePermissions": {
-            "High": "0",
-            "Low": "0"
-          },
-          "Description": "Has no permissions.",
-          "Hidden": false,
-          "Id": 1073741822,
-          "Name": "No Permissions",
-          "Order": 1,
-          "RoleTypeKind": 9,
-          "BasePermissionsValue": [],
-          "RoleTypeKindValue": undefined
+  it('should return an empty array for BasePermissionValue & not return RoleTypeKindValue with unmappable data',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://contoso.sharepoint.com/_api/web/roledefinitions') {
+          return ({
+            value:
+              [
+                {
+                  "BasePermissions": {
+                    "High": "0",
+                    "Low": "0"
+                  },
+                  "Description": "Has no permissions.",
+                  "Hidden": false,
+                  "Id": 1073741822,
+                  "Name": "No Permissions",
+                  "Order": 1,
+                  "RoleTypeKind": 9
+                }
+              ]
+          });
         }
-      ]
-    ));
-  });
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger, {
+        options: {
+          output: 'json',
+          debug: true,
+          webUrl: 'https://contoso.sharepoint.com'
+        }
+      });
+      assert(loggerLogSpy.calledWith(
+        [
+          {
+            "BasePermissions": {
+              "High": "0",
+              "Low": "0"
+            },
+            "Description": "Has no permissions.",
+            "Hidden": false,
+            "Id": 1073741822,
+            "Name": "No Permissions",
+            "Order": 1,
+            "RoleTypeKind": 9,
+            "BasePermissionsValue": [],
+            "RoleTypeKindValue": undefined
+          }
+        ]
+      ));
+    }
+  );
 });

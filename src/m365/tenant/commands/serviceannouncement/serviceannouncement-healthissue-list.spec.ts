@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Logger } from '../../../../cli/Logger.js';
 import { CommandError } from '../../../../Command.js';
@@ -7,14 +6,14 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './serviceannouncement-healthissue-list.js';
 
 describe(commands.SERVICEANNOUNCEMENT_HEALTHISSUE_LIST, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
 
   const jsonOutput = {
     "value": [
@@ -203,11 +202,11 @@ describe(commands.SERVICEANNOUNCEMENT_HEALTHISSUE_LIST, () => {
     ]
   };
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
   });
 
@@ -224,18 +223,18 @@ describe(commands.SERVICEANNOUNCEMENT_HEALTHISSUE_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -251,19 +250,21 @@ describe(commands.SERVICEANNOUNCEMENT_HEALTHISSUE_LIST, () => {
     assert.deepStrictEqual(command.defaultProperties(), ['id', 'title']);
   });
 
-  it('handles promise error while getting service health issues available in Microsoft 365', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/admin/serviceAnnouncement/issues') > -1) {
-        throw 'An error has occurred';
-      }
-      throw 'Invalid request';
-    });
+  it('handles promise error while getting service health issues available in Microsoft 365',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/admin/serviceAnnouncement/issues') > -1) {
+          throw 'An error has occurred';
+        }
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, { options: {} } as any), new CommandError('An error has occurred'));
-  });
+      await assert.rejects(command.action(logger, { options: {} } as any), new CommandError('An error has occurred'));
+    }
+  );
 
   it('gets the service health issues available in Microsoft 365', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/admin/serviceAnnouncement/issues') > -1) {
         return jsonOutput;
       }
@@ -277,52 +278,58 @@ describe(commands.SERVICEANNOUNCEMENT_HEALTHISSUE_LIST, () => {
     assert(loggerLogSpy.calledWith(jsonOutput.value));
   });
 
-  it('gets the service health issues available in Microsoft 365 (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/admin/serviceAnnouncement/issues') > -1) {
-        return jsonOutput;
-      }
-      throw 'Invalid request';
-    });
+  it('gets the service health issues available in Microsoft 365 (debug)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/admin/serviceAnnouncement/issues') > -1) {
+          return jsonOutput;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: true
-      }
-    });
-    assert(loggerLogSpy.calledWith(jsonOutput.value));
-  });
+      await command.action(logger, {
+        options: {
+          debug: true
+        }
+      });
+      assert(loggerLogSpy.calledWith(jsonOutput.value));
+    }
+  );
 
-  it('gets the service health issues for a particular service available in Microsoft 365', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/admin/serviceAnnouncement/issues') > -1) {
-        return jsonOutputMicrosoftForms;
-      }
-      throw 'Invalid request';
-    });
+  it('gets the service health issues for a particular service available in Microsoft 365',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/admin/serviceAnnouncement/issues') > -1) {
+          return jsonOutputMicrosoftForms;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        service: 'Microsoft Forms'
-      }
-    } as any);
-    assert(loggerLogSpy.calledWith(jsonOutputMicrosoftForms.value));
-  });
+      await command.action(logger, {
+        options: {
+          service: 'Microsoft Forms'
+        }
+      } as any);
+      assert(loggerLogSpy.calledWith(jsonOutputMicrosoftForms.value));
+    }
+  );
 
-  it('gets the service health issues for a particular service available in Microsoft 365 as text', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/admin/serviceAnnouncement/issues') > -1) {
-        return jsonOutputMicrosoftForms;
-      }
-      throw 'Invalid request';
-    });
+  it('gets the service health issues for a particular service available in Microsoft 365 as text',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/admin/serviceAnnouncement/issues') > -1) {
+          return jsonOutputMicrosoftForms;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        service: 'Microsoft Forms',
-        output: 'text'
-      }
-    });
-    assert(loggerLogSpy.calledWith(jsonOutputMicrosoftForms.value));
-  });
+      await command.action(logger, {
+        options: {
+          service: 'Microsoft Forms',
+          output: 'text'
+        }
+      });
+      assert(loggerLogSpy.calledWith(jsonOutputMicrosoftForms.value));
+    }
+  );
 });

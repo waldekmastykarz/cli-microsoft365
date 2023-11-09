@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from "sinon";
 import auth from '../../../../Auth.js';
 import { CommandInfo } from "../../../../cli/CommandInfo.js";
 import { Logger } from "../../../../cli/Logger.js";
@@ -10,14 +9,14 @@ import { session } from '../../../../utils/session.js';
 import { Cli } from '../../../../cli/Cli.js';
 import command from './administrativeunit-get.js';
 import request from '../../../../request.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { CommandError } from '../../../../Command.js';
 import { formatting } from '../../../../utils/formatting.js';
 
 describe(commands.ADMINISTRATIVEUNIT_GET, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
   const administrativeUnitsReponse = {
     value: [
@@ -37,11 +36,11 @@ describe(commands.ADMINISTRATIVEUNIT_GET, () => {
   const validDisplayName = 'European Division';
   const invalidDisplayName = 'European';
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -59,18 +58,18 @@ describe(commands.ADMINISTRATIVEUNIT_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       Cli.handleMultipleResultsFound
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -82,71 +81,79 @@ describe(commands.ADMINISTRATIVEUNIT_GET, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('retrieves information about the specified administrative unit by id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/directory/administrativeUnits/${validId}`) {
-        return administrativeUnitsReponse.value[0];
-      }
+  it('retrieves information about the specified administrative unit by id',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/directory/administrativeUnits/${validId}`) {
+          return administrativeUnitsReponse.value[0];
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { id: validId } });
-    assert(loggerLogSpy.calledOnceWithExactly(administrativeUnitsReponse.value[0]));
-  });
+      await command.action(logger, { options: { id: validId } });
+      assert(loggerLogSpy.calledOnceWithExactly(administrativeUnitsReponse.value[0]));
+    }
+  );
 
-  it('retrieves information about the specified administrative unit by displayName', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/directory/administrativeUnits?$filter=displayName eq '${formatting.encodeQueryParameter(validDisplayName)}'`) {
-        return {
-          value: [
-            administrativeUnitsReponse.value[0]
-          ]
-        };
-      }
+  it('retrieves information about the specified administrative unit by displayName',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/directory/administrativeUnits?$filter=displayName eq '${formatting.encodeQueryParameter(validDisplayName)}'`) {
+          return {
+            value: [
+              administrativeUnitsReponse.value[0]
+            ]
+          };
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    await command.action(logger, { options: { displayName: validDisplayName } });
-    assert(loggerLogSpy.calledOnceWithExactly(administrativeUnitsReponse.value[0]));
-  });
+      await command.action(logger, { options: { displayName: validDisplayName } });
+      assert(loggerLogSpy.calledOnceWithExactly(administrativeUnitsReponse.value[0]));
+    }
+  );
 
-  it('throws error message when no administrative unit was found by displayName', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/directory/administrativeUnits?$filter=displayName eq '${formatting.encodeQueryParameter(invalidDisplayName)}'`) {
-        return { value: [] };
-      }
+  it('throws error message when no administrative unit was found by displayName',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/directory/administrativeUnits?$filter=displayName eq '${formatting.encodeQueryParameter(invalidDisplayName)}'`) {
+          return { value: [] };
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    await assert.rejects(command.action(logger, { options: { displayName: invalidDisplayName } }), new CommandError(`The specified administrative unit '${invalidDisplayName}' does not exist.`));
-  });
+      await assert.rejects(command.action(logger, { options: { displayName: invalidDisplayName } }), new CommandError(`The specified administrative unit '${invalidDisplayName}' does not exist.`));
+    }
+  );
 
-  it('handles selecting single result when multiple administrative units with the specified displayName found and cli is set to prompt', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/directory/administrativeUnits?$filter=displayName eq '${formatting.encodeQueryParameter(validDisplayName)}'`) {
-        return {
-          value: [
-            administrativeUnitsReponse.value[0],
-            administrativeUnitsReponse.value[0]
-          ]
-        };
-      }
+  it('handles selecting single result when multiple administrative units with the specified displayName found and cli is set to prompt',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/directory/administrativeUnits?$filter=displayName eq '${formatting.encodeQueryParameter(validDisplayName)}'`) {
+          return {
+            value: [
+              administrativeUnitsReponse.value[0],
+              administrativeUnitsReponse.value[0]
+            ]
+          };
+        }
 
-      return 'Invalid Request';
-    });
+        return 'Invalid Request';
+      });
 
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves({ id: validId, displayName: validDisplayName, visibility: 'HiddenMembership' });
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves({ id: validId, displayName: validDisplayName, visibility: 'HiddenMembership' });
 
-    await command.action(logger, { options: { displayName: validDisplayName } });
-    assert(loggerLogSpy.calledWith(administrativeUnitsReponse.value[0]));
-  });
+      await command.action(logger, { options: { displayName: validDisplayName } });
+      assert(loggerLogSpy.calledWith(administrativeUnitsReponse.value[0]));
+    }
+  );
 
   it('handles random API error', async () => {
     const errorMessage = 'Something went wrong';
-    sinon.stub(request, 'get').rejects(new Error(errorMessage));
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error(errorMessage));
 
     await assert.rejects(command.action(logger, { options: { id: validId } }), new CommandError(errorMessage));
   });
@@ -161,8 +168,10 @@ describe(commands.ADMINISTRATIVEUNIT_GET, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation if required options specified (displayName)', async () => {
-    const actual = await command.validate({ options: { displayName: validDisplayName } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if required options specified (displayName)',
+    async () => {
+      const actual = await command.validate({ options: { displayName: validDisplayName } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

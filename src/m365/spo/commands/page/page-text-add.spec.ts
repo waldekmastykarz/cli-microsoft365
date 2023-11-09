@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './page-text-add.js';
@@ -17,16 +16,16 @@ import command from './page-text-add.js';
 describe(commands.PAGE_TEXT_ADD, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogToStderrSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'ABC',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -49,19 +48,19 @@ describe(commands.PAGE_TEXT_ADD, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -74,7 +73,7 @@ describe(commands.PAGE_TEXT_ADD, () => {
   });
 
   it('adds text to an empty modern page', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/page.aspx')?$expand=ListItemAllFields/ClientSideApplicationId`) > -1) {
         return {
           ListItemAllFields: {
@@ -140,7 +139,7 @@ describe(commands.PAGE_TEXT_ADD, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === "https://contoso.sharepoint.com/sites/team-a/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/sitepages/page.aspx')/ListItemAllFields") {
         return {};
       }
@@ -160,7 +159,7 @@ describe(commands.PAGE_TEXT_ADD, () => {
   });
 
   it('adds text to an empty modern page (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`https://contoso.sharepoint.com/sites/team-a/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/page.aspx')?$expand=ListItemAllFields/ClientSideApplicationId`) > -1) {
         return {
           ListItemAllFields: {
@@ -226,7 +225,7 @@ describe(commands.PAGE_TEXT_ADD, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`https://contoso.sharepoint.com/sites/team-a/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/sitepages/page.aspx')/ListItemAllFields`) > -1 &&
         JSON.stringify(opts.data).indexOf(`&quot;,&quot;position&quot;&#58;&#123;&quot;controlIndex&quot;&#58;1,&quot;sectionFactor&quot;&#58;12,&quot;sectionIndex&quot;&#58;1,&quot;zoneIndex&quot;&#58;1&#125;&#125;\\"><div data-sp-rte=\\"\\"><p>Hello world</p></div></div></div>"}`) > -1) {
         return {};
@@ -247,96 +246,98 @@ describe(commands.PAGE_TEXT_ADD, () => {
     assert(loggerLogToStderrSpy.called);
   });
 
-  it('adds text to an empty modern page on root of tenant (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`https://contoso.sharepoint.com/_api/web/GetFileByServerRelativePath(DecodedUrl='/SitePages/page.aspx')?$expand=ListItemAllFields/ClientSideApplicationId`) > -1) {
-        return {
-          ListItemAllFields: {
-            CommentsDisabled: false,
-            FileSystemObjectType: 0,
-            Id: 1,
-            ServerRedirectedEmbedUri: null,
-            ServerRedirectedEmbedUrl: '',
-            ContentTypeId: '0x0101009D1CB255DA76424F860D91F20E6C41180062FDF2882AB3F745ACB63105A3C623C9',
-            FileLeafRef: 'Home.aspx',
-            ComplianceAssetId: null,
-            WikiField: null,
-            Title: 'Page',
-            ClientSideApplicationId: 'b6917cb1-93a0-4b97-a84d-7cf49975d4ec',
-            PageLayoutType: 'Article',
-            CanvasContent1:
-              '<div><div data-sp-canvascontrol="" data-sp-canvasdataversion="1.0" data-sp-controldata="&#123;&quot;controlType&quot;&#58;0,&quot;pageSettingsSlice&quot;&#58;&#123;&quot;isDefaultDescription&quot;&#58;true,&quot;isDefaultThumbnail&quot;&#58;true&#125;&#125;"></div></div>',
-            BannerImageUrl: {
-              Description: '/_layouts/15/images/sitepagethumbnail.png',
-              Url: 'https://contoso.sharepoint.com/_layouts/15/images/sitepagethumbnail.png'
+  it('adds text to an empty modern page on root of tenant (debug)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`https://contoso.sharepoint.com/_api/web/GetFileByServerRelativePath(DecodedUrl='/SitePages/page.aspx')?$expand=ListItemAllFields/ClientSideApplicationId`) > -1) {
+          return {
+            ListItemAllFields: {
+              CommentsDisabled: false,
+              FileSystemObjectType: 0,
+              Id: 1,
+              ServerRedirectedEmbedUri: null,
+              ServerRedirectedEmbedUrl: '',
+              ContentTypeId: '0x0101009D1CB255DA76424F860D91F20E6C41180062FDF2882AB3F745ACB63105A3C623C9',
+              FileLeafRef: 'Home.aspx',
+              ComplianceAssetId: null,
+              WikiField: null,
+              Title: 'Page',
+              ClientSideApplicationId: 'b6917cb1-93a0-4b97-a84d-7cf49975d4ec',
+              PageLayoutType: 'Article',
+              CanvasContent1:
+                '<div><div data-sp-canvascontrol="" data-sp-canvasdataversion="1.0" data-sp-controldata="&#123;&quot;controlType&quot;&#58;0,&quot;pageSettingsSlice&quot;&#58;&#123;&quot;isDefaultDescription&quot;&#58;true,&quot;isDefaultThumbnail&quot;&#58;true&#125;&#125;"></div></div>',
+              BannerImageUrl: {
+                Description: '/_layouts/15/images/sitepagethumbnail.png',
+                Url: 'https://contoso.sharepoint.com/_layouts/15/images/sitepagethumbnail.png'
+              },
+              Description: 'Lorem ipsum Dolor samet Lorem ipsum',
+              PromotedState: null,
+              FirstPublishedDate: null,
+              LayoutWebpartsContent: null,
+              AuthorsId: null,
+              AuthorsStringId: null,
+              OriginalSourceUrl: null,
+              ID: 1,
+              Created: '2018-01-20T09:54:41',
+              AuthorId: 1073741823,
+              Modified: '2018-04-12T12:42:47',
+              EditorId: 12,
+              OData__CopySource: null,
+              CheckoutUserId: null,
+              OData__UIVersionString: '7.0',
+              GUID: 'edaab907-e729-48dd-9e73-26487c0cf592'
             },
-            Description: 'Lorem ipsum Dolor samet Lorem ipsum',
-            PromotedState: null,
-            FirstPublishedDate: null,
-            LayoutWebpartsContent: null,
-            AuthorsId: null,
-            AuthorsStringId: null,
-            OriginalSourceUrl: null,
-            ID: 1,
-            Created: '2018-01-20T09:54:41',
-            AuthorId: 1073741823,
-            Modified: '2018-04-12T12:42:47',
-            EditorId: 12,
-            OData__CopySource: null,
-            CheckoutUserId: null,
-            OData__UIVersionString: '7.0',
-            GUID: 'edaab907-e729-48dd-9e73-26487c0cf592'
-          },
-          CheckInComment: '',
-          CheckOutType: 2,
-          ContentTag: '{E82A21D1-CA2C-4854-98F2-012AC0E7FA09},25,1',
-          CustomizedPageStatus: 1,
-          ETag: '"{E82A21D1-CA2C-4854-98F2-012AC0E7FA09},25"',
-          Exists: true,
-          IrmEnabled: false,
-          Length: '805',
-          Level: 1,
-          LinkingUri: null,
-          LinkingUrl: '',
-          MajorVersion: 7,
-          MinorVersion: 0,
-          Name: 'page.aspx',
-          ServerRelativeUrl: '/SitePages/page.aspx',
-          TimeCreated: '2018-01-20T08:54:41Z',
-          TimeLastModified: '2018-04-12T10:42:46Z',
-          Title: 'Home',
-          UIVersion: 3584,
-          UIVersionLabel: '7.0',
-          UniqueId: 'e82a21d1-ca2c-4854-98f2-012ac0e7fa09'
-        };
-      }
-
-      throw 'Invalid request';
-    });
-
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`https://contoso.sharepoint.com/_api/web/GetFileByServerRelativePath(DecodedUrl='/sitepages/page.aspx')/ListItemAllFields`) > -1 &&
-        JSON.stringify(opts.data).indexOf(`&quot;,&quot;position&quot;&#58;&#123;&quot;controlIndex&quot;&#58;1,&quot;sectionFactor&quot;&#58;12,&quot;sectionIndex&quot;&#58;1,&quot;zoneIndex&quot;&#58;1&#125;&#125;\\"><div data-sp-rte=\\"\\"><p>Hello world</p></div></div></div>"}`) > -1) {
-        return {};
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger,
-      {
-        options: {
-          debug: true,
-          pageName: 'page.aspx',
-          webUrl: 'https://contoso.sharepoint.com',
-          text: 'Hello world'
+            CheckInComment: '',
+            CheckOutType: 2,
+            ContentTag: '{E82A21D1-CA2C-4854-98F2-012AC0E7FA09},25,1',
+            CustomizedPageStatus: 1,
+            ETag: '"{E82A21D1-CA2C-4854-98F2-012AC0E7FA09},25"',
+            Exists: true,
+            IrmEnabled: false,
+            Length: '805',
+            Level: 1,
+            LinkingUri: null,
+            LinkingUrl: '',
+            MajorVersion: 7,
+            MinorVersion: 0,
+            Name: 'page.aspx',
+            ServerRelativeUrl: '/SitePages/page.aspx',
+            TimeCreated: '2018-01-20T08:54:41Z',
+            TimeLastModified: '2018-04-12T10:42:46Z',
+            Title: 'Home',
+            UIVersion: 3584,
+            UIVersionLabel: '7.0',
+            UniqueId: 'e82a21d1-ca2c-4854-98f2-012ac0e7fa09'
+          };
         }
+
+        throw 'Invalid request';
       });
-    assert(loggerLogToStderrSpy.called);
-  });
+
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`https://contoso.sharepoint.com/_api/web/GetFileByServerRelativePath(DecodedUrl='/sitepages/page.aspx')/ListItemAllFields`) > -1 &&
+          JSON.stringify(opts.data).indexOf(`&quot;,&quot;position&quot;&#58;&#123;&quot;controlIndex&quot;&#58;1,&quot;sectionFactor&quot;&#58;12,&quot;sectionIndex&quot;&#58;1,&quot;zoneIndex&quot;&#58;1&#125;&#125;\\"><div data-sp-rte=\\"\\"><p>Hello world</p></div></div></div>"}`) > -1) {
+          return {};
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger,
+        {
+          options: {
+            debug: true,
+            pageName: 'page.aspx',
+            webUrl: 'https://contoso.sharepoint.com',
+            text: 'Hello world'
+          }
+        });
+      assert(loggerLogToStderrSpy.called);
+    }
+  );
 
   it('appends text to a modern page which already had some text', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (
         (opts.url as string).indexOf(
           `/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/page.aspx')?$expand=ListItemAllFields/ClientSideApplicationId`
@@ -406,7 +407,7 @@ describe(commands.PAGE_TEXT_ADD, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === "https://contoso.sharepoint.com/sites/team-a/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/sitepages/page.aspx')/ListItemAllFields") {
         return {};
       }
@@ -425,208 +426,214 @@ describe(commands.PAGE_TEXT_ADD, () => {
     assert(loggerLogSpy.notCalled);
   });
 
-  it('adds text in the specified order to a modern page which already had some text', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (
-        (opts.url as string).indexOf(
-          `/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/page.aspx')?$expand=ListItemAllFields/ClientSideApplicationId`
-        ) > -1
-      ) {
-        return {
-          ListItemAllFields: {
-            CommentsDisabled: false,
-            FileSystemObjectType: 0,
-            Id: 1,
-            ServerRedirectedEmbedUri: null,
-            ServerRedirectedEmbedUrl: '',
-            ContentTypeId: '0x0101009D1CB255DA76424F860D91F20E6C41180062FDF2882AB3F745ACB63105A3C623C9',
-            FileLeafRef: 'Home.aspx',
-            ComplianceAssetId: null,
-            WikiField: null,
-            Title: 'Home',
-            ClientSideApplicationId: 'b6917cb1-93a0-4b97-a84d-7cf49975d4ec',
-            PageLayoutType: 'Home',
-            CanvasContent1:
-              '<div><div data-sp-canvascontrol="" data-sp-canvasdataversion="1.0" data-sp-controldata="&#123;&quot;controlType&quot;&#58;4,&quot;editorType&quot;&#58;&quot;CKEditor&quot;,&quot;id&quot;&#58;&quot;e278967c-6f89-4601-a30b-f132dc48d55b&quot;,&quot;position&quot;&#58;&#123;&quot;controlIndex&quot;&#58;1,&quot;sectionFactor&quot;&#58;12,&quot;sectionIndex&quot;&#58;1,&quot;zoneIndex&quot;&#58;1&#125;&#125;"><div data-sp-rte=""><p>Hello world</p></div></div><div data-sp-canvascontrol="" data-sp-canvasdataversion="1.0" data-sp-controldata="&#123;&quot;controlType&quot;&#58;4,&quot;editorType&quot;&#58;&quot;CKEditor&quot;,&quot;id&quot;&#58;&quot;cc988078-be29-4999-a5e2-4aa0f9a04ab4&quot;,&quot;position&quot;&#58;&#123;&quot;controlIndex&quot;&#58;2,&quot;sectionFactor&quot;&#58;12,&quot;sectionIndex&quot;&#58;1,&quot;zoneIndex&quot;&#58;1&#125;&#125;"><div data-sp-rte=""><p>Hello world 2</p></div></div></div>',
-            BannerImageUrl: {
-              Description: '/_layouts/15/images/sitepagethumbnail.png',
-              Url: 'https://contoso.sharepoint.com/_layouts/15/images/sitepagethumbnail.png'
+  it('adds text in the specified order to a modern page which already had some text',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (
+          (opts.url as string).indexOf(
+            `/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/page.aspx')?$expand=ListItemAllFields/ClientSideApplicationId`
+          ) > -1
+        ) {
+          return {
+            ListItemAllFields: {
+              CommentsDisabled: false,
+              FileSystemObjectType: 0,
+              Id: 1,
+              ServerRedirectedEmbedUri: null,
+              ServerRedirectedEmbedUrl: '',
+              ContentTypeId: '0x0101009D1CB255DA76424F860D91F20E6C41180062FDF2882AB3F745ACB63105A3C623C9',
+              FileLeafRef: 'Home.aspx',
+              ComplianceAssetId: null,
+              WikiField: null,
+              Title: 'Home',
+              ClientSideApplicationId: 'b6917cb1-93a0-4b97-a84d-7cf49975d4ec',
+              PageLayoutType: 'Home',
+              CanvasContent1:
+                '<div><div data-sp-canvascontrol="" data-sp-canvasdataversion="1.0" data-sp-controldata="&#123;&quot;controlType&quot;&#58;4,&quot;editorType&quot;&#58;&quot;CKEditor&quot;,&quot;id&quot;&#58;&quot;e278967c-6f89-4601-a30b-f132dc48d55b&quot;,&quot;position&quot;&#58;&#123;&quot;controlIndex&quot;&#58;1,&quot;sectionFactor&quot;&#58;12,&quot;sectionIndex&quot;&#58;1,&quot;zoneIndex&quot;&#58;1&#125;&#125;"><div data-sp-rte=""><p>Hello world</p></div></div><div data-sp-canvascontrol="" data-sp-canvasdataversion="1.0" data-sp-controldata="&#123;&quot;controlType&quot;&#58;4,&quot;editorType&quot;&#58;&quot;CKEditor&quot;,&quot;id&quot;&#58;&quot;cc988078-be29-4999-a5e2-4aa0f9a04ab4&quot;,&quot;position&quot;&#58;&#123;&quot;controlIndex&quot;&#58;2,&quot;sectionFactor&quot;&#58;12,&quot;sectionIndex&quot;&#58;1,&quot;zoneIndex&quot;&#58;1&#125;&#125;"><div data-sp-rte=""><p>Hello world 2</p></div></div></div>',
+              BannerImageUrl: {
+                Description: '/_layouts/15/images/sitepagethumbnail.png',
+                Url: 'https://contoso.sharepoint.com/_layouts/15/images/sitepagethumbnail.png'
+              },
+              Description: 'Lorem ipsum Dolor samet Lorem ipsum',
+              PromotedState: null,
+              FirstPublishedDate: null,
+              LayoutWebpartsContent: null,
+              AuthorsId: null,
+              AuthorsStringId: null,
+              OriginalSourceUrl: null,
+              ID: 1,
+              Created: '2018-01-20T09:54:41',
+              AuthorId: 1073741823,
+              Modified: '2018-04-12T12:42:47',
+              EditorId: 12,
+              OData__CopySource: null,
+              CheckoutUserId: null,
+              OData__UIVersionString: '7.0',
+              GUID: 'edaab907-e729-48dd-9e73-26487c0cf592'
             },
-            Description: 'Lorem ipsum Dolor samet Lorem ipsum',
-            PromotedState: null,
-            FirstPublishedDate: null,
-            LayoutWebpartsContent: null,
-            AuthorsId: null,
-            AuthorsStringId: null,
-            OriginalSourceUrl: null,
-            ID: 1,
-            Created: '2018-01-20T09:54:41',
-            AuthorId: 1073741823,
-            Modified: '2018-04-12T12:42:47',
-            EditorId: 12,
-            OData__CopySource: null,
-            CheckoutUserId: null,
-            OData__UIVersionString: '7.0',
-            GUID: 'edaab907-e729-48dd-9e73-26487c0cf592'
-          },
-          CheckInComment: '',
-          CheckOutType: 2,
-          ContentTag: '{E82A21D1-CA2C-4854-98F2-012AC0E7FA09},25,1',
-          CustomizedPageStatus: 1,
-          ETag: '"{E82A21D1-CA2C-4854-98F2-012AC0E7FA09},25"',
-          Exists: true,
-          IrmEnabled: false,
-          Length: '805',
-          Level: 1,
-          LinkingUri: null,
-          LinkingUrl: '',
-          MajorVersion: 7,
-          MinorVersion: 0,
-          Name: 'home.aspx',
-          ServerRelativeUrl: '/sites/team-a/SitePages/home.aspx',
-          TimeCreated: '2018-01-20T08:54:41Z',
-          TimeLastModified: '2018-04-12T10:42:46Z',
-          Title: 'Home',
-          UIVersion: 3584,
-          UIVersionLabel: '7.0',
-          UniqueId: 'e82a21d1-ca2c-4854-98f2-012ac0e7fa09'
-        };
-      }
-
-      throw 'Invalid request';
-    });
-
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === "https://contoso.sharepoint.com/sites/team-a/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/sitepages/page.aspx')/ListItemAllFields") {
-        return {};
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger,
-      {
-        options: {
-          pageName: 'page.aspx',
-          webUrl: 'https://contoso.sharepoint.com/sites/team-a',
-          text: 'Hello world 1.1',
-          order: 2
-        }
-      });
-    assert(loggerLogSpy.notCalled);
-  });
-
-  it('adds text to a modern page without specifying the page file extension', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (
-        (opts.url as string).indexOf(
-          `/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/page.aspx')?$expand=ListItemAllFields/ClientSideApplicationId`
-        ) > -1
-      ) {
-        return {
-          ListItemAllFields: {
-            CommentsDisabled: false,
-            FileSystemObjectType: 0,
-            Id: 1,
-            ServerRedirectedEmbedUri: null,
-            ServerRedirectedEmbedUrl: '',
-            ContentTypeId: '0x0101009D1CB255DA76424F860D91F20E6C41180062FDF2882AB3F745ACB63105A3C623C9',
-            FileLeafRef: 'Home.aspx',
-            ComplianceAssetId: null,
-            WikiField: null,
+            CheckInComment: '',
+            CheckOutType: 2,
+            ContentTag: '{E82A21D1-CA2C-4854-98F2-012AC0E7FA09},25,1',
+            CustomizedPageStatus: 1,
+            ETag: '"{E82A21D1-CA2C-4854-98F2-012AC0E7FA09},25"',
+            Exists: true,
+            IrmEnabled: false,
+            Length: '805',
+            Level: 1,
+            LinkingUri: null,
+            LinkingUrl: '',
+            MajorVersion: 7,
+            MinorVersion: 0,
+            Name: 'home.aspx',
+            ServerRelativeUrl: '/sites/team-a/SitePages/home.aspx',
+            TimeCreated: '2018-01-20T08:54:41Z',
+            TimeLastModified: '2018-04-12T10:42:46Z',
             Title: 'Home',
-            ClientSideApplicationId: 'b6917cb1-93a0-4b97-a84d-7cf49975d4ec',
-            PageLayoutType: 'Home',
-            CanvasContent1:
-              '<div><div data-sp-canvascontrol="" data-sp-canvasdataversion="1.0" data-sp-controldata="&#123;&quot;controlType&quot;&#58;0,&quot;pageSettingsSlice&quot;&#58;&#123;&quot;isDefaultDescription&quot;&#58;true,&quot;isDefaultThumbnail&quot;&#58;true&#125;&#125;"></div></div>',
-            BannerImageUrl: {
-              Description: '/_layouts/15/images/sitepagethumbnail.png',
-              Url: 'https://contoso.sharepoint.com/_layouts/15/images/sitepagethumbnail.png'
-            },
-            Description: 'Lorem ipsum Dolor samet Lorem ipsum',
-            PromotedState: null,
-            FirstPublishedDate: null,
-            LayoutWebpartsContent: null,
-            AuthorsId: null,
-            AuthorsStringId: null,
-            OriginalSourceUrl: null,
-            ID: 1,
-            Created: '2018-01-20T09:54:41',
-            AuthorId: 1073741823,
-            Modified: '2018-04-12T12:42:47',
-            EditorId: 12,
-            OData__CopySource: null,
-            CheckoutUserId: null,
-            OData__UIVersionString: '7.0',
-            GUID: 'edaab907-e729-48dd-9e73-26487c0cf592'
-          },
-          CheckInComment: '',
-          CheckOutType: 2,
-          ContentTag: '{E82A21D1-CA2C-4854-98F2-012AC0E7FA09},25,1',
-          CustomizedPageStatus: 1,
-          ETag: '"{E82A21D1-CA2C-4854-98F2-012AC0E7FA09},25"',
-          Exists: true,
-          IrmEnabled: false,
-          Length: '805',
-          Level: 1,
-          LinkingUri: null,
-          LinkingUrl: '',
-          MajorVersion: 7,
-          MinorVersion: 0,
-          Name: 'home.aspx',
-          ServerRelativeUrl: '/sites/team-a/SitePages/home.aspx',
-          TimeCreated: '2018-01-20T08:54:41Z',
-          TimeLastModified: '2018-04-12T10:42:46Z',
-          Title: 'Home',
-          UIVersion: 3584,
-          UIVersionLabel: '7.0',
-          UniqueId: 'e82a21d1-ca2c-4854-98f2-012ac0e7fa09'
-        };
-      }
-
-      throw 'Invalid request';
-    });
-
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === "https://contoso.sharepoint.com/sites/team-a/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/sitepages/page.aspx')/ListItemAllFields") {
-        return {};
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger,
-      {
-        options: {
-          pageName: 'page',
-          webUrl: 'https://contoso.sharepoint.com/sites/team-a',
-          text: 'Hello world'
+            UIVersion: 3584,
+            UIVersionLabel: '7.0',
+            UniqueId: 'e82a21d1-ca2c-4854-98f2-012ac0e7fa09'
+          };
         }
+
+        throw 'Invalid request';
       });
-    assert(loggerLogSpy.notCalled);
-  });
 
-  it('correctly handles OData error when adding text to a non-existing page', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/foo.aspx')?$expand=ListItemAllFields/ClientSideApplicationId`) > -1) {
-        throw { error: { 'odata.error': { message: { value: 'The file /sites/team-a/SitePages/foo.aspx does not exist' } } } };
-      }
-
-      throw 'Invalid request';
-    });
-
-    await assert.rejects(command.action(logger,
-      {
-        options: {
-          pageName: 'foo.aspx',
-          webUrl: 'https://contoso.sharepoint.com/sites/team-a',
-          text: 'Hello world'
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === "https://contoso.sharepoint.com/sites/team-a/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/sitepages/page.aspx')/ListItemAllFields") {
+          return {};
         }
-      }), new CommandError('The file /sites/team-a/SitePages/foo.aspx does not exist'));
-  });
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger,
+        {
+          options: {
+            pageName: 'page.aspx',
+            webUrl: 'https://contoso.sharepoint.com/sites/team-a',
+            text: 'Hello world 1.1',
+            order: 2
+          }
+        });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
+
+  it('adds text to a modern page without specifying the page file extension',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (
+          (opts.url as string).indexOf(
+            `/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/page.aspx')?$expand=ListItemAllFields/ClientSideApplicationId`
+          ) > -1
+        ) {
+          return {
+            ListItemAllFields: {
+              CommentsDisabled: false,
+              FileSystemObjectType: 0,
+              Id: 1,
+              ServerRedirectedEmbedUri: null,
+              ServerRedirectedEmbedUrl: '',
+              ContentTypeId: '0x0101009D1CB255DA76424F860D91F20E6C41180062FDF2882AB3F745ACB63105A3C623C9',
+              FileLeafRef: 'Home.aspx',
+              ComplianceAssetId: null,
+              WikiField: null,
+              Title: 'Home',
+              ClientSideApplicationId: 'b6917cb1-93a0-4b97-a84d-7cf49975d4ec',
+              PageLayoutType: 'Home',
+              CanvasContent1:
+                '<div><div data-sp-canvascontrol="" data-sp-canvasdataversion="1.0" data-sp-controldata="&#123;&quot;controlType&quot;&#58;0,&quot;pageSettingsSlice&quot;&#58;&#123;&quot;isDefaultDescription&quot;&#58;true,&quot;isDefaultThumbnail&quot;&#58;true&#125;&#125;"></div></div>',
+              BannerImageUrl: {
+                Description: '/_layouts/15/images/sitepagethumbnail.png',
+                Url: 'https://contoso.sharepoint.com/_layouts/15/images/sitepagethumbnail.png'
+              },
+              Description: 'Lorem ipsum Dolor samet Lorem ipsum',
+              PromotedState: null,
+              FirstPublishedDate: null,
+              LayoutWebpartsContent: null,
+              AuthorsId: null,
+              AuthorsStringId: null,
+              OriginalSourceUrl: null,
+              ID: 1,
+              Created: '2018-01-20T09:54:41',
+              AuthorId: 1073741823,
+              Modified: '2018-04-12T12:42:47',
+              EditorId: 12,
+              OData__CopySource: null,
+              CheckoutUserId: null,
+              OData__UIVersionString: '7.0',
+              GUID: 'edaab907-e729-48dd-9e73-26487c0cf592'
+            },
+            CheckInComment: '',
+            CheckOutType: 2,
+            ContentTag: '{E82A21D1-CA2C-4854-98F2-012AC0E7FA09},25,1',
+            CustomizedPageStatus: 1,
+            ETag: '"{E82A21D1-CA2C-4854-98F2-012AC0E7FA09},25"',
+            Exists: true,
+            IrmEnabled: false,
+            Length: '805',
+            Level: 1,
+            LinkingUri: null,
+            LinkingUrl: '',
+            MajorVersion: 7,
+            MinorVersion: 0,
+            Name: 'home.aspx',
+            ServerRelativeUrl: '/sites/team-a/SitePages/home.aspx',
+            TimeCreated: '2018-01-20T08:54:41Z',
+            TimeLastModified: '2018-04-12T10:42:46Z',
+            Title: 'Home',
+            UIVersion: 3584,
+            UIVersionLabel: '7.0',
+            UniqueId: 'e82a21d1-ca2c-4854-98f2-012ac0e7fa09'
+          };
+        }
+
+        throw 'Invalid request';
+      });
+
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === "https://contoso.sharepoint.com/sites/team-a/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/sitepages/page.aspx')/ListItemAllFields") {
+          return {};
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger,
+        {
+          options: {
+            pageName: 'page',
+            webUrl: 'https://contoso.sharepoint.com/sites/team-a',
+            text: 'Hello world'
+          }
+        });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
+
+  it('correctly handles OData error when adding text to a non-existing page',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/foo.aspx')?$expand=ListItemAllFields/ClientSideApplicationId`) > -1) {
+          throw { error: { 'odata.error': { message: { value: 'The file /sites/team-a/SitePages/foo.aspx does not exist' } } } };
+        }
+
+        throw 'Invalid request';
+      });
+
+      await assert.rejects(command.action(logger,
+        {
+          options: {
+            pageName: 'foo.aspx',
+            webUrl: 'https://contoso.sharepoint.com/sites/team-a',
+            text: 'Hello world'
+          }
+        }), new CommandError('The file /sites/team-a/SitePages/foo.aspx does not exist'));
+    }
+  );
 
   it('correctly handles OData error when adding text to a page', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/page.aspx')?$expand=ListItemAllFields/ClientSideApplicationId`) > -1) {
         return {
           ListItemAllFields: {
@@ -692,7 +699,7 @@ describe(commands.PAGE_TEXT_ADD, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(request, 'post').callsFake(() => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(() => {
       throw { error: { 'odata.error': { message: { value: 'An error has occurred' } } } };
     });
 
@@ -706,234 +713,240 @@ describe(commands.PAGE_TEXT_ADD, () => {
       }), new CommandError('An error has occurred'));
   });
 
-  it('correctly handles error if target page is not a modern page', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/page.aspx')?$expand=ListItemAllFields/ClientSideApplicationId`) > -1) {
-        return {
-          ListItemAllFields: {
-            CommentsDisabled: false,
-            FileSystemObjectType: 0,
-            Id: 1,
-            ServerRedirectedEmbedUri: null,
-            ServerRedirectedEmbedUrl: '',
-            ContentTypeId: '0x0101009D1CB255DA76424F860D91F20E6C41180062FDF2882AB3F745ACB63105A3C623C9',
-            FileLeafRef: 'Page.aspx',
-            ComplianceAssetId: null,
-            WikiField: null,
-            Title: 'Page',
-            Description: 'Lorem ipsum Dolor samet Lorem ipsum',
-            PromotedState: null,
-            FirstPublishedDate: null,
-            LayoutWebpartsContent: null,
-            AuthorsId: null,
-            AuthorsStringId: null,
-            OriginalSourceUrl: null,
-            ID: 1,
-            Created: '2018-01-20T09:54:41',
-            AuthorId: 1073741823,
-            Modified: '2018-04-12T12:42:47',
-            EditorId: 12,
-            OData__CopySource: null,
-            CheckoutUserId: null,
-            OData__UIVersionString: '7.0',
-            GUID: 'edaab907-e729-48dd-9e73-26487c0cf592'
-          },
-          CheckInComment: '',
-          CheckOutType: 2,
-          ContentTag: '{E82A21D1-CA2C-4854-98F2-012AC0E7FA09},25,1',
-          CustomizedPageStatus: 1,
-          ETag: '"{E82A21D1-CA2C-4854-98F2-012AC0E7FA09},25"',
-          Exists: true,
-          IrmEnabled: false,
-          Length: '805',
-          Level: 1,
-          LinkingUri: null,
-          LinkingUrl: '',
-          MajorVersion: 7,
-          MinorVersion: 0,
-          Name: 'home.aspx',
-          ServerRelativeUrl: '/sites/team-a/SitePages/page.aspx',
-          TimeCreated: '2018-01-20T08:54:41Z',
-          TimeLastModified: '2018-04-12T10:42:46Z',
-          Title: 'Home',
-          UIVersion: 3584,
-          UIVersionLabel: '7.0',
-          UniqueId: 'e82a21d1-ca2c-4854-98f2-012ac0e7fa09'
-        };
-      }
-
-      throw 'Invalid request';
-    });
-
-    await assert.rejects(command.action(logger,
-      {
-        options: {
-          pageName: 'page.aspx',
-          webUrl: 'https://contoso.sharepoint.com/sites/team-a',
-          text: 'Hello world'
-        }
-      }), new CommandError(`Page page.aspx is not a modern page.`));
-  });
-
-  it('correctly handles invalid section error when adding text to modern page', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/page.aspx')?$expand=ListItemAllFields/ClientSideApplicationId`) > -1) {
-        return {
-          ListItemAllFields: {
-            CommentsDisabled: false,
-            FileSystemObjectType: 0,
-            Id: 1,
-            ServerRedirectedEmbedUri: null,
-            ServerRedirectedEmbedUrl: '',
-            ContentTypeId: '0x0101009D1CB255DA76424F860D91F20E6C41180062FDF2882AB3F745ACB63105A3C623C9',
-            FileLeafRef: 'page.aspx',
-            ComplianceAssetId: null,
-            WikiField: null,
-            Title: 'Page',
-            ClientSideApplicationId: 'b6917cb1-93a0-4b97-a84d-7cf49975d4ec',
-            PageLayoutType: 'Article',
-            CanvasContent1:
-              '<div><div data-sp-canvascontrol="" data-sp-canvasdataversion="1.0" data-sp-controldata="&#123;&quot;controlType&quot;&#58;0,&quot;pageSettingsSlice&quot;&#58;&#123;&quot;isDefaultDescription&quot;&#58;true,&quot;isDefaultThumbnail&quot;&#58;true&#125;&#125;"></div></div>',
-            BannerImageUrl: {
-              Description: '/_layouts/15/images/sitepagethumbnail.png',
-              Url: 'https://contoso.sharepoint.com/_layouts/15/images/sitepagethumbnail.png'
+  it('correctly handles error if target page is not a modern page',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/page.aspx')?$expand=ListItemAllFields/ClientSideApplicationId`) > -1) {
+          return {
+            ListItemAllFields: {
+              CommentsDisabled: false,
+              FileSystemObjectType: 0,
+              Id: 1,
+              ServerRedirectedEmbedUri: null,
+              ServerRedirectedEmbedUrl: '',
+              ContentTypeId: '0x0101009D1CB255DA76424F860D91F20E6C41180062FDF2882AB3F745ACB63105A3C623C9',
+              FileLeafRef: 'Page.aspx',
+              ComplianceAssetId: null,
+              WikiField: null,
+              Title: 'Page',
+              Description: 'Lorem ipsum Dolor samet Lorem ipsum',
+              PromotedState: null,
+              FirstPublishedDate: null,
+              LayoutWebpartsContent: null,
+              AuthorsId: null,
+              AuthorsStringId: null,
+              OriginalSourceUrl: null,
+              ID: 1,
+              Created: '2018-01-20T09:54:41',
+              AuthorId: 1073741823,
+              Modified: '2018-04-12T12:42:47',
+              EditorId: 12,
+              OData__CopySource: null,
+              CheckoutUserId: null,
+              OData__UIVersionString: '7.0',
+              GUID: 'edaab907-e729-48dd-9e73-26487c0cf592'
             },
-            Description: 'Lorem ipsum Dolor samet Lorem ipsum',
-            PromotedState: null,
-            FirstPublishedDate: null,
-            LayoutWebpartsContent: null,
-            AuthorsId: null,
-            AuthorsStringId: null,
-            OriginalSourceUrl: null,
-            ID: 1,
-            Created: '2018-01-20T09:54:41',
-            AuthorId: 1073741823,
-            Modified: '2018-04-12T12:42:47',
-            EditorId: 12,
-            OData__CopySource: null,
-            CheckoutUserId: null,
-            OData__UIVersionString: '7.0',
-            GUID: 'edaab907-e729-48dd-9e73-26487c0cf592'
-          },
-          CheckInComment: '',
-          CheckOutType: 2,
-          ContentTag: '{E82A21D1-CA2C-4854-98F2-012AC0E7FA09},25,1',
-          CustomizedPageStatus: 1,
-          ETag: '"{E82A21D1-CA2C-4854-98F2-012AC0E7FA09},25"',
-          Exists: true,
-          IrmEnabled: false,
-          Length: '805',
-          Level: 1,
-          LinkingUri: null,
-          LinkingUrl: '',
-          MajorVersion: 7,
-          MinorVersion: 0,
-          Name: 'home.aspx',
-          ServerRelativeUrl: '/sites/team-a/SitePages/page.aspx',
-          TimeCreated: '2018-01-20T08:54:41Z',
-          TimeLastModified: '2018-04-12T10:42:46Z',
-          Title: 'Home',
-          UIVersion: 3584,
-          UIVersionLabel: '7.0',
-          UniqueId: 'e82a21d1-ca2c-4854-98f2-012ac0e7fa09'
-        };
-      }
-
-      throw 'Invalid request';
-    });
-
-    await assert.rejects(command.action(logger,
-      {
-        options: {
-          pageName: 'page.aspx',
-          webUrl: 'https://contoso.sharepoint.com/sites/team-a',
-          text: 'Hello world',
-          section: 8
+            CheckInComment: '',
+            CheckOutType: 2,
+            ContentTag: '{E82A21D1-CA2C-4854-98F2-012AC0E7FA09},25,1',
+            CustomizedPageStatus: 1,
+            ETag: '"{E82A21D1-CA2C-4854-98F2-012AC0E7FA09},25"',
+            Exists: true,
+            IrmEnabled: false,
+            Length: '805',
+            Level: 1,
+            LinkingUri: null,
+            LinkingUrl: '',
+            MajorVersion: 7,
+            MinorVersion: 0,
+            Name: 'home.aspx',
+            ServerRelativeUrl: '/sites/team-a/SitePages/page.aspx',
+            TimeCreated: '2018-01-20T08:54:41Z',
+            TimeLastModified: '2018-04-12T10:42:46Z',
+            Title: 'Home',
+            UIVersion: 3584,
+            UIVersionLabel: '7.0',
+            UniqueId: 'e82a21d1-ca2c-4854-98f2-012ac0e7fa09'
+          };
         }
-      }), new CommandError("Invalid section '8'"));
-  });
 
-  it('correctly handles invalid column error when adding text to modern page', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/page.aspx')?$expand=ListItemAllFields/ClientSideApplicationId`) > -1) {
-        return {
-          ListItemAllFields: {
-            CommentsDisabled: false,
-            FileSystemObjectType: 0,
-            Id: 1,
-            ServerRedirectedEmbedUri: null,
-            ServerRedirectedEmbedUrl: '',
-            ContentTypeId: '0x0101009D1CB255DA76424F860D91F20E6C41180062FDF2882AB3F745ACB63105A3C623C9',
-            FileLeafRef: 'page.aspx',
-            ComplianceAssetId: null,
-            WikiField: null,
-            Title: 'Page',
-            ClientSideApplicationId: 'b6917cb1-93a0-4b97-a84d-7cf49975d4ec',
-            PageLayoutType: 'Article',
-            CanvasContent1:
-              '<div><div data-sp-canvascontrol="" data-sp-canvasdataversion="1.0" data-sp-controldata="&#123;&quot;controlType&quot;&#58;0,&quot;pageSettingsSlice&quot;&#58;&#123;&quot;isDefaultDescription&quot;&#58;true,&quot;isDefaultThumbnail&quot;&#58;true&#125;&#125;"></div></div>',
-            BannerImageUrl: {
-              Description: '/_layouts/15/images/sitepagethumbnail.png',
-              Url: 'https://contoso.sharepoint.com/_layouts/15/images/sitepagethumbnail.png'
+        throw 'Invalid request';
+      });
+
+      await assert.rejects(command.action(logger,
+        {
+          options: {
+            pageName: 'page.aspx',
+            webUrl: 'https://contoso.sharepoint.com/sites/team-a',
+            text: 'Hello world'
+          }
+        }), new CommandError(`Page page.aspx is not a modern page.`));
+    }
+  );
+
+  it('correctly handles invalid section error when adding text to modern page',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/page.aspx')?$expand=ListItemAllFields/ClientSideApplicationId`) > -1) {
+          return {
+            ListItemAllFields: {
+              CommentsDisabled: false,
+              FileSystemObjectType: 0,
+              Id: 1,
+              ServerRedirectedEmbedUri: null,
+              ServerRedirectedEmbedUrl: '',
+              ContentTypeId: '0x0101009D1CB255DA76424F860D91F20E6C41180062FDF2882AB3F745ACB63105A3C623C9',
+              FileLeafRef: 'page.aspx',
+              ComplianceAssetId: null,
+              WikiField: null,
+              Title: 'Page',
+              ClientSideApplicationId: 'b6917cb1-93a0-4b97-a84d-7cf49975d4ec',
+              PageLayoutType: 'Article',
+              CanvasContent1:
+                '<div><div data-sp-canvascontrol="" data-sp-canvasdataversion="1.0" data-sp-controldata="&#123;&quot;controlType&quot;&#58;0,&quot;pageSettingsSlice&quot;&#58;&#123;&quot;isDefaultDescription&quot;&#58;true,&quot;isDefaultThumbnail&quot;&#58;true&#125;&#125;"></div></div>',
+              BannerImageUrl: {
+                Description: '/_layouts/15/images/sitepagethumbnail.png',
+                Url: 'https://contoso.sharepoint.com/_layouts/15/images/sitepagethumbnail.png'
+              },
+              Description: 'Lorem ipsum Dolor samet Lorem ipsum',
+              PromotedState: null,
+              FirstPublishedDate: null,
+              LayoutWebpartsContent: null,
+              AuthorsId: null,
+              AuthorsStringId: null,
+              OriginalSourceUrl: null,
+              ID: 1,
+              Created: '2018-01-20T09:54:41',
+              AuthorId: 1073741823,
+              Modified: '2018-04-12T12:42:47',
+              EditorId: 12,
+              OData__CopySource: null,
+              CheckoutUserId: null,
+              OData__UIVersionString: '7.0',
+              GUID: 'edaab907-e729-48dd-9e73-26487c0cf592'
             },
-            Description: 'Lorem ipsum Dolor samet Lorem ipsum',
-            PromotedState: null,
-            FirstPublishedDate: null,
-            LayoutWebpartsContent: null,
-            AuthorsId: null,
-            AuthorsStringId: null,
-            OriginalSourceUrl: null,
-            ID: 1,
-            Created: '2018-01-20T09:54:41',
-            AuthorId: 1073741823,
-            Modified: '2018-04-12T12:42:47',
-            EditorId: 12,
-            OData__CopySource: null,
-            CheckoutUserId: null,
-            OData__UIVersionString: '7.0',
-            GUID: 'edaab907-e729-48dd-9e73-26487c0cf592'
-          },
-          CheckInComment: '',
-          CheckOutType: 2,
-          ContentTag: '{E82A21D1-CA2C-4854-98F2-012AC0E7FA09},25,1',
-          CustomizedPageStatus: 1,
-          ETag: '"{E82A21D1-CA2C-4854-98F2-012AC0E7FA09},25"',
-          Exists: true,
-          IrmEnabled: false,
-          Length: '805',
-          Level: 1,
-          LinkingUri: null,
-          LinkingUrl: '',
-          MajorVersion: 7,
-          MinorVersion: 0,
-          Name: 'home.aspx',
-          ServerRelativeUrl: '/sites/team-a/SitePages/page.aspx',
-          TimeCreated: '2018-01-20T08:54:41Z',
-          TimeLastModified: '2018-04-12T10:42:46Z',
-          Title: 'Home',
-          UIVersion: 3584,
-          UIVersionLabel: '7.0',
-          UniqueId: 'e82a21d1-ca2c-4854-98f2-012ac0e7fa09'
-        };
-      }
-
-      throw 'Invalid request';
-    });
-
-    await assert.rejects(command.action(logger,
-      {
-        options: {
-          pageName: 'page.aspx',
-          webUrl: 'https://contoso.sharepoint.com/sites/team-a',
-          text: 'Hello world',
-          section: 1,
-          column: 7
+            CheckInComment: '',
+            CheckOutType: 2,
+            ContentTag: '{E82A21D1-CA2C-4854-98F2-012AC0E7FA09},25,1',
+            CustomizedPageStatus: 1,
+            ETag: '"{E82A21D1-CA2C-4854-98F2-012AC0E7FA09},25"',
+            Exists: true,
+            IrmEnabled: false,
+            Length: '805',
+            Level: 1,
+            LinkingUri: null,
+            LinkingUrl: '',
+            MajorVersion: 7,
+            MinorVersion: 0,
+            Name: 'home.aspx',
+            ServerRelativeUrl: '/sites/team-a/SitePages/page.aspx',
+            TimeCreated: '2018-01-20T08:54:41Z',
+            TimeLastModified: '2018-04-12T10:42:46Z',
+            Title: 'Home',
+            UIVersion: 3584,
+            UIVersionLabel: '7.0',
+            UniqueId: 'e82a21d1-ca2c-4854-98f2-012ac0e7fa09'
+          };
         }
-      }), new CommandError("Invalid column '7'"));
-  });
+
+        throw 'Invalid request';
+      });
+
+      await assert.rejects(command.action(logger,
+        {
+          options: {
+            pageName: 'page.aspx',
+            webUrl: 'https://contoso.sharepoint.com/sites/team-a',
+            text: 'Hello world',
+            section: 8
+          }
+        }), new CommandError("Invalid section '8'"));
+    }
+  );
+
+  it('correctly handles invalid column error when adding text to modern page',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/page.aspx')?$expand=ListItemAllFields/ClientSideApplicationId`) > -1) {
+          return {
+            ListItemAllFields: {
+              CommentsDisabled: false,
+              FileSystemObjectType: 0,
+              Id: 1,
+              ServerRedirectedEmbedUri: null,
+              ServerRedirectedEmbedUrl: '',
+              ContentTypeId: '0x0101009D1CB255DA76424F860D91F20E6C41180062FDF2882AB3F745ACB63105A3C623C9',
+              FileLeafRef: 'page.aspx',
+              ComplianceAssetId: null,
+              WikiField: null,
+              Title: 'Page',
+              ClientSideApplicationId: 'b6917cb1-93a0-4b97-a84d-7cf49975d4ec',
+              PageLayoutType: 'Article',
+              CanvasContent1:
+                '<div><div data-sp-canvascontrol="" data-sp-canvasdataversion="1.0" data-sp-controldata="&#123;&quot;controlType&quot;&#58;0,&quot;pageSettingsSlice&quot;&#58;&#123;&quot;isDefaultDescription&quot;&#58;true,&quot;isDefaultThumbnail&quot;&#58;true&#125;&#125;"></div></div>',
+              BannerImageUrl: {
+                Description: '/_layouts/15/images/sitepagethumbnail.png',
+                Url: 'https://contoso.sharepoint.com/_layouts/15/images/sitepagethumbnail.png'
+              },
+              Description: 'Lorem ipsum Dolor samet Lorem ipsum',
+              PromotedState: null,
+              FirstPublishedDate: null,
+              LayoutWebpartsContent: null,
+              AuthorsId: null,
+              AuthorsStringId: null,
+              OriginalSourceUrl: null,
+              ID: 1,
+              Created: '2018-01-20T09:54:41',
+              AuthorId: 1073741823,
+              Modified: '2018-04-12T12:42:47',
+              EditorId: 12,
+              OData__CopySource: null,
+              CheckoutUserId: null,
+              OData__UIVersionString: '7.0',
+              GUID: 'edaab907-e729-48dd-9e73-26487c0cf592'
+            },
+            CheckInComment: '',
+            CheckOutType: 2,
+            ContentTag: '{E82A21D1-CA2C-4854-98F2-012AC0E7FA09},25,1',
+            CustomizedPageStatus: 1,
+            ETag: '"{E82A21D1-CA2C-4854-98F2-012AC0E7FA09},25"',
+            Exists: true,
+            IrmEnabled: false,
+            Length: '805',
+            Level: 1,
+            LinkingUri: null,
+            LinkingUrl: '',
+            MajorVersion: 7,
+            MinorVersion: 0,
+            Name: 'home.aspx',
+            ServerRelativeUrl: '/sites/team-a/SitePages/page.aspx',
+            TimeCreated: '2018-01-20T08:54:41Z',
+            TimeLastModified: '2018-04-12T10:42:46Z',
+            Title: 'Home',
+            UIVersion: 3584,
+            UIVersionLabel: '7.0',
+            UniqueId: 'e82a21d1-ca2c-4854-98f2-012ac0e7fa09'
+          };
+        }
+
+        throw 'Invalid request';
+      });
+
+      await assert.rejects(command.action(logger,
+        {
+          options: {
+            pageName: 'page.aspx',
+            webUrl: 'https://contoso.sharepoint.com/sites/team-a',
+            text: 'Hello world',
+            section: 1,
+            column: 7
+          }
+        }), new CommandError("Invalid column '7'"));
+    }
+  );
 
   it('correctly handles error when parsing modern page contents', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/page.aspx')?$expand=ListItemAllFields/ClientSideApplicationId`) > -1) {
         return {
           ListItemAllFields: {
@@ -1103,16 +1116,18 @@ describe(commands.PAGE_TEXT_ADD, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('passes validation when name and webUrl specified, webUrl is a valid SharePoint URL and text is specified', async () => {
-    const actual = await command.validate({
-      options: {
-        pageName: 'page.aspx',
-        webUrl: 'https://contoso.sharepoint.com',
-        text: 'Hello world'
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when name and webUrl specified, webUrl is a valid SharePoint URL and text is specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          pageName: 'page.aspx',
+          webUrl: 'https://contoso.sharepoint.com',
+          text: 'Hello world'
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('passes validation when name has no extension', async () => {
     const actual = await command.validate({
@@ -1137,17 +1152,19 @@ describe(commands.PAGE_TEXT_ADD, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if section has invalid (non number) value', async () => {
-    const actual = await command.validate({
-      options: {
-        pageName: 'page.aspx',
-        webUrl: 'https://contoso.sharepoint.com',
-        text: 'Hello world',
-        section: 'foobar'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if section has invalid (non number) value',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          pageName: 'page.aspx',
+          webUrl: 'https://contoso.sharepoint.com',
+          text: 'Hello world',
+          section: 'foobar'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if column has invalid (negative) value', async () => {
     const actual = await command.validate({

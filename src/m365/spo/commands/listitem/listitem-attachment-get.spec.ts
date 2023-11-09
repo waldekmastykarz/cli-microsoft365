@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import { telemetry } from '../../../../telemetry.js';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -10,7 +9,7 @@ import request from '../../../../request.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { urlUtil } from '../../../../utils/urlUtil.js';
 import commands from '../../commands.js';
 import command from './listitem-attachment-get.js';
@@ -27,7 +26,7 @@ describe(commands.LISTITEM_ATTACHMENT_GET, () => {
   let cli: Cli;
   let log: any[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
   const attachmentResponse = {
@@ -53,12 +52,12 @@ describe(commands.LISTITEM_ATTACHMENT_GET, () => {
     throw 'Invalid request';
   };
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -76,19 +75,19 @@ describe(commands.LISTITEM_ATTACHMENT_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake(((settingName, defaultValue) => defaultValue));
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation(((settingName, defaultValue) => defaultValue));
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -111,15 +110,19 @@ describe(commands.LISTITEM_ATTACHMENT_GET, () => {
     assert(containsTypeOption);
   });
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', listTitle: 'Demo List', listItemId: listItemId, fileName: fileName } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', listTitle: 'Demo List', listItemId: listItemId, fileName: fileName } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the webUrl option is a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', listItemId: listItemId, fileName: fileName } }, commandInfo);
-    assert(actual);
-  });
+  it('passes validation if the webUrl option is a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', listItemId: listItemId, fileName: fileName } }, commandInfo);
+      assert(actual);
+    }
+  );
 
   it('fails validation if the listId option is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: 'foo', listItemId: listItemId, fileName: fileName } }, commandInfo);
@@ -131,13 +134,15 @@ describe(commands.LISTITEM_ATTACHMENT_GET, () => {
     assert(actual);
   });
 
-  it('fails validation if the specified listItemId is not a number', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', listItemId: 'a', fileName: fileName } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the specified listItemId is not a number',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', listItemId: 'a', fileName: fileName } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('returns attachment from a list item by listId', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
     const options: any = {
       debug: true,
@@ -152,7 +157,7 @@ describe(commands.LISTITEM_ATTACHMENT_GET, () => {
   });
 
   it('returns attachment from a list item by listTitle', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
     const options: any = {
       debug: true,
@@ -167,7 +172,7 @@ describe(commands.LISTITEM_ATTACHMENT_GET, () => {
   });
 
   it('returns attachment from a list item by listUrl', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
     const options: any = {
       debug: true,
@@ -182,7 +187,7 @@ describe(commands.LISTITEM_ATTACHMENT_GET, () => {
   });
 
   it('correctly handles random API error', async () => {
-    sinon.stub(request, 'get').rejects(new Error('An error has occurred'));
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
     const options: any = {
       webUrl: webUrl,
@@ -195,7 +200,7 @@ describe(commands.LISTITEM_ATTACHMENT_GET, () => {
   });
 
   it('correctly handles no attachment found', async () => {
-    sinon.stub(request, 'get').rejects(new Error('Specified argument was out of the range of valid values.\r\nParameter name: fileName'));
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error('Specified argument was out of the range of valid values.\r\nParameter name: fileName'));
 
     await assert.rejects(command.action(logger, {
       options: {

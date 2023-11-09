@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,14 +8,14 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './user-signin-list.js';
 
 describe(commands.USER_SIGNIN_LIST, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
   const jsonOutput = {
@@ -146,11 +145,11 @@ describe(commands.USER_SIGNIN_LIST, () => {
     ]
   };
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -168,18 +167,18 @@ describe(commands.USER_SIGNIN_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -196,7 +195,7 @@ describe(commands.USER_SIGNIN_LIST, () => {
   });
 
   it('lists all signins in the tenant (verbose)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/auditLogs/signIns`) {
         return jsonOutput;
       }
@@ -209,7 +208,7 @@ describe(commands.USER_SIGNIN_LIST, () => {
     ));
   });
   it('lists all signins by userName in the tenant (verbose)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/auditLogs/signIns?$filter=userPrincipalName eq 'testaccount1%40contoso.com'`) {
         return jsonOutput;
       }
@@ -223,7 +222,7 @@ describe(commands.USER_SIGNIN_LIST, () => {
   });
 
   it('lists all signins by userId in the tenant (verbose)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/auditLogs/signIns?$filter=userId eq '737002f2-9582-4068-b706-044e09481897'`) {
         return jsonOutput;
       }
@@ -237,7 +236,7 @@ describe(commands.USER_SIGNIN_LIST, () => {
   });
 
   it('lists all signins by appId in the tenant (verbose)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/auditLogs/signIns?$filter=appId eq 'de8bc8b5-d9f9-48b1-a8ad-b748da725064'`) {
         return jsonOutput;
       }
@@ -250,51 +249,57 @@ describe(commands.USER_SIGNIN_LIST, () => {
     ));
   });
 
-  it('lists all signins by appDisplayName in the tenant (verbose)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/auditLogs/signIns?$filter=appDisplayName eq 'Graph%20explorer'`) {
-        return jsonOutput;
-      }
-      throw 'Invalid request';
-    });
+  it('lists all signins by appDisplayName in the tenant (verbose)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/auditLogs/signIns?$filter=appDisplayName eq 'Graph%20explorer'`) {
+          return jsonOutput;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { verbose: true, appDisplayName: 'Graph explorer' } });
-    assert(loggerLogSpy.calledWith(
-      jsonOutput.value
-    ));
-  });
+      await command.action(logger, { options: { verbose: true, appDisplayName: 'Graph explorer' } });
+      assert(loggerLogSpy.calledWith(
+        jsonOutput.value
+      ));
+    }
+  );
 
-  it('lists all signins by userName and appId in the tenant (verbose)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/auditLogs/signIns?$filter=userPrincipalName eq 'testaccount1%40contoso.com' and appId eq 'de8bc8b5-d9f9-48b1-a8ad-b748da725064'`) {
-        return jsonOutput;
-      }
-      throw 'Invalid request';
-    });
+  it('lists all signins by userName and appId in the tenant (verbose)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/auditLogs/signIns?$filter=userPrincipalName eq 'testaccount1%40contoso.com' and appId eq 'de8bc8b5-d9f9-48b1-a8ad-b748da725064'`) {
+          return jsonOutput;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { verbose: true, userName: 'testaccount1@contoso.com', appId: 'de8bc8b5-d9f9-48b1-a8ad-b748da725064' } });
-    assert(loggerLogSpy.calledWith(
-      jsonOutput.value
-    ));
-  });
+      await command.action(logger, { options: { verbose: true, userName: 'testaccount1@contoso.com', appId: 'de8bc8b5-d9f9-48b1-a8ad-b748da725064' } });
+      assert(loggerLogSpy.calledWith(
+        jsonOutput.value
+      ));
+    }
+  );
 
-  it('lists all signins by userName and appDisplayName in the tenant (verbose)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/auditLogs/signIns?$filter=userPrincipalName eq 'testaccount1%40contoso.com' and appDisplayName eq 'Graph%20explorer'`) {
-        return jsonOutput;
-      }
-      throw 'Invalid request';
-    });
+  it('lists all signins by userName and appDisplayName in the tenant (verbose)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/auditLogs/signIns?$filter=userPrincipalName eq 'testaccount1%40contoso.com' and appDisplayName eq 'Graph%20explorer'`) {
+          return jsonOutput;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { verbose: true, userName: 'testaccount1@contoso.com', appDisplayName: 'Graph explorer' } });
-    assert(loggerLogSpy.calledWith(
-      jsonOutput.value
-    ));
-  });
+      await command.action(logger, { options: { verbose: true, userName: 'testaccount1@contoso.com', appDisplayName: 'Graph explorer' } });
+      assert(loggerLogSpy.calledWith(
+        jsonOutput.value
+      ));
+    }
+  );
 
   it('handles random API error', async () => {
     const errorMessage = 'Something went wrong';
-    sinon.stub(request, 'get').rejects(new Error(errorMessage));
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error(errorMessage));
 
     await assert.rejects(command.action(logger, { options: { userName: 'testaccount1@contoso.com', appDisplayName: 'Graph explorer' } }), new CommandError(errorMessage));
   });

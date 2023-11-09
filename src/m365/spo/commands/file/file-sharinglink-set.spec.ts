@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { GraphFileDetails } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './file-sharinglink-set.js';
@@ -18,7 +17,7 @@ import command from './file-sharinglink-set.js';
 describe(commands.FILE_SHARINGLINK_SET, () => {
   let log: any[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
   const webUrl = 'https://contoso.sharepoint.com';
@@ -47,11 +46,11 @@ describe(commands.FILE_SHARINGLINK_SET, () => {
     }
   };
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -69,18 +68,18 @@ describe(commands.FILE_SHARINGLINK_SET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.patch
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -93,7 +92,7 @@ describe(commands.FILE_SHARINGLINK_SET, () => {
   });
 
   it('updates a sharing link from a file specified by the id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/web/GetFileById('${fileId}')?$select=SiteId,VroomItemId,VroomDriveId`) {
         return fileDetailsResponse;
       }
@@ -101,7 +100,7 @@ describe(commands.FILE_SHARINGLINK_SET, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/sites/${fileDetailsResponse.SiteId}/drives/${fileDetailsResponse.VroomDriveID}/items/${fileDetailsResponse.VroomItemID}/permissions/${validId}`) {
         return graphResponse;
       }
@@ -114,7 +113,7 @@ describe(commands.FILE_SHARINGLINK_SET, () => {
   });
 
   it('updates a sharing link from a file specified by the url', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/web/GetFileByServerRelativePath(decodedUrl='${formatting.encodeQueryParameter(fileUrl)}')?$select=SiteId,VroomItemId,VroomDriveId`) {
         return fileDetailsResponse;
       }
@@ -122,7 +121,7 @@ describe(commands.FILE_SHARINGLINK_SET, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/sites/${fileDetailsResponse.SiteId}/drives/${fileDetailsResponse.VroomDriveID}/items/${fileDetailsResponse.VroomItemID}/permissions/${validId}`) {
         return graphResponse;
       }
@@ -135,7 +134,7 @@ describe(commands.FILE_SHARINGLINK_SET, () => {
   });
 
   it('throws error when file not found by id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/web/GetFileById('${fileId}')?$select=SiteId,VroomItemId,VroomDriveId`) {
         throw { error: { 'odata.error': { message: { value: 'File Not Found.' } } } };
       }
@@ -147,10 +146,12 @@ describe(commands.FILE_SHARINGLINK_SET, () => {
       new CommandError(`File Not Found.`));
   });
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', fileId: fileId, expirationDateTime: '2023-02-09T16:57:00Z', id: validId } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', fileId: fileId, expirationDateTime: '2023-02-09T16:57:00Z', id: validId } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the fileId option is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', fileId: 'invalid', expirationDateTime: '2023-02-09T16:57:00Z', id: validId } }, commandInfo);
@@ -162,10 +163,12 @@ describe(commands.FILE_SHARINGLINK_SET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if the expirationDateTime option is not a valid date', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', fileId: fileId, expirationDateTime: 'invalid date', id: validId } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the expirationDateTime option is not a valid date',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', fileId: fileId, expirationDateTime: 'invalid date', id: validId } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation if options are valid', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', fileId: fileId, expirationDateTime: '2023-02-09T16:57:00Z', id: validId } }, commandInfo);

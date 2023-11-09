@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './page-remove.js';
@@ -17,13 +16,13 @@ import command from './page-remove.js';
 describe(commands.PAGE_REMOVE, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogToStderrSpy: jest.SpyInstance;
   let promptOptions: any;
 
-  const fakeRestCalls: (pageName?: string) => sinon.SinonStub = (pageName: string = 'page.aspx') => {
-    return sinon.stub(request, 'post').callsFake(async (opts) => {
+  const fakeRestCalls: (pageName?: string) => jest.Mock = (pageName: string = 'page.aspx') => {
+    return jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/sitepages/${pageName}')`) > -1) {
         return '';
       }
@@ -32,18 +31,17 @@ describe(commands.PAGE_REMOVE, () => {
     });
   };
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon
-      .stub(spo, 'getRequestDigest').resolves({
-        FormDigestValue: 'ABC',
-        FormDigestTimeoutSeconds: 1800,
-        FormDigestExpiresAt: new Date(),
-        WebFullUrl: 'https://contoso.sharepoint.com'
-      });
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
+      FormDigestValue: 'ABC',
+      FormDigestTimeoutSeconds: 1800,
+      FormDigestExpiresAt: new Date(),
+      WebFullUrl: 'https://contoso.sharepoint.com'
+    });
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -61,23 +59,23 @@ describe(commands.PAGE_REMOVE, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -116,31 +114,33 @@ describe(commands.PAGE_REMOVE, () => {
     assert(loggerLogToStderrSpy.called);
   });
 
-  it('removes a modern page (debug) without confirm prompt on root of tenant', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sitepages/page.aspx')`) > -1) {
-        return '';
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger,
-      {
-        options: {
-          debug: true,
-          name: 'page.aspx',
-          webUrl: 'https://contoso.sharepoint.com',
-          force: true
+  it('removes a modern page (debug) without confirm prompt on root of tenant',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sitepages/page.aspx')`) > -1) {
+          return '';
         }
+
+        throw 'Invalid request';
       });
-    assert(loggerLogToStderrSpy.called);
-  });
+
+      await command.action(logger,
+        {
+          options: {
+            debug: true,
+            name: 'page.aspx',
+            webUrl: 'https://contoso.sharepoint.com',
+            force: true
+          }
+        });
+      assert(loggerLogToStderrSpy.called);
+    }
+  );
 
   it('removes a modern page with confirm prompt', async () => {
     fakeRestCalls();
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: true };
     });
@@ -156,8 +156,8 @@ describe(commands.PAGE_REMOVE, () => {
 
   it('removes a modern page (debug) with confirm prompt', async () => {
     fakeRestCalls();
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: true };
     });
@@ -172,29 +172,31 @@ describe(commands.PAGE_REMOVE, () => {
     assert(loggerLogToStderrSpy.called);
   });
 
-  it('should prompt before removing page when confirmation argument not passed', async () => {
-    fakeRestCalls();
-    await command.action(logger,
-      {
-        options: {
-          debug: true,
-          name: 'page.aspx',
-          webUrl: 'https://contoso.sharepoint.com/sites/team-a'
-        }
-      });
-    let promptIssued = false;
+  it('should prompt before removing page when confirmation argument not passed',
+    async () => {
+      fakeRestCalls();
+      await command.action(logger,
+        {
+          options: {
+            debug: true,
+            name: 'page.aspx',
+            webUrl: 'https://contoso.sharepoint.com/sites/team-a'
+          }
+        });
+      let promptIssued = false;
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+
+      assert(promptIssued);
     }
-
-    assert(promptIssued);
-  });
+  );
 
   it('should abort page removal when prompt not confirmed', async () => {
     const postCallSpy = fakeRestCalls();
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: false }
     ));
     await command.action(logger,
@@ -210,8 +212,8 @@ describe(commands.PAGE_REMOVE, () => {
 
   it('automatically appends the .aspx extension', async () => {
     fakeRestCalls();
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: false }
     ));
     await command.action(logger,
@@ -226,12 +228,12 @@ describe(commands.PAGE_REMOVE, () => {
   });
 
   it('correctly handles OData error when removing modern page', async () => {
-    sinon.stub(request, 'post').callsFake(() => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(() => {
       throw { error: { 'odata.error': { message: { value: 'An error has occurred' } } } };
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: false }
     ));
     await assert.rejects(command.action(logger,
@@ -289,12 +291,14 @@ describe(commands.PAGE_REMOVE, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('passes validation when name and webURL specified and webUrl is a valid SharePoint URL', async () => {
-    const actual = await command.validate({
-      options: { name: 'page.aspx', webUrl: 'https://contoso.sharepoint.com' }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when name and webURL specified and webUrl is a valid SharePoint URL',
+    async () => {
+      const actual = await command.validate({
+        options: { name: 'page.aspx', webUrl: 'https://contoso.sharepoint.com' }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('passes validation when name has no extension', async () => {
     const actual = await command.validate({

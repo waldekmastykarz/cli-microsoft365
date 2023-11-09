@@ -1,10 +1,9 @@
 import assert from 'assert';
 import fs from 'fs';
-import sinon from 'sinon';
 import { Logger } from '../../../../cli/Logger.js';
 import { CommandError } from '../../../../Command.js';
 import { telemetry } from '../../../../telemetry.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './option-set.js';
 
@@ -12,8 +11,8 @@ describe(commands.OPTION_SET, () => {
   let log: any[];
   let logger: Logger;
 
-  before(() => {
-    sinon.stub(telemetry, 'trackEvent').callsFake(() => { });
+  beforeAll(() => {
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockImplementation(() => { });
   });
 
   beforeEach(() => {
@@ -32,15 +31,15 @@ describe(commands.OPTION_SET, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       fs.existsSync,
       fs.readFileSync,
       fs.writeFileSync
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
   });
 
   it('has correct name', () => {
@@ -52,15 +51,15 @@ describe(commands.OPTION_SET, () => {
   });
 
   it('handles an error when reading file contents fails', async () => {
-    sinon.stub(fs, 'existsSync').callsFake(_ => true);
-    sinon.stub(fs, 'readFileSync').callsFake(_ => { throw new Error('An error has occurred'); });
+    jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(_ => true);
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(_ => { throw new Error('An error has occurred'); });
 
     await assert.rejects(command.action(logger, { options: { debug: true, name: 'listName', value: 'testList' } }), new CommandError(`Error reading .m365rc.json: Error: An error has occurred. Please add listName to .m365rc.json manually.`));
   });
 
   it('handles an error when writing file contents fails', async () => {
-    sinon.stub(fs, 'existsSync').callsFake(_ => true);
-    sinon.stub(fs, 'readFileSync').callsFake(_ => JSON.stringify({
+    jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(_ => true);
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(_ => JSON.stringify({
       "apps": [
         {
           "appId": "e23d235c-fcdf-45d1-ac5f-24ab2ee0695d",
@@ -69,7 +68,7 @@ describe(commands.OPTION_SET, () => {
       ],
       "context": {}
     }));
-    sinon.stub(fs, 'writeFileSync').callsFake(_ => { throw new Error('An error has occurred'); });
+    jest.spyOn(fs, 'writeFileSync').mockClear().mockImplementation(_ => { throw new Error('An error has occurred'); });
 
     await assert.rejects(command.action(logger, { options: { debug: true, name: 'listName', value: 'testList' } }), new CommandError(`Error writing .m365rc.json: Error: An error has occurred. Please add listName to .m365rc.json manually.`));
   });
@@ -78,9 +77,9 @@ describe(commands.OPTION_SET, () => {
     let fileContents: string | undefined;
     let filePath: string | undefined;
 
-    sinon.stub(fs, 'existsSync').callsFake(_ => true);
-    sinon.stub(fs, 'readFileSync').callsFake(_ => JSON.stringify({}));
-    sinon.stub(fs, 'writeFileSync').callsFake((_, contents) => {
+    jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(_ => true);
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(_ => JSON.stringify({}));
+    jest.spyOn(fs, 'writeFileSync').mockClear().mockImplementation((_, contents) => {
       filePath = _.toString();
       fileContents = contents as string;
     });
@@ -96,8 +95,8 @@ describe(commands.OPTION_SET, () => {
     let fileContents: string | undefined;
     let filePath: string | undefined;
 
-    sinon.stub(fs, 'existsSync').callsFake(_ => false);
-    sinon.stub(fs, 'writeFileSync').callsFake((_, contents) => {
+    jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(_ => false);
+    jest.spyOn(fs, 'writeFileSync').mockClear().mockImplementation((_, contents) => {
       filePath = _.toString();
       fileContents = contents as string;
     });
@@ -112,8 +111,8 @@ describe(commands.OPTION_SET, () => {
     let fileContents: string | undefined;
     let filePath: string | undefined;
 
-    sinon.stub(fs, 'existsSync').callsFake(_ => true);
-    sinon.stub(fs, 'readFileSync').callsFake(_ => JSON.stringify({
+    jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(_ => true);
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(_ => JSON.stringify({
       "apps": [
         {
           "appId": "e23d235c-fcdf-45d1-ac5f-24ab2ee0695d",
@@ -124,7 +123,7 @@ describe(commands.OPTION_SET, () => {
         listName: "oldListName"
       }
     }));
-    sinon.stub(fs, 'writeFileSync').callsFake((_, contents) => {
+    jest.spyOn(fs, 'writeFileSync').mockClear().mockImplementation((_, contents) => {
       filePath = _.toString();
       fileContents = contents as string;
     });

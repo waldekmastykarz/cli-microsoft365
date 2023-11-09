@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import spoGroupGetCommand from '../group/group-get.js';
 import spoUserGetCommand from '../user/user-get.js';
@@ -22,11 +21,11 @@ describe(commands.WEB_ROLEASSIGNMENT_REMOVE, () => {
   let requests: any[];
   let promptOptions: any;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -45,22 +44,22 @@ describe(commands.WEB_ROLEASSIGNMENT_REMOVE, () => {
       }
     };
     requests = [];
-    sinon.stub(Cli, 'prompt').callsFake(async (options) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options) => {
       promptOptions = options;
       return { continue: false };
     });
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       Cli.executeCommandWithOutput,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -72,20 +71,26 @@ describe(commands.WEB_ROLEASSIGNMENT_REMOVE, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('fails validation if the url option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', principalId: 11 } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the url option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', principalId: 11 } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the url option is a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', principalId: 11 } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if the url option is a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', principalId: 11 } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if the principalId option is not a number', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', principalId: 'abc' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the principalId option is not a number',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', principalId: 'abc' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation if the principalId option is a number', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', principalId: 11 } }, commandInfo);
@@ -93,7 +98,7 @@ describe(commands.WEB_ROLEASSIGNMENT_REMOVE, () => {
   });
 
   it('remove role assignment from web', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('_api/web/roleassignments/removeroleassignment(principalid=\'11\')') > -1) {
         return;
       }
@@ -112,7 +117,7 @@ describe(commands.WEB_ROLEASSIGNMENT_REMOVE, () => {
   });
 
   it('remove role assignment from web get principal id by upn', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/roleassignments/removeroleassignment(principalid=\'11\')') > -1) {
         return;
       }
@@ -120,7 +125,7 @@ describe(commands.WEB_ROLEASSIGNMENT_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command): Promise<any> => {
+    jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command): Promise<any> => {
       if (command === spoUserGetCommand) {
         return {
           stdout: '{"Id": 11,"IsHiddenInUI": false,"LoginName": "i:0#.f|membership|someaccount@tenant.onmicrosoft.com","Title": "Some Account","PrincipalType": 1,"Email": "someaccount@tenant.onmicrosoft.com","Expiration": "","IsEmailAuthenticationGuestUser": false,"IsShareByEmailGuestUser": false,"IsSiteAdmin": true,"UserId": {"NameId": "1003200097d06dd6","NameIdIssuer": "urn:federation:microsoftonline"},"UserPrincipalName": "someaccount@tenant.onmicrosoft.com"}'
@@ -141,7 +146,7 @@ describe(commands.WEB_ROLEASSIGNMENT_REMOVE, () => {
   });
 
   it('correctly handles error when upn does not exist', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/roleassignments/removeroleassignment(principalid=\'11\')') > -1) {
         return;
       }
@@ -150,7 +155,7 @@ describe(commands.WEB_ROLEASSIGNMENT_REMOVE, () => {
     });
 
     const error = 'no user found';
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command): Promise<any> => {
+    jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command): Promise<any> => {
       if (command === spoUserGetCommand) {
         throw error;
       }
@@ -168,37 +173,39 @@ describe(commands.WEB_ROLEASSIGNMENT_REMOVE, () => {
     } as any), new CommandError(error));
   });
 
-  it('remove role assignment from web get principal id by group name', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/web/roleassignments/removeroleassignment(principalid=\'11\')') > -1) {
-        return;
-      }
+  it('remove role assignment from web get principal id by group name',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/web/roleassignments/removeroleassignment(principalid=\'11\')') > -1) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command): Promise<any> => {
-      if (command === spoGroupGetCommand) {
-        return {
-          stdout: '{"Id": 11,"IsHiddenInUI": false,"LoginName": "otherGroup","Title": "otherGroup","PrincipalType": 8,"AllowMembersEditMembership": false,"AllowRequestToJoinLeave": false,"AutoAcceptRequestToJoinLeave": false,"Description": "","OnlyAllowMembersViewMembership": true,"OwnerTitle": "Some Account","RequestToJoinLeaveEmailSetting": null}'
-        };
-      }
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command): Promise<any> => {
+        if (command === spoGroupGetCommand) {
+          return {
+            stdout: '{"Id": 11,"IsHiddenInUI": false,"LoginName": "otherGroup","Title": "otherGroup","PrincipalType": 8,"AllowMembersEditMembership": false,"AllowRequestToJoinLeave": false,"AutoAcceptRequestToJoinLeave": false,"Description": "","OnlyAllowMembersViewMembership": true,"OwnerTitle": "Some Account","RequestToJoinLeaveEmailSetting": null}'
+          };
+        }
 
-      throw new CommandError('Unknown case');
-    });
+        throw new CommandError('Unknown case');
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: 'https://contoso.sharepoint.com',
-        groupName: 'someGroup',
-        force: true
-      }
-    });
-  });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: 'https://contoso.sharepoint.com',
+          groupName: 'someGroup',
+          force: true
+        }
+      });
+    }
+  );
 
   it('correctly handles error when group does not exist', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/roleassignments/removeroleassignment(principalid=\'11\')') > -1) {
         return;
       }
@@ -207,7 +214,7 @@ describe(commands.WEB_ROLEASSIGNMENT_REMOVE, () => {
     });
 
     const error = 'no group found';
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command): Promise<any> => {
+    jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command): Promise<any> => {
       if (command === spoGroupGetCommand) {
         throw error;
       }
@@ -236,25 +243,27 @@ describe(commands.WEB_ROLEASSIGNMENT_REMOVE, () => {
     assert(requests.length === 0);
   });
 
-  it('prompts before removing role assignment when confirmation argument not passed', async () => {
-    await command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: 'https://contoso.sharepoint.com',
-        groupName: 'someGroup'
+  it('prompts before removing role assignment when confirmation argument not passed',
+    async () => {
+      await command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: 'https://contoso.sharepoint.com',
+          groupName: 'someGroup'
+        }
+      });
+
+      let promptIssued = false;
+
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
       }
-    });
-
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      assert(promptIssued);
     }
-    assert(promptIssued);
-  });
+  );
 
   it('removes role assignment when prompt confirmed', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/roleassignments/removeroleassignment(principalid=\'11\')') > -1) {
         return;
       }
@@ -262,7 +271,7 @@ describe(commands.WEB_ROLEASSIGNMENT_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command): Promise<any> => {
+    jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command): Promise<any> => {
       if (command === spoGroupGetCommand) {
         return {
           stdout: '{"Id": 11,"IsHiddenInUI": false,"LoginName": "otherGroup","Title": "otherGroup","PrincipalType": 8,"AllowMembersEditMembership": false,"AllowRequestToJoinLeave": false,"AutoAcceptRequestToJoinLeave": false,"Description": "","OnlyAllowMembersViewMembership": true,"OwnerTitle": "Some Account","RequestToJoinLeaveEmailSetting": null}'
@@ -272,8 +281,8 @@ describe(commands.WEB_ROLEASSIGNMENT_REMOVE, () => {
       throw new CommandError('Unknown case');
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: true }
     ));
 

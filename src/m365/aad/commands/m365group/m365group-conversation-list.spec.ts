@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './m365group-conversation-list.js';
 import { aadGroup } from '../../../../utils/aadGroup.js';
@@ -17,7 +16,7 @@ import { aadGroup } from '../../../../utils/aadGroup.js';
 describe(commands.M365GROUP_CONVERSATION_LIST, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
   const jsonOutput = {
@@ -44,12 +43,12 @@ describe(commands.M365GROUP_CONVERSATION_LIST, () => {
       }
     ]
   };
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(aadGroup, 'isUnifiedGroup').resolves(true);
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(aadGroup, 'isUnifiedGroup').mockClear().mockImplementation().resolves(true);
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -67,18 +66,18 @@ describe(commands.M365GROUP_CONVERSATION_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -102,25 +101,27 @@ describe(commands.M365GROUP_CONVERSATION_LIST, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('Retrieve conversations for the specified group by groupId in the tenant (verbose)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups/00000000-0000-0000-0000-000000000000/conversations`) {
-        return jsonOutput;
-      }
-      throw 'Invalid request';
-    });
+  it('Retrieve conversations for the specified group by groupId in the tenant (verbose)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups/00000000-0000-0000-0000-000000000000/conversations`) {
+          return jsonOutput;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        verbose: true, groupId: "00000000-0000-0000-0000-000000000000"
-      }
-    });
-    assert(loggerLogSpy.calledWith(
-      jsonOutput.value
-    ));
-  });
+      await command.action(logger, {
+        options: {
+          verbose: true, groupId: "00000000-0000-0000-0000-000000000000"
+        }
+      });
+      assert(loggerLogSpy.calledWith(
+        jsonOutput.value
+      ));
+    }
+  );
   it('correctly handles error when listing conversations', async () => {
-    sinon.stub(request, 'get').rejects(new Error('An error has occurred'));
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
     await assert.rejects(command.action(logger, { options: { groupId: "00000000-0000-0000-0000-000000000000" } } as any),
       new CommandError('An error has occurred'));
@@ -129,8 +130,8 @@ describe(commands.M365GROUP_CONVERSATION_LIST, () => {
   it('shows error when the group is not a unified group', async () => {
     const groupId = '3f04e370-cbc6-4091-80fe-1d038be2ad06';
 
-    sinonUtil.restore(aadGroup.isUnifiedGroup);
-    sinon.stub(aadGroup, 'isUnifiedGroup').resolves(false);
+    jestUtil.restore(aadGroup.isUnifiedGroup);
+    jest.spyOn(aadGroup, 'isUnifiedGroup').mockClear().mockImplementation().resolves(false);
 
     await assert.rejects(command.action(logger, { options: { groupId: groupId } } as any),
       new CommandError(`Specified group with id '${groupId}' is not a Microsoft 365 group.`));

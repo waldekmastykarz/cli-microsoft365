@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './feature-enable.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -21,12 +20,12 @@ describe(commands.FEATURE_ENABLE, () => {
   let commandInfo: CommandInfo;
   let requests: any[];
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -48,14 +47,14 @@ describe(commands.FEATURE_ENABLE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -79,40 +78,42 @@ describe(commands.FEATURE_ENABLE, () => {
     });
   });
 
-  it('enables web feature (scope not defined, so defaults to web), no force', async () => {
-    const requestUrl = `https://contoso.sharepoint.com/_api/web/features/add(featureId=guid'b2307a39-e878-458b-bc90-03bc578531d6',force=false)`;
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      requests.push(opts);
+  it('enables web feature (scope not defined, so defaults to web), no force',
+    async () => {
+      const requestUrl = `https://contoso.sharepoint.com/_api/web/features/add(featureId=guid'b2307a39-e878-458b-bc90-03bc578531d6',force=false)`;
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        requests.push(opts);
 
-      if ((opts.url as string).indexOf(requestUrl) > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return;
+        if ((opts.url as string).indexOf(requestUrl) > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return;
+          }
         }
-      }
 
-      throw 'Invalid request';
-    });
-
-    try {
-      await command.action(logger, { options: { debug: true, id: 'b2307a39-e878-458b-bc90-03bc578531d6', webUrl: 'https://contoso.sharepoint.com' } });
-      let correctRequestIssued = false;
-      requests.forEach(r => {
-        if (r.url.indexOf(requestUrl) > -1 && r.headers.accept && r.headers.accept.indexOf('application/json') === 0) {
-          correctRequestIssued = true;
-        }
+        throw 'Invalid request';
       });
-      assert(correctRequestIssued);
+
+      try {
+        await command.action(logger, { options: { debug: true, id: 'b2307a39-e878-458b-bc90-03bc578531d6', webUrl: 'https://contoso.sharepoint.com' } });
+        let correctRequestIssued = false;
+        requests.forEach(r => {
+          if (r.url.indexOf(requestUrl) > -1 && r.headers.accept && r.headers.accept.indexOf('application/json') === 0) {
+            correctRequestIssued = true;
+          }
+        });
+        assert(correctRequestIssued);
+      }
+      finally {
+        jestUtil.restore(request.post);
+      }
     }
-    finally {
-      sinonUtil.restore(request.post);
-    }
-  });
+  );
 
   it('enables site feature, force', async () => {
     const requestUrl = `https://contoso.sharepoint.com/_api/site/features/add(featureId=guid'915c240e-a6cc-49b8-8b2c-0bff8b553ed3',force=true)`;
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
 
       if ((opts.url as string).indexOf(requestUrl) > -1) {
@@ -137,7 +138,7 @@ describe(commands.FEATURE_ENABLE, () => {
       assert(correctRequestIssued);
     }
     finally {
-      sinonUtil.restore(request.post);
+      jestUtil.restore(request.post);
     }
   });
 
@@ -153,7 +154,7 @@ describe(commands.FEATURE_ENABLE, () => {
       }
     };
 
-    sinon.stub(request, 'post').rejects(err);
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects(err);
 
     await assert.rejects(command.action(logger, {
       options: {
@@ -186,24 +187,26 @@ describe(commands.FEATURE_ENABLE, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if the url option is not a valid SharePoint site URL', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if the url option is not a valid SharePoint site URL',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options:
-      {
-        webUrl: 'foo',
-        id: '00bfea71-5932-4f9c-ad71-1557e5751100'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options:
+        {
+          webUrl: 'foo',
+          id: '00bfea71-5932-4f9c-ad71-1557e5751100'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation when the required options specified', async () => {
     const actual = await command.validate({
@@ -252,15 +255,17 @@ describe(commands.FEATURE_ENABLE, () => {
     assert.strictEqual(actual, `${scope} is not a valid Feature scope. Allowed values are Site|Web`);
   });
 
-  it('doesn\'t fail validation if the optional scope option not specified', async () => {
-    const actual = await command.validate(
-      {
-        options:
+  it('doesn\'t fail validation if the optional scope option not specified',
+    async () => {
+      const actual = await command.validate(
         {
-          id: "00bfea71-5932-4f9c-ad71-1557e5751100",
-          webUrl: "https://contoso.sharepoint.com"
-        }
-      }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+          options:
+          {
+            id: "00bfea71-5932-4f9c-ad71-1557e5751100",
+            webUrl: "https://contoso.sharepoint.com"
+          }
+        }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

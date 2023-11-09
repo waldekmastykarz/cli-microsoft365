@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './knowledgehub-set.js';
@@ -21,12 +20,12 @@ describe(commands.KNOWLEDGEHUB_SET, () => {
   let commandInfo: CommandInfo;
   let requests: any[];
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'ABC',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -34,7 +33,7 @@ describe(commands.KNOWLEDGEHUB_SET, () => {
     });
     auth.service.connected = true;
     auth.service.spoUrl = 'https://contoso.sharepoint.com';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
 
       if ((opts.url as string).indexOf('/_vti_bin/client.svc/ProcessQuery') > -1) {
@@ -68,8 +67,8 @@ describe(commands.KNOWLEDGEHUB_SET, () => {
     requests = [];
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -112,8 +111,8 @@ describe(commands.KNOWLEDGEHUB_SET, () => {
 
 
   it('correctly handles an error when setting Knowledgehub Site', async () => {
-    sinonUtil.restore(request.post);
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jestUtil.restore(request.post);
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/contextinfo') > -1) {
         if (opts.headers &&
           opts.headers.accept &&
@@ -150,8 +149,10 @@ describe(commands.KNOWLEDGEHUB_SET, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('fails validation if the specified site URL is not a valid SharePoint URL', async () => {
-    const actual = await command.validate({ options: { siteUrl: 'site.com' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the specified site URL is not a valid SharePoint URL',
+    async () => {
+      const actual = await command.validate({ options: { siteUrl: 'site.com' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 });

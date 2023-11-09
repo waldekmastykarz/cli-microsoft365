@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -11,7 +10,7 @@ import { formatting } from '../../../../utils/formatting.js';
 import { odata } from '../../../../utils/odata.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './page-list.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -75,15 +74,15 @@ describe(commands.PAGE_LIST, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -101,20 +100,20 @@ describe(commands.PAGE_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       odata.getAllItems,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -160,20 +159,22 @@ describe(commands.PAGE_LIST, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('lists Microsoft OneNote pages for the currently logged in user', async () => {
-    sinon.stub(odata, 'getAllItems').callsFake(async (url: string) => {
-      if (url === `https://graph.microsoft.com/v1.0/me/onenote/pages`) {
-        return pageResponse.value;
-      }
-      throw 'Invalid request';
-    });
+  it('lists Microsoft OneNote pages for the currently logged in user',
+    async () => {
+      jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url: string) => {
+        if (url === `https://graph.microsoft.com/v1.0/me/onenote/pages`) {
+          return pageResponse.value;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true } });
-    assert(loggerLogSpy.calledWith(pageResponse.value));
-  });
+      await command.action(logger, { options: { debug: true } });
+      assert(loggerLogSpy.calledWith(pageResponse.value));
+    }
+  );
 
   it('lists Microsoft OneNote pages for user by id', async () => {
-    sinon.stub(odata, 'getAllItems').callsFake(async (url: string) => {
+    jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url: string) => {
       if (url === `https://graph.microsoft.com/v1.0/users/${userId}/onenote/pages`) {
         return pageResponse.value;
       }
@@ -185,7 +186,7 @@ describe(commands.PAGE_LIST, () => {
   });
 
   it('lists Microsoft OneNote pages for user by name', async () => {
-    sinon.stub(odata, 'getAllItems').callsFake(async (url: string) => {
+    jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url: string) => {
       if (url === `https://graph.microsoft.com/v1.0/users/${userName}/onenote/pages`) {
         return pageResponse.value;
       }
@@ -197,7 +198,7 @@ describe(commands.PAGE_LIST, () => {
   });
 
   it('lists Microsoft OneNote pages in group by id', async () => {
-    sinon.stub(odata, 'getAllItems').callsFake(async (url: string) => {
+    jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url: string) => {
       if (url === `https://graph.microsoft.com/v1.0/groups/${groupId}/onenote/pages`) {
         return pageResponse.value;
       }
@@ -209,7 +210,7 @@ describe(commands.PAGE_LIST, () => {
   });
 
   it('lists Microsoft OneNote pages in group by name', async () => {
-    sinon.stub(odata, 'getAllItems').callsFake(async (url: string) => {
+    jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url: string) => {
       if (url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(groupName)}'`) {
         return [{
           "id": groupId,
@@ -228,14 +229,14 @@ describe(commands.PAGE_LIST, () => {
   });
 
   it('lists Microsoft OneNote pages for site', async () => {
-    sinon.stub(odata, 'getAllItems').callsFake(async (url: string) => {
+    jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url: string) => {
       if (url === `https://graph.microsoft.com/v1.0/sites/${siteId}/onenote/pages`) {
         return pageResponse.value;
       }
       throw 'Invalid request';
     });
 
-    sinon.stub(request, 'get').callsFake(async (opts: any) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts: any) => {
       const url = new URL(webUrl);
       if (opts.url === `https://graph.microsoft.com/v1.0/sites/${url.hostname}:${url.pathname}?$select=id`) {
         return { id: siteId };
@@ -247,31 +248,33 @@ describe(commands.PAGE_LIST, () => {
     assert(loggerLogSpy.calledWith(pageResponse.value));
   });
 
-  it('throws error when retrieving Microsoft OneNote notebooks for site and no site with specified url is found', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      const url = new URL(webUrl);
-      if (opts.url === `https://graph.microsoft.com/v1.0/sites/${url.hostname}:${url.pathname}?$select=id`) {
-        throw {
-          "error": {
-            "code": "itemNotFound",
-            "message": "Requested site could not be found",
-            "innerError": {
-              "date": "2023-01-07T11:55:48",
-              "request-id": "18925839-f7e6-4827-bcb2-935a7836e734",
-              "client-request-id": "18925839-f7e6-4827-bcb2-935a7836e734"
+  it('throws error when retrieving Microsoft OneNote notebooks for site and no site with specified url is found',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        const url = new URL(webUrl);
+        if (opts.url === `https://graph.microsoft.com/v1.0/sites/${url.hostname}:${url.pathname}?$select=id`) {
+          throw {
+            "error": {
+              "code": "itemNotFound",
+              "message": "Requested site could not be found",
+              "innerError": {
+                "date": "2023-01-07T11:55:48",
+                "request-id": "18925839-f7e6-4827-bcb2-935a7836e734",
+                "client-request-id": "18925839-f7e6-4827-bcb2-935a7836e734"
+              }
             }
-          }
-        };
-      }
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, { options: { webUrl: webUrl } } as any), new CommandError('Requested site could not be found'));
-  });
+      await assert.rejects(command.action(logger, { options: { webUrl: webUrl } } as any), new CommandError('Requested site could not be found'));
+    }
+  );
 
   it('throws error if group by displayName returns no results', async () => {
-    sinon.stub(odata, 'getAllItems').callsFake(async (url: string) => {
+    jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url: string) => {
       if (url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(groupName)}'`) {
         return [];
       }
@@ -281,31 +284,33 @@ describe(commands.PAGE_LIST, () => {
     await assert.rejects(command.action(logger, { options: { groupName: groupName } } as any), new CommandError(`The specified group '${groupName}' does not exist.`));
   });
 
-  it('throws an error if group by displayName returns multiple results', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('throws an error if group by displayName returns multiple results',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const duplicateGroupId = '9f3c2c36-1682-4922-9ae1-f57d2caf0de1';
-    sinon.stub(odata, 'getAllItems').callsFake(async (url: string) => {
-      if (url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(groupName)}'`) {
-        return [{
-          "id": groupId,
-          "description": groupName,
-          "displayName": groupName
-        }, {
-          "id": duplicateGroupId,
-          "description": groupName,
-          "displayName": groupName
-        }];
-      }
-      throw 'Invalid request';
-    });
+      const duplicateGroupId = '9f3c2c36-1682-4922-9ae1-f57d2caf0de1';
+      jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url: string) => {
+        if (url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(groupName)}'`) {
+          return [{
+            "id": groupId,
+            "description": groupName,
+            "displayName": groupName
+          }, {
+            "id": duplicateGroupId,
+            "description": groupName,
+            "displayName": groupName
+          }];
+        }
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, { options: { groupName: groupName } } as any), new CommandError("Multiple groups with name 'Dummy Group A' found. Found: bba4c915-0ac8-47a1-bd05-087a44c92d3b, 9f3c2c36-1682-4922-9ae1-f57d2caf0de1."));
-  });
+      await assert.rejects(command.action(logger, { options: { groupName: groupName } } as any), new CommandError("Multiple groups with name 'Dummy Group A' found. Found: bba4c915-0ac8-47a1-bd05-087a44c92d3b, 9f3c2c36-1682-4922-9ae1-f57d2caf0de1."));
+    }
+  );
 });

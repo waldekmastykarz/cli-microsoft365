@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -12,7 +11,7 @@ import { aadUser } from '../../../../utils/aadUser.js';
 import { accessToken } from '../../../../utils/accessToken.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './app-permission-remove.js';
 
@@ -57,12 +56,12 @@ describe(commands.APP_PERMISSION_REMOVE, () => {
   };
   const tenantId = '174290ec-373f-4d4c-89ea-9801dad0acd9';
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.accessTokens[auth.defaultResource] = {
       expiresOn: '123',
@@ -85,17 +84,17 @@ describe(commands.APP_PERMISSION_REMOVE, () => {
       }
     };
 
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
 
-    sinon.stub(accessToken, 'getTenantIdFromAccessToken').returns(tenantId);
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((_, defaultValue) => defaultValue);
+    jest.spyOn(accessToken, 'getTenantIdFromAccessToken').mockClear().mockReturnValue(tenantId);
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((_, defaultValue) => defaultValue);
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       cli.getSettingWithDefaultValue,
       Cli.prompt,
@@ -105,8 +104,8 @@ describe(commands.APP_PERMISSION_REMOVE, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.accessTokens = {};
   });
@@ -159,41 +158,47 @@ describe(commands.APP_PERMISSION_REMOVE, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('fails validation if asAdmin is used without environmentName', async () => {
-    const actual = await command.validate({ options: { appName: validAppName, asAdmin: true, userId: validUserId, force: true } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if asAdmin is used without environmentName',
+    async () => {
+      const actual = await command.validate({ options: { appName: validAppName, asAdmin: true, userId: validUserId, force: true } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if environmentName is used without asAdmin', async () => {
-    const actual = await command.validate({ options: { appName: validAppName, environmentName: validEnvironmentName, userId: validUserId, force: true } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if environmentName is used without asAdmin',
+    async () => {
+      const actual = await command.validate({ options: { appName: validAppName, environmentName: validEnvironmentName, userId: validUserId, force: true } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation if environmentName is used with asAdmin', async () => {
     const actual = await command.validate({ options: { appName: validAppName, environmentName: validEnvironmentName, userId: validUserId, asAdmin: true, force: true } }, commandInfo);
     assert.strictEqual(actual, true);
   });
 
-  it('prompts before removing the specified Microsoft Power App permission when force option not passed', async () => {
-    sinon.stub(request, 'post').resolves();
+  it('prompts before removing the specified Microsoft Power App permission when force option not passed',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation().resolves();
 
-    await command.action(logger, {
-      options: {
-        appName: validAppName,
-        userId: validUserId
+      await command.action(logger, {
+        options: {
+          appName: validAppName,
+          userId: validUserId
+        }
+      });
+      let promptIssued = false;
+
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
       }
-    });
-    let promptIssued = false;
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      assert(promptIssued);
     }
-
-    assert(promptIssued);
-  });
+  );
 
   it('removes permissions for a Power App by using user ID', async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://api.powerapps.com/providers/Microsoft.PowerApps/apps/${validAppName}/modifyPermissions?api-version=2022-11-01`) {
         return appPermissionRemoveResponse;
       }
@@ -206,31 +211,33 @@ describe(commands.APP_PERMISSION_REMOVE, () => {
     };
 
     await command.action(logger, { options: { verbose: true, appName: validAppName, userId: validUserId, force: true } });
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, requestBody);
+    assert.deepStrictEqual(postStub.mock.lastCall[0].data, requestBody);
   });
 
-  it('removes the permissions for the Power App for everyone and asks for confirmation', async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://api.powerapps.com/providers/Microsoft.PowerApps/apps/${validAppName}/modifyPermissions?api-version=2022-11-01`) {
-        return appPermissionRemoveResponse;
-      }
+  it('removes the permissions for the Power App for everyone and asks for confirmation',
+    async () => {
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://api.powerapps.com/providers/Microsoft.PowerApps/apps/${validAppName}/modifyPermissions?api-version=2022-11-01`) {
+          return appPermissionRemoveResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    const requestBody = {
-      delete: [{ id: `tenant-${tenantId}` }]
-    };
+      const requestBody = {
+        delete: [{ id: `tenant-${tenantId}` }]
+      };
 
-    await command.action(logger, { options: { appName: validAppName, tenant: true } });
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, requestBody);
-  });
+      await command.action(logger, { options: { appName: validAppName, tenant: true } });
+      assert.deepStrictEqual(postStub.mock.lastCall[0].data, requestBody);
+    }
+  );
 
   it('removes permissions for a Power App by using group ID', async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://api.powerapps.com/providers/Microsoft.PowerApps/apps/${validAppName}/modifyPermissions?api-version=2022-11-01`) {
         return appPermissionRemoveResponse;
       }
@@ -243,11 +250,11 @@ describe(commands.APP_PERMISSION_REMOVE, () => {
     };
 
     await command.action(logger, { options: { verbose: true, appName: validAppName, groupId: validGroupId, force: true } });
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, requestBody);
+    assert.deepStrictEqual(postStub.mock.lastCall[0].data, requestBody);
   });
 
   it('removes permissions for a Power App for everyone', async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://api.powerapps.com/providers/Microsoft.PowerApps/apps/${validAppName}/modifyPermissions?api-version=2022-11-01`) {
         return appPermissionRemoveResponse;
       }
@@ -260,13 +267,13 @@ describe(commands.APP_PERMISSION_REMOVE, () => {
     };
 
     await command.action(logger, { options: { verbose: true, appName: validAppName, tenant: true, force: true } });
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, requestBody);
+    assert.deepStrictEqual(postStub.mock.lastCall[0].data, requestBody);
   });
 
   it('removes permissions for a Power App by using UPN', async () => {
-    sinon.stub(aadUser, 'getUserIdByUpn').resolves(validUserId);
+    jest.spyOn(aadUser, 'getUserIdByUpn').mockClear().mockImplementation().resolves(validUserId);
 
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://api.powerapps.com/providers/Microsoft.PowerApps/apps/${validAppName}/modifyPermissions?api-version=2022-11-01`) {
         return appPermissionRemoveResponse;
       }
@@ -279,13 +286,13 @@ describe(commands.APP_PERMISSION_REMOVE, () => {
     };
 
     await command.action(logger, { options: { verbose: true, appName: validAppName, userName: validUserName, force: true } });
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, requestBody);
+    assert.deepStrictEqual(postStub.mock.lastCall[0].data, requestBody);
   });
 
   it('removes permissions for a Power App by using group name', async () => {
-    sinon.stub(aadGroup, 'getGroupByDisplayName').resolves(groupResponse);
+    jest.spyOn(aadGroup, 'getGroupByDisplayName').mockClear().mockImplementation().resolves(groupResponse);
 
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://api.powerapps.com/providers/Microsoft.PowerApps/apps/${validAppName}/modifyPermissions?api-version=2022-11-01`) {
         return appPermissionRemoveResponse;
       }
@@ -298,29 +305,31 @@ describe(commands.APP_PERMISSION_REMOVE, () => {
     };
 
     await command.action(logger, { options: { verbose: true, appName: validAppName, groupName: validGroupName, force: true } });
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, requestBody);
+    assert.deepStrictEqual(postStub.mock.lastCall[0].data, requestBody);
   });
 
-  it('removes permissions for a Power App by using user ID and running as admin', async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://api.powerapps.com/providers/Microsoft.PowerApps/scopes/admin/environments/${validEnvironmentName}/apps/${validAppName}/modifyPermissions?api-version=2022-11-01`) {
-        return appPermissionRemoveResponse;
-      }
+  it('removes permissions for a Power App by using user ID and running as admin',
+    async () => {
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://api.powerapps.com/providers/Microsoft.PowerApps/scopes/admin/environments/${validEnvironmentName}/apps/${validAppName}/modifyPermissions?api-version=2022-11-01`) {
+          return appPermissionRemoveResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    const requestBody = {
-      delete: [{ id: validUserId }]
-    };
+      const requestBody = {
+        delete: [{ id: validUserId }]
+      };
 
-    await command.action(logger, { options: { appName: validAppName, userId: validUserId, environmentName: validEnvironmentName, asAdmin: true, force: true } });
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, requestBody);
-  });
+      await command.action(logger, { options: { appName: validAppName, userId: validUserId, environmentName: validEnvironmentName, asAdmin: true, force: true } });
+      assert.deepStrictEqual(postStub.mock.lastCall[0].data, requestBody);
+    }
+  );
 
   it('correctly handles API OData error', async () => {
     const errorMessage = `The specified user with user id ${validUserId} does not exist`;
-    sinon.stub(request, 'post').rejects({
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects({
       error: {
         error: {
           message: errorMessage

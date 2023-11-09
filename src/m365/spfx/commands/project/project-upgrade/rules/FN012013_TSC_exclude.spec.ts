@@ -12,19 +12,21 @@ describe('FN012013_TSC_exclude', () => {
     rule = new FN012013_TSC_exclude(['node_modules', 'lib']);
   });
 
-  it('doesn\'t return notification if exclude has the exact same elements', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      tsConfigJson: {
-        exclude: [
-          'node_modules',
-          'lib'
-        ]
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it('doesn\'t return notification if exclude has the exact same elements',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        tsConfigJson: {
+          exclude: [
+            'node_modules',
+            'lib'
+          ]
+        }
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
   it('returns notification if exclude misses elements', () => {
     const project: Project = {
@@ -41,34 +43,38 @@ describe('FN012013_TSC_exclude', () => {
     assert.strictEqual(findings[0].occurrences[0].position?.line, 2, 'Incorrect line number');
   });
 
-  it('doesn\'t return notification if exclude has the exact same elements in different order', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      tsConfigJson: {
-        exclude: [
-          'lib',
-          'node_modules'
-        ]
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it('doesn\'t return notification if exclude has the exact same elements in different order',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        tsConfigJson: {
+          exclude: [
+            'lib',
+            'node_modules'
+          ]
+        }
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
-  it('doesn\'t return notification if exclude has all required elements', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      tsConfigJson: {
-        exclude: [
-          'node_modules',
-          'tmp',
-          'lib'
-        ]
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it('doesn\'t return notification if exclude has all required elements',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        tsConfigJson: {
+          exclude: [
+            'node_modules',
+            'tmp',
+            'lib'
+          ]
+        }
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
   it('doesn\'t return notification if object is missing', () => {
     const project: Project = {

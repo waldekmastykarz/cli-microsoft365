@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import spoListItemListCommand from '../listitem/listitem-list.js';
 import command from './hubsite-get.js';
@@ -30,15 +29,15 @@ describe(commands.HUBSITE_GET, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.spoUrl = 'https://contoso.sharepoint.com';
     commandInfo = Cli.getCommandInfo(command);
@@ -57,11 +56,11 @@ describe(commands.HUBSITE_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       Cli.executeCommandWithOutput,
       cli.getSettingWithDefaultValue,
@@ -69,8 +68,8 @@ describe(commands.HUBSITE_GET, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -84,7 +83,7 @@ describe(commands.HUBSITE_GET, () => {
   });
 
   it('gets information about the specified hub site', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/hubsites/getbyid('${validId}')`) > -1) {
         return hubsiteResponse;
       }
@@ -97,7 +96,7 @@ describe(commands.HUBSITE_GET, () => {
   });
 
   it('gets information about the specified hub site (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/hubsites/getbyid('${validId}')`) > -1) {
         return hubsiteResponse;
       }
@@ -110,7 +109,7 @@ describe(commands.HUBSITE_GET, () => {
   });
 
   it('gets information about the specified hub site by title', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/hubsites`) > -1) {
         return { value: [hubsiteResponse] };
       }
@@ -123,7 +122,7 @@ describe(commands.HUBSITE_GET, () => {
   });
 
   it('gets information about the specified hub site by url', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/hubsites`) > -1) {
         return { value: [hubsiteResponse] };
       }
@@ -136,7 +135,7 @@ describe(commands.HUBSITE_GET, () => {
   });
 
   it('fails when multiple hubsites found with same title', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -144,7 +143,7 @@ describe(commands.HUBSITE_GET, () => {
       return defaultValue;
     });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/hubsites`) > -1) {
         return { value: [hubsiteResponse, hubsiteResponse] };
       }
@@ -157,7 +156,7 @@ describe(commands.HUBSITE_GET, () => {
   });
 
   it('fails when no hubsites found with title', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/hubsites`) > -1) {
         return { value: [] };
       }
@@ -170,7 +169,7 @@ describe(commands.HUBSITE_GET, () => {
   });
 
   it('fails when multiple hubsites found with same url', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -178,7 +177,7 @@ describe(commands.HUBSITE_GET, () => {
       return defaultValue;
     });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/hubsites`) > -1) {
         return { value: [hubsiteResponse, hubsiteResponse] };
       }
@@ -190,23 +189,25 @@ describe(commands.HUBSITE_GET, () => {
       new CommandError("Multiple hub sites with https://contoso.sharepoint.com found. Found: 9ff01368-1183-4cbb-82f2-92e7e9a3f4ce."));
   });
 
-  it('handles selecting single result when multiple hubsites with the specified name found and cli is set to prompt', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/hubsites`) > -1) {
-        return { value: [hubsiteResponse, hubsiteResponse] };
-      }
+  it('handles selecting single result when multiple hubsites with the specified name found and cli is set to prompt',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/hubsites`) > -1) {
+          return { value: [hubsiteResponse, hubsiteResponse] };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves(hubsiteResponse);
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves(hubsiteResponse);
 
-    await command.action(logger, { options: { title: validTitle } });
-    assert(loggerLogSpy.calledWith(hubsiteResponse));
-  });
+      await command.action(logger, { options: { title: validTitle } });
+      assert(loggerLogSpy.calledWith(hubsiteResponse));
+    }
+  );
 
   it('fails when no hubsites found with url', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/hubsites`) > -1) {
         return { value: [] };
       }
@@ -218,30 +219,32 @@ describe(commands.HUBSITE_GET, () => {
       new CommandError(`The specified hub site ${validUrl} does not exist`));
   });
 
-  it('display error message when includeAssociatedSites option is used with other than json output.', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/hubsites/getbyid('ee8b42c3-3e6f-4822-87c1-c21ad666046b')`) > -1) {
-        return {
-          "Description": null,
-          "ID": "ee8b42c3-3e6f-4822-87c1-c21ad666046b",
-          "LogoUrl": "http://contoso.com/__siteIcon__.jpg",
-          "SiteId": "ee8b42c3-3e6f-4822-87c1-c21ad666046b",
-          "SiteUrl": "https://contoso.sharepoint.com/sites/Sales",
-          "Targets": null,
-          "TenantInstanceId": "00000000-0000-0000-0000-000000000000",
-          "Title": "Sales"
-        };
-      }
+  it('display error message when includeAssociatedSites option is used with other than json output.',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/hubsites/getbyid('ee8b42c3-3e6f-4822-87c1-c21ad666046b')`) > -1) {
+          return {
+            "Description": null,
+            "ID": "ee8b42c3-3e6f-4822-87c1-c21ad666046b",
+            "LogoUrl": "http://contoso.com/__siteIcon__.jpg",
+            "SiteId": "ee8b42c3-3e6f-4822-87c1-c21ad666046b",
+            "SiteUrl": "https://contoso.sharepoint.com/sites/Sales",
+            "Targets": null,
+            "TenantInstanceId": "00000000-0000-0000-0000-000000000000",
+            "Title": "Sales"
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, { options: { id: 'ee8b42c3-3e6f-4822-87c1-c21ad666046b', includeAssociatedSites: true, output: 'text' } }),
-      new CommandError(`includeAssociatedSites option is only allowed with json output mode`));
-  });
+      await assert.rejects(command.action(logger, { options: { id: 'ee8b42c3-3e6f-4822-87c1-c21ad666046b', includeAssociatedSites: true, output: 'text' } }),
+        new CommandError(`includeAssociatedSites option is only allowed with json output mode`));
+    }
+  );
 
   it('retrieves the associated sites of the specified hub site', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/hubsites/getbyid('ee8b42c3-3e6f-4822-87c1-c21ad666046b')`) > -1) {
         return {
           "Description": null,
@@ -258,7 +261,7 @@ describe(commands.HUBSITE_GET, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command): Promise<any> => {
+    jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command): Promise<any> => {
       if (command === spoListItemListCommand) {
         return {
           stdout: JSON.stringify([
@@ -320,7 +323,7 @@ describe(commands.HUBSITE_GET, () => {
   });
 
   it('correctly handles error when hub site not found', async () => {
-    sinon.stub(request, 'get').rejects({
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects({
       error: {
         "odata.error": {
           "code": "-1, Microsoft.SharePoint.Client.ResourceNotFoundException",

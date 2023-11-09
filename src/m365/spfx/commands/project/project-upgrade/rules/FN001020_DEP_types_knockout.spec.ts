@@ -12,21 +12,23 @@ describe('FN001020_DEP_types_knockout', () => {
     rule = new FN001020_DEP_types_knockout('3.4.39');
   });
 
-  it('returns notification if types definitions are missing in knockout project', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      packageJson: {
-        dependencies: {
-          '@types/react': '15.6.5'
+  it('returns notification if types definitions are missing in knockout project',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        packageJson: {
+          dependencies: {
+            '@types/react': '15.6.5'
+          }
+        },
+        yoRcJson: {
+          "@microsoft/generator-sharepoint": {
+            framework: 'knockout'
+          }
         }
-      },
-      yoRcJson: {
-        "@microsoft/generator-sharepoint": {
-          framework: 'knockout'
-        }
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 1);
-  });
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 1);
+    }
+  );
 });

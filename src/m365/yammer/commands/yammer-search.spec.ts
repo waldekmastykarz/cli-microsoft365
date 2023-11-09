@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../Auth.js';
 import { Cli } from '../../../cli/Cli.js';
 import { CommandInfo } from '../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../request.js';
 import { telemetry } from '../../../telemetry.js';
 import { pid } from '../../../utils/pid.js';
 import { session } from '../../../utils/session.js';
-import { sinonUtil } from '../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../utils/jestUtil.js';
 import commands from '../commands.js';
 import command from './yammer-search.js';
 import { settingsNames } from '../../../settingsNames.js';
@@ -18,7 +17,7 @@ describe(commands.SEARCH, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
   const messageTrimming: any = {
@@ -202,12 +201,12 @@ describe(commands.SEARCH, () => {
     "users": []
   };
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -225,19 +224,19 @@ describe(commands.SEARCH, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -250,7 +249,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('correctly handles error', async () => {
-    sinon.stub(request, 'get').rejects({
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects({
       "error": {
         "base": "An error has occurred."
       }
@@ -260,7 +259,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('does not pass validation without parameters', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -316,7 +315,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('returns all items', async () => {
-    sinon.stub(request, 'get').callsFake((opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/search.json?search=contents&page=1') {
         return searchResults;
       }
@@ -325,7 +324,7 @@ describe(commands.SEARCH, () => {
 
     await command.action(logger, { options: { queryText: "contents", output: 'text' } } as any);
 
-    const result = loggerLogSpy.lastCall.args[0];
+    const result = loggerLogSpy.mock.lastCall[0];
     assert.strictEqual(result.length, 15);
     assert.strictEqual(result[0].id, 11111);
     assert.strictEqual(result[1].id, 11112);
@@ -345,7 +344,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('returns long search result', async () => {
-    sinon.stub(request, 'get').callsFake((opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/search.json?search=contents&page=1') {
         return longSearchResult;
       }
@@ -357,12 +356,12 @@ describe(commands.SEARCH, () => {
 
     await command.action(logger, { options: { queryText: "contents", show: "messages", output: 'text' } } as any);
 
-    const result = loggerLogSpy.lastCall.args[0];
+    const result = loggerLogSpy.mock.lastCall[0];
     assert.strictEqual(result.length, 24);
   });
 
   it('returns the summary', async () => {
-    sinon.stub(request, 'get').callsFake((opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/search.json?search=contents&page=1') {
         return searchResults;
       }
@@ -371,14 +370,14 @@ describe(commands.SEARCH, () => {
 
     await command.action(logger, { options: { queryText: "contents", show: "summary", output: 'text' } } as any);
 
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].messages, 4);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].groups, 2);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].topics, 5);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].users, 4);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].messages, 4);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].groups, 2);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].topics, 5);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].users, 4);
   });
 
   it('trims the output message', async () => {
-    sinon.stub(request, 'get').callsFake((opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/search.json?search=contents&page=1') {
         return messageTrimming;
       }
@@ -387,7 +386,7 @@ describe(commands.SEARCH, () => {
 
     await command.action(logger, { options: { queryText: "contents", output: 'text' } } as any);
 
-    const result = loggerLogSpy.lastCall.args[0];
+    const result = loggerLogSpy.mock.lastCall[0];
     assert.strictEqual(result.length, 4);
     assert.strictEqual(result[0].id, 11111);
     assert.strictEqual(result[0].description.length, 83);
@@ -399,7 +398,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('trims the output message with message filter', async () => {
-    sinon.stub(request, 'get').callsFake((opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/search.json?search=contents&page=1') {
         return messageTrimming;
       }
@@ -408,7 +407,7 @@ describe(commands.SEARCH, () => {
 
     await command.action(logger, { options: { queryText: "contents", show: "messages", output: 'text' } } as any);
 
-    const result = loggerLogSpy.lastCall.args[0];
+    const result = loggerLogSpy.mock.lastCall[0];
     assert.strictEqual(result.length, 4);
     assert.strictEqual(result[0].id, 11111);
     assert.strictEqual(result[0].description.length, 83);
@@ -420,7 +419,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('returns message output', async () => {
-    sinon.stub(request, 'get').callsFake((opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/search.json?search=contents&page=1') {
         return searchResults;
       }
@@ -429,7 +428,7 @@ describe(commands.SEARCH, () => {
 
     await command.action(logger, { options: { queryText: "contents", show: "messages", output: 'text' } } as any);
 
-    const result = loggerLogSpy.lastCall.args[0];
+    const result = loggerLogSpy.mock.lastCall[0];
     assert.strictEqual(result.length, 4);
     assert.strictEqual(result[0].id, 11111);
     assert.strictEqual(result[1].id, 11112);
@@ -438,7 +437,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('returns topic output', async () => {
-    sinon.stub(request, 'get').callsFake((opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/search.json?search=contents&page=1') {
         return searchResults;
       }
@@ -447,7 +446,7 @@ describe(commands.SEARCH, () => {
 
     await command.action(logger, { options: { queryText: "contents", show: "topics", output: 'text' } } as any);
 
-    const result = loggerLogSpy.lastCall.args[0];
+    const result = loggerLogSpy.mock.lastCall[0];
     assert.strictEqual(result.length, 5);
     assert.strictEqual(result[0].id, 3331);
     assert.strictEqual(result[1].id, 3332);
@@ -457,7 +456,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('returns groups output', async () => {
-    sinon.stub(request, 'get').callsFake((opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/search.json?search=contents&page=1') {
         return searchResults;
       }
@@ -466,14 +465,14 @@ describe(commands.SEARCH, () => {
 
     await command.action(logger, { options: { queryText: "contents", show: "groups", output: 'text' } } as any);
 
-    const result = loggerLogSpy.lastCall.args[0];
+    const result = loggerLogSpy.mock.lastCall[0];
     assert.strictEqual(result.length, 2);
     assert.strictEqual(result[0].id, 2221);
     assert.strictEqual(result[1].id, 2222);
   });
 
   it('returns users output', async () => {
-    sinon.stub(request, 'get').callsFake((opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/search.json?search=contents&page=1') {
         return searchResults;
       }
@@ -482,7 +481,7 @@ describe(commands.SEARCH, () => {
 
     await command.action(logger, { options: { queryText: "contents", show: "users", output: 'text' } } as any);
 
-    const result = loggerLogSpy.lastCall.args[0];
+    const result = loggerLogSpy.mock.lastCall[0];
     assert.strictEqual(result.length, 4);
     assert.strictEqual(result[0].id, 4441);
     assert.strictEqual(result[1].id, 4442);
@@ -491,7 +490,7 @@ describe(commands.SEARCH, () => {
   });
 
   it('returns limited results', async () => {
-    sinon.stub(request, 'get').callsFake((opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/search.json?search=contents&page=1') {
         return searchResults;
       }
@@ -500,18 +499,18 @@ describe(commands.SEARCH, () => {
 
     await command.action(logger, { options: { queryText: "contents", limit: 1, output: "json" } } as any);
 
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].summary.messages, 4, "summary returns 4 messages");
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].summary.groups, 2, "summary returns 2 groups");
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].summary.topics, 5, "summary return two topics");
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].summary.users, 4, "summary returns 4 users");
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].messages.length, 1, "message array returns 1 message");
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].groups.length, 1, "groups array returns 1 group");
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].topics.length, 1, "topics array returns 1 topic");
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].users.length, 1, "users array returns 1 user");
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].summary.messages, 4, "summary returns 4 messages");
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].summary.groups, 2, "summary returns 2 groups");
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].summary.topics, 5, "summary return two topics");
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].summary.users, 4, "summary returns 4 users");
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].messages.length, 1, "message array returns 1 message");
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].groups.length, 1, "groups array returns 1 group");
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].topics.length, 1, "topics array returns 1 topic");
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].users.length, 1, "users array returns 1 user");
   });
 
   it('returns all results', async () => {
-    sinon.stub(request, 'get').callsFake((opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/search.json?search=contents&page=1') {
         return searchResults;
       }
@@ -523,18 +522,18 @@ describe(commands.SEARCH, () => {
 
     await command.action(logger, { options: { queryText: "contents", output: "json" } } as any);
 
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].summary.messages, 4, "summary returns 4 messages");
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].summary.groups, 2, "summary returns 2 groups");
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].summary.topics, 5, "summary return two topics");
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].summary.users, 4, "summary returns 4 users");
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].messages.length, 4, "message array returns 4 entries");
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].groups.length, 2, "groups array returns 2 groups");
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].topics.length, 5, "topics array returns 2 topics");
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].users.length, 4, "users array returns 4 users");
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].summary.messages, 4, "summary returns 4 messages");
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].summary.groups, 2, "summary returns 2 groups");
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].summary.topics, 5, "summary return two topics");
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].summary.users, 4, "summary returns 4 users");
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].messages.length, 4, "message array returns 4 entries");
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].groups.length, 2, "groups array returns 2 groups");
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].topics.length, 5, "topics array returns 2 topics");
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].users.length, 4, "users array returns 4 users");
   });
 
   it('handles error in loop', async () => {
-    sinon.stub(request, 'get').callsFake((opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/search.json?search=contents&page=1') {
         return longSearchResult;
       }

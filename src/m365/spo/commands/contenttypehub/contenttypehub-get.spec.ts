@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Logger } from '../../../../cli/Logger.js';
 import { CommandError } from '../../../../Command.js';
@@ -8,7 +7,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 
@@ -17,14 +16,14 @@ import command from './contenttypehub-get.js';
 describe(commands.CONTENTTYPEHUB_GET, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'abc',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -48,17 +47,17 @@ describe(commands.CONTENTTYPEHUB_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -72,7 +71,7 @@ describe(commands.CONTENTTYPEHUB_GET, () => {
   });
 
   it('should send correct request body', async () => {
-    const requestStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const requestStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       // fake contenttype hub url retrieval
       if (opts.data.indexOf('981cbc68-9edc-4f8d-872f-71146fcbb84f') > -1) {
         return JSON.stringify([{
@@ -96,12 +95,12 @@ describe(commands.CONTENTTYPEHUB_GET, () => {
 
     await command.action(logger, { options: options } as any);
     const bodyPayload = `<Request xmlns=\"http://schemas.microsoft.com/sharepoint/clientquery/2009\" AddExpandoFieldTypeSuffix=\"true\" SchemaVersion=\"15.0.0.0\" LibraryVersion=\"16.0.0.0\" ApplicationName=\"${config.applicationName}\">\n<Actions>\n  <ObjectPath Id=\"2\" ObjectPathId=\"1\" />\n  <ObjectIdentityQuery Id=\"3\" ObjectPathId=\"1\" />\n  <ObjectPath Id=\"5\" ObjectPathId=\"4\" />\n  <ObjectIdentityQuery Id=\"6\" ObjectPathId=\"4\" />\n  <Query Id=\"7\" ObjectPathId=\"4\">\n    <Query SelectAllProperties=\"false\">\n      <Properties>\n        <Property Name=\"ContentTypePublishingHub\" ScalarProperty=\"true\" />\n      </Properties>\n    </Query>\n  </Query>\n</Actions>\n<ObjectPaths>\n  <StaticMethod Id=\"1\" Name=\"GetTaxonomySession\" TypeId=\"{981cbc68-9edc-4f8d-872f-71146fcbb84f}\" />\n  <Method Id=\"4\" ParentId=\"1\" Name=\"GetDefaultSiteCollectionTermStore\" />\n</ObjectPaths>\n</Request>`;
-    assert.strictEqual(requestStub.lastCall.args[0].data, bodyPayload);
+    assert.strictEqual(requestStub.mock.lastCall[0].data, bodyPayload);
     assert(loggerLogSpy.calledWith({ "ContentTypePublishingHub": "https:\\u002f\\u002fcontoso.sharepoint.com\\u002fsites\\u002fcontentTypeHub" }));
   });
 
   it('should correctly handle reject promise', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.data.indexOf('981cbc68-9edc-4f8d-872f-71146fcbb84f') > -1) {
         throw 'request error';
       }
@@ -118,7 +117,7 @@ describe(commands.CONTENTTYPEHUB_GET, () => {
   it('should correctly handle ErrorInfo', async () => {
     const error = JSON.stringify([{ "ErrorInfo": { "ErrorMessage": "ClientSvc error" } }]);
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.data.indexOf('981cbc68-9edc-4f8d-872f-71146fcbb84f') > -1) {
         return error;
       }

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './channel-set.js';
 
@@ -26,11 +25,11 @@ describe(commands.CHANNEL_SET, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -52,14 +51,14 @@ describe(commands.CHANNEL_SET, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.patch
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -121,7 +120,7 @@ describe(commands.CHANNEL_SET, () => {
 
   it('fails to patch channel when channel does not exists', async () => {
     const errorMessage = 'The specified channel does not exist in this Microsoft Teams team';
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/teams/${formatting.encodeQueryParameter(teamId)}/channels?$filter=displayName eq '${formatting.encodeQueryParameter(name)}'`) {
         return { value: [] };
       }
@@ -141,7 +140,7 @@ describe(commands.CHANNEL_SET, () => {
   });
 
   it('correctly patches channel updates by teamId and name', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/teams/${formatting.encodeQueryParameter(teamId)}/channels?$filter=displayName eq '${formatting.encodeQueryParameter(name)}'`) {
         return {
           value:
@@ -157,7 +156,7 @@ describe(commands.CHANNEL_SET, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if ((opts.url === `https://graph.microsoft.com/v1.0/teams/${formatting.encodeQueryParameter(teamId)}/channels/${formatting.encodeQueryParameter(id)}`) &&
         JSON.stringify(opts.data) === JSON.stringify({ displayName: newName, description: description })
       ) {
@@ -178,7 +177,7 @@ describe(commands.CHANNEL_SET, () => {
   });
 
   it('correctly patches channel updates by teamName and id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(teamName)}'`) {
         return {
           value: [
@@ -194,7 +193,7 @@ describe(commands.CHANNEL_SET, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if ((opts.url === `https://graph.microsoft.com/v1.0/teams/${formatting.encodeQueryParameter(teamId)}/channels/${formatting.encodeQueryParameter(id)}`) &&
         JSON.stringify(opts.data) === JSON.stringify({ displayName: newName, description: description })
       ) {
@@ -216,7 +215,7 @@ describe(commands.CHANNEL_SET, () => {
 
   it('fails when team name does not exist', async () => {
     const errorMessage = 'The specified team does not exist';
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(teamName)}'`) {
         return {
           "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#teams",

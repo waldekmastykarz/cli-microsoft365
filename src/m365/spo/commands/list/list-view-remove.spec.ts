@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { urlUtil } from '../../../../utils/urlUtil.js';
 import commands from '../../commands.js';
 import command from './list-view-remove.js';
@@ -28,11 +27,11 @@ describe(commands.LIST_VIEW_REMOVE, () => {
   let commandInfo: CommandInfo;
   let promptOptions: any;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -50,21 +49,21 @@ describe(commands.LIST_VIEW_REMOVE, () => {
         log.push(msg);
       }
     };
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -76,10 +75,12 @@ describe(commands.LIST_VIEW_REMOVE, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', id: viewId, listId: listId } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', id: viewId, listId: listId } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the listId option is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: webUrl, listId: '12345', id: viewId } }, commandInfo);
@@ -96,62 +97,68 @@ describe(commands.LIST_VIEW_REMOVE, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('prompts before removing the specified view from list by id and listTitle when confirm option not passed', async () => {
-    await command.action(logger, {
-      options: {
-        webUrl: webUrl,
-        listTitle: listTitle,
-        id: viewId
+  it('prompts before removing the specified view from list by id and listTitle when confirm option not passed',
+    async () => {
+      await command.action(logger, {
+        options: {
+          webUrl: webUrl,
+          listTitle: listTitle,
+          id: viewId
+        }
+      });
+
+      let promptIssued = false;
+
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
       }
-    });
 
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      assert(promptIssued);
     }
+  );
 
-    assert(promptIssued);
-  });
+  it('prompts before removing the specified view from list by title and listId when confirm option not passed',
+    async () => {
+      await command.action(logger, {
+        options: {
+          webUrl: webUrl,
+          listId: listId,
+          title: listTitle
+        }
+      });
 
-  it('prompts before removing the specified view from list by title and listId when confirm option not passed', async () => {
-    await command.action(logger, {
-      options: {
-        webUrl: webUrl,
-        listId: listId,
-        title: listTitle
+      let promptIssued = false;
+
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
       }
-    });
 
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      assert(promptIssued);
     }
+  );
 
-    assert(promptIssued);
-  });
+  it('prompts before removing the specified view from list by title and listUrl when confirm option not passed',
+    async () => {
+      await command.action(logger, {
+        options: {
+          webUrl: webUrl,
+          listUrl: listUrl,
+          title: listTitle
+        }
+      });
 
-  it('prompts before removing the specified view from list by title and listUrl when confirm option not passed', async () => {
-    await command.action(logger, {
-      options: {
-        webUrl: webUrl,
-        listUrl: listUrl,
-        title: listTitle
+      let promptIssued = false;
+
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
       }
-    });
 
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      assert(promptIssued);
     }
-
-    assert(promptIssued);
-  });
+  );
 
   it('aborts removing view from list when prompt not confirmed', async () => {
-    const postSpy = sinon.spy(request, 'post');
+    const postSpy = jest.spyOn(request, 'post').mockClear();
 
     await command.action(logger, {
       options: {
@@ -164,143 +171,155 @@ describe(commands.LIST_VIEW_REMOVE, () => {
     assert(postSpy.notCalled);
   });
 
-  it('removes view from the list using id and listUrl when prompt confirmed (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      const serverRelativeUrl: string = urlUtil.getServerRelativePath(webUrl, listUrl);
-      if (opts.url === `${webUrl}/_api/web/GetList('${formatting.encodeQueryParameter(serverRelativeUrl)}')/views(guid'${formatting.encodeQueryParameter(viewId)}')`) {
-        return;
-      }
+  it('removes view from the list using id and listUrl when prompt confirmed (debug)',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        const serverRelativeUrl: string = urlUtil.getServerRelativePath(webUrl, listUrl);
+        if (opts.url === `${webUrl}/_api/web/GetList('${formatting.encodeQueryParameter(serverRelativeUrl)}')/views(guid'${formatting.encodeQueryParameter(viewId)}')`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: true }
-    ));
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: true }
+      ));
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: webUrl,
-        listUrl: listUrl,
-        id: viewId
-      }
-    });
-  });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: webUrl,
+          listUrl: listUrl,
+          id: viewId
+        }
+      });
+    }
+  );
 
-  it('removes view from the list using id and listId when prompt confirmed (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/lists(guid'${formatting.encodeQueryParameter(listId)}')/views(guid'${formatting.encodeQueryParameter(viewId)}')`) {
-        return;
-      }
+  it('removes view from the list using id and listId when prompt confirmed (debug)',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/lists(guid'${formatting.encodeQueryParameter(listId)}')/views(guid'${formatting.encodeQueryParameter(viewId)}')`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: webUrl,
-        listId: listId,
-        id: viewId,
-        force: true
-      }
-    });
-  });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: webUrl,
+          listId: listId,
+          id: viewId,
+          force: true
+        }
+      });
+    }
+  );
 
-  it('removes view from the list using id and listTitle when prompt confirmed', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/lists/GetByTitle('${formatting.encodeQueryParameter(listTitle)}')/views(guid'${formatting.encodeQueryParameter(viewId)}')`) {
-        return;
-      }
+  it('removes view from the list using id and listTitle when prompt confirmed',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/lists/GetByTitle('${formatting.encodeQueryParameter(listTitle)}')/views(guid'${formatting.encodeQueryParameter(viewId)}')`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    await command.action(logger, {
-      options: {
-        webUrl: webUrl,
-        listTitle: listTitle,
-        id: viewId,
-        force: true
-      }
-    });
-  });
+      await command.action(logger, {
+        options: {
+          webUrl: webUrl,
+          listTitle: listTitle,
+          id: viewId,
+          force: true
+        }
+      });
+    }
+  );
 
-  it('removes view from the list using title and listUrl when prompt confirmed', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      const serverRelativeUrl: string = urlUtil.getServerRelativePath(webUrl, listUrl);
-      if (opts.url === `${webUrl}/_api/web/GetList('${formatting.encodeQueryParameter(serverRelativeUrl)}')/views/GetByTitle('${formatting.encodeQueryParameter(viewTitle)}')`) {
-        return;
-      }
+  it('removes view from the list using title and listUrl when prompt confirmed',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        const serverRelativeUrl: string = urlUtil.getServerRelativePath(webUrl, listUrl);
+        if (opts.url === `${webUrl}/_api/web/GetList('${formatting.encodeQueryParameter(serverRelativeUrl)}')/views/GetByTitle('${formatting.encodeQueryParameter(viewTitle)}')`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    await command.action(logger, {
-      options: {
-        webUrl: webUrl,
-        listUrl: listUrl,
-        title: viewTitle,
-        force: true
-      }
-    });
-  });
+      await command.action(logger, {
+        options: {
+          webUrl: webUrl,
+          listUrl: listUrl,
+          title: viewTitle,
+          force: true
+        }
+      });
+    }
+  );
 
-  it('removes view from the list using title and listId when prompt confirmed (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/lists(guid'${formatting.encodeQueryParameter(listId)}')/views/GetByTitle('${formatting.encodeQueryParameter(viewTitle)}')`) {
-        return;
-      }
+  it('removes view from the list using title and listId when prompt confirmed (debug)',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/lists(guid'${formatting.encodeQueryParameter(listId)}')/views/GetByTitle('${formatting.encodeQueryParameter(viewTitle)}')`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: webUrl,
-        listId: listId,
-        title: viewTitle,
-        force: true
-      }
-    });
-  });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: webUrl,
+          listId: listId,
+          title: viewTitle,
+          force: true
+        }
+      });
+    }
+  );
 
-  it('removes view from the list using title and listTitle when prompt confirmed', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/lists/GetByTitle('${formatting.encodeQueryParameter(listTitle)}')/views/GetByTitle('${formatting.encodeQueryParameter(viewTitle)}')`) {
-        return;
-      }
+  it('removes view from the list using title and listTitle when prompt confirmed',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/lists/GetByTitle('${formatting.encodeQueryParameter(listTitle)}')/views/GetByTitle('${formatting.encodeQueryParameter(viewTitle)}')`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    await command.action(logger, {
-      options: {
-        webUrl: webUrl,
-        listTitle: listTitle,
-        title: viewTitle,
-        force: true
-      }
-    });
-  });
+      await command.action(logger, {
+        options: {
+          webUrl: webUrl,
+          listTitle: listTitle,
+          title: viewTitle,
+          force: true
+        }
+      });
+    }
+  );
 
   it('correctly handles error when removing view from the list', async () => {
     const errorMessage = 'request rejected';
@@ -314,7 +333,7 @@ describe(commands.LIST_VIEW_REMOVE, () => {
         }
       }
     };
-    sinon.stub(request, 'post').rejects(error);
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, {
       options: {

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { urlUtil } from '../../../../utils/urlUtil.js';
 import commands from '../../commands.js';
 import command from './list-view-add.js';
@@ -45,14 +44,14 @@ describe(commands.LIST_VIEW_ADD, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -70,17 +69,17 @@ describe(commands.LIST_VIEW_ADD, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -169,7 +168,7 @@ describe(commands.LIST_VIEW_ADD, () => {
   });
 
   it('Correctly add view by list title', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${validWebUrl}/_api/web/lists/getByTitle(\'${formatting.encodeQueryParameter(validListTitle)}\')/views/add`) {
         return viewCreationResponse;
       }
@@ -189,7 +188,7 @@ describe(commands.LIST_VIEW_ADD, () => {
   });
 
   it('Correctly add view by list id', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${validWebUrl}/_api/web/lists(guid\'${formatting.encodeQueryParameter(validListId)}\')/views/add`) {
         return viewCreationResponse;
       }
@@ -209,7 +208,7 @@ describe(commands.LIST_VIEW_ADD, () => {
   });
 
   it('Correctly add view by list URL', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${validWebUrl}/_api/web/GetList(\'${formatting.encodeQueryParameter(urlUtil.getServerRelativePath(validWebUrl, validListUrl))}\')/views/add`) {
         return viewCreationResponse;
       }
@@ -240,7 +239,7 @@ describe(commands.LIST_VIEW_ADD, () => {
         }
       }
     };
-    sinon.stub(request, 'post').rejects(error);
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, {
       options: {

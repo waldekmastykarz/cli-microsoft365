@@ -89,7 +89,7 @@ class SpoFileListCommand extends SpoCommand {
       const fieldProperties = this.formatSelectProperties(args.options.fields, args.options.output);
       const allFiles: FileProperties[] = [];
       const allFolders: string[] = args.options.recursive
-        ? [...await this.getFolders(args.options.folderUrl!, args, logger), args.options.folderUrl!]
+        ? [...(await this.getFolders(args.options.folderUrl!, args, logger)), args.options.folderUrl!]
         : [args.options.folderUrl!];
 
       for (const folder of allFolders) {

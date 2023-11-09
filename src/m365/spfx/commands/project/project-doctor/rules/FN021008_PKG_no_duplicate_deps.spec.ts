@@ -20,36 +20,42 @@ describe('FN021008_PKG_no_duplicate_deps', () => {
     assert.strictEqual(rule.description, '');
   });
 
-  it(`doesn't return notifications when project version could not be determined`, () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      packageJson: {
-        dependencies: {},
-        devDependencies: {}
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it(`doesn't return notifications when project version could not be determined`,
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        packageJson: {
+          dependencies: {},
+          devDependencies: {}
+        }
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
-  it(`doesn't return notifications when package.json was not collected`, () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      version: '1.14.0'
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it(`doesn't return notifications when package.json was not collected`,
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        version: '1.14.0'
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
-  it(`doesn't return notifications when package.json has no devDependencies`, () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      packageJson: {
-        dependencies: {}
-      },
-      version: '1.14.0'
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it(`doesn't return notifications when package.json has no devDependencies`,
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        packageJson: {
+          dependencies: {}
+        },
+        version: '1.14.0'
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 });

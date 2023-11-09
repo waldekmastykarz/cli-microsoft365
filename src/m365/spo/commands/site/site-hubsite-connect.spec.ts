@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './site-hubsite-connect.js';
@@ -17,15 +16,15 @@ import command from './site-hubsite-connect.js';
 describe(commands.SITE_HUBSITE_CONNECT, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'ABC',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -48,17 +47,17 @@ describe(commands.SITE_HUBSITE_CONNECT, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -71,7 +70,7 @@ describe(commands.SITE_HUBSITE_CONNECT, () => {
   });
 
   it('connects site to the hub site', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/site/JoinHubSite('255a50b2-527f-4413-8485-57f4c17a24d1')`) > -1) {
         return {
           "odata.null": true
@@ -85,24 +84,26 @@ describe(commands.SITE_HUBSITE_CONNECT, () => {
     assert(loggerLogSpy.notCalled);
   });
 
-  it('correctly handles error when the specified id doesn\'t point to a valid hub site', async () => {
-    sinon.stub(request, 'post').callsFake(() => {
-      throw {
-        error: {
-          "odata.error": {
-            "code": "-1, Microsoft.SharePoint.Client.ResourceNotFoundException",
-            "message": {
-              "lang": "en-US",
-              "value": "Exception of type 'Microsoft.SharePoint.Client.ResourceNotFoundException' was thrown."
+  it('correctly handles error when the specified id doesn\'t point to a valid hub site',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(() => {
+        throw {
+          error: {
+            "odata.error": {
+              "code": "-1, Microsoft.SharePoint.Client.ResourceNotFoundException",
+              "message": {
+                "lang": "en-US",
+                "value": "Exception of type 'Microsoft.SharePoint.Client.ResourceNotFoundException' was thrown."
+              }
             }
           }
-        }
-      };
-    });
+        };
+      });
 
-    await assert.rejects(command.action(logger, { options: { siteUrl: 'https://contoso.sharepoint.com/sites/sales', id: '255a50b2-527f-4413-8485-57f4c17a24d1' } } as any),
-      new CommandError('Exception of type \'Microsoft.SharePoint.Client.ResourceNotFoundException\' was thrown.'));
-  });
+      await assert.rejects(command.action(logger, { options: { siteUrl: 'https://contoso.sharepoint.com/sites/sales', id: '255a50b2-527f-4413-8485-57f4c17a24d1' } } as any),
+        new CommandError('Exception of type \'Microsoft.SharePoint.Client.ResourceNotFoundException\' was thrown.'));
+    }
+  );
 
   it('supports specifying site collection URL', () => {
     const options = command.options;
@@ -126,10 +127,12 @@ describe(commands.SITE_HUBSITE_CONNECT, () => {
     assert(containsOption);
   });
 
-  it('fails validation if the specified site collection URL is not a valid SharePoint URL', async () => {
-    const actual = await command.validate({ options: { siteUrl: 'site.com', id: '255a50b2-527f-4413-8485-57f4c17a24d1' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the specified site collection URL is not a valid SharePoint URL',
+    async () => {
+      const actual = await command.validate({ options: { siteUrl: 'site.com', id: '255a50b2-527f-4413-8485-57f4c17a24d1' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the hub site ID is not a valid GUID', async () => {
     const actual = await command.validate({ options: { siteUrl: 'https://contoso.sharepoint.com/sites/sales', id: 'abc' } }, commandInfo);

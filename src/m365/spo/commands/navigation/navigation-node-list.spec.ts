@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,14 +8,14 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './navigation-node-list.js';
 
 describe(commands.NAVIGATION_NODE_LIST, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
   const navigationNodeResponse = {
     value: [
@@ -41,11 +40,11 @@ describe(commands.NAVIGATION_NODE_LIST, () => {
     ]
   };
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -63,17 +62,17 @@ describe(commands.NAVIGATION_NODE_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -86,7 +85,7 @@ describe(commands.NAVIGATION_NODE_LIST, () => {
   });
 
   it('gets nodes from the top navigation', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://contoso.sharepoint.com/sites/team-a/_api/web/navigation/topnavigationbar') {
         return navigationNodeResponse;
       }
@@ -99,7 +98,7 @@ describe(commands.NAVIGATION_NODE_LIST, () => {
   });
 
   it('gets nodes from the quick launch', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://contoso.sharepoint.com/sites/team-a/_api/web/navigation/quicklaunch') {
         return navigationNodeResponse;
       }
@@ -112,7 +111,7 @@ describe(commands.NAVIGATION_NODE_LIST, () => {
   });
 
   it('correctly handles random API error', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://contoso.sharepoint.com/sites/team-a/_api/web/navigation/topnavigationbar') {
         throw 'An error has occurred';
       }
@@ -125,7 +124,7 @@ describe(commands.NAVIGATION_NODE_LIST, () => {
   });
 
   it('correctly handles random API error (string error)', async () => {
-    sinon.stub(request, 'get').callsFake((opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
       if (opts.url === 'https://contoso.sharepoint.com/sites/team-a/_api/web/navigation/topnavigationbar') {
         throw 'An error has occurred';
       }
@@ -146,13 +145,17 @@ describe(commands.NAVIGATION_NODE_LIST, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('passes validation when location is TopNavigationBar and all required properties are present', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a', location: 'TopNavigationBar' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when location is TopNavigationBar and all required properties are present',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a', location: 'TopNavigationBar' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when location is QuickLaunch and all required properties are present', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a', location: 'QuickLaunch' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when location is QuickLaunch and all required properties are present',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a', location: 'QuickLaunch' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

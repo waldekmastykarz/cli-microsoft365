@@ -1,7 +1,6 @@
 import assert from 'assert';
 import fs from 'fs';
-import sinon from 'sinon';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { BaseProjectCommand } from "./base-project-command.js";
 import { Project } from "./project-model/index.js";
 
@@ -22,7 +21,7 @@ class MockCommand extends BaseProjectCommand {
 
 describe('BaseProjectCommand', () => {
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       fs.readFileSync,
       fs.existsSync
     ]);
@@ -31,7 +30,7 @@ describe('BaseProjectCommand', () => {
   it(`doesn't fail if reading .gitignore file contents failed`, () => {
     const readFileSyncOriginal = fs.readFileSync;
     const existsSyncOriginal = fs.existsSync;
-    sinon.stub(fs, 'existsSync').callsFake(path => {
+    jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(path => {
       if (path.toString().indexOf('.gitignore') > -1) {
         return true;
       }
@@ -39,7 +38,7 @@ describe('BaseProjectCommand', () => {
         return existsSyncOriginal(path);
       }
     });
-    sinon.stub(fs, 'readFileSync').callsFake((path, encoding) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path, encoding) => {
       if (path.toString().indexOf('.gitignore') > -1) {
         throw new Error();
       }
@@ -56,7 +55,7 @@ describe('BaseProjectCommand', () => {
   it(`doesn't fail if reading .npmignore file contents failed`, () => {
     const readFileSyncOriginal = fs.readFileSync;
     const existsSyncOriginal = fs.existsSync;
-    sinon.stub(fs, 'existsSync').callsFake(path => {
+    jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(path => {
       if (path.toString().indexOf('.npmignore') > -1) {
         return true;
       }
@@ -64,7 +63,7 @@ describe('BaseProjectCommand', () => {
         return existsSyncOriginal(path);
       }
     });
-    sinon.stub(fs, 'readFileSync').callsFake((path, encoding) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path, encoding) => {
       if (path.toString().indexOf('.npmignore') > -1) {
         throw new Error();
       }

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -11,7 +10,7 @@ import { accessToken } from '../../../../utils/accessToken.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './meeting-transcript-list.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -40,15 +39,15 @@ describe(commands.MEETING_TRANSCRIPT_LIST, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.accessTokens[auth.defaultResource] = {
       expiresOn: 'abc',
@@ -70,11 +69,11 @@ describe(commands.MEETING_TRANSCRIPT_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       accessToken.isAppOnlyAccessToken,
       request.get,
       Cli.executeCommandWithOutput,
@@ -82,8 +81,8 @@ describe(commands.MEETING_TRANSCRIPT_LIST, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.accessTokens = {};
   });
@@ -110,33 +109,41 @@ describe(commands.MEETING_TRANSCRIPT_LIST, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('succeeds validation when the userId and meetingId are valid', async () => {
-    const actual = await command.validate({ options: { meetingId: meetingId, userId: userId } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('succeeds validation when the userId and meetingId are valid',
+    async () => {
+      const actual = await command.validate({ options: { meetingId: meetingId, userId: userId } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('succeeds validation when the userName and meetingId are valid', async () => {
-    const actual = await command.validate({ options: { meetingId: meetingId, userName: userName } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('succeeds validation when the userName and meetingId are valid',
+    async () => {
+      const actual = await command.validate({ options: { meetingId: meetingId, userName: userName } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('succeeds validation when the email and meetingId are valid', async () => {
-    const actual = await command.validate({ options: { meetingId: meetingId, email: email } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('succeeds validation when the email and meetingId are valid',
+    async () => {
+      const actual = await command.validate({ options: { meetingId: meetingId, email: email } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when the userId and email and userName are given', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation when the userId and email and userName are given',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { meetingId: meetingId, userId: userId, userName: userName, email: email } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { meetingId: meetingId, userId: userId, userName: userName, email: email } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation when given email is not valid', async () => {
     const actual = await command.validate({ options: { meetingId: meetingId, email: 'invalid' } }, commandInfo);
@@ -144,7 +151,7 @@ describe(commands.MEETING_TRANSCRIPT_LIST, () => {
   });
 
   it('fails validation when the userId and email are given', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -157,7 +164,7 @@ describe(commands.MEETING_TRANSCRIPT_LIST, () => {
   });
 
   it('fails validation when the userId and userName are given', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -169,120 +176,130 @@ describe(commands.MEETING_TRANSCRIPT_LIST, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('retrieves transcript list correctly for the given meetingId for the current user', async () => {
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(false);
+  it('retrieves transcript list correctly for the given meetingId for the current user',
+    async () => {
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(false);
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/beta/me/onlineMeetings/${meetingId}/transcripts`) {
-        return { value: meetingTranscriptsResponse };
-      }
-      throw 'Invalid request.';
-    });
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/beta/me/onlineMeetings/${meetingId}/transcripts`) {
+          return { value: meetingTranscriptsResponse };
+        }
+        throw 'Invalid request.';
+      });
 
-    await command.action(logger, {
-      options:
-      {
-        meetingId: meetingId
-      }
-    });
+      await command.action(logger, {
+        options:
+        {
+          meetingId: meetingId
+        }
+      });
 
-    assert(loggerLogSpy.calledWith(meetingTranscriptsResponse));
-  });
+      assert(loggerLogSpy.calledWith(meetingTranscriptsResponse));
+    }
+  );
 
-  it('retrieves meeting transcript list correctly by meetingId and userID', async () => {
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
+  it('retrieves meeting transcript list correctly by meetingId and userID',
+    async () => {
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/beta/users/${userId}/onlineMeetings/${meetingId}/transcripts`) {
-        return { value: meetingTranscriptsResponse };
-      }
-      throw 'Invalid request.';
-    });
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/beta/users/${userId}/onlineMeetings/${meetingId}/transcripts`) {
+          return { value: meetingTranscriptsResponse };
+        }
+        throw 'Invalid request.';
+      });
 
-    await command.action(logger, {
-      options:
-      {
-        meetingId: meetingId,
-        userId: userId
-      }
-    });
+      await command.action(logger, {
+        options:
+        {
+          meetingId: meetingId,
+          userId: userId
+        }
+      });
 
-    assert(loggerLogSpy.calledWith(meetingTranscriptsResponse));
-  });
+      assert(loggerLogSpy.calledWith(meetingTranscriptsResponse));
+    }
+  );
 
-  it('retrieves meeting transcript list correctly by meetingId and userName', async () => {
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
+  it('retrieves meeting transcript list correctly by meetingId and userName',
+    async () => {
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/beta/users/${userName}/onlineMeetings/${meetingId}/transcripts`) {
-        return { value: meetingTranscriptsResponse };
-      }
-      throw 'Invalid request.';
-    });
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/beta/users/${userName}/onlineMeetings/${meetingId}/transcripts`) {
+          return { value: meetingTranscriptsResponse };
+        }
+        throw 'Invalid request.';
+      });
 
-    await command.action(logger, {
-      options:
-      {
-        meetingId: meetingId,
-        userName: userName
-      }
-    });
+      await command.action(logger, {
+        options:
+        {
+          meetingId: meetingId,
+          userName: userName
+        }
+      });
 
-    assert(loggerLogSpy.calledWith(meetingTranscriptsResponse));
-  });
+      assert(loggerLogSpy.calledWith(meetingTranscriptsResponse));
+    }
+  );
 
-  it('retrieves meeting transcript list correctly by meetingId and email', async () => {
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
+  it('retrieves meeting transcript list correctly by meetingId and email',
+    async () => {
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=mail eq '${formatting.encodeQueryParameter(email)}'&$select=id`) {
-        return {
-          value: [
-            {
-              id: userId
-            }]
-        };
-      }
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=mail eq '${formatting.encodeQueryParameter(email)}'&$select=id`) {
+          return {
+            value: [
+              {
+                id: userId
+              }]
+          };
+        }
 
-      if (opts.url === `https://graph.microsoft.com/beta/users/${userId}/onlineMeetings/${meetingId}/transcripts`) {
-        return { value: meetingTranscriptsResponse };
-      }
+        if (opts.url === `https://graph.microsoft.com/beta/users/${userId}/onlineMeetings/${meetingId}/transcripts`) {
+          return { value: meetingTranscriptsResponse };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options:
-      {
-        meetingId: meetingId,
-        email: email,
-        verbose: true
-      }
-    });
+      await command.action(logger, {
+        options:
+        {
+          meetingId: meetingId,
+          email: email,
+          verbose: true
+        }
+      });
 
-    assert(loggerLogSpy.calledWith(meetingTranscriptsResponse));
-  });
+      assert(loggerLogSpy.calledWith(meetingTranscriptsResponse));
+    }
+  );
 
   it('correctly handles error when throwing request', async () => {
     const errorMessage = 'An error has occurred';
 
-    sinon.stub(request, 'get').rejects({ error: { error: { message: errorMessage } } });
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects({ error: { error: { message: errorMessage } } });
 
     await assert.rejects(command.action(logger, { options: { verbose: true, meetingId: meetingId } } as any),
       new CommandError(errorMessage));
   });
 
   it('correctly handles error when options are missing', async () => {
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
+    jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
 
     await assert.rejects(command.action(logger, { options: { meetingId: meetingId } } as any),
       new CommandError(`The option 'userId', 'userName' or 'email' is required when retrieving meeting transcripts list using app only permissions`));
   });
 
-  it('correctly handles error when options are missing with a delegated token', async () => {
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(false);
+  it('correctly handles error when options are missing with a delegated token',
+    async () => {
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(false);
 
-    await assert.rejects(command.action(logger, { options: { meetingId: meetingId, userId: userId } } as any),
-      new CommandError(`The options 'userId', 'userName' and 'email' cannot be used while retrieving meeting transcripts using delegated permissions`));
-  });
+      await assert.rejects(command.action(logger, { options: { meetingId: meetingId, userId: userId } } as any),
+        new CommandError(`The options 'userId', 'userName' and 'email' cannot be used while retrieving meeting transcripts using delegated permissions`));
+    }
+  );
 });

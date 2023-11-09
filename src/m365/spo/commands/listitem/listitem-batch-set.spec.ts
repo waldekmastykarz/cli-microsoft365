@@ -1,6 +1,5 @@
 import assert from 'assert';
 import fs from 'fs';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -11,7 +10,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { odata } from '../../../../utils/odata.js';
 import { pid } from '../../../../utils/pid.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import { urlUtil } from '../../../../utils/urlUtil.js';
 import commands from '../../commands.js';
@@ -43,10 +42,10 @@ describe(commands.LISTITEM_BATCH_SET, () => {
   let log: any[];
   let logger: Logger;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').callsFake(() => Promise.resolve());
-    sinon.stub(telemetry, 'trackEvent').callsFake(() => { });
-    sinon.stub(pid, 'getProcessName').callsFake(() => '');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation(() => Promise.resolve());
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockImplementation(() => { });
+    jest.spyOn(pid, 'getProcessName').mockClear().mockImplementation(() => '');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -64,20 +63,20 @@ describe(commands.LISTITEM_BATCH_SET, () => {
         log.push(msg);
       }
     };
-    sinon.stub(spo, 'getRequestDigest').callsFake(async () => ({
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation(async () => ({
       FormDigestValue: 'ABC',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
       WebFullUrl: webUrl
     }));
-    sinon.stub(spo, 'getCurrentWebIdentity').callsFake(async () => ({
+    jest.spyOn(spo, 'getCurrentWebIdentity').mockClear().mockImplementation(async () => ({
       'objectIdentity': '04e9249b-1edd-40da-9ec9-c3f19b2db1bd|25a633e6-3138-49c0-8be8-8bd3260a0431:site:339fb67e-4573-4eee-91b8-7e4fdb1a38d7:web:2c82aec1-21d2-4a1a-ad95-15bb7a4b66aa',
       'serverRelativeUrl': '/sites/project-x'
     }));
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       fs.existsSync,
       fs.readFileSync,
       odata.getAllItems,
@@ -88,8 +87,8 @@ describe(commands.LISTITEM_BATCH_SET, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -101,169 +100,179 @@ describe(commands.LISTITEM_BATCH_SET, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('updates single item in batch to a sharepoint list retrieved by listUrl including empty values', async () => {
-    const csvContentHeadersEmptyValues = `Id,ContentType,Title,SingleChoiceField`;
-    const csvContentLineEmptyValues = `10,Item,Title A,`;
-    const csvContentEmptyValues = `${csvContentHeadersEmptyValues}\n${csvContentLineEmptyValues}`;
-    const listServerRelativeUrl: string = urlUtil.getServerRelativePath(webUrl, listUrl);
-    const filterFields = ["InternalName eq 'ContentType'", "InternalName eq 'Title'", "InternalName eq 'SingleChoiceField'"];
+  it('updates single item in batch to a sharepoint list retrieved by listUrl including empty values',
+    async () => {
+      const csvContentHeadersEmptyValues = `Id,ContentType,Title,SingleChoiceField`;
+      const csvContentLineEmptyValues = `10,Item,Title A,`;
+      const csvContentEmptyValues = `${csvContentHeadersEmptyValues}\n${csvContentLineEmptyValues}`;
+      const listServerRelativeUrl: string = urlUtil.getServerRelativePath(webUrl, listUrl);
+      const filterFields = ["InternalName eq 'ContentType'", "InternalName eq 'Title'", "InternalName eq 'SingleChoiceField'"];
 
-    sinon.stub(fs, 'readFileSync').callsFake(_ => csvContentEmptyValues);
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(_ => csvContentEmptyValues);
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/GetList('${formatting.encodeQueryParameter(listServerRelativeUrl)}')?$select=Id`) {
-        return listResponse;
-      }
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/GetList('${formatting.encodeQueryParameter(listServerRelativeUrl)}')?$select=Id`) {
+          return listResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(odata, 'getAllItems').callsFake(async (url) => {
-      if (url === `${webUrl}/_api/web/lists(guid'${formatting.encodeQueryParameter(listId)}')/fields?$select=InternalName,TypeAsString&$filter=${filterFields.join(' or ')}`) {
-        return [...fieldsResponse].filter(y => y.InternalName === 'ContentType' || y.InternalName === 'Title' || y.InternalName === 'SingleChoiceField');
-      }
+      jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url) => {
+        if (url === `${webUrl}/_api/web/lists(guid'${formatting.encodeQueryParameter(listId)}')/fields?$select=InternalName,TypeAsString&$filter=${filterFields.join(' or ')}`) {
+          return [...fieldsResponse].filter(y => y.InternalName === 'ContentType' || y.InternalName === 'Title' || y.InternalName === 'SingleChoiceField');
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts: any) => {
-      if (opts.url === `${webUrl}/_vti_bin/client.svc/ProcessQuery`) {
-        return JSON.stringify(batchCsomResponse);
-      }
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts: any) => {
+        if (opts.url === `${webUrl}/_vti_bin/client.svc/ProcessQuery`) {
+          return JSON.stringify(batchCsomResponse);
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { webUrl: webUrl, filePath: filePath, listUrl: listUrl, idColumn: idColumn, systemUpdate: true, verbose: true } } as any);
-    assert(postStub.called);
-  });
-
-  it('system updates single item in batch to a sharepoint list retrieved by id without user fields', async () => {
-    sinon.stub(fs, 'readFileSync').callsFake(_ => csvContentWithoutUsers);
-    sinon.stub(odata, 'getAllItems').callsFake(async (url) => {
-      if (url === `${webUrl}/_api/web/lists(guid'${formatting.encodeQueryParameter(listId)}')/fields?$select=InternalName,TypeAsString&$filter=${filterFieldsWithoutUserFields.join(' or ')}`) {
-        return fieldsResponseWithoutUserFields;
-      }
-
-      throw 'Invalid request';
-    });
-
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts: any) => {
-      if (opts.url === `${webUrl}/_vti_bin/client.svc/ProcessQuery`) {
-        return JSON.stringify(batchCsomResponse);
-      }
-      throw 'Invalid request';
-    });
-
-    await command.action(logger, { options: { webUrl: webUrl, filePath: filePath, listId: listId, idColumn: idColumn, systemUpdate: true, verbose: true } } as any);
-    assert(postStub.called);
-  });
-
-  it('updates items in multiple batches to a sharepoint list retrieved by title', async () => {
-    let amountOfExecutions = 0;
-    let csvContent150Items = csvContent;
-    for (let i = 1; i < 150; i++) {
-      csvContent150Items += `\n${csvContentLine}`;
+      await command.action(logger, { options: { webUrl: webUrl, filePath: filePath, listUrl: listUrl, idColumn: idColumn, systemUpdate: true, verbose: true } } as any);
+      assert(postStub.called);
     }
-    sinon.stub(fs, 'readFileSync').callsFake(_ => csvContent150Items);
-    sinon.stub(odata, 'getAllItems').callsFake(async (url) => {
-      if (url === `${webUrl}/_api/web/lists(guid'${formatting.encodeQueryParameter(listId)}')/fields?$select=InternalName,TypeAsString&$filter=${filterFields.join(' or ')}`) {
-        return fieldsResponse;
-      }
+  );
 
-      throw 'Invalid request';
-    });
+  it('system updates single item in batch to a sharepoint list retrieved by id without user fields',
+    async () => {
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(_ => csvContentWithoutUsers);
+      jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url) => {
+        if (url === `${webUrl}/_api/web/lists(guid'${formatting.encodeQueryParameter(listId)}')/fields?$select=InternalName,TypeAsString&$filter=${filterFieldsWithoutUserFields.join(' or ')}`) {
+          return fieldsResponseWithoutUserFields;
+        }
 
-    sinon.stub(request, 'get').callsFake(async (opts: any) => {
-      if (opts.url === `${webUrl}/_api/web/lists/getByTitle('${formatting.encodeQueryParameter(listTitle)}')?$select=Id`) {
-        return listResponse;
-      }
+        throw 'Invalid request';
+      });
 
-      throw 'Invalid request';
-    });
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts: any) => {
+        if (opts.url === `${webUrl}/_vti_bin/client.svc/ProcessQuery`) {
+          return JSON.stringify(batchCsomResponse);
+        }
+        throw 'Invalid request';
+      });
 
-    sinon.stub(request, 'post').callsFake(async (opts: any) => {
-      if (opts.url === `${webUrl}/_vti_bin/client.svc/ProcessQuery`) {
-        amountOfExecutions++;
-        return JSON.stringify(batchCsomResponse);
-      }
-      if (opts.url === `${webUrl}/_api/web/ensureUser('${mail1}')?$select=Id`) {
-        return { id: 10 };
-      }
-      if (opts.url === `${webUrl}/_api/web/ensureUser('${mail2}')?$select=Id`) {
-        return { id: 11 };
-      }
-      throw 'Invalid request';
-    });
-
-    await command.action(logger, { options: { webUrl: webUrl, filePath: filePath, listId: listId, idColumn: idColumn, verbose: true } } as any);
-    assert.strictEqual(amountOfExecutions, 3);
-  });
-
-  it('throws an error when a wrong value is entered (text instead of number)', async () => {
-    const csvContentLine = `10,Item,Title A,Choice 1,Choice 1;#Choice 2,Engineering|4a3cc5f3-a4a6-433e-a07a-746978ff1760;,Engineering|4a3cc5f3-a4a6-433e-a07a-746978ff1760;Finance|f994a4ac-cf34-448e-a22c-2b35fd9bbffa;,${mail1},${mail1};${mail2},"https://bing.com, URL",'TEXT',1,1;2`;
-    const csvContent = `${csvContentHeaders}\n${csvContentLine}`;
-    const batchCsomResponseError = [{ 'SchemaVersion': '15.0.0.0', 'LibraryVersion': '16.0.23408.12001', 'ErrorInfo': { 'ErrorMessage': 'Only numbers can go here.', 'ErrorValue': '362,NumberField', 'TraceCorrelationId': '4d7f99a0-3064-6000-40b7-61b9fc6fcd53', 'ErrorCode': -2130575155, 'ErrorTypeName': 'Microsoft.SharePoint.SPFieldValueException' }, 'TraceCorrelationId': '4d7f99a0-3064-6000-40b7-61b9fc6fcd53' }];
-    sinon.stub(fs, 'readFileSync').callsFake(_ => csvContent);
-    sinon.stub(odata, 'getAllItems').callsFake(async (url) => {
-      if (url === `${webUrl}/_api/web/lists(guid'${formatting.encodeQueryParameter(listId)}')/fields?$select=InternalName,TypeAsString&$filter=${filterFields.join(' or ')}`) {
-        return fieldsResponse;
-      }
-
-      throw 'Invalid request';
-    });
-
-    sinon.stub(request, 'post').callsFake(async (opts: any) => {
-      if (opts.url === `${webUrl}/_vti_bin/client.svc/ProcessQuery`) {
-        return JSON.stringify(batchCsomResponseError);
-      }
-      if (opts.url === `${webUrl}/_api/web/ensureUser('${mail1}')?$select=Id`) {
-        return { id: 10 };
-      }
-      if (opts.url === `${webUrl}/_api/web/ensureUser('${mail2}')?$select=Id`) {
-        return { id: 11 };
-      }
-      throw 'Invalid request';
-    });
-
-    await assert.rejects(command.action(logger, { options: { webUrl: webUrl, filePath: filePath, listId: listId, idColumn: idColumn, verbose: true } } as any), new CommandError(`${batchCsomResponseError[0].ErrorInfo.ErrorMessage} - ${batchCsomResponseError[0].ErrorInfo.ErrorValue}`));
-  });
-
-  it('throws an error when field specified in the csv does not exist on the list', async () => {
-    const fieldsThatDontExist = ['NonExistingColumn1', 'NonExistingColumn2'];
-    const errorMessage = `Following fields specified in the csv do not exist on the list: ${fieldsThatDontExist.join(', ')}`;
-    const csvContentHeadersError = csvContentHeaders + `,${fieldsThatDontExist.join(',')}`;
-    const csvContentLineError = csvContentLine + ',Value 1,Value2';
-    const csvContentError = `${csvContentHeadersError}\n${csvContentLineError}`;
-    const jsonContent: any[] = formatting.parseCsvToJson(csvContentError);
-
-    const objectKeys = Object.keys(jsonContent[0]);
-    const index = objectKeys.indexOf(idColumn, 0);
-    if (index > -1) {
-      objectKeys.splice(index, 1);
+      await command.action(logger, { options: { webUrl: webUrl, filePath: filePath, listId: listId, idColumn: idColumn, systemUpdate: true, verbose: true } } as any);
+      assert(postStub.called);
     }
+  );
 
-    const filterFields: string[] = [];
-    objectKeys.map(objectKey => {
-      filterFields.push(`InternalName eq '${objectKey}'`);
-    });
+  it('updates items in multiple batches to a sharepoint list retrieved by title',
+    async () => {
+      let amountOfExecutions = 0;
+      let csvContent150Items = csvContent;
+      for (let i = 1; i < 150; i++) {
+        csvContent150Items += `\n${csvContentLine}`;
+      }
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(_ => csvContent150Items);
+      jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url) => {
+        if (url === `${webUrl}/_api/web/lists(guid'${formatting.encodeQueryParameter(listId)}')/fields?$select=InternalName,TypeAsString&$filter=${filterFields.join(' or ')}`) {
+          return fieldsResponse;
+        }
 
-    sinon.stub(fs, 'readFileSync').callsFake(_ => csvContentError);
-    sinon.stub(odata, 'getAllItems').callsFake(async (url) => {
-      if (url === `${webUrl}/_api/web/lists(guid'${formatting.encodeQueryParameter(listId)}')/fields?$select=InternalName,TypeAsString&$filter=${filterFields.join(' or ')}`) {
-        return fieldsResponse;
+        throw 'Invalid request';
+      });
+
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts: any) => {
+        if (opts.url === `${webUrl}/_api/web/lists/getByTitle('${formatting.encodeQueryParameter(listTitle)}')?$select=Id`) {
+          return listResponse;
+        }
+
+        throw 'Invalid request';
+      });
+
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts: any) => {
+        if (opts.url === `${webUrl}/_vti_bin/client.svc/ProcessQuery`) {
+          amountOfExecutions++;
+          return JSON.stringify(batchCsomResponse);
+        }
+        if (opts.url === `${webUrl}/_api/web/ensureUser('${mail1}')?$select=Id`) {
+          return { id: 10 };
+        }
+        if (opts.url === `${webUrl}/_api/web/ensureUser('${mail2}')?$select=Id`) {
+          return { id: 11 };
+        }
+        throw 'Invalid request';
+      });
+
+      await command.action(logger, { options: { webUrl: webUrl, filePath: filePath, listId: listId, idColumn: idColumn, verbose: true } } as any);
+      assert.strictEqual(amountOfExecutions, 3);
+    }
+  );
+
+  it('throws an error when a wrong value is entered (text instead of number)',
+    async () => {
+      const csvContentLine = `10,Item,Title A,Choice 1,Choice 1;#Choice 2,Engineering|4a3cc5f3-a4a6-433e-a07a-746978ff1760;,Engineering|4a3cc5f3-a4a6-433e-a07a-746978ff1760;Finance|f994a4ac-cf34-448e-a22c-2b35fd9bbffa;,${mail1},${mail1};${mail2},"https://bing.com, URL",'TEXT',1,1;2`;
+      const csvContent = `${csvContentHeaders}\n${csvContentLine}`;
+      const batchCsomResponseError = [{ 'SchemaVersion': '15.0.0.0', 'LibraryVersion': '16.0.23408.12001', 'ErrorInfo': { 'ErrorMessage': 'Only numbers can go here.', 'ErrorValue': '362,NumberField', 'TraceCorrelationId': '4d7f99a0-3064-6000-40b7-61b9fc6fcd53', 'ErrorCode': -2130575155, 'ErrorTypeName': 'Microsoft.SharePoint.SPFieldValueException' }, 'TraceCorrelationId': '4d7f99a0-3064-6000-40b7-61b9fc6fcd53' }];
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(_ => csvContent);
+      jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url) => {
+        if (url === `${webUrl}/_api/web/lists(guid'${formatting.encodeQueryParameter(listId)}')/fields?$select=InternalName,TypeAsString&$filter=${filterFields.join(' or ')}`) {
+          return fieldsResponse;
+        }
+
+        throw 'Invalid request';
+      });
+
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts: any) => {
+        if (opts.url === `${webUrl}/_vti_bin/client.svc/ProcessQuery`) {
+          return JSON.stringify(batchCsomResponseError);
+        }
+        if (opts.url === `${webUrl}/_api/web/ensureUser('${mail1}')?$select=Id`) {
+          return { id: 10 };
+        }
+        if (opts.url === `${webUrl}/_api/web/ensureUser('${mail2}')?$select=Id`) {
+          return { id: 11 };
+        }
+        throw 'Invalid request';
+      });
+
+      await assert.rejects(command.action(logger, { options: { webUrl: webUrl, filePath: filePath, listId: listId, idColumn: idColumn, verbose: true } } as any), new CommandError(`${batchCsomResponseError[0].ErrorInfo.ErrorMessage} - ${batchCsomResponseError[0].ErrorInfo.ErrorValue}`));
+    }
+  );
+
+  it('throws an error when field specified in the csv does not exist on the list',
+    async () => {
+      const fieldsThatDontExist = ['NonExistingColumn1', 'NonExistingColumn2'];
+      const errorMessage = `Following fields specified in the csv do not exist on the list: ${fieldsThatDontExist.join(', ')}`;
+      const csvContentHeadersError = csvContentHeaders + `,${fieldsThatDontExist.join(',')}`;
+      const csvContentLineError = csvContentLine + ',Value 1,Value2';
+      const csvContentError = `${csvContentHeadersError}\n${csvContentLineError}`;
+      const jsonContent: any[] = formatting.parseCsvToJson(csvContentError);
+
+      const objectKeys = Object.keys(jsonContent[0]);
+      const index = objectKeys.indexOf(idColumn, 0);
+      if (index > -1) {
+        objectKeys.splice(index, 1);
       }
 
-      throw 'Invalid request';
-    });
-    await assert.rejects(command.action(logger, { options: { webUrl: webUrl, filePath: filePath, listId: listId, idColumn: idColumn, verbose: true } } as any), new CommandError(errorMessage));
-  });
+      const filterFields: string[] = [];
+      objectKeys.map(objectKey => {
+        filterFields.push(`InternalName eq '${objectKey}'`);
+      });
+
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(_ => csvContentError);
+      jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url) => {
+        if (url === `${webUrl}/_api/web/lists(guid'${formatting.encodeQueryParameter(listId)}')/fields?$select=InternalName,TypeAsString&$filter=${filterFields.join(' or ')}`) {
+          return fieldsResponse;
+        }
+
+        throw 'Invalid request';
+      });
+      await assert.rejects(command.action(logger, { options: { webUrl: webUrl, filePath: filePath, listId: listId, idColumn: idColumn, verbose: true } } as any), new CommandError(errorMessage));
+    }
+  );
 
   it('throws an error when list by url is not found', async () => {
     const listServerRelativeUrl: string = urlUtil.getServerRelativePath(webUrl, listUrl);
     const errorMessage = `File Not Found.`;
-    sinon.stub(fs, 'readFileSync').callsFake(_ => csvContent);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(_ => csvContent);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/web/GetList('${formatting.encodeQueryParameter(listServerRelativeUrl)}')?$select=Id`) {
         throw errorMessage;
       }
@@ -275,8 +284,8 @@ describe(commands.LISTITEM_BATCH_SET, () => {
 
   it('throws an error when list by title is not found', async () => {
     const errorMessage = `List '${listTitle}' does not exist at site with URL 'https://mathijsdev2.sharepoint.com'.`;
-    sinon.stub(fs, 'readFileSync').callsFake(_ => csvContent);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(_ => csvContent);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/web/lists/getByTitle('${formatting.encodeQueryParameter(listTitle)}')?$select=Id`) {
         throw errorMessage;
       }
@@ -286,41 +295,49 @@ describe(commands.LISTITEM_BATCH_SET, () => {
     await assert.rejects(command.action(logger, { options: { webUrl: webUrl, filePath: filePath, listTitle: listTitle, idColumn: idColumn, verbose: true } } as any), new CommandError(errorMessage));
   });
 
-  it('throws an error when specified idColumn does not exist in csv', async () => {
-    const tempIdColumn = 'id';
-    const errorMessage = `The specified value for idColumn does not exist in the array. Specified idColumn is '${tempIdColumn || 'ID'}'. Please specify the correct value.`;
-    sinon.stub(fs, 'readFileSync').callsFake(_ => csvContent);
+  it('throws an error when specified idColumn does not exist in csv',
+    async () => {
+      const tempIdColumn = 'id';
+      const errorMessage = `The specified value for idColumn does not exist in the array. Specified idColumn is '${tempIdColumn || 'ID'}'. Please specify the correct value.`;
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(_ => csvContent);
 
-    await assert.rejects(command.action(logger, { options: { webUrl: webUrl, filePath: filePath, listUrl: listUrl, idColumn: tempIdColumn, verbose: true } } as any), new CommandError(errorMessage));
-  });
+      await assert.rejects(command.action(logger, { options: { webUrl: webUrl, filePath: filePath, listUrl: listUrl, idColumn: tempIdColumn, verbose: true } } as any), new CommandError(errorMessage));
+    }
+  );
 
-  it('throws an error when idColumn is not specified and ID does not exist in csv', async () => {
-    const errorMessage = `The specified value for idColumn does not exist in the array. Specified idColumn is 'ID'. Please specify the correct value.`;
-    sinon.stub(fs, 'readFileSync').callsFake(_ => csvContent);
+  it('throws an error when idColumn is not specified and ID does not exist in csv',
+    async () => {
+      const errorMessage = `The specified value for idColumn does not exist in the array. Specified idColumn is 'ID'. Please specify the correct value.`;
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(_ => csvContent);
 
-    await assert.rejects(command.action(logger, { options: { webUrl: webUrl, filePath: filePath, listUrl: listUrl, verbose: true } } as any), new CommandError(errorMessage));
-  });
+      await assert.rejects(command.action(logger, { options: { webUrl: webUrl, filePath: filePath, listUrl: listUrl, verbose: true } } as any), new CommandError(errorMessage));
+    }
+  );
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'invalid', filePath: filePath, listId: listId } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'invalid', filePath: filePath, listId: listId } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if listId option is not a valid GUID', async () => {
-    sinon.stub(fs, 'existsSync').callsFake(_ => true);
+    jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(_ => true);
     const actual = await command.validate({ options: { webUrl: webUrl, filePath: filePath, listId: 'invalid' } }, commandInfo);
     assert.notStrictEqual(actual, true);
   });
 
   it('fails validation if csv file does not exist', async () => {
-    sinon.stub(fs, 'existsSync').callsFake(_ => false);
+    jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(_ => false);
     const actual = await command.validate({ options: { webUrl: webUrl, filePath: filePath, listId: listId } }, commandInfo);
     assert.notStrictEqual(actual, true);
   });
 
-  it('passes validation if filePath exists, listId is a valid guid and idColumn is a valid idColumn', async () => {
-    sinon.stub(fs, 'existsSync').callsFake(_ => true);
-    const actual = await command.validate({ options: { webUrl: webUrl, filePath: filePath, listId: listId, idColumn: idColumn } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if filePath exists, listId is a valid guid and idColumn is a valid idColumn',
+    async () => {
+      jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(_ => true);
+      const actual = await command.validate({ options: { webUrl: webUrl, filePath: filePath, listId: listId, idColumn: idColumn } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './web-roleinheritance-reset.js';
 
@@ -19,11 +18,11 @@ describe(commands.WEB_ROLEINHERITANCE_RESET, () => {
   let commandInfo: CommandInfo;
   let promptOptions: any;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -41,21 +40,21 @@ describe(commands.WEB_ROLEINHERITANCE_RESET, () => {
         log.push(msg);
       }
     };
-    sinon.stub(Cli, 'prompt').callsFake(async (options) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options) => {
       promptOptions = options;
       return { continue: false };
     });
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -78,18 +77,22 @@ describe(commands.WEB_ROLEINHERITANCE_RESET, () => {
     assert(containsTypeOption);
   });
 
-  it('fails validation if the url option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the url option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the url option is a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if the url option is a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('reset role inheritance of subsite', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/resetroleinheritance') > -1) {
         return;
       }
@@ -106,44 +109,50 @@ describe(commands.WEB_ROLEINHERITANCE_RESET, () => {
     });
   });
 
-  it('web role inheritance reset command handles reject request correctly', async () => {
-    const err = 'request rejected';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/web/resetroleinheritance') > -1) {
-        throw err;
-      }
+  it('web role inheritance reset command handles reject request correctly',
+    async () => {
+      const err = 'request rejected';
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/web/resetroleinheritance') > -1) {
+          throw err;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: 'https://contoso.sharepoint.com',
-        force: true
-      }
-    } as any), new CommandError(err));
-  });
-
-  it('aborts resetting role inheritance when prompt not confirmed', async () => {
-    const postSpy = sinon.spy(request, 'post');
-    await command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com' } });
-    assert(postSpy.notCalled);
-  });
-
-  it('prompts before resetting role inheritance when confirmation argument not passed', async () => {
-    await command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com' } });
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      await assert.rejects(command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: 'https://contoso.sharepoint.com',
+          force: true
+        }
+      } as any), new CommandError(err));
     }
-    assert(promptIssued);
-  });
+  );
+
+  it('aborts resetting role inheritance when prompt not confirmed',
+    async () => {
+      const postSpy = jest.spyOn(request, 'post').mockClear();
+      await command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com' } });
+      assert(postSpy.notCalled);
+    }
+  );
+
+  it('prompts before resetting role inheritance when confirmation argument not passed',
+    async () => {
+      await command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com' } });
+      let promptIssued = false;
+
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+      assert(promptIssued);
+    }
+  );
 
   it('reset role inheritance when prompt confirmed', async () => {
     let resetInheritanceCallIssued = false;
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/resetroleinheritance') > -1) {
         resetInheritanceCallIssued = true;
         return;
@@ -152,8 +161,8 @@ describe(commands.WEB_ROLEINHERITANCE_RESET, () => {
       throw 'Invalid request';
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => {
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => {
       return { continue: true };
     });
     await command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com' } });

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './message-list.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -18,15 +17,15 @@ describe(commands.MESSAGE_LIST, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -44,18 +43,18 @@ describe(commands.MESSAGE_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -71,21 +70,23 @@ describe(commands.MESSAGE_LIST, () => {
     assert.deepStrictEqual(command.defaultProperties(), ['id', 'summary', 'body']);
   });
 
-  it('fails validation if teamId and channelId are not specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if teamId and channelId are not specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the teamId is not a valid guid', async () => {
     const actual = await command.validate({
@@ -97,25 +98,29 @@ describe(commands.MESSAGE_LIST, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation for a incorrect channelId missing leading 19:.', async () => {
-    const actual = await command.validate({
-      options: {
-        teamId: '00000000-0000-0000-0000-000000000000',
-        channelId: '552b7125655c46d5b5b86db02ee7bfdf@thread.skype'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation for a incorrect channelId missing leading 19:.',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          teamId: '00000000-0000-0000-0000-000000000000',
+          channelId: '552b7125655c46d5b5b86db02ee7bfdf@thread.skype'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation for a incorrect channelId missing trailing @thread.skype.', async () => {
-    const actual = await command.validate({
-      options: {
-        teamId: '00000000-0000-0000-0000-000000000000',
-        channelId: '19:552b7125655c46d5b5b86db02ee7bfdf@thread'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation for a incorrect channelId missing trailing @thread.skype.',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          teamId: '00000000-0000-0000-0000-000000000000',
+          channelId: '19:552b7125655c46d5b5b86db02ee7bfdf@thread'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation for since date wrong format', async () => {
     const actual = await command.validate({
@@ -128,18 +133,20 @@ describe(commands.MESSAGE_LIST, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation for since date too far in the past (> 8 months)', async () => {
-    const d: Date = new Date();
-    d.setMonth(d.getMonth() - 9);
-    const actual = await command.validate({
-      options: {
-        teamId: "fce9e580-8bba-4638-ab5c-ab40016651e3",
-        channelId: "19:eb30973b42a847a2a1df92d91e37c76a@thread.skype",
-        since: d.toISOString()
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation for since date too far in the past (> 8 months)',
+    async () => {
+      const d: Date = new Date();
+      d.setMonth(d.getMonth() - 9);
+      const actual = await command.validate({
+        options: {
+          teamId: "fce9e580-8bba-4638-ab5c-ab40016651e3",
+          channelId: "19:eb30973b42a847a2a1df92d91e37c76a@thread.skype",
+          since: d.toISOString()
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('validates for a correct input', async () => {
     const actual = await command.validate({
@@ -151,21 +158,23 @@ describe(commands.MESSAGE_LIST, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('validates for a correct input (with optional --since param)', async () => {
-    const d: Date = new Date();
-    d.setMonth(d.getMonth() - 7);
-    const actual = await command.validate({
-      options: {
-        teamId: "fce9e580-8bba-4638-ab5c-ab40016651e3",
-        channelId: "19:eb30973b42a847a2a1df92d91e37c76a@thread.skype",
-        since: d.toISOString()
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('validates for a correct input (with optional --since param)',
+    async () => {
+      const d: Date = new Date();
+      d.setMonth(d.getMonth() - 7);
+      const actual = await command.validate({
+        options: {
+          teamId: "fce9e580-8bba-4638-ab5c-ab40016651e3",
+          channelId: "19:eb30973b42a847a2a1df92d91e37c76a@thread.skype",
+          since: d.toISOString()
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('lists messages (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/teams/fce9e580-8bba-4638-ab5c-ab40016651e3/channels/19:eb30973b42a847a2a1df92d91e37c76a@thread.skype/messages`) {
         return {
           "@odata.nextLink": "https://graph.microsoft.com/v1.0/teams/fce9e580-8bba-4638-ab5c-ab40016651e3/channels/19:eb30973b42a847a2a1df92d91e37c76a@thread.skype/messages?$skiptoken=%2bRID%3avpsQAJ9uAC3rtFEAAADADw%3d%3d%23RT%3a1%23TRC%3a20%23RTD%3auDcxOTplYjMwOTczYjQyYTg0N2EyYTFkZjkyZDkxZTM3Yzc2YUB0aHJlYWQuc2t5cGU7MTUxMTcyMzY2MzY2MA%3d%3d%23FPC%3aAghGAQAAAD8AAIgBAAAAPwAARgEAAAA%2fAAAMAMIzAAwDAAIBAPgBAGoBAAAAPwAACADyBwAwgABmgIgBAAAAPwAAFABTh%2fIEQgDAAGuJAIAhABwA8QJQAA%3d%3d",
@@ -369,7 +378,7 @@ describe(commands.MESSAGE_LIST, () => {
   });
 
   it('lists messages', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/teams/fce9e580-8bba-4638-ab5c-ab40016651e3/channels/19:eb30973b42a847a2a1df92d91e37c76a@thread.skype/messages`) {
         return {
           value: [
@@ -508,7 +517,7 @@ describe(commands.MESSAGE_LIST, () => {
 
   it('lists messages since date specified', async () => {
     const dt: string = new Date().toISOString();
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/teams/fce9e580-8bba-4638-ab5c-ab40016651e3/channels/19:eb30973b42a847a2a1df92d91e37c76a@thread.skype/messages/delta?$filter=lastModifiedDateTime gt ${dt}`) {
         return {
           value: [
@@ -647,7 +656,7 @@ describe(commands.MESSAGE_LIST, () => {
   });
 
   it('outputs all data in json output mode', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/teams/fce9e580-8bba-4638-ab5c-ab40016651e3/channels/19:eb30973b42a847a2a1df92d91e37c76a@thread.skype/messages`) {
         return {
           value: [
@@ -806,7 +815,7 @@ describe(commands.MESSAGE_LIST, () => {
       }
     };
 
-    sinon.stub(request, 'get').rejects(error);
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, {
       options: {

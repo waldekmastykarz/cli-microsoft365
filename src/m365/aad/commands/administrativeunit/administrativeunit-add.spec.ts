@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -8,7 +7,7 @@ import command from './administrativeunit-add.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import request from '../../../../request.js';
 import { Logger } from '../../../../cli/Logger.js';
 import { CommandError } from '../../../../Command.js';
@@ -23,14 +22,14 @@ describe(commands.ADMINISTRATIVEUNIT_ADD, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -48,18 +47,18 @@ describe(commands.ADMINISTRATIVEUNIT_ADD, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).pollingInterval = 0;
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -71,69 +70,75 @@ describe(commands.ADMINISTRATIVEUNIT_ADD, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('creates an administrative unit with a specific display name', async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === 'https://graph.microsoft.com/v1.0/directory/administrativeUnits') {
-        return administrativeUnitReponse;
-      }
+  it('creates an administrative unit with a specific display name',
+    async () => {
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://graph.microsoft.com/v1.0/directory/administrativeUnits') {
+          return administrativeUnitReponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { displayName: 'European Division' } });
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, {
-      displayName: 'European Division',
-      description: undefined,
-      visibility: null
-    });
-    assert(loggerLogSpy.calledOnceWithExactly(administrativeUnitReponse));
-  });
+      await command.action(logger, { options: { displayName: 'European Division' } });
+      assert.deepStrictEqual(postStub.mock.lastCall[0].data, {
+        displayName: 'European Division',
+        description: undefined,
+        visibility: null
+      });
+      assert(loggerLogSpy.calledOnceWithExactly(administrativeUnitReponse));
+    }
+  );
 
-  it('creates an administrative unit with a specific display name and description', async () => {
-    const privateAdministrativeUnitResponse = { ...administrativeUnitReponse };
-    privateAdministrativeUnitResponse.description = 'European Division Administration';
+  it('creates an administrative unit with a specific display name and description',
+    async () => {
+      const privateAdministrativeUnitResponse = { ...administrativeUnitReponse };
+      privateAdministrativeUnitResponse.description = 'European Division Administration';
 
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === 'https://graph.microsoft.com/v1.0/directory/administrativeUnits') {
-        return administrativeUnitReponse;
-      }
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://graph.microsoft.com/v1.0/directory/administrativeUnits') {
+          return administrativeUnitReponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { displayName: 'European Division', description: 'European Division Administration' } });
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, {
-      displayName: 'European Division',
-      description: 'European Division Administration',
-      visibility: null
-    });
-    assert(loggerLogSpy.calledOnceWith(administrativeUnitReponse));
-  });
+      await command.action(logger, { options: { displayName: 'European Division', description: 'European Division Administration' } });
+      assert.deepStrictEqual(postStub.mock.lastCall[0].data, {
+        displayName: 'European Division',
+        description: 'European Division Administration',
+        visibility: null
+      });
+      assert(loggerLogSpy.calledOnceWith(administrativeUnitReponse));
+    }
+  );
 
-  it('creates a hidden administrative unit with a specific display name and description', async () => {
-    const privateAdministrativeUnitResponse = { ...administrativeUnitReponse };
-    privateAdministrativeUnitResponse.description = 'European Division Administration';
-    privateAdministrativeUnitResponse.visibility = 'HiddenMembership';
+  it('creates a hidden administrative unit with a specific display name and description',
+    async () => {
+      const privateAdministrativeUnitResponse = { ...administrativeUnitReponse };
+      privateAdministrativeUnitResponse.description = 'European Division Administration';
+      privateAdministrativeUnitResponse.visibility = 'HiddenMembership';
 
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === 'https://graph.microsoft.com/v1.0/directory/administrativeUnits') {
-        return administrativeUnitReponse;
-      }
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://graph.microsoft.com/v1.0/directory/administrativeUnits') {
+          return administrativeUnitReponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { displayName: 'European Division', description: 'European Division Administration', hiddenMembership: true } });
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, {
-      displayName: 'European Division',
-      description: 'European Division Administration',
-      visibility: 'HiddenMembership'
-    });
-    assert(loggerLogSpy.calledOnceWith(administrativeUnitReponse));
-  });
+      await command.action(logger, { options: { displayName: 'European Division', description: 'European Division Administration', hiddenMembership: true } });
+      assert.deepStrictEqual(postStub.mock.lastCall[0].data, {
+        displayName: 'European Division',
+        description: 'European Division Administration',
+        visibility: 'HiddenMembership'
+      });
+      assert(loggerLogSpy.calledOnceWith(administrativeUnitReponse));
+    }
+  );
 
   it('correctly handles API OData error', async () => {
-    sinon.stub(request, 'post').rejects({
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects({
       error: {
         'odata.error': {
           code: '-1, InvalidOperationException',
@@ -152,10 +157,12 @@ describe(commands.ADMINISTRATIVEUNIT_ADD, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation when the displayName, description and hiddenMembership are specified', async () => {
-    const actual = await command.validate({ options: { displayName: 'European Division', description: 'European Division Administration', hiddenMembership: true } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when the displayName, description and hiddenMembership are specified',
+    async () => {
+      const actual = await command.validate({ options: { displayName: 'European Division', description: 'European Division Administration', hiddenMembership: true } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('supports specifying displayName', () => {
     const options = command.options;

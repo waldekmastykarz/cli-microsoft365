@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './app-role-add.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -20,12 +19,12 @@ describe(commands.APP_ROLE_ADD, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -46,7 +45,7 @@ describe(commands.APP_ROLE_ADD, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.patch,
       cli.getSettingWithDefaultValue,
@@ -54,8 +53,8 @@ describe(commands.APP_ROLE_ADD, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -67,129 +66,62 @@ describe(commands.APP_ROLE_ADD, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('creates app role for the specified appId, app has no roles', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq 'bc724b77-da87-43a9-b385-6ebaaf969db8'&$select=id`) {
-        return {
-          value: [{
-            id: '5b31c38c-2584-42f0-aa47-657fb3a84230'
-          }]
-        };
-      }
-
-      if (opts.url === 'https://graph.microsoft.com/v1.0/myorganization/applications/5b31c38c-2584-42f0-aa47-657fb3a84230?$select=id,appRoles') {
-        return {
-          id: '5b31c38c-2584-42f0-aa47-657fb3a84230',
-          appRoles: []
-        };
-      }
-
-      throw `Invalid request ${JSON.stringify(opts)}`;
-    });
-    sinon.stub(request, 'patch').callsFake(async opts => {
-      if (opts.url === 'https://graph.microsoft.com/v1.0/myorganization/applications/5b31c38c-2584-42f0-aa47-657fb3a84230' &&
-        opts.data &&
-        opts.data.appRoles.length === 1) {
-        const appRole = opts.data.appRoles[0];
-        if (appRole.displayName === 'Role' &&
-          appRole.description === 'Custom role' &&
-          appRole.value === 'Custom.Role' &&
-          JSON.stringify(appRole.allowedMemberTypes) === JSON.stringify(['User'])) {
-          return;
+  it('creates app role for the specified appId, app has no roles',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq 'bc724b77-da87-43a9-b385-6ebaaf969db8'&$select=id`) {
+          return {
+            value: [{
+              id: '5b31c38c-2584-42f0-aa47-657fb3a84230'
+            }]
+          };
         }
-      }
 
-      throw `Invalid request ${JSON.stringify(opts)}`;
-    });
-
-    await command.action(logger, {
-      options: {
-        debug: true,
-        appId: 'bc724b77-da87-43a9-b385-6ebaaf969db8',
-        name: 'Role',
-        description: 'Custom role',
-        allowedMembers: 'usersGroups',
-        claim: 'Custom.Role'
-      }
-    });
-  });
-
-  it('creates app role for the specified appObjectId, app has one role', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === 'https://graph.microsoft.com/v1.0/myorganization/applications/5b31c38c-2584-42f0-aa47-657fb3a84230?$select=id,appRoles') {
-        return {
-          id: '5b31c38c-2584-42f0-aa47-657fb3a84230',
-          appRoles: [{
-            "allowedMemberTypes": [
-              "User"
-            ],
-            "description": "Managers",
-            "displayName": "Managers",
-            "id": "c4352a0a-494f-46f9-b843-479855c173a7",
-            "isEnabled": true,
-            "lang": null,
-            "origin": "Application",
-            "value": "managers"
-          }]
-        };
-      }
-
-      throw `Invalid request ${JSON.stringify(opts)}`;
-    });
-    sinon.stub(request, 'patch').callsFake(async opts => {
-      if (opts.url === 'https://graph.microsoft.com/v1.0/myorganization/applications/5b31c38c-2584-42f0-aa47-657fb3a84230' &&
-        opts.data &&
-        opts.data.appRoles.length === 2) {
-        const appRole = opts.data.appRoles[1];
-        if (JSON.stringify({
-          "allowedMemberTypes": [
-            "User"
-          ],
-          "description": "Managers",
-          "displayName": "Managers",
-          "id": "c4352a0a-494f-46f9-b843-479855c173a7",
-          "isEnabled": true,
-          "lang": null,
-          "origin": "Application",
-          "value": "managers"
-        }) === JSON.stringify(opts.data.appRoles[0]) &&
-          appRole.displayName === 'Role' &&
-          appRole.description === 'Custom role' &&
-          appRole.value === 'Custom.Role' &&
-          JSON.stringify(appRole.allowedMemberTypes) === JSON.stringify(['Application'])) {
-          return;
+        if (opts.url === 'https://graph.microsoft.com/v1.0/myorganization/applications/5b31c38c-2584-42f0-aa47-657fb3a84230?$select=id,appRoles') {
+          return {
+            id: '5b31c38c-2584-42f0-aa47-657fb3a84230',
+            appRoles: []
+          };
         }
-      }
 
-      throw `Invalid request ${JSON.stringify(opts)}`;
-    });
+        throw `Invalid request ${JSON.stringify(opts)}`;
+      });
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async opts => {
+        if (opts.url === 'https://graph.microsoft.com/v1.0/myorganization/applications/5b31c38c-2584-42f0-aa47-657fb3a84230' &&
+          opts.data &&
+          opts.data.appRoles.length === 1) {
+          const appRole = opts.data.appRoles[0];
+          if (appRole.displayName === 'Role' &&
+            appRole.description === 'Custom role' &&
+            appRole.value === 'Custom.Role' &&
+            JSON.stringify(appRole.allowedMemberTypes) === JSON.stringify(['User'])) {
+            return;
+          }
+        }
 
-    await command.action(logger, {
-      options: {
-        appObjectId: '5b31c38c-2584-42f0-aa47-657fb3a84230',
-        name: 'Role',
-        description: 'Custom role',
-        allowedMembers: 'applications',
-        claim: 'Custom.Role'
-      }
-    });
-  });
+        throw `Invalid request ${JSON.stringify(opts)}`;
+      });
 
-  it('creates app role for the specified appName, app has multiple roles', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=displayName eq 'My%20app'&$select=id`) {
-        return {
-          value: [{
-            id: '5b31c38c-2584-42f0-aa47-657fb3a84230'
-          }]
-        };
-      }
+      await command.action(logger, {
+        options: {
+          debug: true,
+          appId: 'bc724b77-da87-43a9-b385-6ebaaf969db8',
+          name: 'Role',
+          description: 'Custom role',
+          allowedMembers: 'usersGroups',
+          claim: 'Custom.Role'
+        }
+      });
+    }
+  );
 
-      if (opts.url === 'https://graph.microsoft.com/v1.0/myorganization/applications/5b31c38c-2584-42f0-aa47-657fb3a84230?$select=id,appRoles') {
-        return {
-          id: '5b31c38c-2584-42f0-aa47-657fb3a84230',
-          appRoles: [
-            {
+  it('creates app role for the specified appObjectId, app has one role',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === 'https://graph.microsoft.com/v1.0/myorganization/applications/5b31c38c-2584-42f0-aa47-657fb3a84230?$select=id,appRoles') {
+          return {
+            id: '5b31c38c-2584-42f0-aa47-657fb3a84230',
+            appRoles: [{
               "allowedMemberTypes": [
                 "User"
               ],
@@ -200,177 +132,18 @@ describe(commands.APP_ROLE_ADD, () => {
               "lang": null,
               "origin": "Application",
               "value": "managers"
-            },
-            {
-              "allowedMemberTypes": [
-                "User"
-              ],
-              "description": "Team leads",
-              "displayName": "Team leads",
-              "id": "c4352a0a-494f-46f9-b843-479855c173a8",
-              "isEnabled": true,
-              "lang": null,
-              "origin": "Application",
-              "value": "teamLeads"
-            }
-          ]
-        };
-      }
-
-      throw `Invalid request ${JSON.stringify(opts)}`;
-    });
-    sinon.stub(request, 'patch').callsFake(async opts => {
-      if (opts.url === 'https://graph.microsoft.com/v1.0/myorganization/applications/5b31c38c-2584-42f0-aa47-657fb3a84230' &&
-        opts.data &&
-        opts.data.appRoles.length === 3) {
-        const appRole = opts.data.appRoles[2];
-        if (appRole.displayName === 'Role' &&
-          appRole.description === 'Custom role' &&
-          appRole.value === 'Custom.Role' &&
-          JSON.stringify(appRole.allowedMemberTypes) === JSON.stringify(['User', 'Application'])) {
-          return;
+            }]
+          };
         }
-      }
 
-      throw `Invalid request ${JSON.stringify(opts)}`;
-    });
-
-    await command.action(logger, {
-      options: {
-        debug: true,
-        appName: 'My app',
-        name: 'Role',
-        description: 'Custom role',
-        allowedMembers: 'both',
-        claim: 'Custom.Role'
-      }
-    });
-  });
-
-  it('handles error when the app specified with appObjectId not found', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === 'https://graph.microsoft.com/v1.0/myorganization/applications/5b31c38c-2584-42f0-aa47-657fb3a84230?$select=id,appRoles') {
-        throw {
-          "error": {
-            "code": "Request_ResourceNotFound",
-            "message": "Resource '5b31c38c-2584-42f0-aa47-657fb3a84230' does not exist or one of its queried reference-property objects are not present.",
-            "innerError": {
-              "date": "2021-04-20T17:22:30",
-              "request-id": "f58cc4de-b427-41de-b37c-46ee4925a26d",
-              "client-request-id": "f58cc4de-b427-41de-b37c-46ee4925a26d"
-            }
-          }
-        };
-      }
-
-      throw `Invalid request ${JSON.stringify(opts)}`;
-    });
-    sinon.stub(request, 'patch').rejects('PATCH request executed');
-
-    await assert.rejects(command.action(logger, {
-      options: {
-        appObjectId: '5b31c38c-2584-42f0-aa47-657fb3a84230',
-        name: 'Role',
-        description: 'Custom role',
-        allowedMembers: 'usersGroups',
-        claim: 'Custom.Role'
-      }
-    }), new CommandError(`Resource '5b31c38c-2584-42f0-aa47-657fb3a84230' does not exist or one of its queried reference-property objects are not present.`));
-  });
-
-  it('handles error when the app specified with the appId not found', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '9b1b1e42-794b-4c71-93ac-5ed92488b67f'&$select=id`) {
-        return { value: [] };
-      }
-
-      throw `Invalid request ${JSON.stringify(opts)}`;
-    });
-    sinon.stub(request, 'patch').rejects('PATCH request executed');
-
-    await assert.rejects(command.action(logger, {
-      options: {
-        appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f',
-        name: 'Role',
-        description: 'Custom role',
-        allowedMembers: 'usersGroups',
-        claim: 'Custom.Role'
-      }
-    }), new CommandError(`No Azure AD application registration with ID 9b1b1e42-794b-4c71-93ac-5ed92488b67f found`));
-  });
-
-  it('handles error when the app specified with appName not found', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=displayName eq 'My%20app'&$select=id`) {
-        return { value: [] };
-      }
-
-      throw `Invalid request ${JSON.stringify(opts)}`;
-    });
-    sinon.stub(request, 'patch').rejects('PATCH request executed');
-
-    await assert.rejects(command.action(logger, {
-      options: {
-        appName: 'My app',
-        name: 'Role',
-        description: 'Custom role',
-        allowedMembers: 'usersGroups',
-        claim: 'Custom.Role'
-      }
-    }), new CommandError(`No Azure AD application registration with name My app found`));
-  });
-
-  it('handles error when multiple apps with the specified appName found', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
-
-      return defaultValue;
-    });
-
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=displayName eq 'My%20app'&$select=id`) {
-        return {
-          value: [
-            { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67f' },
-            { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67g' }
-          ]
-        };
-      }
-
-      throw `Invalid request ${JSON.stringify(opts)}`;
-    });
-    sinon.stub(request, 'patch').rejects('PATCH request executed');
-
-    await assert.rejects(command.action(logger, {
-      options: {
-        appName: 'My app',
-        name: 'Role',
-        description: 'Custom role',
-        allowedMembers: 'usersGroups',
-        claim: 'Custom.Role'
-      }
-    }), new CommandError(`Multiple Azure AD application registration with name 'My app' found. Found: 9b1b1e42-794b-4c71-93ac-5ed92488b67f, 9b1b1e42-794b-4c71-93ac-5ed92488b67g.`));
-  });
-
-  it('handles selecting single result when multiple apps with the specified name found and cli is set to prompt', async () => {
-    let updateRequestIssued = false;
-
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=displayName eq 'My%20app'&$select=id`) {
-        return {
-          value: [
-            { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67f' },
-            { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67g' }
-          ]
-        };
-      }
-
-      if (opts.url === 'https://graph.microsoft.com/v1.0/myorganization/applications/5b31c38c-2584-42f0-aa47-657fb3a84230?$select=id,appRoles') {
-        return {
-          id: '5b31c38c-2584-42f0-aa47-657fb3a84230',
-          appRoles: [{
+        throw `Invalid request ${JSON.stringify(opts)}`;
+      });
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async opts => {
+        if (opts.url === 'https://graph.microsoft.com/v1.0/myorganization/applications/5b31c38c-2584-42f0-aa47-657fb3a84230' &&
+          opts.data &&
+          opts.data.appRoles.length === 2) {
+          const appRole = opts.data.appRoles[1];
+          if (JSON.stringify({
             "allowedMemberTypes": [
               "User"
             ],
@@ -381,97 +154,343 @@ describe(commands.APP_ROLE_ADD, () => {
             "lang": null,
             "origin": "Application",
             "value": "managers"
-          }]
-        };
-      }
-
-      throw `Invalid request ${JSON.stringify(opts)}`;
-    });
-
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves({ id: '5b31c38c-2584-42f0-aa47-657fb3a84230' });
-
-    sinon.stub(request, 'patch').callsFake(async opts => {
-      if (opts.url === 'https://graph.microsoft.com/v1.0/myorganization/applications/5b31c38c-2584-42f0-aa47-657fb3a84230' &&
-        opts.data &&
-        opts.data.appRoles.length === 2) {
-        const appRole = opts.data.appRoles[1];
-        if (JSON.stringify({
-          "allowedMemberTypes": [
-            "User"
-          ],
-          "description": "Managers",
-          "displayName": "Managers",
-          "id": "c4352a0a-494f-46f9-b843-479855c173a7",
-          "isEnabled": true,
-          "lang": null,
-          "origin": "Application",
-          "value": "managers"
-        }) === JSON.stringify(opts.data.appRoles[0]) &&
-          appRole.displayName === 'Role' &&
-          appRole.description === 'Custom role' &&
-          appRole.value === 'Custom.Role' &&
-          JSON.stringify(appRole.allowedMemberTypes) === JSON.stringify(['Application'])) {
-
-          updateRequestIssued = true;
-          return;
+          }) === JSON.stringify(opts.data.appRoles[0]) &&
+            appRole.displayName === 'Role' &&
+            appRole.description === 'Custom role' &&
+            appRole.value === 'Custom.Role' &&
+            JSON.stringify(appRole.allowedMemberTypes) === JSON.stringify(['Application'])) {
+            return;
+          }
         }
-      }
 
-      throw `Invalid request ${JSON.stringify(opts)}`;
-    });
+        throw `Invalid request ${JSON.stringify(opts)}`;
+      });
 
-    await command.action(logger, {
-      options: {
-        appName: 'My app',
-        name: 'Role',
-        description: 'Custom role',
-        allowedMembers: 'applications',
-        claim: 'Custom.Role'
-      }
-    });
+      await command.action(logger, {
+        options: {
+          appObjectId: '5b31c38c-2584-42f0-aa47-657fb3a84230',
+          name: 'Role',
+          description: 'Custom role',
+          allowedMembers: 'applications',
+          claim: 'Custom.Role'
+        }
+      });
+    }
+  );
 
-    assert(updateRequestIssued);
-  });
+  it('creates app role for the specified appName, app has multiple roles',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=displayName eq 'My%20app'&$select=id`) {
+          return {
+            value: [{
+              id: '5b31c38c-2584-42f0-aa47-657fb3a84230'
+            }]
+          };
+        }
 
-  it('handles error when retrieving information about app through appId failed', async () => {
-    sinon.stub(request, 'get').rejects(new Error('An error has occurred'));
-    sinon.stub(request, 'patch').rejects('PATCH request executed');
+        if (opts.url === 'https://graph.microsoft.com/v1.0/myorganization/applications/5b31c38c-2584-42f0-aa47-657fb3a84230?$select=id,appRoles') {
+          return {
+            id: '5b31c38c-2584-42f0-aa47-657fb3a84230',
+            appRoles: [
+              {
+                "allowedMemberTypes": [
+                  "User"
+                ],
+                "description": "Managers",
+                "displayName": "Managers",
+                "id": "c4352a0a-494f-46f9-b843-479855c173a7",
+                "isEnabled": true,
+                "lang": null,
+                "origin": "Application",
+                "value": "managers"
+              },
+              {
+                "allowedMemberTypes": [
+                  "User"
+                ],
+                "description": "Team leads",
+                "displayName": "Team leads",
+                "id": "c4352a0a-494f-46f9-b843-479855c173a8",
+                "isEnabled": true,
+                "lang": null,
+                "origin": "Application",
+                "value": "teamLeads"
+              }
+            ]
+          };
+        }
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f',
-        name: 'Role',
-        description: 'Custom role',
-        allowedMembers: 'usersGroups',
-        claim: 'Custom.Role'
-      }
-    } as any), new CommandError('An error has occurred'));
-  });
+        throw `Invalid request ${JSON.stringify(opts)}`;
+      });
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async opts => {
+        if (opts.url === 'https://graph.microsoft.com/v1.0/myorganization/applications/5b31c38c-2584-42f0-aa47-657fb3a84230' &&
+          opts.data &&
+          opts.data.appRoles.length === 3) {
+          const appRole = opts.data.appRoles[2];
+          if (appRole.displayName === 'Role' &&
+            appRole.description === 'Custom role' &&
+            appRole.value === 'Custom.Role' &&
+            JSON.stringify(appRole.allowedMemberTypes) === JSON.stringify(['User', 'Application'])) {
+            return;
+          }
+        }
 
-  it('handles error when retrieving information about app through appName failed', async () => {
-    sinon.stub(request, 'get').rejects(new Error('An error has occurred'));
-    sinon.stub(request, 'patch').rejects('PATCH request executed');
+        throw `Invalid request ${JSON.stringify(opts)}`;
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        appName: 'My app',
-        name: 'Role',
-        description: 'Custom role',
-        allowedMembers: 'usersGroups',
-        claim: 'Custom.Role'
-      }
-    } as any), new CommandError('An error has occurred'));
-  });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          appName: 'My app',
+          name: 'Role',
+          description: 'Custom role',
+          allowedMembers: 'both',
+          claim: 'Custom.Role'
+        }
+      });
+    }
+  );
+
+  it('handles error when the app specified with appObjectId not found',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === 'https://graph.microsoft.com/v1.0/myorganization/applications/5b31c38c-2584-42f0-aa47-657fb3a84230?$select=id,appRoles') {
+          throw {
+            "error": {
+              "code": "Request_ResourceNotFound",
+              "message": "Resource '5b31c38c-2584-42f0-aa47-657fb3a84230' does not exist or one of its queried reference-property objects are not present.",
+              "innerError": {
+                "date": "2021-04-20T17:22:30",
+                "request-id": "f58cc4de-b427-41de-b37c-46ee4925a26d",
+                "client-request-id": "f58cc4de-b427-41de-b37c-46ee4925a26d"
+              }
+            }
+          };
+        }
+
+        throw `Invalid request ${JSON.stringify(opts)}`;
+      });
+      jest.spyOn(request, 'patch').mockClear().mockImplementation().rejects('PATCH request executed');
+
+      await assert.rejects(command.action(logger, {
+        options: {
+          appObjectId: '5b31c38c-2584-42f0-aa47-657fb3a84230',
+          name: 'Role',
+          description: 'Custom role',
+          allowedMembers: 'usersGroups',
+          claim: 'Custom.Role'
+        }
+      }), new CommandError(`Resource '5b31c38c-2584-42f0-aa47-657fb3a84230' does not exist or one of its queried reference-property objects are not present.`));
+    }
+  );
+
+  it('handles error when the app specified with the appId not found',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '9b1b1e42-794b-4c71-93ac-5ed92488b67f'&$select=id`) {
+          return { value: [] };
+        }
+
+        throw `Invalid request ${JSON.stringify(opts)}`;
+      });
+      jest.spyOn(request, 'patch').mockClear().mockImplementation().rejects('PATCH request executed');
+
+      await assert.rejects(command.action(logger, {
+        options: {
+          appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f',
+          name: 'Role',
+          description: 'Custom role',
+          allowedMembers: 'usersGroups',
+          claim: 'Custom.Role'
+        }
+      }), new CommandError(`No Azure AD application registration with ID 9b1b1e42-794b-4c71-93ac-5ed92488b67f found`));
+    }
+  );
+
+  it('handles error when the app specified with appName not found',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=displayName eq 'My%20app'&$select=id`) {
+          return { value: [] };
+        }
+
+        throw `Invalid request ${JSON.stringify(opts)}`;
+      });
+      jest.spyOn(request, 'patch').mockClear().mockImplementation().rejects('PATCH request executed');
+
+      await assert.rejects(command.action(logger, {
+        options: {
+          appName: 'My app',
+          name: 'Role',
+          description: 'Custom role',
+          allowedMembers: 'usersGroups',
+          claim: 'Custom.Role'
+        }
+      }), new CommandError(`No Azure AD application registration with name My app found`));
+    }
+  );
+
+  it('handles error when multiple apps with the specified appName found',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
+
+        return defaultValue;
+      });
+
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=displayName eq 'My%20app'&$select=id`) {
+          return {
+            value: [
+              { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67f' },
+              { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67g' }
+            ]
+          };
+        }
+
+        throw `Invalid request ${JSON.stringify(opts)}`;
+      });
+      jest.spyOn(request, 'patch').mockClear().mockImplementation().rejects('PATCH request executed');
+
+      await assert.rejects(command.action(logger, {
+        options: {
+          appName: 'My app',
+          name: 'Role',
+          description: 'Custom role',
+          allowedMembers: 'usersGroups',
+          claim: 'Custom.Role'
+        }
+      }), new CommandError(`Multiple Azure AD application registration with name 'My app' found. Found: 9b1b1e42-794b-4c71-93ac-5ed92488b67f, 9b1b1e42-794b-4c71-93ac-5ed92488b67g.`));
+    }
+  );
+
+  it('handles selecting single result when multiple apps with the specified name found and cli is set to prompt',
+    async () => {
+      let updateRequestIssued = false;
+
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=displayName eq 'My%20app'&$select=id`) {
+          return {
+            value: [
+              { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67f' },
+              { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67g' }
+            ]
+          };
+        }
+
+        if (opts.url === 'https://graph.microsoft.com/v1.0/myorganization/applications/5b31c38c-2584-42f0-aa47-657fb3a84230?$select=id,appRoles') {
+          return {
+            id: '5b31c38c-2584-42f0-aa47-657fb3a84230',
+            appRoles: [{
+              "allowedMemberTypes": [
+                "User"
+              ],
+              "description": "Managers",
+              "displayName": "Managers",
+              "id": "c4352a0a-494f-46f9-b843-479855c173a7",
+              "isEnabled": true,
+              "lang": null,
+              "origin": "Application",
+              "value": "managers"
+            }]
+          };
+        }
+
+        throw `Invalid request ${JSON.stringify(opts)}`;
+      });
+
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves({ id: '5b31c38c-2584-42f0-aa47-657fb3a84230' });
+
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async opts => {
+        if (opts.url === 'https://graph.microsoft.com/v1.0/myorganization/applications/5b31c38c-2584-42f0-aa47-657fb3a84230' &&
+          opts.data &&
+          opts.data.appRoles.length === 2) {
+          const appRole = opts.data.appRoles[1];
+          if (JSON.stringify({
+            "allowedMemberTypes": [
+              "User"
+            ],
+            "description": "Managers",
+            "displayName": "Managers",
+            "id": "c4352a0a-494f-46f9-b843-479855c173a7",
+            "isEnabled": true,
+            "lang": null,
+            "origin": "Application",
+            "value": "managers"
+          }) === JSON.stringify(opts.data.appRoles[0]) &&
+            appRole.displayName === 'Role' &&
+            appRole.description === 'Custom role' &&
+            appRole.value === 'Custom.Role' &&
+            JSON.stringify(appRole.allowedMemberTypes) === JSON.stringify(['Application'])) {
+
+            updateRequestIssued = true;
+            return;
+          }
+        }
+
+        throw `Invalid request ${JSON.stringify(opts)}`;
+      });
+
+      await command.action(logger, {
+        options: {
+          appName: 'My app',
+          name: 'Role',
+          description: 'Custom role',
+          allowedMembers: 'applications',
+          claim: 'Custom.Role'
+        }
+      });
+
+      assert(updateRequestIssued);
+    }
+  );
+
+  it('handles error when retrieving information about app through appId failed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
+      jest.spyOn(request, 'patch').mockClear().mockImplementation().rejects('PATCH request executed');
+
+      await assert.rejects(command.action(logger, {
+        options: {
+          appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f',
+          name: 'Role',
+          description: 'Custom role',
+          allowedMembers: 'usersGroups',
+          claim: 'Custom.Role'
+        }
+      } as any), new CommandError('An error has occurred'));
+    }
+  );
+
+  it('handles error when retrieving information about app through appName failed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
+      jest.spyOn(request, 'patch').mockClear().mockImplementation().rejects('PATCH request executed');
+
+      await assert.rejects(command.action(logger, {
+        options: {
+          appName: 'My app',
+          name: 'Role',
+          description: 'Custom role',
+          allowedMembers: 'usersGroups',
+          claim: 'Custom.Role'
+        }
+      } as any), new CommandError('An error has occurred'));
+    }
+  );
 
   it('handles error when retrieving app roles failed', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/myorganization/applications/5b31c38c-2584-42f0-aa47-657fb3a84230?$select=id,appRoles') {
         throw 'An error has occurred';
       }
 
       throw `Invalid request ${JSON.stringify(opts)}`;
     });
-    sinon.stub(request, 'patch').rejects('PATCH request executed');
+    jest.spyOn(request, 'patch').mockClear().mockImplementation().rejects('PATCH request executed');
 
     await assert.rejects(command.action(logger, {
       options: {
@@ -485,7 +504,7 @@ describe(commands.APP_ROLE_ADD, () => {
   });
 
   it('handles error when updating app roles failed', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/myorganization/applications/5b31c38c-2584-42f0-aa47-657fb3a84230?$select=id,appRoles') {
         return {
           id: '5b31c38c-2584-42f0-aa47-657fb3a84230',
@@ -506,7 +525,7 @@ describe(commands.APP_ROLE_ADD, () => {
 
       throw `Invalid request ${JSON.stringify(opts)}`;
     });
-    sinon.stub(request, 'patch').rejects(new Error('An error has occurred'));
+    jest.spyOn(request, 'patch').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
     await assert.rejects(command.action(logger, {
       options: {
@@ -520,7 +539,7 @@ describe(commands.APP_ROLE_ADD, () => {
   });
 
   it('fails validation if appId and appObjectId specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -533,7 +552,7 @@ describe(commands.APP_ROLE_ADD, () => {
   });
 
   it('fails validation if appId and appName specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -546,7 +565,7 @@ describe(commands.APP_ROLE_ADD, () => {
   });
 
   it('fails validation if appObjectId and appName specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -558,18 +577,20 @@ describe(commands.APP_ROLE_ADD, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if neither appId, appObjectId nor appName specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if neither appId, appObjectId nor appName specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { name: 'Managers', description: 'Managers', allowedMembers: 'userGroups', claim: 'managers' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { name: 'Managers', description: 'Managers', allowedMembers: 'userGroups', claim: 'managers' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if invalid allowedMembers specified', async () => {
     const actual = await command.validate({ options: { appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f', allowedMembers: 'invalid', name: 'Managers', description: 'Managers', claim: 'managers' } }, commandInfo);
@@ -596,10 +617,12 @@ describe(commands.APP_ROLE_ADD, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation if required options specified (appObjectId)', async () => {
-    const actual = await command.validate({ options: { appObjectId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f', name: 'Role', description: 'Custom role', allowedMembers: 'usersGroups', claim: 'Custom.Role' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if required options specified (appObjectId)',
+    async () => {
+      const actual = await command.validate({ options: { appObjectId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f', name: 'Role', description: 'Custom role', allowedMembers: 'usersGroups', claim: 'Custom.Role' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('passes validation if required options specified (appName)', async () => {
     const actual = await command.validate({ options: { appName: 'My app', name: 'Role', description: 'Custom role', allowedMembers: 'usersGroups', claim: 'Custom.Role' } }, commandInfo);

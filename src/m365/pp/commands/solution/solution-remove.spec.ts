@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { powerPlatform } from '../../../../utils/powerPlatform.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import ppSolutionGetCommand from './solution-get.js';
 import command from './solution-remove.js';
@@ -27,13 +26,13 @@ describe(commands.SOLUTION_REMOVE, () => {
   let log: string[];
   let logger: Logger;
   let promptOptions: any;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogToStderrSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -51,8 +50,8 @@ describe(commands.SOLUTION_REMOVE, () => {
         log.push(msg);
       }
     };
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
@@ -60,7 +59,7 @@ describe(commands.SOLUTION_REMOVE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.delete,
       powerPlatform.getDynamicsInstanceApiUrl,
       Cli.prompt,
@@ -68,8 +67,8 @@ describe(commands.SOLUTION_REMOVE, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -101,109 +100,117 @@ describe(commands.SOLUTION_REMOVE, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('prompts before removing the specified solution owned by the currently signed-in user when confirm option not passed', async () => {
-    await command.action(logger, {
-      options: {
-        environmentName: validEnvironment,
-        id: validId
-      }
-    });
-    let promptIssued = false;
+  it('prompts before removing the specified solution owned by the currently signed-in user when confirm option not passed',
+    async () => {
+      await command.action(logger, {
+        options: {
+          environmentName: validEnvironment,
+          id: validId
+        }
+      });
+      let promptIssued = false;
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+
+      assert(promptIssued);
     }
+  );
 
-    assert(promptIssued);
-  });
+  it('aborts removing the specified solution owned by the currently signed-in user when confirm option not passed and prompt not confirmed',
+    async () => {
+      const postSpy = jest.spyOn(request, 'delete').mockClear();
 
-  it('aborts removing the specified solution owned by the currently signed-in user when confirm option not passed and prompt not confirmed', async () => {
-    const postSpy = sinon.spy(request, 'delete');
+      await command.action(logger, {
+        options: {
+          environmentName: validEnvironment,
+          id: validId
+        }
+      });
+      assert(postSpy.notCalled);
+    }
+  );
 
-    await command.action(logger, {
-      options: {
-        environmentName: validEnvironment,
-        id: validId
-      }
-    });
-    assert(postSpy.notCalled);
-  });
+  it('removes the specified solution owned by the currently signed-in user when prompt confirmed',
+    async () => {
+      jest.spyOn(powerPlatform, 'getDynamicsInstanceApiUrl').mockClear().mockImplementation(async () => envUrl);
 
-  it('removes the specified solution owned by the currently signed-in user when prompt confirmed', async () => {
-    sinon.stub(powerPlatform, 'getDynamicsInstanceApiUrl').callsFake(async () => envUrl);
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command): Promise<any> => {
+        if (command === ppSolutionGetCommand) {
+          return ({
+            stdout: `{
+              "solutionid": "${validId}",
+              "uniquename": "${validName}",
+              "version": "1.0.0.0",
+              "installedon": "2022-10-30T13:59:26Z",
+              "solutionpackageversion": null,
+              "friendlyname": "${validName}",
+              "versionnumber": 1209676,
+              "publisherid": {
+                "friendlyname": "Default Publisher for org1547b730",
+                "publisherid": "d21aab71-79e7-11dd-8874-00188b01e34f"
+              }
+            }`
+          });
+        }
 
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command): Promise<any> => {
-      if (command === ppSolutionGetCommand) {
-        return ({
-          stdout: `{
-            "solutionid": "${validId}",
-            "uniquename": "${validName}",
-            "version": "1.0.0.0",
-            "installedon": "2022-10-30T13:59:26Z",
-            "solutionpackageversion": null,
-            "friendlyname": "${validName}",
-            "versionnumber": 1209676,
-            "publisherid": {
-              "friendlyname": "Default Publisher for org1547b730",
-              "publisherid": "d21aab71-79e7-11dd-8874-00188b01e34f"
-            }
-          }`
-        });
-      }
+        throw new CommandError('Unknown case');
+      });
 
-      throw new CommandError('Unknown case');
-    });
+      jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.1/solutions(${validId})`) {
+          return;
+        }
 
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.1/solutions(${validId})`) {
-        return;
-      }
+        throw 'Invalid request';
+      });
 
-      throw 'Invalid request';
-    });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: true }
+      ));
+      await command.action(logger, {
+        options: {
+          debug: true,
+          environmentName: validEnvironment,
+          name: validName
+        }
+      });
+      assert(loggerLogToStderrSpy.called);
+    }
+  );
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: true }
-    ));
-    await command.action(logger, {
-      options: {
-        debug: true,
-        environmentName: validEnvironment,
-        name: validName
-      }
-    });
-    assert(loggerLogToStderrSpy.called);
-  });
+  it('removes the specified solution owned by the currently signed-in user without prompt for confirm',
+    async () => {
+      jest.spyOn(powerPlatform, 'getDynamicsInstanceApiUrl').mockClear().mockImplementation(async () => envUrl);
 
-  it('removes the specified solution owned by the currently signed-in user without prompt for confirm', async () => {
-    sinon.stub(powerPlatform, 'getDynamicsInstanceApiUrl').callsFake(async () => envUrl);
+      jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.1/solutions(${validId})`) {
+          return;
+        }
 
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.1/solutions(${validId})`) {
-        return;
-      }
+        throw 'Invalid request';
+      });
 
-      throw 'Invalid request';
-    });
-
-    await command.action(logger, {
-      options: {
-        debug: true,
-        environmentName: validEnvironment,
-        id: validId,
-        force: true
-      }
-    });
-    assert(loggerLogToStderrSpy.called);
-  });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          environmentName: validEnvironment,
+          id: validId,
+          force: true
+        }
+      });
+      assert(loggerLogToStderrSpy.called);
+    }
+  );
 
   it('correctly handles API OData error', async () => {
     const errorMessage = 'Something went wrong';
 
-    sinon.stub(powerPlatform, 'getDynamicsInstanceApiUrl').callsFake(async () => envUrl);
+    jest.spyOn(powerPlatform, 'getDynamicsInstanceApiUrl').mockClear().mockImplementation(async () => envUrl);
 
-    sinon.stub(request, 'delete').callsFake(async () => { throw { error: { error: { message: errorMessage } } }; });
+    jest.spyOn(request, 'delete').mockClear().mockImplementation(async () => { throw { error: { error: { message: errorMessage } } }; });
 
     await assert.rejects(command.action(logger, {
       options: {

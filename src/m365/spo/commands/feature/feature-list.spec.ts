@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,21 +8,21 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './feature-list.js';
 
 describe(commands.FEATURE_LIST, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -41,17 +40,17 @@ describe(commands.FEATURE_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -64,7 +63,7 @@ describe(commands.FEATURE_LIST, () => {
   });
 
   it('retrieves available features from site collection', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/Site/Features?$select=DisplayName,DefinitionId') > -1) {
         return {
           value: [
@@ -103,7 +102,7 @@ describe(commands.FEATURE_LIST, () => {
   });
 
   it('retrieves available features from site', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/Web/Features?$select=DisplayName,DefinitionId') > -1) {
         return {
           value: [
@@ -141,50 +140,52 @@ describe(commands.FEATURE_LIST, () => {
     ]));
   });
 
-  it('retrieves available features from site (default) when no scope is entered', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/Site/Features?$select=DisplayName,DefinitionId') > -1) {
+  it('retrieves available features from site (default) when no scope is entered',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/Site/Features?$select=DisplayName,DefinitionId') > -1) {
+          throw 'Invalid request';
+        }
+
+        if ((opts.url as string).indexOf('/_api/Web/Features?$select=DisplayName,DefinitionId') > -1) {
+          return {
+            value: [
+              {
+                DefinitionId: "3019c9b4-e371-438d-98f6-0a08c34d06eb",
+                DisplayName: "TenantSitesList"
+              },
+              {
+                DefinitionId: "915c240e-a6cc-49b8-8b2c-0bff8b553ed3",
+                DisplayName: "Ratings"
+              }
+            ]
+          };
+        }
+
         throw 'Invalid request';
-      }
+      });
 
-      if ((opts.url as string).indexOf('/_api/Web/Features?$select=DisplayName,DefinitionId') > -1) {
-        return {
-          value: [
-            {
-              DefinitionId: "3019c9b4-e371-438d-98f6-0a08c34d06eb",
-              DisplayName: "TenantSitesList"
-            },
-            {
-              DefinitionId: "915c240e-a6cc-49b8-8b2c-0bff8b553ed3",
-              DisplayName: "Ratings"
-            }
-          ]
-        };
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger, {
-      options: {
-        verbose: false,
-        webUrl: 'https://contoso.sharepoint.com'
-      }
-    });
-    assert(loggerLogSpy.calledWith([
-      {
-        DefinitionId: "3019c9b4-e371-438d-98f6-0a08c34d06eb",
-        DisplayName: "TenantSitesList"
-      },
-      {
-        DefinitionId: "915c240e-a6cc-49b8-8b2c-0bff8b553ed3",
-        DisplayName: "Ratings"
-      }
-    ]));
-  });
+      await command.action(logger, {
+        options: {
+          verbose: false,
+          webUrl: 'https://contoso.sharepoint.com'
+        }
+      });
+      assert(loggerLogSpy.calledWith([
+        {
+          DefinitionId: "3019c9b4-e371-438d-98f6-0a08c34d06eb",
+          DisplayName: "TenantSitesList"
+        },
+        {
+          DefinitionId: "915c240e-a6cc-49b8-8b2c-0bff8b553ed3",
+          DisplayName: "Ratings"
+        }
+      ]));
+    }
+  );
 
   it('returns all properties for output JSON', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/Site/Features?$select=DisplayName,DefinitionId') > -1) {
         return {
           value: [
@@ -237,7 +238,7 @@ describe(commands.FEATURE_LIST, () => {
   });
 
   it('correctly handles no features in site collection', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/Site/Features?$select=DisplayName,DefinitionId') > -1) {
         return JSON.stringify({ value: [] });
       }
@@ -255,7 +256,7 @@ describe(commands.FEATURE_LIST, () => {
   });
 
   it('correctly handles no features in site', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/Web/Features?$select=DisplayName,DefinitionId') > -1) {
         return JSON.stringify({ value: [] });
       }
@@ -272,36 +273,38 @@ describe(commands.FEATURE_LIST, () => {
     assert.strictEqual(log.length, 0);
   });
 
-  it('correctly handles no features in site collection (verbose)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/Site/Features?$select=DisplayName,DefinitionId') > -1) {
-        return JSON.stringify({ value: [] });
-      }
+  it('correctly handles no features in site collection (verbose)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/Site/Features?$select=DisplayName,DefinitionId') > -1) {
+          return JSON.stringify({ value: [] });
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    const options: any = {
-      verbose: true,
-      webUrl: 'https://contoso.sharepoint.com',
-      scope: 'Site'
-    };
-    await command.action(logger, { options: options } as any);
-    let correctLogStatement = false;
-    log.forEach(l => {
-      if (!l || typeof l !== 'string') {
-        return;
-      }
+      const options: any = {
+        verbose: true,
+        webUrl: 'https://contoso.sharepoint.com',
+        scope: 'Site'
+      };
+      await command.action(logger, { options: options } as any);
+      let correctLogStatement = false;
+      log.forEach(l => {
+        if (!l || typeof l !== 'string') {
+          return;
+        }
 
-      if (l.indexOf('No activated Features found') > -1) {
-        correctLogStatement = true;
-      }
-    });
-    assert(correctLogStatement);
-  });
+        if (l.indexOf('No activated Features found') > -1) {
+          correctLogStatement = true;
+        }
+      });
+      assert(correctLogStatement);
+    }
+  );
 
   it('correctly handles no features in site (verbose)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/Web/Features?$select=DisplayName,DefinitionId') > -1) {
         return JSON.stringify({ value: [] });
       }
@@ -330,7 +333,7 @@ describe(commands.FEATURE_LIST, () => {
 
   it('correctly handles web feature reject request', async () => {
     const err = 'Invalid web Features reject request';
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/Web/Features?$select=DisplayName,DefinitionId') > -1) {
         throw err;
       }
@@ -348,7 +351,7 @@ describe(commands.FEATURE_LIST, () => {
 
   it('correctly handles site Features reject request', async () => {
     const err = 'Invalid site Features reject request';
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/Site/Features?$select=DisplayName,DefinitionId') > -1) {
         throw err;
       }
@@ -377,7 +380,7 @@ describe(commands.FEATURE_LIST, () => {
   });
 
   it('retrieves all Web features', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/Web/Features?$select=DisplayName,DefinitionId') > -1) {
         return {
           value: [
@@ -401,7 +404,7 @@ describe(commands.FEATURE_LIST, () => {
   });
 
   it('retrieves all site features', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/Site/Features?$select=DisplayName,DefinitionId') > -1) {
         return {
           value: [
@@ -425,15 +428,17 @@ describe(commands.FEATURE_LIST, () => {
     ));
   });
 
-  it('fails validation if the url option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({
-      options:
-      {
-        webUrl: 'foo'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the url option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({
+        options:
+        {
+          webUrl: 'foo'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation when the url options specified', async () => {
     const actual = await command.validate({
@@ -445,16 +450,18 @@ describe(commands.FEATURE_LIST, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation when the url and scope options specified', async () => {
-    const actual = await command.validate({
-      options:
-      {
-        webUrl: "https://contoso.sharepoint.com",
-        scope: "Site"
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when the url and scope options specified',
+    async () => {
+      const actual = await command.validate({
+        options:
+        {
+          webUrl: "https://contoso.sharepoint.com",
+          scope: "Site"
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('accepts scope to be Site', async () => {
     const actual = await command.validate({
@@ -500,14 +507,16 @@ describe(commands.FEATURE_LIST, () => {
     assert.strictEqual(actual, `${scope} is not a valid Feature scope. Allowed values are Site|Web`);
   });
 
-  it('doesn\'t fail validation if the optional scope option not specified', async () => {
-    const actual = await command.validate(
-      {
-        options:
+  it('doesn\'t fail validation if the optional scope option not specified',
+    async () => {
+      const actual = await command.validate(
         {
-          webUrl: "https://contoso.sharepoint.com"
-        }
-      }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+          options:
+          {
+            webUrl: "https://contoso.sharepoint.com"
+          }
+        }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

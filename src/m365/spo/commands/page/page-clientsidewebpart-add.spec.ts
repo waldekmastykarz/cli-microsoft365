@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './page-clientsidewebpart-add.js';
 
@@ -45,11 +44,11 @@ describe(commands.PAGE_CLIENTSIDEWEBPART_ADD, () => {
     return s;
   };
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -70,14 +69,14 @@ describe(commands.PAGE_CLIENTSIDEWEBPART_ADD, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -91,7 +90,7 @@ describe(commands.PAGE_CLIENTSIDEWEBPART_ADD, () => {
 
   it('checks out page if not checked out by the current user', async () => {
     let checkedOut = false;
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')`) > -1) {
         return {
           IsPageCheckedOutToCurrentUser: false,
@@ -116,7 +115,7 @@ describe(commands.PAGE_CLIENTSIDEWEBPART_ADD, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/checkoutpage`) > -1) {
         checkedOut = true;
         return {
@@ -151,133 +150,137 @@ describe(commands.PAGE_CLIENTSIDEWEBPART_ADD, () => {
     assert.deepEqual(checkedOut, true);
   });
 
-  it('checks out page if not checked out by the current user (debug)', async () => {
-    let checkedOut = false;
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')`) > -1) {
-        return {
-          IsPageCheckedOutToCurrentUser: false,
-          Title: "article",
-          Id: 1,
-          TopicHeader: "TopicHeader",
-          AuthorByline: "AuthorByline",
-          Description: "Description",
-          BannerImageUrl: {
-            Description: '/_layouts/15/images/sitepagethumbnail.png',
-            Url: `https://contoso.sharepoint.com/_layouts/15/images/sitepagethumbnail.png`
-          },
-          CanvasContent1: "{}",
-          LayoutWebpartsContent: "{}"
-        };
-      }
+  it('checks out page if not checked out by the current user (debug)',
+    async () => {
+      let checkedOut = false;
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')`) > -1) {
+          return {
+            IsPageCheckedOutToCurrentUser: false,
+            Title: "article",
+            Id: 1,
+            TopicHeader: "TopicHeader",
+            AuthorByline: "AuthorByline",
+            Description: "Description",
+            BannerImageUrl: {
+              Description: '/_layouts/15/images/sitepagethumbnail.png',
+              Url: `https://contoso.sharepoint.com/_layouts/15/images/sitepagethumbnail.png`
+            },
+            CanvasContent1: "{}",
+            LayoutWebpartsContent: "{}"
+          };
+        }
 
-      if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
-        return clientSideWebParts;
-      }
+        if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
+          return clientSideWebParts;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/checkoutpage`) > -1) {
-        checkedOut = true;
-        return {
-          Title: "article",
-          Id: 1,
-          TopicHeader: "TopicHeader",
-          AuthorByline: "AuthorByline",
-          Description: "Description",
-          BannerImageUrl: {
-            Description: '/_layouts/15/images/sitepagethumbnail.png',
-            Url: `https://contoso.sharepoint.com/_layouts/15/images/sitepagethumbnail.png`
-          },
-          CanvasContent1: "{}",
-          LayoutWebpartsContent: "{}"
-        };
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/checkoutpage`) > -1) {
+          checkedOut = true;
+          return {
+            Title: "article",
+            Id: 1,
+            TopicHeader: "TopicHeader",
+            AuthorByline: "AuthorByline",
+            Description: "Description",
+            BannerImageUrl: {
+              Description: '/_layouts/15/images/sitepagethumbnail.png',
+              Url: `https://contoso.sharepoint.com/_layouts/15/images/sitepagethumbnail.png`
+            },
+            CanvasContent1: "{}",
+            LayoutWebpartsContent: "{}"
+          };
+        }
 
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/SavePageAsDraft`) > -1) {
-        return {};
-      }
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/SavePageAsDraft`) > -1) {
+          return {};
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        debug: true,
-        pageName: 'home',
-        webUrl: 'https://contoso.sharepoint.com/sites/newsletter',
-        webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09'
-      }
-    }));
-    assert.deepEqual(checkedOut, true);
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          debug: true,
+          pageName: 'home',
+          webUrl: 'https://contoso.sharepoint.com/sites/newsletter',
+          webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09'
+        }
+      }));
+      assert.deepEqual(checkedOut, true);
+    }
+  );
 
-  it('doesn\'t check out page if checked out by the current user', async () => {
-    let checkingOut = false;
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')`) > -1) {
-        return {
-          IsPageCheckedOutToCurrentUser: true,
-          Title: "article",
-          Id: 1,
-          TopicHeader: "TopicHeader",
-          AuthorByline: "AuthorByline",
-          Description: "Description",
-          BannerImageUrl: {
-            Description: '/_layouts/15/images/sitepagethumbnail.png',
-            Url: `https://contoso.sharepoint.com/_layouts/15/images/sitepagethumbnail.png`
-          },
-          CanvasContent1: null,
-          LayoutWebpartsContent: "{}"
-        };
-      }
+  it('doesn\'t check out page if checked out by the current user',
+    async () => {
+      let checkingOut = false;
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')`) > -1) {
+          return {
+            IsPageCheckedOutToCurrentUser: true,
+            Title: "article",
+            Id: 1,
+            TopicHeader: "TopicHeader",
+            AuthorByline: "AuthorByline",
+            Description: "Description",
+            BannerImageUrl: {
+              Description: '/_layouts/15/images/sitepagethumbnail.png',
+              Url: `https://contoso.sharepoint.com/_layouts/15/images/sitepagethumbnail.png`
+            },
+            CanvasContent1: null,
+            LayoutWebpartsContent: "{}"
+          };
+        }
 
-      if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
-        return clientSideWebParts;
-      }
+        if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
+          return clientSideWebParts;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/checkoutpage`) > -1) {
-        checkingOut = true;
-        return {
-          Title: "article",
-          Id: 1,
-          TopicHeader: "TopicHeader",
-          AuthorByline: "AuthorByline",
-          Description: "Description",
-          BannerImageUrl: {
-            Description: '/_layouts/15/images/sitepagethumbnail.png',
-            Url: `https://contoso.sharepoint.com/_layouts/15/images/sitepagethumbnail.png`
-          },
-          CanvasContent1: "{}",
-          LayoutWebpartsContent: "{}"
-        };
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/checkoutpage`) > -1) {
+          checkingOut = true;
+          return {
+            Title: "article",
+            Id: 1,
+            TopicHeader: "TopicHeader",
+            AuthorByline: "AuthorByline",
+            Description: "Description",
+            BannerImageUrl: {
+              Description: '/_layouts/15/images/sitepagethumbnail.png',
+              Url: `https://contoso.sharepoint.com/_layouts/15/images/sitepagethumbnail.png`
+            },
+            CanvasContent1: "{}",
+            LayoutWebpartsContent: "{}"
+          };
+        }
 
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/SavePageAsDraft`) > -1) {
-        return {};
-      }
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/SavePageAsDraft`) > -1) {
+          return {};
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        pageName: 'home',
-        webUrl: 'https://contoso.sharepoint.com/sites/newsletter',
-        webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09'
-      }
-    });
-    assert.deepEqual(checkingOut, false);
-  });
+      await command.action(logger, {
+        options: {
+          pageName: 'home',
+          webUrl: 'https://contoso.sharepoint.com/sites/newsletter',
+          webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09'
+        }
+      });
+      assert.deepEqual(checkingOut, false);
+    }
+  );
 
   it('adds web part to an empty column when no order specified', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
         return {
           "IsPageCheckedOutToCurrentUser": true,
@@ -293,7 +296,7 @@ describe(commands.PAGE_CLIENTSIDEWEBPART_ADD, () => {
     });
 
     let data: string = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
         data = opts.data;
         return {};
@@ -362,7 +365,7 @@ describe(commands.PAGE_CLIENTSIDEWEBPART_ADD, () => {
   });
 
   it('adds web part to an empty column when order 1 specified', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
         return {
           "IsPageCheckedOutToCurrentUser": true,
@@ -378,7 +381,7 @@ describe(commands.PAGE_CLIENTSIDEWEBPART_ADD, () => {
     });
 
     let data: string = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
         data = opts.data;
         return {};
@@ -448,7 +451,7 @@ describe(commands.PAGE_CLIENTSIDEWEBPART_ADD, () => {
   });
 
   it('adds web part to an empty column when order 5 specified', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
         return {
           "IsPageCheckedOutToCurrentUser": true,
@@ -464,7 +467,7 @@ describe(commands.PAGE_CLIENTSIDEWEBPART_ADD, () => {
     });
 
     let data: string = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
         data = opts.data;
         return {};
@@ -533,1706 +536,1742 @@ describe(commands.PAGE_CLIENTSIDEWEBPART_ADD, () => {
     }));
   });
 
-  it('adds web part at the end of the column with one web part when no order specified', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
-        return {
-          "IsPageCheckedOutToCurrentUser": true,
-          "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
-        };
-      }
-
-      if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
-        return clientSideWebParts;
-      }
-
-      throw 'Invalid request';
-    });
-
-    let data: string = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
-        data = opts.data;
-        return {};
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger,
-      {
-        options: {
-          pageName: 'page.aspx',
-          webUrl: 'https://contoso.sharepoint.com/sites/team-a',
-          webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09'
+  it('adds web part at the end of the column with one web part when no order specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
+          return {
+            "IsPageCheckedOutToCurrentUser": true,
+            "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
+          };
         }
+
+        if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
+          return clientSideWebParts;
+        }
+
+        throw 'Invalid request';
       });
-    assert.strictEqual(replaceId(JSON.stringify(data)), JSON.stringify({
-      CanvasContent1: JSON.stringify([
-        {
-          "controlType": 3,
-          "displayMode": 2,
-          "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-          "position": {
-            "controlIndex": 1,
-            "sectionIndex": 1,
-            "sectionFactor": 8,
-            "zoneIndex": 1,
-            "layoutIndex": 1
-          },
-          "webPartId": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
-          "emphasis": {},
-          "reservedHeight": 127,
-          "reservedWidth": 757,
-          "addedFromPersistedData": true,
-          "webPartData": {
-            "id": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
-            "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-            "title": "Weather",
-            "description": "Show current weather conditions on your page",
-            "serverProcessedContent": {
-              "htmlStrings": {},
-              "searchablePlainTexts": {},
-              "imageSources": {},
-              "links": {}
-            },
-            "dataVersion": "1.2",
-            "properties": {
-              "temperatureUnit": "F",
-              "locations": [
-                {
-                  "latitude": 47.604,
-                  "longitude": -122.329,
-                  "name": "Seattle, United States",
-                  "showCustomizedDisplayName": false
-                }
-              ]
-            }
-          }
-        },
-        {
-          "controlType": 3,
-          "displayMode": 2,
-          "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-          "position": {
-            "controlIndex": 2,
-            "sectionIndex": 1,
-            "sectionFactor": 8,
-            "zoneIndex": 1,
-            "layoutIndex": 1
-          },
-          "webPartId": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
-          "emphasis": {},
-          "webPartData": {
-            "dataVersion": "1.0",
-            "description": "Display a key location on a map",
-            "id": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
-            "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-            "properties": {
-              "pushPins": [],
-              "maxNumberOfPushPins": 1,
-              "shouldShowPushPinTitle": true,
-              "zoomLevel": 12,
-              "mapType": "road"
-            },
-            "title": "Bing maps"
-          }
-        },
-        {
-          "displayMode": 2,
-          "position": {
-            "zoneIndex": 1,
-            "sectionIndex": 2,
-            "sectionFactor": 4,
-            "layoutIndex": 1
-          },
-          "emphasis": {}
-        },
-        {
-          "controlType": 0,
-          "pageSettingsSlice": {
-            "isDefaultDescription": true,
-            "isDefaultThumbnail": true
-          }
+
+      let data: string = '';
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
+          data = opts.data;
+          return {};
         }
-      ])
-    }));
-  });
 
-  it('adds web part at the beginning of the column with one web part when order 1 specified', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
-        return {
-          "IsPageCheckedOutToCurrentUser": true,
-          "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
-        };
-      }
-
-      if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
-        return clientSideWebParts;
-      }
-
-      throw 'Invalid request';
-    });
-
-    let data: string = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
-        data = opts.data;
-        return {};
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger,
-      {
-        options: {
-          pageName: 'page.aspx',
-          webUrl: 'https://contoso.sharepoint.com/sites/team-a',
-          webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09',
-          order: 1
-        }
+        throw 'Invalid request';
       });
-    assert.strictEqual(replaceId(JSON.stringify(data)), JSON.stringify({
-      CanvasContent1: JSON.stringify([
+
+      await command.action(logger,
         {
-          "controlType": 3,
-          "displayMode": 2,
-          "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-          "position": {
-            "controlIndex": 1,
-            "sectionIndex": 1,
-            "sectionFactor": 8,
-            "zoneIndex": 1,
-            "layoutIndex": 1
-          },
-          "webPartId": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
-          "emphasis": {},
-          "webPartData": {
-            "dataVersion": "1.0",
-            "description": "Display a key location on a map",
-            "id": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
-            "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-            "properties": {
-              "pushPins": [],
-              "maxNumberOfPushPins": 1,
-              "shouldShowPushPinTitle": true,
-              "zoomLevel": 12,
-              "mapType": "road"
+          options: {
+            pageName: 'page.aspx',
+            webUrl: 'https://contoso.sharepoint.com/sites/team-a',
+            webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09'
+          }
+        });
+      assert.strictEqual(replaceId(JSON.stringify(data)), JSON.stringify({
+        CanvasContent1: JSON.stringify([
+          {
+            "controlType": 3,
+            "displayMode": 2,
+            "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+            "position": {
+              "controlIndex": 1,
+              "sectionIndex": 1,
+              "sectionFactor": 8,
+              "zoneIndex": 1,
+              "layoutIndex": 1
             },
-            "title": "Bing maps"
-          }
-        },
-        {
-          "controlType": 3,
-          "displayMode": 2,
-          "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-          "position": {
-            "controlIndex": 2,
-            "sectionIndex": 1,
-            "sectionFactor": 8,
-            "zoneIndex": 1,
-            "layoutIndex": 1
-          },
-          "webPartId": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
-          "emphasis": {},
-          "reservedHeight": 127,
-          "reservedWidth": 757,
-          "addedFromPersistedData": true,
-          "webPartData": {
-            "id": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
-            "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-            "title": "Weather",
-            "description": "Show current weather conditions on your page",
-            "serverProcessedContent": {
-              "htmlStrings": {},
-              "searchablePlainTexts": {},
-              "imageSources": {},
-              "links": {}
-            },
-            "dataVersion": "1.2",
-            "properties": {
-              "temperatureUnit": "F",
-              "locations": [
-                {
-                  "latitude": 47.604,
-                  "longitude": -122.329,
-                  "name": "Seattle, United States",
-                  "showCustomizedDisplayName": false
-                }
-              ]
-            }
-          }
-        },
-        {
-          "displayMode": 2,
-          "position": {
-            "zoneIndex": 1,
-            "sectionIndex": 2,
-            "sectionFactor": 4,
-            "layoutIndex": 1
-          },
-          "emphasis": {}
-        },
-        {
-          "controlType": 0,
-          "pageSettingsSlice": {
-            "isDefaultDescription": true,
-            "isDefaultThumbnail": true
-          }
-        }
-      ])
-    }));
-  });
-
-  it('adds web part at the end of the column with one web part when order 2 specified', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
-        return {
-          "IsPageCheckedOutToCurrentUser": true,
-          "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
-        };
-      }
-
-      if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
-        return clientSideWebParts;
-      }
-
-      throw 'Invalid request';
-    });
-
-    let data: string = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
-        data = opts.data;
-        return {};
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger,
-      {
-        options: {
-          pageName: 'page.aspx',
-          webUrl: 'https://contoso.sharepoint.com/sites/team-a',
-          webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09',
-          order: 2
-        }
-      });
-    assert.strictEqual(replaceId(JSON.stringify(data)), JSON.stringify({
-      CanvasContent1: JSON.stringify([
-        {
-          "controlType": 3,
-          "displayMode": 2,
-          "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-          "position": {
-            "controlIndex": 1,
-            "sectionIndex": 1,
-            "sectionFactor": 8,
-            "zoneIndex": 1,
-            "layoutIndex": 1
-          },
-          "webPartId": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
-          "emphasis": {},
-          "reservedHeight": 127,
-          "reservedWidth": 757,
-          "addedFromPersistedData": true,
-          "webPartData": {
-            "id": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
-            "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-            "title": "Weather",
-            "description": "Show current weather conditions on your page",
-            "serverProcessedContent": {
-              "htmlStrings": {},
-              "searchablePlainTexts": {},
-              "imageSources": {},
-              "links": {}
-            },
-            "dataVersion": "1.2",
-            "properties": {
-              "temperatureUnit": "F",
-              "locations": [
-                {
-                  "latitude": 47.604,
-                  "longitude": -122.329,
-                  "name": "Seattle, United States",
-                  "showCustomizedDisplayName": false
-                }
-              ]
-            }
-          }
-        },
-        {
-          "controlType": 3,
-          "displayMode": 2,
-          "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-          "position": {
-            "controlIndex": 2,
-            "sectionIndex": 1,
-            "sectionFactor": 8,
-            "zoneIndex": 1,
-            "layoutIndex": 1
-          },
-          "webPartId": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
-          "emphasis": {},
-          "webPartData": {
-            "dataVersion": "1.0",
-            "description": "Display a key location on a map",
-            "id": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
-            "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-            "properties": {
-              "pushPins": [],
-              "maxNumberOfPushPins": 1,
-              "shouldShowPushPinTitle": true,
-              "zoomLevel": 12,
-              "mapType": "road"
-            },
-            "title": "Bing maps"
-          }
-        },
-        {
-          "displayMode": 2,
-          "position": {
-            "zoneIndex": 1,
-            "sectionIndex": 2,
-            "sectionFactor": 4,
-            "layoutIndex": 1
-          },
-          "emphasis": {}
-        },
-        {
-          "controlType": 0,
-          "pageSettingsSlice": {
-            "isDefaultDescription": true,
-            "isDefaultThumbnail": true
-          }
-        }
-      ])
-    }));
-  });
-
-  it('adds web part at the end of the column with multiple web part when no order specified (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
-        return {
-          "IsPageCheckedOutToCurrentUser": true,
-          "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"controlType\":3,\"displayMode\":2,\"id\":\"230b9699-d4ed-414b-8a83-9b251297c384\",\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"controlIndex\":1.5,\"layoutIndex\":1,\"sectionFactor\":8},\"webPartId\":\"62cac389-787f-495d-beca-e11786162ef4\",\"emphasis\":{},\"reservedHeight\":321,\"reservedWidth\":757,\"webPartData\":{\"id\":\"62cac389-787f-495d-beca-e11786162ef4\",\"instanceId\":\"230b9699-d4ed-414b-8a83-9b251297c384\",\"title\":\"Countdown Timer\",\"description\":\"This web part is used to allow a site admin to count down/up to an important event.\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{\"buttonURL\":null}},\"dataVersion\":\"2.1\",\"properties\":{\"showButton\":false,\"countDate\":\"Sun Apr 07 2019 22:00:00 GMT+0200 (Central European Summer Time)\",\"title\":\"\",\"description\":\"\",\"countDirection\":\"COUNT_DOWN\",\"dateDisplay\":\"DAY_HOUR_MINUTE_SECOND\",\"buttonText\":\"\"}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
-        };
-      }
-
-      if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
-        return clientSideWebParts;
-      }
-
-      throw 'Invalid request';
-    });
-
-    let data: string = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
-        data = opts.data;
-        return {};
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger,
-      {
-        options: {
-          debug: true,
-          pageName: 'page.aspx',
-          webUrl: 'https://contoso.sharepoint.com/sites/team-a',
-          webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09'
-        }
-      });
-    assert.strictEqual(replaceId(JSON.stringify(data)), JSON.stringify({
-      CanvasContent1: JSON.stringify([
-        {
-          "controlType": 3,
-          "displayMode": 2,
-          "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-          "position": {
-            "controlIndex": 1,
-            "sectionIndex": 1,
-            "sectionFactor": 8,
-            "zoneIndex": 1,
-            "layoutIndex": 1
-          },
-          "webPartId": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
-          "emphasis": {},
-          "reservedHeight": 127,
-          "reservedWidth": 757,
-          "addedFromPersistedData": true,
-          "webPartData": {
-            "id": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
-            "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-            "title": "Weather",
-            "description": "Show current weather conditions on your page",
-            "serverProcessedContent": {
-              "htmlStrings": {},
-              "searchablePlainTexts": {},
-              "imageSources": {},
-              "links": {}
-            },
-            "dataVersion": "1.2",
-            "properties": {
-              "temperatureUnit": "F",
-              "locations": [
-                {
-                  "latitude": 47.604,
-                  "longitude": -122.329,
-                  "name": "Seattle, United States",
-                  "showCustomizedDisplayName": false
-                }
-              ]
-            }
-          }
-        },
-        {
-          "controlType": 3,
-          "displayMode": 2,
-          "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-          "position": {
-            "zoneIndex": 1,
-            "sectionIndex": 1,
-            "controlIndex": 2,
-            "layoutIndex": 1,
-            "sectionFactor": 8
-          },
-          "webPartId": "62cac389-787f-495d-beca-e11786162ef4",
-          "emphasis": {},
-          "reservedHeight": 321,
-          "reservedWidth": 757,
-          "webPartData": {
-            "id": "62cac389-787f-495d-beca-e11786162ef4",
-            "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-            "title": "Countdown Timer",
-            "description": "This web part is used to allow a site admin to count down/up to an important event.",
-            "serverProcessedContent": {
-              "htmlStrings": {},
-              "searchablePlainTexts": {},
-              "imageSources": {},
-              "links": {
-                "buttonURL": null
+            "webPartId": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
+            "emphasis": {},
+            "reservedHeight": 127,
+            "reservedWidth": 757,
+            "addedFromPersistedData": true,
+            "webPartData": {
+              "id": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
+              "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+              "title": "Weather",
+              "description": "Show current weather conditions on your page",
+              "serverProcessedContent": {
+                "htmlStrings": {},
+                "searchablePlainTexts": {},
+                "imageSources": {},
+                "links": {}
+              },
+              "dataVersion": "1.2",
+              "properties": {
+                "temperatureUnit": "F",
+                "locations": [
+                  {
+                    "latitude": 47.604,
+                    "longitude": -122.329,
+                    "name": "Seattle, United States",
+                    "showCustomizedDisplayName": false
+                  }
+                ]
               }
+            }
+          },
+          {
+            "controlType": 3,
+            "displayMode": 2,
+            "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+            "position": {
+              "controlIndex": 2,
+              "sectionIndex": 1,
+              "sectionFactor": 8,
+              "zoneIndex": 1,
+              "layoutIndex": 1
             },
-            "dataVersion": "2.1",
-            "properties": {
-              "showButton": false,
-              "countDate": "Sun Apr 07 2019 22:00:00 GMT+0200 (Central European Summer Time)",
-              "title": "",
-              "description": "",
-              "countDirection": "COUNT_DOWN",
-              "dateDisplay": "DAY_HOUR_MINUTE_SECOND",
-              "buttonText": ""
+            "webPartId": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
+            "emphasis": {},
+            "webPartData": {
+              "dataVersion": "1.0",
+              "description": "Display a key location on a map",
+              "id": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
+              "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+              "properties": {
+                "pushPins": [],
+                "maxNumberOfPushPins": 1,
+                "shouldShowPushPinTitle": true,
+                "zoomLevel": 12,
+                "mapType": "road"
+              },
+              "title": "Bing maps"
+            }
+          },
+          {
+            "displayMode": 2,
+            "position": {
+              "zoneIndex": 1,
+              "sectionIndex": 2,
+              "sectionFactor": 4,
+              "layoutIndex": 1
+            },
+            "emphasis": {}
+          },
+          {
+            "controlType": 0,
+            "pageSettingsSlice": {
+              "isDefaultDescription": true,
+              "isDefaultThumbnail": true
             }
           }
-        },
-        {
-          "controlType": 3,
-          "displayMode": 2,
-          "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-          "position": {
-            "controlIndex": 3,
-            "sectionIndex": 1,
-            "sectionFactor": 8,
-            "zoneIndex": 1,
-            "layoutIndex": 1
-          },
-          "webPartId": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
-          "emphasis": {},
-          "webPartData": {
-            "dataVersion": "1.0",
-            "description": "Display a key location on a map",
-            "id": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
-            "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-            "properties": {
-              "pushPins": [],
-              "maxNumberOfPushPins": 1,
-              "shouldShowPushPinTitle": true,
-              "zoomLevel": 12,
-              "mapType": "road"
-            },
-            "title": "Bing maps"
-          }
-        },
-        {
-          "displayMode": 2,
-          "position": {
-            "zoneIndex": 1,
-            "sectionIndex": 2,
-            "sectionFactor": 4,
-            "layoutIndex": 1
-          },
-          "emphasis": {}
-        },
-        {
-          "controlType": 0,
-          "pageSettingsSlice": {
-            "isDefaultDescription": true,
-            "isDefaultThumbnail": true
-          }
+        ])
+      }));
+    }
+  );
+
+  it('adds web part at the beginning of the column with one web part when order 1 specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
+          return {
+            "IsPageCheckedOutToCurrentUser": true,
+            "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
+          };
         }
-      ])
-    }));
-  });
 
-  it('adds web part at the beginning of the column with multiple web part when order 1 specified', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
-        return {
-          "IsPageCheckedOutToCurrentUser": true,
-          "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"controlType\":3,\"displayMode\":2,\"id\":\"230b9699-d4ed-414b-8a83-9b251297c384\",\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"controlIndex\":1.5,\"layoutIndex\":1,\"sectionFactor\":8},\"webPartId\":\"62cac389-787f-495d-beca-e11786162ef4\",\"emphasis\":{},\"reservedHeight\":321,\"reservedWidth\":757,\"webPartData\":{\"id\":\"62cac389-787f-495d-beca-e11786162ef4\",\"instanceId\":\"230b9699-d4ed-414b-8a83-9b251297c384\",\"title\":\"Countdown Timer\",\"description\":\"This web part is used to allow a site admin to count down/up to an important event.\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{\"buttonURL\":null}},\"dataVersion\":\"2.1\",\"properties\":{\"showButton\":false,\"countDate\":\"Sun Apr 07 2019 22:00:00 GMT+0200 (Central European Summer Time)\",\"title\":\"\",\"description\":\"\",\"countDirection\":\"COUNT_DOWN\",\"dateDisplay\":\"DAY_HOUR_MINUTE_SECOND\",\"buttonText\":\"\"}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
-        };
-      }
-
-      if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
-        return clientSideWebParts;
-      }
-
-      throw 'Invalid request';
-    });
-
-    let data: string = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
-        data = opts.data;
-        return {};
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger,
-      {
-        options: {
-          pageName: 'page.aspx',
-          webUrl: 'https://contoso.sharepoint.com/sites/team-a',
-          webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09',
-          order: 1
+        if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
+          return clientSideWebParts;
         }
+
+        throw 'Invalid request';
       });
-    assert.strictEqual(replaceId(JSON.stringify(data)), JSON.stringify({
-      CanvasContent1: JSON.stringify([
+
+      let data: string = '';
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
+          data = opts.data;
+          return {};
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger,
         {
-          "controlType": 3,
-          "displayMode": 2,
-          "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-          "position": {
-            "controlIndex": 1,
-            "sectionIndex": 1,
-            "sectionFactor": 8,
-            "zoneIndex": 1,
-            "layoutIndex": 1
-          },
-          "webPartId": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
-          "emphasis": {},
-          "webPartData": {
-            "dataVersion": "1.0",
-            "description": "Display a key location on a map",
-            "id": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
-            "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-            "properties": {
-              "pushPins": [],
-              "maxNumberOfPushPins": 1,
-              "shouldShowPushPinTitle": true,
-              "zoomLevel": 12,
-              "mapType": "road"
-            },
-            "title": "Bing maps"
+          options: {
+            pageName: 'page.aspx',
+            webUrl: 'https://contoso.sharepoint.com/sites/team-a',
+            webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09',
+            order: 1
           }
-        },
-        {
-          "controlType": 3,
-          "displayMode": 2,
-          "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-          "position": {
-            "controlIndex": 2,
-            "sectionIndex": 1,
-            "sectionFactor": 8,
-            "zoneIndex": 1,
-            "layoutIndex": 1
-          },
-          "webPartId": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
-          "emphasis": {},
-          "reservedHeight": 127,
-          "reservedWidth": 757,
-          "addedFromPersistedData": true,
-          "webPartData": {
-            "id": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
-            "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-            "title": "Weather",
-            "description": "Show current weather conditions on your page",
-            "serverProcessedContent": {
-              "htmlStrings": {},
-              "searchablePlainTexts": {},
-              "imageSources": {},
-              "links": {}
+        });
+      assert.strictEqual(replaceId(JSON.stringify(data)), JSON.stringify({
+        CanvasContent1: JSON.stringify([
+          {
+            "controlType": 3,
+            "displayMode": 2,
+            "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+            "position": {
+              "controlIndex": 1,
+              "sectionIndex": 1,
+              "sectionFactor": 8,
+              "zoneIndex": 1,
+              "layoutIndex": 1
             },
-            "dataVersion": "1.2",
-            "properties": {
-              "temperatureUnit": "F",
-              "locations": [
-                {
-                  "latitude": 47.604,
-                  "longitude": -122.329,
-                  "name": "Seattle, United States",
-                  "showCustomizedDisplayName": false
-                }
-              ]
+            "webPartId": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
+            "emphasis": {},
+            "webPartData": {
+              "dataVersion": "1.0",
+              "description": "Display a key location on a map",
+              "id": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
+              "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+              "properties": {
+                "pushPins": [],
+                "maxNumberOfPushPins": 1,
+                "shouldShowPushPinTitle": true,
+                "zoomLevel": 12,
+                "mapType": "road"
+              },
+              "title": "Bing maps"
             }
-          }
-        },
-        {
-          "controlType": 3,
-          "displayMode": 2,
-          "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-          "position": {
-            "zoneIndex": 1,
-            "sectionIndex": 1,
-            "controlIndex": 3,
-            "layoutIndex": 1,
-            "sectionFactor": 8
           },
-          "webPartId": "62cac389-787f-495d-beca-e11786162ef4",
-          "emphasis": {},
-          "reservedHeight": 321,
-          "reservedWidth": 757,
-          "webPartData": {
-            "id": "62cac389-787f-495d-beca-e11786162ef4",
-            "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-            "title": "Countdown Timer",
-            "description": "This web part is used to allow a site admin to count down/up to an important event.",
-            "serverProcessedContent": {
-              "htmlStrings": {},
-              "searchablePlainTexts": {},
-              "imageSources": {},
-              "links": {
-                "buttonURL": null
+          {
+            "controlType": 3,
+            "displayMode": 2,
+            "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+            "position": {
+              "controlIndex": 2,
+              "sectionIndex": 1,
+              "sectionFactor": 8,
+              "zoneIndex": 1,
+              "layoutIndex": 1
+            },
+            "webPartId": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
+            "emphasis": {},
+            "reservedHeight": 127,
+            "reservedWidth": 757,
+            "addedFromPersistedData": true,
+            "webPartData": {
+              "id": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
+              "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+              "title": "Weather",
+              "description": "Show current weather conditions on your page",
+              "serverProcessedContent": {
+                "htmlStrings": {},
+                "searchablePlainTexts": {},
+                "imageSources": {},
+                "links": {}
+              },
+              "dataVersion": "1.2",
+              "properties": {
+                "temperatureUnit": "F",
+                "locations": [
+                  {
+                    "latitude": 47.604,
+                    "longitude": -122.329,
+                    "name": "Seattle, United States",
+                    "showCustomizedDisplayName": false
+                  }
+                ]
               }
+            }
+          },
+          {
+            "displayMode": 2,
+            "position": {
+              "zoneIndex": 1,
+              "sectionIndex": 2,
+              "sectionFactor": 4,
+              "layoutIndex": 1
             },
-            "dataVersion": "2.1",
-            "properties": {
-              "showButton": false,
-              "countDate": "Sun Apr 07 2019 22:00:00 GMT+0200 (Central European Summer Time)",
-              "title": "",
-              "description": "",
-              "countDirection": "COUNT_DOWN",
-              "dateDisplay": "DAY_HOUR_MINUTE_SECOND",
-              "buttonText": ""
+            "emphasis": {}
+          },
+          {
+            "controlType": 0,
+            "pageSettingsSlice": {
+              "isDefaultDescription": true,
+              "isDefaultThumbnail": true
             }
           }
-        },
-        {
-          "displayMode": 2,
-          "position": {
-            "zoneIndex": 1,
-            "sectionIndex": 2,
-            "sectionFactor": 4,
-            "layoutIndex": 1
-          },
-          "emphasis": {}
-        },
-        {
-          "controlType": 0,
-          "pageSettingsSlice": {
-            "isDefaultDescription": true,
-            "isDefaultThumbnail": true
-          }
+        ])
+      }));
+    }
+  );
+
+  it('adds web part at the end of the column with one web part when order 2 specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
+          return {
+            "IsPageCheckedOutToCurrentUser": true,
+            "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
+          };
         }
-      ])
-    }));
-  });
 
-  it('adds web part in the middle of the column with multiple web part when order 2 specified', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
-        return {
-          "IsPageCheckedOutToCurrentUser": true,
-          "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"controlType\":3,\"displayMode\":2,\"id\":\"230b9699-d4ed-414b-8a83-9b251297c384\",\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"controlIndex\":1.5,\"layoutIndex\":1,\"sectionFactor\":8},\"webPartId\":\"62cac389-787f-495d-beca-e11786162ef4\",\"emphasis\":{},\"reservedHeight\":321,\"reservedWidth\":757,\"webPartData\":{\"id\":\"62cac389-787f-495d-beca-e11786162ef4\",\"instanceId\":\"230b9699-d4ed-414b-8a83-9b251297c384\",\"title\":\"Countdown Timer\",\"description\":\"This web part is used to allow a site admin to count down/up to an important event.\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{\"buttonURL\":null}},\"dataVersion\":\"2.1\",\"properties\":{\"showButton\":false,\"countDate\":\"Sun Apr 07 2019 22:00:00 GMT+0200 (Central European Summer Time)\",\"title\":\"\",\"description\":\"\",\"countDirection\":\"COUNT_DOWN\",\"dateDisplay\":\"DAY_HOUR_MINUTE_SECOND\",\"buttonText\":\"\"}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
-        };
-      }
-
-      if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
-        return clientSideWebParts;
-      }
-
-      throw 'Invalid request';
-    });
-
-    let data: string = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
-        data = opts.data;
-        return {};
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger,
-      {
-        options: {
-          pageName: 'page.aspx',
-          webUrl: 'https://contoso.sharepoint.com/sites/team-a',
-          webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09',
-          order: 2
+        if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
+          return clientSideWebParts;
         }
+
+        throw 'Invalid request';
       });
-    assert.strictEqual(replaceId(JSON.stringify(data)), JSON.stringify({
-      CanvasContent1: JSON.stringify([
+
+      let data: string = '';
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
+          data = opts.data;
+          return {};
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger,
         {
-          "controlType": 3,
-          "displayMode": 2,
-          "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-          "position": {
-            "controlIndex": 1,
-            "sectionIndex": 1,
-            "sectionFactor": 8,
-            "zoneIndex": 1,
-            "layoutIndex": 1
-          },
-          "webPartId": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
-          "emphasis": {},
-          "reservedHeight": 127,
-          "reservedWidth": 757,
-          "addedFromPersistedData": true,
-          "webPartData": {
-            "id": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
-            "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-            "title": "Weather",
-            "description": "Show current weather conditions on your page",
-            "serverProcessedContent": {
-              "htmlStrings": {},
-              "searchablePlainTexts": {},
-              "imageSources": {},
-              "links": {}
-            },
-            "dataVersion": "1.2",
-            "properties": {
-              "temperatureUnit": "F",
-              "locations": [
-                {
-                  "latitude": 47.604,
-                  "longitude": -122.329,
-                  "name": "Seattle, United States",
-                  "showCustomizedDisplayName": false
-                }
-              ]
-            }
+          options: {
+            pageName: 'page.aspx',
+            webUrl: 'https://contoso.sharepoint.com/sites/team-a',
+            webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09',
+            order: 2
           }
-        },
-        {
-          "controlType": 3,
-          "displayMode": 2,
-          "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-          "position": {
-            "controlIndex": 2,
-            "sectionIndex": 1,
-            "sectionFactor": 8,
-            "zoneIndex": 1,
-            "layoutIndex": 1
-          },
-          "webPartId": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
-          "emphasis": {},
-          "webPartData": {
-            "dataVersion": "1.0",
-            "description": "Display a key location on a map",
-            "id": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
-            "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-            "properties": {
-              "pushPins": [],
-              "maxNumberOfPushPins": 1,
-              "shouldShowPushPinTitle": true,
-              "zoomLevel": 12,
-              "mapType": "road"
+        });
+      assert.strictEqual(replaceId(JSON.stringify(data)), JSON.stringify({
+        CanvasContent1: JSON.stringify([
+          {
+            "controlType": 3,
+            "displayMode": 2,
+            "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+            "position": {
+              "controlIndex": 1,
+              "sectionIndex": 1,
+              "sectionFactor": 8,
+              "zoneIndex": 1,
+              "layoutIndex": 1
             },
-            "title": "Bing maps"
-          }
-        },
-        {
-          "controlType": 3,
-          "displayMode": 2,
-          "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-          "position": {
-            "zoneIndex": 1,
-            "sectionIndex": 1,
-            "controlIndex": 3,
-            "layoutIndex": 1,
-            "sectionFactor": 8
-          },
-          "webPartId": "62cac389-787f-495d-beca-e11786162ef4",
-          "emphasis": {},
-          "reservedHeight": 321,
-          "reservedWidth": 757,
-          "webPartData": {
-            "id": "62cac389-787f-495d-beca-e11786162ef4",
-            "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-            "title": "Countdown Timer",
-            "description": "This web part is used to allow a site admin to count down/up to an important event.",
-            "serverProcessedContent": {
-              "htmlStrings": {},
-              "searchablePlainTexts": {},
-              "imageSources": {},
-              "links": {
-                "buttonURL": null
+            "webPartId": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
+            "emphasis": {},
+            "reservedHeight": 127,
+            "reservedWidth": 757,
+            "addedFromPersistedData": true,
+            "webPartData": {
+              "id": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
+              "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+              "title": "Weather",
+              "description": "Show current weather conditions on your page",
+              "serverProcessedContent": {
+                "htmlStrings": {},
+                "searchablePlainTexts": {},
+                "imageSources": {},
+                "links": {}
+              },
+              "dataVersion": "1.2",
+              "properties": {
+                "temperatureUnit": "F",
+                "locations": [
+                  {
+                    "latitude": 47.604,
+                    "longitude": -122.329,
+                    "name": "Seattle, United States",
+                    "showCustomizedDisplayName": false
+                  }
+                ]
               }
+            }
+          },
+          {
+            "controlType": 3,
+            "displayMode": 2,
+            "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+            "position": {
+              "controlIndex": 2,
+              "sectionIndex": 1,
+              "sectionFactor": 8,
+              "zoneIndex": 1,
+              "layoutIndex": 1
             },
-            "dataVersion": "2.1",
-            "properties": {
-              "showButton": false,
-              "countDate": "Sun Apr 07 2019 22:00:00 GMT+0200 (Central European Summer Time)",
-              "title": "",
-              "description": "",
-              "countDirection": "COUNT_DOWN",
-              "dateDisplay": "DAY_HOUR_MINUTE_SECOND",
-              "buttonText": ""
+            "webPartId": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
+            "emphasis": {},
+            "webPartData": {
+              "dataVersion": "1.0",
+              "description": "Display a key location on a map",
+              "id": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
+              "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+              "properties": {
+                "pushPins": [],
+                "maxNumberOfPushPins": 1,
+                "shouldShowPushPinTitle": true,
+                "zoomLevel": 12,
+                "mapType": "road"
+              },
+              "title": "Bing maps"
+            }
+          },
+          {
+            "displayMode": 2,
+            "position": {
+              "zoneIndex": 1,
+              "sectionIndex": 2,
+              "sectionFactor": 4,
+              "layoutIndex": 1
+            },
+            "emphasis": {}
+          },
+          {
+            "controlType": 0,
+            "pageSettingsSlice": {
+              "isDefaultDescription": true,
+              "isDefaultThumbnail": true
             }
           }
-        },
-        {
-          "displayMode": 2,
-          "position": {
-            "zoneIndex": 1,
-            "sectionIndex": 2,
-            "sectionFactor": 4,
-            "layoutIndex": 1
-          },
-          "emphasis": {}
-        },
-        {
-          "controlType": 0,
-          "pageSettingsSlice": {
-            "isDefaultDescription": true,
-            "isDefaultThumbnail": true
-          }
+        ])
+      }));
+    }
+  );
+
+  it('adds web part at the end of the column with multiple web part when no order specified (debug)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
+          return {
+            "IsPageCheckedOutToCurrentUser": true,
+            "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"controlType\":3,\"displayMode\":2,\"id\":\"230b9699-d4ed-414b-8a83-9b251297c384\",\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"controlIndex\":1.5,\"layoutIndex\":1,\"sectionFactor\":8},\"webPartId\":\"62cac389-787f-495d-beca-e11786162ef4\",\"emphasis\":{},\"reservedHeight\":321,\"reservedWidth\":757,\"webPartData\":{\"id\":\"62cac389-787f-495d-beca-e11786162ef4\",\"instanceId\":\"230b9699-d4ed-414b-8a83-9b251297c384\",\"title\":\"Countdown Timer\",\"description\":\"This web part is used to allow a site admin to count down/up to an important event.\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{\"buttonURL\":null}},\"dataVersion\":\"2.1\",\"properties\":{\"showButton\":false,\"countDate\":\"Sun Apr 07 2019 22:00:00 GMT+0200 (Central European Summer Time)\",\"title\":\"\",\"description\":\"\",\"countDirection\":\"COUNT_DOWN\",\"dateDisplay\":\"DAY_HOUR_MINUTE_SECOND\",\"buttonText\":\"\"}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
+          };
         }
-      ])
-    }));
-  });
 
-  it('adds web part at the end of the column with multiple web part when order 5 specified', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
-        return {
-          "IsPageCheckedOutToCurrentUser": true,
-          "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"controlType\":3,\"displayMode\":2,\"id\":\"230b9699-d4ed-414b-8a83-9b251297c384\",\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"controlIndex\":1.5,\"layoutIndex\":1,\"sectionFactor\":8},\"webPartId\":\"62cac389-787f-495d-beca-e11786162ef4\",\"emphasis\":{},\"reservedHeight\":321,\"reservedWidth\":757,\"webPartData\":{\"id\":\"62cac389-787f-495d-beca-e11786162ef4\",\"instanceId\":\"230b9699-d4ed-414b-8a83-9b251297c384\",\"title\":\"Countdown Timer\",\"description\":\"This web part is used to allow a site admin to count down/up to an important event.\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{\"buttonURL\":null}},\"dataVersion\":\"2.1\",\"properties\":{\"showButton\":false,\"countDate\":\"Sun Apr 07 2019 22:00:00 GMT+0200 (Central European Summer Time)\",\"title\":\"\",\"description\":\"\",\"countDirection\":\"COUNT_DOWN\",\"dateDisplay\":\"DAY_HOUR_MINUTE_SECOND\",\"buttonText\":\"\"}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
-        };
-      }
-
-      if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
-        return clientSideWebParts;
-      }
-
-      throw 'Invalid request';
-    });
-
-    let data: string = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
-        data = opts.data;
-        return {};
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger,
-      {
-        options: {
-          pageName: 'page.aspx',
-          webUrl: 'https://contoso.sharepoint.com/sites/team-a',
-          webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09',
-          order: 5
+        if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
+          return clientSideWebParts;
         }
+
+        throw 'Invalid request';
       });
-    assert.strictEqual(replaceId(JSON.stringify(data)), JSON.stringify({
-      CanvasContent1: JSON.stringify([
+
+      let data: string = '';
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
+          data = opts.data;
+          return {};
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger,
         {
-          "controlType": 3,
-          "displayMode": 2,
-          "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-          "position": {
-            "controlIndex": 1,
-            "sectionIndex": 1,
-            "sectionFactor": 8,
-            "zoneIndex": 1,
-            "layoutIndex": 1
-          },
-          "webPartId": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
-          "emphasis": {},
-          "reservedHeight": 127,
-          "reservedWidth": 757,
-          "addedFromPersistedData": true,
-          "webPartData": {
-            "id": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
-            "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-            "title": "Weather",
-            "description": "Show current weather conditions on your page",
-            "serverProcessedContent": {
-              "htmlStrings": {},
-              "searchablePlainTexts": {},
-              "imageSources": {},
-              "links": {}
-            },
-            "dataVersion": "1.2",
-            "properties": {
-              "temperatureUnit": "F",
-              "locations": [
-                {
-                  "latitude": 47.604,
-                  "longitude": -122.329,
-                  "name": "Seattle, United States",
-                  "showCustomizedDisplayName": false
-                }
-              ]
-            }
+          options: {
+            debug: true,
+            pageName: 'page.aspx',
+            webUrl: 'https://contoso.sharepoint.com/sites/team-a',
+            webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09'
           }
-        },
-        {
-          "controlType": 3,
-          "displayMode": 2,
-          "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-          "position": {
-            "zoneIndex": 1,
-            "sectionIndex": 1,
-            "controlIndex": 2,
-            "layoutIndex": 1,
-            "sectionFactor": 8
-          },
-          "webPartId": "62cac389-787f-495d-beca-e11786162ef4",
-          "emphasis": {},
-          "reservedHeight": 321,
-          "reservedWidth": 757,
-          "webPartData": {
-            "id": "62cac389-787f-495d-beca-e11786162ef4",
-            "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-            "title": "Countdown Timer",
-            "description": "This web part is used to allow a site admin to count down/up to an important event.",
-            "serverProcessedContent": {
-              "htmlStrings": {},
-              "searchablePlainTexts": {},
-              "imageSources": {},
-              "links": {
-                "buttonURL": null
+        });
+      assert.strictEqual(replaceId(JSON.stringify(data)), JSON.stringify({
+        CanvasContent1: JSON.stringify([
+          {
+            "controlType": 3,
+            "displayMode": 2,
+            "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+            "position": {
+              "controlIndex": 1,
+              "sectionIndex": 1,
+              "sectionFactor": 8,
+              "zoneIndex": 1,
+              "layoutIndex": 1
+            },
+            "webPartId": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
+            "emphasis": {},
+            "reservedHeight": 127,
+            "reservedWidth": 757,
+            "addedFromPersistedData": true,
+            "webPartData": {
+              "id": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
+              "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+              "title": "Weather",
+              "description": "Show current weather conditions on your page",
+              "serverProcessedContent": {
+                "htmlStrings": {},
+                "searchablePlainTexts": {},
+                "imageSources": {},
+                "links": {}
+              },
+              "dataVersion": "1.2",
+              "properties": {
+                "temperatureUnit": "F",
+                "locations": [
+                  {
+                    "latitude": 47.604,
+                    "longitude": -122.329,
+                    "name": "Seattle, United States",
+                    "showCustomizedDisplayName": false
+                  }
+                ]
               }
-            },
-            "dataVersion": "2.1",
-            "properties": {
-              "showButton": false,
-              "countDate": "Sun Apr 07 2019 22:00:00 GMT+0200 (Central European Summer Time)",
-              "title": "",
-              "description": "",
-              "countDirection": "COUNT_DOWN",
-              "dateDisplay": "DAY_HOUR_MINUTE_SECOND",
-              "buttonText": ""
             }
-          }
-        },
-        {
-          "controlType": 3,
-          "displayMode": 2,
-          "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-          "position": {
-            "controlIndex": 3,
-            "sectionIndex": 1,
-            "sectionFactor": 8,
-            "zoneIndex": 1,
-            "layoutIndex": 1
           },
-          "webPartId": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
-          "emphasis": {},
-          "webPartData": {
-            "dataVersion": "1.0",
-            "description": "Display a key location on a map",
-            "id": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
-            "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-            "properties": {
-              "pushPins": [],
-              "maxNumberOfPushPins": 1,
-              "shouldShowPushPinTitle": true,
-              "zoomLevel": 12,
-              "mapType": "road"
+          {
+            "controlType": 3,
+            "displayMode": 2,
+            "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+            "position": {
+              "zoneIndex": 1,
+              "sectionIndex": 1,
+              "controlIndex": 2,
+              "layoutIndex": 1,
+              "sectionFactor": 8
             },
-            "title": "Bing maps"
-          }
-        },
-        {
-          "displayMode": 2,
-          "position": {
-            "zoneIndex": 1,
-            "sectionIndex": 2,
-            "sectionFactor": 4,
-            "layoutIndex": 1
-          },
-          "emphasis": {}
-        },
-        {
-          "controlType": 0,
-          "pageSettingsSlice": {
-            "isDefaultDescription": true,
-            "isDefaultThumbnail": true
-          }
-        }
-      ])
-    }));
-  });
-
-  it('adds a standard web part at the end of the column with one web part when no order specified', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
-        return {
-          "IsPageCheckedOutToCurrentUser": true,
-          "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
-        };
-      }
-
-      if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
-        return clientSideWebParts;
-      }
-
-      throw 'Invalid request';
-    });
-
-    let data: string = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
-        data = opts.data;
-        return {};
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger,
-      {
-        options: {
-          pageName: 'page.aspx',
-          webUrl: 'https://contoso.sharepoint.com/sites/team-a',
-          standardWebPart: 'BingMap'
-        }
-      });
-    assert.strictEqual(replaceId(JSON.stringify(data)), JSON.stringify({
-      CanvasContent1: JSON.stringify([
-        {
-          "controlType": 3,
-          "displayMode": 2,
-          "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-          "position": {
-            "controlIndex": 1,
-            "sectionIndex": 1,
-            "sectionFactor": 8,
-            "zoneIndex": 1,
-            "layoutIndex": 1
-          },
-          "webPartId": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
-          "emphasis": {},
-          "reservedHeight": 127,
-          "reservedWidth": 757,
-          "addedFromPersistedData": true,
-          "webPartData": {
-            "id": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
-            "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-            "title": "Weather",
-            "description": "Show current weather conditions on your page",
-            "serverProcessedContent": {
-              "htmlStrings": {},
-              "searchablePlainTexts": {},
-              "imageSources": {},
-              "links": {}
-            },
-            "dataVersion": "1.2",
-            "properties": {
-              "temperatureUnit": "F",
-              "locations": [
-                {
-                  "latitude": 47.604,
-                  "longitude": -122.329,
-                  "name": "Seattle, United States",
-                  "showCustomizedDisplayName": false
+            "webPartId": "62cac389-787f-495d-beca-e11786162ef4",
+            "emphasis": {},
+            "reservedHeight": 321,
+            "reservedWidth": 757,
+            "webPartData": {
+              "id": "62cac389-787f-495d-beca-e11786162ef4",
+              "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+              "title": "Countdown Timer",
+              "description": "This web part is used to allow a site admin to count down/up to an important event.",
+              "serverProcessedContent": {
+                "htmlStrings": {},
+                "searchablePlainTexts": {},
+                "imageSources": {},
+                "links": {
+                  "buttonURL": null
                 }
-              ]
+              },
+              "dataVersion": "2.1",
+              "properties": {
+                "showButton": false,
+                "countDate": "Sun Apr 07 2019 22:00:00 GMT+0200 (Central European Summer Time)",
+                "title": "",
+                "description": "",
+                "countDirection": "COUNT_DOWN",
+                "dateDisplay": "DAY_HOUR_MINUTE_SECOND",
+                "buttonText": ""
+              }
+            }
+          },
+          {
+            "controlType": 3,
+            "displayMode": 2,
+            "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+            "position": {
+              "controlIndex": 3,
+              "sectionIndex": 1,
+              "sectionFactor": 8,
+              "zoneIndex": 1,
+              "layoutIndex": 1
+            },
+            "webPartId": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
+            "emphasis": {},
+            "webPartData": {
+              "dataVersion": "1.0",
+              "description": "Display a key location on a map",
+              "id": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
+              "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+              "properties": {
+                "pushPins": [],
+                "maxNumberOfPushPins": 1,
+                "shouldShowPushPinTitle": true,
+                "zoomLevel": 12,
+                "mapType": "road"
+              },
+              "title": "Bing maps"
+            }
+          },
+          {
+            "displayMode": 2,
+            "position": {
+              "zoneIndex": 1,
+              "sectionIndex": 2,
+              "sectionFactor": 4,
+              "layoutIndex": 1
+            },
+            "emphasis": {}
+          },
+          {
+            "controlType": 0,
+            "pageSettingsSlice": {
+              "isDefaultDescription": true,
+              "isDefaultThumbnail": true
             }
           }
-        },
-        {
-          "controlType": 3,
-          "displayMode": 2,
-          "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-          "position": {
-            "controlIndex": 2,
-            "sectionIndex": 1,
-            "sectionFactor": 8,
-            "zoneIndex": 1,
-            "layoutIndex": 1
-          },
-          "webPartId": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
-          "emphasis": {},
-          "webPartData": {
-            "dataVersion": "1.0",
-            "description": "Display a key location on a map",
-            "id": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
-            "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-            "properties": {
-              "pushPins": [],
-              "maxNumberOfPushPins": 1,
-              "shouldShowPushPinTitle": true,
-              "zoomLevel": 12,
-              "mapType": "road"
-            },
-            "title": "Bing maps"
-          }
-        },
-        {
-          "displayMode": 2,
-          "position": {
-            "zoneIndex": 1,
-            "sectionIndex": 2,
-            "sectionFactor": 4,
-            "layoutIndex": 1
-          },
-          "emphasis": {}
-        },
-        {
-          "controlType": 0,
-          "pageSettingsSlice": {
-            "isDefaultDescription": true,
-            "isDefaultThumbnail": true
-          }
+        ])
+      }));
+    }
+  );
+
+  it('adds web part at the beginning of the column with multiple web part when order 1 specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
+          return {
+            "IsPageCheckedOutToCurrentUser": true,
+            "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"controlType\":3,\"displayMode\":2,\"id\":\"230b9699-d4ed-414b-8a83-9b251297c384\",\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"controlIndex\":1.5,\"layoutIndex\":1,\"sectionFactor\":8},\"webPartId\":\"62cac389-787f-495d-beca-e11786162ef4\",\"emphasis\":{},\"reservedHeight\":321,\"reservedWidth\":757,\"webPartData\":{\"id\":\"62cac389-787f-495d-beca-e11786162ef4\",\"instanceId\":\"230b9699-d4ed-414b-8a83-9b251297c384\",\"title\":\"Countdown Timer\",\"description\":\"This web part is used to allow a site admin to count down/up to an important event.\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{\"buttonURL\":null}},\"dataVersion\":\"2.1\",\"properties\":{\"showButton\":false,\"countDate\":\"Sun Apr 07 2019 22:00:00 GMT+0200 (Central European Summer Time)\",\"title\":\"\",\"description\":\"\",\"countDirection\":\"COUNT_DOWN\",\"dateDisplay\":\"DAY_HOUR_MINUTE_SECOND\",\"buttonText\":\"\"}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
+          };
         }
-      ])
-    }));
-  });
 
-  it('adds a standard web part in a default section when no section exists on page', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
-        return {
-          "IsPageCheckedOutToCurrentUser": true,
-          "CanvasContent1": "[{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
-        };
-      }
-
-      if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
-        return clientSideWebParts;
-      }
-
-      throw 'Invalid request';
-    });
-
-    let data: string = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
-        data = opts.data;
-        return {};
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger,
-      {
-        options: {
-          pageName: 'page.aspx',
-          webUrl: 'https://contoso.sharepoint.com/sites/team-a',
-          standardWebPart: 'BingMap'
+        if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
+          return clientSideWebParts;
         }
+
+        throw 'Invalid request';
       });
-    assert.strictEqual(replaceId(JSON.stringify(data)), JSON.stringify({
-      CanvasContent1: JSON.stringify([
-        {
-          "controlType": 3,
-          "displayMode": 2,
-          "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-          "position": {
-            "controlIndex": 1,
-            "sectionIndex": 1,
-            "zoneIndex": 1,
-            "sectionFactor": 12,
-            "layoutIndex": 1
-          },
-          "webPartId": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
-          "emphasis": {},
-          "webPartData": {
-            "dataVersion": "1.0",
-            "description": "Display a key location on a map",
-            "id": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
-            "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-            "properties": {
-              "pushPins": [],
-              "maxNumberOfPushPins": 1,
-              "shouldShowPushPinTitle": true,
-              "zoomLevel": 12,
-              "mapType": "road"
-            },
-            "title": "Bing maps"
-          }
-        },
-        {
-          "controlType": 0,
-          "pageSettingsSlice": {
-            "isDefaultDescription": true,
-            "isDefaultThumbnail": true
-          }
+
+      let data: string = '';
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
+          data = opts.data;
+          return {};
         }
-      ])
-    }));
-  });
 
-  it('adds a standard web part with properties at the end of the column with one web part when no order specified (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
-        return {
-          "IsPageCheckedOutToCurrentUser": true,
-          "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
-        };
-      }
-
-      if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
-        return clientSideWebParts;
-      }
-
-      throw 'Invalid request';
-    });
-
-    let data: string = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
-        data = opts.data;
-        return {};
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger,
-      {
-        options: {
-          debug: true,
-          pageName: 'page.aspx',
-          webUrl: 'https://contoso.sharepoint.com/sites/team-a',
-          standardWebPart: 'BingMap',
-          webPartProperties: '{"title":"Location"}'
-        }
+        throw 'Invalid request';
       });
-    assert.strictEqual(replaceId(JSON.stringify(data)), JSON.stringify({
-      CanvasContent1: JSON.stringify([
+
+      await command.action(logger,
         {
-          "controlType": 3,
-          "displayMode": 2,
-          "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-          "position": {
-            "controlIndex": 1,
-            "sectionIndex": 1,
-            "sectionFactor": 8,
-            "zoneIndex": 1,
-            "layoutIndex": 1
-          },
-          "webPartId": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
-          "emphasis": {},
-          "reservedHeight": 127,
-          "reservedWidth": 757,
-          "addedFromPersistedData": true,
-          "webPartData": {
-            "id": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
-            "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-            "title": "Weather",
-            "description": "Show current weather conditions on your page",
-            "serverProcessedContent": {
-              "htmlStrings": {},
-              "searchablePlainTexts": {},
-              "imageSources": {},
-              "links": {}
+          options: {
+            pageName: 'page.aspx',
+            webUrl: 'https://contoso.sharepoint.com/sites/team-a',
+            webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09',
+            order: 1
+          }
+        });
+      assert.strictEqual(replaceId(JSON.stringify(data)), JSON.stringify({
+        CanvasContent1: JSON.stringify([
+          {
+            "controlType": 3,
+            "displayMode": 2,
+            "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+            "position": {
+              "controlIndex": 1,
+              "sectionIndex": 1,
+              "sectionFactor": 8,
+              "zoneIndex": 1,
+              "layoutIndex": 1
             },
-            "dataVersion": "1.2",
-            "properties": {
-              "temperatureUnit": "F",
-              "locations": [
-                {
-                  "latitude": 47.604,
-                  "longitude": -122.329,
-                  "name": "Seattle, United States",
-                  "showCustomizedDisplayName": false
+            "webPartId": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
+            "emphasis": {},
+            "webPartData": {
+              "dataVersion": "1.0",
+              "description": "Display a key location on a map",
+              "id": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
+              "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+              "properties": {
+                "pushPins": [],
+                "maxNumberOfPushPins": 1,
+                "shouldShowPushPinTitle": true,
+                "zoomLevel": 12,
+                "mapType": "road"
+              },
+              "title": "Bing maps"
+            }
+          },
+          {
+            "controlType": 3,
+            "displayMode": 2,
+            "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+            "position": {
+              "controlIndex": 2,
+              "sectionIndex": 1,
+              "sectionFactor": 8,
+              "zoneIndex": 1,
+              "layoutIndex": 1
+            },
+            "webPartId": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
+            "emphasis": {},
+            "reservedHeight": 127,
+            "reservedWidth": 757,
+            "addedFromPersistedData": true,
+            "webPartData": {
+              "id": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
+              "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+              "title": "Weather",
+              "description": "Show current weather conditions on your page",
+              "serverProcessedContent": {
+                "htmlStrings": {},
+                "searchablePlainTexts": {},
+                "imageSources": {},
+                "links": {}
+              },
+              "dataVersion": "1.2",
+              "properties": {
+                "temperatureUnit": "F",
+                "locations": [
+                  {
+                    "latitude": 47.604,
+                    "longitude": -122.329,
+                    "name": "Seattle, United States",
+                    "showCustomizedDisplayName": false
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "controlType": 3,
+            "displayMode": 2,
+            "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+            "position": {
+              "zoneIndex": 1,
+              "sectionIndex": 1,
+              "controlIndex": 3,
+              "layoutIndex": 1,
+              "sectionFactor": 8
+            },
+            "webPartId": "62cac389-787f-495d-beca-e11786162ef4",
+            "emphasis": {},
+            "reservedHeight": 321,
+            "reservedWidth": 757,
+            "webPartData": {
+              "id": "62cac389-787f-495d-beca-e11786162ef4",
+              "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+              "title": "Countdown Timer",
+              "description": "This web part is used to allow a site admin to count down/up to an important event.",
+              "serverProcessedContent": {
+                "htmlStrings": {},
+                "searchablePlainTexts": {},
+                "imageSources": {},
+                "links": {
+                  "buttonURL": null
                 }
-              ]
+              },
+              "dataVersion": "2.1",
+              "properties": {
+                "showButton": false,
+                "countDate": "Sun Apr 07 2019 22:00:00 GMT+0200 (Central European Summer Time)",
+                "title": "",
+                "description": "",
+                "countDirection": "COUNT_DOWN",
+                "dateDisplay": "DAY_HOUR_MINUTE_SECOND",
+                "buttonText": ""
+              }
+            }
+          },
+          {
+            "displayMode": 2,
+            "position": {
+              "zoneIndex": 1,
+              "sectionIndex": 2,
+              "sectionFactor": 4,
+              "layoutIndex": 1
+            },
+            "emphasis": {}
+          },
+          {
+            "controlType": 0,
+            "pageSettingsSlice": {
+              "isDefaultDescription": true,
+              "isDefaultThumbnail": true
             }
           }
-        },
+        ])
+      }));
+    }
+  );
+
+  it('adds web part in the middle of the column with multiple web part when order 2 specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
+          return {
+            "IsPageCheckedOutToCurrentUser": true,
+            "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"controlType\":3,\"displayMode\":2,\"id\":\"230b9699-d4ed-414b-8a83-9b251297c384\",\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"controlIndex\":1.5,\"layoutIndex\":1,\"sectionFactor\":8},\"webPartId\":\"62cac389-787f-495d-beca-e11786162ef4\",\"emphasis\":{},\"reservedHeight\":321,\"reservedWidth\":757,\"webPartData\":{\"id\":\"62cac389-787f-495d-beca-e11786162ef4\",\"instanceId\":\"230b9699-d4ed-414b-8a83-9b251297c384\",\"title\":\"Countdown Timer\",\"description\":\"This web part is used to allow a site admin to count down/up to an important event.\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{\"buttonURL\":null}},\"dataVersion\":\"2.1\",\"properties\":{\"showButton\":false,\"countDate\":\"Sun Apr 07 2019 22:00:00 GMT+0200 (Central European Summer Time)\",\"title\":\"\",\"description\":\"\",\"countDirection\":\"COUNT_DOWN\",\"dateDisplay\":\"DAY_HOUR_MINUTE_SECOND\",\"buttonText\":\"\"}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
+          };
+        }
+
+        if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
+          return clientSideWebParts;
+        }
+
+        throw 'Invalid request';
+      });
+
+      let data: string = '';
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
+          data = opts.data;
+          return {};
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger,
         {
-          "controlType": 3,
-          "displayMode": 2,
-          "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-          "position": {
-            "controlIndex": 2,
-            "sectionIndex": 1,
-            "sectionFactor": 8,
-            "zoneIndex": 1,
-            "layoutIndex": 1
-          },
-          "webPartId": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
-          "emphasis": {},
-          "webPartData": {
-            "dataVersion": "1.0",
-            "description": "Display a key location on a map",
-            "id": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
-            "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-            "properties": {
-              "pushPins": [],
-              "maxNumberOfPushPins": 1,
-              "shouldShowPushPinTitle": true,
-              "zoomLevel": 12,
-              "mapType": "road",
-              "title": "Location"
+          options: {
+            pageName: 'page.aspx',
+            webUrl: 'https://contoso.sharepoint.com/sites/team-a',
+            webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09',
+            order: 2
+          }
+        });
+      assert.strictEqual(replaceId(JSON.stringify(data)), JSON.stringify({
+        CanvasContent1: JSON.stringify([
+          {
+            "controlType": 3,
+            "displayMode": 2,
+            "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+            "position": {
+              "controlIndex": 1,
+              "sectionIndex": 1,
+              "sectionFactor": 8,
+              "zoneIndex": 1,
+              "layoutIndex": 1
             },
-            "title": "Bing maps"
-          }
-        },
-        {
-          "displayMode": 2,
-          "position": {
-            "zoneIndex": 1,
-            "sectionIndex": 2,
-            "sectionFactor": 4,
-            "layoutIndex": 1
+            "webPartId": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
+            "emphasis": {},
+            "reservedHeight": 127,
+            "reservedWidth": 757,
+            "addedFromPersistedData": true,
+            "webPartData": {
+              "id": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
+              "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+              "title": "Weather",
+              "description": "Show current weather conditions on your page",
+              "serverProcessedContent": {
+                "htmlStrings": {},
+                "searchablePlainTexts": {},
+                "imageSources": {},
+                "links": {}
+              },
+              "dataVersion": "1.2",
+              "properties": {
+                "temperatureUnit": "F",
+                "locations": [
+                  {
+                    "latitude": 47.604,
+                    "longitude": -122.329,
+                    "name": "Seattle, United States",
+                    "showCustomizedDisplayName": false
+                  }
+                ]
+              }
+            }
           },
-          "emphasis": {}
-        },
-        {
-          "controlType": 0,
-          "pageSettingsSlice": {
-            "isDefaultDescription": true,
-            "isDefaultThumbnail": true
+          {
+            "controlType": 3,
+            "displayMode": 2,
+            "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+            "position": {
+              "controlIndex": 2,
+              "sectionIndex": 1,
+              "sectionFactor": 8,
+              "zoneIndex": 1,
+              "layoutIndex": 1
+            },
+            "webPartId": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
+            "emphasis": {},
+            "webPartData": {
+              "dataVersion": "1.0",
+              "description": "Display a key location on a map",
+              "id": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
+              "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+              "properties": {
+                "pushPins": [],
+                "maxNumberOfPushPins": 1,
+                "shouldShowPushPinTitle": true,
+                "zoomLevel": 12,
+                "mapType": "road"
+              },
+              "title": "Bing maps"
+            }
+          },
+          {
+            "controlType": 3,
+            "displayMode": 2,
+            "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+            "position": {
+              "zoneIndex": 1,
+              "sectionIndex": 1,
+              "controlIndex": 3,
+              "layoutIndex": 1,
+              "sectionFactor": 8
+            },
+            "webPartId": "62cac389-787f-495d-beca-e11786162ef4",
+            "emphasis": {},
+            "reservedHeight": 321,
+            "reservedWidth": 757,
+            "webPartData": {
+              "id": "62cac389-787f-495d-beca-e11786162ef4",
+              "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+              "title": "Countdown Timer",
+              "description": "This web part is used to allow a site admin to count down/up to an important event.",
+              "serverProcessedContent": {
+                "htmlStrings": {},
+                "searchablePlainTexts": {},
+                "imageSources": {},
+                "links": {
+                  "buttonURL": null
+                }
+              },
+              "dataVersion": "2.1",
+              "properties": {
+                "showButton": false,
+                "countDate": "Sun Apr 07 2019 22:00:00 GMT+0200 (Central European Summer Time)",
+                "title": "",
+                "description": "",
+                "countDirection": "COUNT_DOWN",
+                "dateDisplay": "DAY_HOUR_MINUTE_SECOND",
+                "buttonText": ""
+              }
+            }
+          },
+          {
+            "displayMode": 2,
+            "position": {
+              "zoneIndex": 1,
+              "sectionIndex": 2,
+              "sectionFactor": 4,
+              "layoutIndex": 1
+            },
+            "emphasis": {}
+          },
+          {
+            "controlType": 0,
+            "pageSettingsSlice": {
+              "isDefaultDescription": true,
+              "isDefaultThumbnail": true
+            }
           }
+        ])
+      }));
+    }
+  );
+
+  it('adds web part at the end of the column with multiple web part when order 5 specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
+          return {
+            "IsPageCheckedOutToCurrentUser": true,
+            "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"controlType\":3,\"displayMode\":2,\"id\":\"230b9699-d4ed-414b-8a83-9b251297c384\",\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"controlIndex\":1.5,\"layoutIndex\":1,\"sectionFactor\":8},\"webPartId\":\"62cac389-787f-495d-beca-e11786162ef4\",\"emphasis\":{},\"reservedHeight\":321,\"reservedWidth\":757,\"webPartData\":{\"id\":\"62cac389-787f-495d-beca-e11786162ef4\",\"instanceId\":\"230b9699-d4ed-414b-8a83-9b251297c384\",\"title\":\"Countdown Timer\",\"description\":\"This web part is used to allow a site admin to count down/up to an important event.\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{\"buttonURL\":null}},\"dataVersion\":\"2.1\",\"properties\":{\"showButton\":false,\"countDate\":\"Sun Apr 07 2019 22:00:00 GMT+0200 (Central European Summer Time)\",\"title\":\"\",\"description\":\"\",\"countDirection\":\"COUNT_DOWN\",\"dateDisplay\":\"DAY_HOUR_MINUTE_SECOND\",\"buttonText\":\"\"}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
+          };
         }
-      ])
-    }));
-  });
 
-  it('correctly handles OData error when adding Client Side Web Part to non-existing page', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/foo.aspx')`) > -1) {
-        throw { error: { 'odata.error': { message: { value: 'The file /sites/team-a/sitepages/foo.aspx does not exist' } } } };
-      }
-
-      throw 'Invalid request';
-    });
-
-    await assert.rejects(command.action(logger,
-      {
-        options: {
-          pageName: 'foo.aspx',
-          webUrl: 'https://contoso.sharepoint.com/sites/team-a',
-          webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09'
+        if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
+          return clientSideWebParts;
         }
-      }), new CommandError('The file /sites/team-a/sitepages/foo.aspx does not exist'));
-  });
 
-  it('correctly handles OData error if WebPart API does not respond properly', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
-        return {
-          "IsPageCheckedOutToCurrentUser": true,
-          "CanvasContent1": "[{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"sectionFactor\":8,\"layoutIndex\":1},\"emphasis\":{}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
-        };
-      }
+        throw 'Invalid request';
+      });
 
-      if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
+      let data: string = '';
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
+          data = opts.data;
+          return {};
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger,
+        {
+          options: {
+            pageName: 'page.aspx',
+            webUrl: 'https://contoso.sharepoint.com/sites/team-a',
+            webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09',
+            order: 5
+          }
+        });
+      assert.strictEqual(replaceId(JSON.stringify(data)), JSON.stringify({
+        CanvasContent1: JSON.stringify([
+          {
+            "controlType": 3,
+            "displayMode": 2,
+            "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+            "position": {
+              "controlIndex": 1,
+              "sectionIndex": 1,
+              "sectionFactor": 8,
+              "zoneIndex": 1,
+              "layoutIndex": 1
+            },
+            "webPartId": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
+            "emphasis": {},
+            "reservedHeight": 127,
+            "reservedWidth": 757,
+            "addedFromPersistedData": true,
+            "webPartData": {
+              "id": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
+              "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+              "title": "Weather",
+              "description": "Show current weather conditions on your page",
+              "serverProcessedContent": {
+                "htmlStrings": {},
+                "searchablePlainTexts": {},
+                "imageSources": {},
+                "links": {}
+              },
+              "dataVersion": "1.2",
+              "properties": {
+                "temperatureUnit": "F",
+                "locations": [
+                  {
+                    "latitude": 47.604,
+                    "longitude": -122.329,
+                    "name": "Seattle, United States",
+                    "showCustomizedDisplayName": false
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "controlType": 3,
+            "displayMode": 2,
+            "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+            "position": {
+              "zoneIndex": 1,
+              "sectionIndex": 1,
+              "controlIndex": 2,
+              "layoutIndex": 1,
+              "sectionFactor": 8
+            },
+            "webPartId": "62cac389-787f-495d-beca-e11786162ef4",
+            "emphasis": {},
+            "reservedHeight": 321,
+            "reservedWidth": 757,
+            "webPartData": {
+              "id": "62cac389-787f-495d-beca-e11786162ef4",
+              "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+              "title": "Countdown Timer",
+              "description": "This web part is used to allow a site admin to count down/up to an important event.",
+              "serverProcessedContent": {
+                "htmlStrings": {},
+                "searchablePlainTexts": {},
+                "imageSources": {},
+                "links": {
+                  "buttonURL": null
+                }
+              },
+              "dataVersion": "2.1",
+              "properties": {
+                "showButton": false,
+                "countDate": "Sun Apr 07 2019 22:00:00 GMT+0200 (Central European Summer Time)",
+                "title": "",
+                "description": "",
+                "countDirection": "COUNT_DOWN",
+                "dateDisplay": "DAY_HOUR_MINUTE_SECOND",
+                "buttonText": ""
+              }
+            }
+          },
+          {
+            "controlType": 3,
+            "displayMode": 2,
+            "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+            "position": {
+              "controlIndex": 3,
+              "sectionIndex": 1,
+              "sectionFactor": 8,
+              "zoneIndex": 1,
+              "layoutIndex": 1
+            },
+            "webPartId": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
+            "emphasis": {},
+            "webPartData": {
+              "dataVersion": "1.0",
+              "description": "Display a key location on a map",
+              "id": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
+              "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+              "properties": {
+                "pushPins": [],
+                "maxNumberOfPushPins": 1,
+                "shouldShowPushPinTitle": true,
+                "zoomLevel": 12,
+                "mapType": "road"
+              },
+              "title": "Bing maps"
+            }
+          },
+          {
+            "displayMode": 2,
+            "position": {
+              "zoneIndex": 1,
+              "sectionIndex": 2,
+              "sectionFactor": 4,
+              "layoutIndex": 1
+            },
+            "emphasis": {}
+          },
+          {
+            "controlType": 0,
+            "pageSettingsSlice": {
+              "isDefaultDescription": true,
+              "isDefaultThumbnail": true
+            }
+          }
+        ])
+      }));
+    }
+  );
+
+  it('adds a standard web part at the end of the column with one web part when no order specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
+          return {
+            "IsPageCheckedOutToCurrentUser": true,
+            "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
+          };
+        }
+
+        if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
+          return clientSideWebParts;
+        }
+
+        throw 'Invalid request';
+      });
+
+      let data: string = '';
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
+          data = opts.data;
+          return {};
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger,
+        {
+          options: {
+            pageName: 'page.aspx',
+            webUrl: 'https://contoso.sharepoint.com/sites/team-a',
+            standardWebPart: 'BingMap'
+          }
+        });
+      assert.strictEqual(replaceId(JSON.stringify(data)), JSON.stringify({
+        CanvasContent1: JSON.stringify([
+          {
+            "controlType": 3,
+            "displayMode": 2,
+            "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+            "position": {
+              "controlIndex": 1,
+              "sectionIndex": 1,
+              "sectionFactor": 8,
+              "zoneIndex": 1,
+              "layoutIndex": 1
+            },
+            "webPartId": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
+            "emphasis": {},
+            "reservedHeight": 127,
+            "reservedWidth": 757,
+            "addedFromPersistedData": true,
+            "webPartData": {
+              "id": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
+              "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+              "title": "Weather",
+              "description": "Show current weather conditions on your page",
+              "serverProcessedContent": {
+                "htmlStrings": {},
+                "searchablePlainTexts": {},
+                "imageSources": {},
+                "links": {}
+              },
+              "dataVersion": "1.2",
+              "properties": {
+                "temperatureUnit": "F",
+                "locations": [
+                  {
+                    "latitude": 47.604,
+                    "longitude": -122.329,
+                    "name": "Seattle, United States",
+                    "showCustomizedDisplayName": false
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "controlType": 3,
+            "displayMode": 2,
+            "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+            "position": {
+              "controlIndex": 2,
+              "sectionIndex": 1,
+              "sectionFactor": 8,
+              "zoneIndex": 1,
+              "layoutIndex": 1
+            },
+            "webPartId": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
+            "emphasis": {},
+            "webPartData": {
+              "dataVersion": "1.0",
+              "description": "Display a key location on a map",
+              "id": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
+              "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+              "properties": {
+                "pushPins": [],
+                "maxNumberOfPushPins": 1,
+                "shouldShowPushPinTitle": true,
+                "zoomLevel": 12,
+                "mapType": "road"
+              },
+              "title": "Bing maps"
+            }
+          },
+          {
+            "displayMode": 2,
+            "position": {
+              "zoneIndex": 1,
+              "sectionIndex": 2,
+              "sectionFactor": 4,
+              "layoutIndex": 1
+            },
+            "emphasis": {}
+          },
+          {
+            "controlType": 0,
+            "pageSettingsSlice": {
+              "isDefaultDescription": true,
+              "isDefaultThumbnail": true
+            }
+          }
+        ])
+      }));
+    }
+  );
+
+  it('adds a standard web part in a default section when no section exists on page',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
+          return {
+            "IsPageCheckedOutToCurrentUser": true,
+            "CanvasContent1": "[{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
+          };
+        }
+
+        if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
+          return clientSideWebParts;
+        }
+
+        throw 'Invalid request';
+      });
+
+      let data: string = '';
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
+          data = opts.data;
+          return {};
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger,
+        {
+          options: {
+            pageName: 'page.aspx',
+            webUrl: 'https://contoso.sharepoint.com/sites/team-a',
+            standardWebPart: 'BingMap'
+          }
+        });
+      assert.strictEqual(replaceId(JSON.stringify(data)), JSON.stringify({
+        CanvasContent1: JSON.stringify([
+          {
+            "controlType": 3,
+            "displayMode": 2,
+            "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+            "position": {
+              "controlIndex": 1,
+              "sectionIndex": 1,
+              "zoneIndex": 1,
+              "sectionFactor": 12,
+              "layoutIndex": 1
+            },
+            "webPartId": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
+            "emphasis": {},
+            "webPartData": {
+              "dataVersion": "1.0",
+              "description": "Display a key location on a map",
+              "id": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
+              "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+              "properties": {
+                "pushPins": [],
+                "maxNumberOfPushPins": 1,
+                "shouldShowPushPinTitle": true,
+                "zoomLevel": 12,
+                "mapType": "road"
+              },
+              "title": "Bing maps"
+            }
+          },
+          {
+            "controlType": 0,
+            "pageSettingsSlice": {
+              "isDefaultDescription": true,
+              "isDefaultThumbnail": true
+            }
+          }
+        ])
+      }));
+    }
+  );
+
+  it('adds a standard web part with properties at the end of the column with one web part when no order specified (debug)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
+          return {
+            "IsPageCheckedOutToCurrentUser": true,
+            "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
+          };
+        }
+
+        if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
+          return clientSideWebParts;
+        }
+
+        throw 'Invalid request';
+      });
+
+      let data: string = '';
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
+          data = opts.data;
+          return {};
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger,
+        {
+          options: {
+            debug: true,
+            pageName: 'page.aspx',
+            webUrl: 'https://contoso.sharepoint.com/sites/team-a',
+            standardWebPart: 'BingMap',
+            webPartProperties: '{"title":"Location"}'
+          }
+        });
+      assert.strictEqual(replaceId(JSON.stringify(data)), JSON.stringify({
+        CanvasContent1: JSON.stringify([
+          {
+            "controlType": 3,
+            "displayMode": 2,
+            "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+            "position": {
+              "controlIndex": 1,
+              "sectionIndex": 1,
+              "sectionFactor": 8,
+              "zoneIndex": 1,
+              "layoutIndex": 1
+            },
+            "webPartId": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
+            "emphasis": {},
+            "reservedHeight": 127,
+            "reservedWidth": 757,
+            "addedFromPersistedData": true,
+            "webPartData": {
+              "id": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
+              "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+              "title": "Weather",
+              "description": "Show current weather conditions on your page",
+              "serverProcessedContent": {
+                "htmlStrings": {},
+                "searchablePlainTexts": {},
+                "imageSources": {},
+                "links": {}
+              },
+              "dataVersion": "1.2",
+              "properties": {
+                "temperatureUnit": "F",
+                "locations": [
+                  {
+                    "latitude": 47.604,
+                    "longitude": -122.329,
+                    "name": "Seattle, United States",
+                    "showCustomizedDisplayName": false
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "controlType": 3,
+            "displayMode": 2,
+            "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+            "position": {
+              "controlIndex": 2,
+              "sectionIndex": 1,
+              "sectionFactor": 8,
+              "zoneIndex": 1,
+              "layoutIndex": 1
+            },
+            "webPartId": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
+            "emphasis": {},
+            "webPartData": {
+              "dataVersion": "1.0",
+              "description": "Display a key location on a map",
+              "id": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
+              "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+              "properties": {
+                "pushPins": [],
+                "maxNumberOfPushPins": 1,
+                "shouldShowPushPinTitle": true,
+                "zoomLevel": 12,
+                "mapType": "road",
+                "title": "Location"
+              },
+              "title": "Bing maps"
+            }
+          },
+          {
+            "displayMode": 2,
+            "position": {
+              "zoneIndex": 1,
+              "sectionIndex": 2,
+              "sectionFactor": 4,
+              "layoutIndex": 1
+            },
+            "emphasis": {}
+          },
+          {
+            "controlType": 0,
+            "pageSettingsSlice": {
+              "isDefaultDescription": true,
+              "isDefaultThumbnail": true
+            }
+          }
+        ])
+      }));
+    }
+  );
+
+  it('correctly handles OData error when adding Client Side Web Part to non-existing page',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/foo.aspx')`) > -1) {
+          throw { error: { 'odata.error': { message: { value: 'The file /sites/team-a/sitepages/foo.aspx does not exist' } } } };
+        }
+
+        throw 'Invalid request';
+      });
+
+      await assert.rejects(command.action(logger,
+        {
+          options: {
+            pageName: 'foo.aspx',
+            webUrl: 'https://contoso.sharepoint.com/sites/team-a',
+            webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09'
+          }
+        }), new CommandError('The file /sites/team-a/sitepages/foo.aspx does not exist'));
+    }
+  );
+
+  it('correctly handles OData error if WebPart API does not respond properly',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
+          return {
+            "IsPageCheckedOutToCurrentUser": true,
+            "CanvasContent1": "[{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"sectionFactor\":8,\"layoutIndex\":1},\"emphasis\":{}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
+          };
+        }
+
+        if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
+          throw { error: { 'odata.error': { message: { value: 'An error has occurred' } } } };
+        }
+
+        throw 'Invalid request';
+      });
+
+      await assert.rejects(command.action(logger,
+        {
+          options: {
+            pageName: 'page.aspx',
+            webUrl: 'https://contoso.sharepoint.com/sites/team-a',
+            webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09'
+          }
+        }), new CommandError('An error has occurred'));
+    }
+  );
+
+  it('correctly handles OData error when adding Client Side Web Part to modern page',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
+          return {
+            "IsPageCheckedOutToCurrentUser": true,
+            "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
+          };
+        }
+
+        if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
+          return clientSideWebParts;
+        }
+
+        throw 'Invalid request';
+      });
+
+      jest.spyOn(request, 'post').mockClear().mockImplementation(() => {
         throw { error: { 'odata.error': { message: { value: 'An error has occurred' } } } };
-      }
-
-      throw 'Invalid request';
-    });
-
-    await assert.rejects(command.action(logger,
-      {
-        options: {
-          pageName: 'page.aspx',
-          webUrl: 'https://contoso.sharepoint.com/sites/team-a',
-          webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09'
-        }
-      }), new CommandError('An error has occurred'));
-  });
-
-  it('correctly handles OData error when adding Client Side Web Part to modern page', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
-        return {
-          "IsPageCheckedOutToCurrentUser": true,
-          "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
-        };
-      }
-
-      if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
-        return clientSideWebParts;
-      }
-
-      throw 'Invalid request';
-    });
-
-    sinon.stub(request, 'post').callsFake(() => {
-      throw { error: { 'odata.error': { message: { value: 'An error has occurred' } } } };
-    });
-
-    await assert.rejects(command.action(logger,
-      {
-        options: {
-          pageName: 'page.aspx',
-          webUrl: 'https://contoso.sharepoint.com/sites/team-a',
-          webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09'
-        }
-      }), new CommandError('An error has occurred'));
-  });
-
-  it('correctly handles WebPart properties error when adding Client Side Web Part to modern page', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
-        return {
-          "IsPageCheckedOutToCurrentUser": true,
-          "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
-        };
-      }
-
-      if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
-        return clientSideWebParts;
-      }
-
-      throw 'Invalid request';
-    });
-
-    let data: string = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
-        data = opts.data;
-        return {};
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger,
-      {
-        options: {
-          pageName: 'page.aspx',
-          webUrl: 'https://contoso.sharepoint.com/sites/team-a',
-          webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09',
-          webPartProperties: '{"foo" }'
-        }
       });
-    assert.strictEqual(replaceId(JSON.stringify(data)), JSON.stringify({
-      CanvasContent1: JSON.stringify([
+
+      await assert.rejects(command.action(logger,
         {
-          "controlType": 3,
-          "displayMode": 2,
-          "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-          "position": {
-            "controlIndex": 1,
-            "sectionIndex": 1,
-            "sectionFactor": 8,
-            "zoneIndex": 1,
-            "layoutIndex": 1
-          },
-          "webPartId": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
-          "emphasis": {},
-          "reservedHeight": 127,
-          "reservedWidth": 757,
-          "addedFromPersistedData": true,
-          "webPartData": {
-            "id": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
-            "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-            "title": "Weather",
-            "description": "Show current weather conditions on your page",
-            "serverProcessedContent": {
-              "htmlStrings": {},
-              "searchablePlainTexts": {},
-              "imageSources": {},
-              "links": {}
-            },
-            "dataVersion": "1.2",
-            "properties": {
-              "temperatureUnit": "F",
-              "locations": [
-                {
-                  "latitude": 47.604,
-                  "longitude": -122.329,
-                  "name": "Seattle, United States",
-                  "showCustomizedDisplayName": false
-                }
-              ]
-            }
+          options: {
+            pageName: 'page.aspx',
+            webUrl: 'https://contoso.sharepoint.com/sites/team-a',
+            webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09'
           }
-        },
-        {
-          "controlType": 3,
-          "displayMode": 2,
-          "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-          "position": {
-            "controlIndex": 2,
-            "sectionIndex": 1,
-            "sectionFactor": 8,
-            "zoneIndex": 1,
-            "layoutIndex": 1
-          },
-          "webPartId": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
-          "emphasis": {},
-          "webPartData": {
-            "dataVersion": "1.0",
-            "description": "Display a key location on a map",
-            "id": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
-            "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-            "properties": {
-              "pushPins": [],
-              "maxNumberOfPushPins": 1,
-              "shouldShowPushPinTitle": true,
-              "zoomLevel": 12,
-              "mapType": "road"
-            },
-            "title": "Bing maps"
-          }
-        },
-        {
-          "displayMode": 2,
-          "position": {
-            "zoneIndex": 1,
-            "sectionIndex": 2,
-            "sectionFactor": 4,
-            "layoutIndex": 1
-          },
-          "emphasis": {}
-        },
-        {
-          "controlType": 0,
-          "pageSettingsSlice": {
-            "isDefaultDescription": true,
-            "isDefaultThumbnail": true
-          }
+        }), new CommandError('An error has occurred'));
+    }
+  );
+
+  it('correctly handles WebPart properties error when adding Client Side Web Part to modern page',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
+          return {
+            "IsPageCheckedOutToCurrentUser": true,
+            "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
+          };
         }
-      ])
-    }));
-  });
 
-  it('correctly handles invalid specified WebPart Id error when adding Client Side Web Part to modern page', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
-        return {
-          "IsPageCheckedOutToCurrentUser": true,
-          "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
-        };
-      }
-
-      if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
-        return clientSideWebParts;
-      }
-
-      throw 'Invalid request';
-    });
-
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
-        return {};
-      }
-
-      throw 'Invalid request';
-    });
-
-    await assert.rejects(command.action(logger,
-      {
-        options: {
-          pageName: 'page.aspx',
-          webUrl: 'https://contoso.sharepoint.com/sites/team-a',
-          webPartId: 'e377ea37-9047-43b9-8cdb-aaaaaaaaaa'
+        if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
+          return clientSideWebParts;
         }
-      }), new CommandError(`There is no available WebPart with Id e377ea37-9047-43b9-8cdb-aaaaaaaaaa.`));
-  });
 
-  it('correctly handles error if target page is not a modern page', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
-        throw {
-          error: {
-            "odata.error": {
-              "code": "-1, Microsoft.SharePoint.Client.ClientServiceException",
-              "message": {
-                "lang": "en-US",
-                "value": "This page does not have the site page content type. Only site pages can be served with this API."
+        throw 'Invalid request';
+      });
+
+      let data: string = '';
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
+          data = opts.data;
+          return {};
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger,
+        {
+          options: {
+            pageName: 'page.aspx',
+            webUrl: 'https://contoso.sharepoint.com/sites/team-a',
+            webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09',
+            webPartProperties: '{"foo" }'
+          }
+        });
+      assert.strictEqual(replaceId(JSON.stringify(data)), JSON.stringify({
+        CanvasContent1: JSON.stringify([
+          {
+            "controlType": 3,
+            "displayMode": 2,
+            "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+            "position": {
+              "controlIndex": 1,
+              "sectionIndex": 1,
+              "sectionFactor": 8,
+              "zoneIndex": 1,
+              "layoutIndex": 1
+            },
+            "webPartId": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
+            "emphasis": {},
+            "reservedHeight": 127,
+            "reservedWidth": 757,
+            "addedFromPersistedData": true,
+            "webPartData": {
+              "id": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
+              "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+              "title": "Weather",
+              "description": "Show current weather conditions on your page",
+              "serverProcessedContent": {
+                "htmlStrings": {},
+                "searchablePlainTexts": {},
+                "imageSources": {},
+                "links": {}
+              },
+              "dataVersion": "1.2",
+              "properties": {
+                "temperatureUnit": "F",
+                "locations": [
+                  {
+                    "latitude": 47.604,
+                    "longitude": -122.329,
+                    "name": "Seattle, United States",
+                    "showCustomizedDisplayName": false
+                  }
+                ]
               }
             }
+          },
+          {
+            "controlType": 3,
+            "displayMode": 2,
+            "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+            "position": {
+              "controlIndex": 2,
+              "sectionIndex": 1,
+              "sectionFactor": 8,
+              "zoneIndex": 1,
+              "layoutIndex": 1
+            },
+            "webPartId": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
+            "emphasis": {},
+            "webPartData": {
+              "dataVersion": "1.0",
+              "description": "Display a key location on a map",
+              "id": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
+              "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+              "properties": {
+                "pushPins": [],
+                "maxNumberOfPushPins": 1,
+                "shouldShowPushPinTitle": true,
+                "zoomLevel": 12,
+                "mapType": "road"
+              },
+              "title": "Bing maps"
+            }
+          },
+          {
+            "displayMode": 2,
+            "position": {
+              "zoneIndex": 1,
+              "sectionIndex": 2,
+              "sectionFactor": 4,
+              "layoutIndex": 1
+            },
+            "emphasis": {}
+          },
+          {
+            "controlType": 0,
+            "pageSettingsSlice": {
+              "isDefaultDescription": true,
+              "isDefaultThumbnail": true
+            }
           }
-        };
-      }
+        ])
+      }));
+    }
+  );
 
-      throw 'Invalid request';
-    });
-
-    await assert.rejects(command.action(logger,
-      {
-        options: {
-          pageName: 'page.aspx',
-          webUrl: 'https://contoso.sharepoint.com/sites/team-a',
-          webPartId: 'e377ea37-9047-43b9-8cdb-aaaaaaaaaa'
+  it('correctly handles invalid specified WebPart Id error when adding Client Side Web Part to modern page',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
+          return {
+            "IsPageCheckedOutToCurrentUser": true,
+            "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
+          };
         }
-      }), new CommandError(`This page does not have the site page content type. Only site pages can be served with this API.`));
-  });
 
-  it('correctly handles invalid section error when adding Client Side Web Part to modern page', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
-        return {
-          "IsPageCheckedOutToCurrentUser": true,
-          "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
-        };
-      }
-
-      if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
-        return clientSideWebParts;
-      }
-
-      throw 'Invalid request';
-    });
-
-    await assert.rejects(command.action(logger,
-      {
-        options: {
-          pageName: 'page.aspx',
-          webUrl: 'https://contoso.sharepoint.com/sites/team-a',
-          webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09',
-          section: 8
+        if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
+          return clientSideWebParts;
         }
-      }), new CommandError("Invalid section '8'"));
-  });
 
-  it('correctly handles invalid column error when adding Client Side Web Part to modern page', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
-        return {
-          "IsPageCheckedOutToCurrentUser": true,
-          "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
-        };
-      }
+        throw 'Invalid request';
+      });
 
-      if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
-        return clientSideWebParts;
-      }
-
-      throw 'Invalid request';
-    });
-
-    await assert.rejects(command.action(logger,
-      {
-        options: {
-          pageName: 'page.aspx',
-          webUrl: 'https://contoso.sharepoint.com/sites/team-a',
-          webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09',
-          section: 1,
-          column: 7
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
+          return {};
         }
-      }), new CommandError("Invalid column '7'"));
-  });
+
+        throw 'Invalid request';
+      });
+
+      await assert.rejects(command.action(logger,
+        {
+          options: {
+            pageName: 'page.aspx',
+            webUrl: 'https://contoso.sharepoint.com/sites/team-a',
+            webPartId: 'e377ea37-9047-43b9-8cdb-aaaaaaaaaa'
+          }
+        }), new CommandError(`There is no available WebPart with Id e377ea37-9047-43b9-8cdb-aaaaaaaaaa.`));
+    }
+  );
+
+  it('correctly handles error if target page is not a modern page',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
+          throw {
+            error: {
+              "odata.error": {
+                "code": "-1, Microsoft.SharePoint.Client.ClientServiceException",
+                "message": {
+                  "lang": "en-US",
+                  "value": "This page does not have the site page content type. Only site pages can be served with this API."
+                }
+              }
+            }
+          };
+        }
+
+        throw 'Invalid request';
+      });
+
+      await assert.rejects(command.action(logger,
+        {
+          options: {
+            pageName: 'page.aspx',
+            webUrl: 'https://contoso.sharepoint.com/sites/team-a',
+            webPartId: 'e377ea37-9047-43b9-8cdb-aaaaaaaaaa'
+          }
+        }), new CommandError(`This page does not have the site page content type. Only site pages can be served with this API.`));
+    }
+  );
+
+  it('correctly handles invalid section error when adding Client Side Web Part to modern page',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
+          return {
+            "IsPageCheckedOutToCurrentUser": true,
+            "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
+          };
+        }
+
+        if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
+          return clientSideWebParts;
+        }
+
+        throw 'Invalid request';
+      });
+
+      await assert.rejects(command.action(logger,
+        {
+          options: {
+            pageName: 'page.aspx',
+            webUrl: 'https://contoso.sharepoint.com/sites/team-a',
+            webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09',
+            section: 8
+          }
+        }), new CommandError("Invalid section '8'"));
+    }
+  );
+
+  it('correctly handles invalid column error when adding Client Side Web Part to modern page',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
+          return {
+            "IsPageCheckedOutToCurrentUser": true,
+            "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
+          };
+        }
+
+        if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
+          return clientSideWebParts;
+        }
+
+        throw 'Invalid request';
+      });
+
+      await assert.rejects(command.action(logger,
+        {
+          options: {
+            pageName: 'page.aspx',
+            webUrl: 'https://contoso.sharepoint.com/sites/team-a',
+            webPartId: 'e377ea37-9047-43b9-8cdb-a761be2f8e09',
+            section: 1,
+            column: 7
+          }
+        }), new CommandError("Invalid column '7'"));
+    }
+  );
 
   it('adds a web part using web part data', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
         return {
           "IsPageCheckedOutToCurrentUser": true,
@@ -2248,7 +2287,7 @@ describe(commands.PAGE_CLIENTSIDEWEBPART_ADD, () => {
     });
 
     let data: string = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
         data = opts.data;
         return {};
@@ -2354,7 +2393,7 @@ describe(commands.PAGE_CLIENTSIDEWEBPART_ADD, () => {
   });
 
   it('adds a web part using web part data (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
         return {
           "IsPageCheckedOutToCurrentUser": true,
@@ -2370,7 +2409,7 @@ describe(commands.PAGE_CLIENTSIDEWEBPART_ADD, () => {
     });
 
     let data: string = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
         data = opts.data;
         return {};
@@ -2476,137 +2515,139 @@ describe(commands.PAGE_CLIENTSIDEWEBPART_ADD, () => {
     }));
   });
 
-  it('adds a web part with dynamicDataPaths and dynamicDataValues', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
-        return {
-          "IsPageCheckedOutToCurrentUser": true,
-          "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
-        };
-      }
-
-      if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
-        return clientSideWebParts;
-      }
-
-      throw 'Invalid request';
-    });
-
-    let data: string = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
-        data = opts.data;
-        return {};
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger,
-      {
-        options: {
-          debug: true,
-          pageName: 'page.aspx',
-          webUrl: 'https://contoso.sharepoint.com/sites/team-a',
-          standardWebPart: 'BingMap',
-          webPartData: '{"id": "e377ea37-9047-43b9-8cdb-a761be2f8e09","instanceId": "f2f0ee32-eba5-47f9-9aa1-24f99661ecd1","title": "Bing Maps","description": "Display a key location on a map","dataVersion": "1.0", "dynamicDataPaths":{"dynamicProperty0":"WebPart.2bacb933-9f9d-457f-bfa5-b00bfc9cd625.69800bc3-0d7c-495c-a5b6-3423f226d5c5:queryText"},"dynamicDataValues":{"dynamicProperty1":""}}'
+  it('adds a web part with dynamicDataPaths and dynamicDataValues',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
+          return {
+            "IsPageCheckedOutToCurrentUser": true,
+            "CanvasContent1": "[{\"controlType\":3,\"displayMode\":2,\"id\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"position\":{\"controlIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"zoneIndex\":1,\"layoutIndex\":1},\"webPartId\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"emphasis\":{},\"reservedHeight\":127,\"reservedWidth\":757,\"addedFromPersistedData\":true,\"webPartData\":{\"id\":\"868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823\",\"instanceId\":\"4dae46b3-b059-4930-8495-0920cec4faa0\",\"title\":\"Weather\",\"description\":\"Show current weather conditions on your page\",\"serverProcessedContent\":{\"htmlStrings\":{},\"searchablePlainTexts\":{},\"imageSources\":{},\"links\":{}},\"dataVersion\":\"1.2\",\"properties\":{\"temperatureUnit\":\"F\",\"locations\":[{\"latitude\":47.604,\"longitude\":-122.329,\"name\":\"Seattle, United States\",\"showCustomizedDisplayName\":false}]}}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
+          };
         }
+
+        if ((opts.url as string).indexOf(`/_api/web/getclientsidewebparts()`) > -1) {
+          return clientSideWebParts;
+        }
+
+        throw 'Invalid request';
       });
-    assert.strictEqual(replaceId(JSON.stringify(data)), JSON.stringify({
-      CanvasContent1: JSON.stringify([
+
+      let data: string = '';
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
+          data = opts.data;
+          return {};
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger,
         {
-          "controlType": 3,
-          "displayMode": 2,
-          "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-          "position": {
-            "controlIndex": 1,
-            "sectionIndex": 1,
-            "sectionFactor": 8,
-            "zoneIndex": 1,
-            "layoutIndex": 1
-          },
-          "webPartId": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
-          "emphasis": {},
-          "reservedHeight": 127,
-          "reservedWidth": 757,
-          "addedFromPersistedData": true,
-          "webPartData": {
-            "id": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
-            "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-            "title": "Weather",
-            "description": "Show current weather conditions on your page",
-            "serverProcessedContent": {
-              "htmlStrings": {},
-              "searchablePlainTexts": {},
-              "imageSources": {},
-              "links": {}
+          options: {
+            debug: true,
+            pageName: 'page.aspx',
+            webUrl: 'https://contoso.sharepoint.com/sites/team-a',
+            standardWebPart: 'BingMap',
+            webPartData: '{"id": "e377ea37-9047-43b9-8cdb-a761be2f8e09","instanceId": "f2f0ee32-eba5-47f9-9aa1-24f99661ecd1","title": "Bing Maps","description": "Display a key location on a map","dataVersion": "1.0", "dynamicDataPaths":{"dynamicProperty0":"WebPart.2bacb933-9f9d-457f-bfa5-b00bfc9cd625.69800bc3-0d7c-495c-a5b6-3423f226d5c5:queryText"},"dynamicDataValues":{"dynamicProperty1":""}}'
+          }
+        });
+      assert.strictEqual(replaceId(JSON.stringify(data)), JSON.stringify({
+        CanvasContent1: JSON.stringify([
+          {
+            "controlType": 3,
+            "displayMode": 2,
+            "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+            "position": {
+              "controlIndex": 1,
+              "sectionIndex": 1,
+              "sectionFactor": 8,
+              "zoneIndex": 1,
+              "layoutIndex": 1
             },
-            "dataVersion": "1.2",
-            "properties": {
-              "temperatureUnit": "F",
-              "locations": [
-                {
-                  "latitude": 47.604,
-                  "longitude": -122.329,
-                  "name": "Seattle, United States",
-                  "showCustomizedDisplayName": false
-                }
-              ]
+            "webPartId": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
+            "emphasis": {},
+            "reservedHeight": 127,
+            "reservedWidth": 757,
+            "addedFromPersistedData": true,
+            "webPartData": {
+              "id": "868ac3c3-cad7-4bd6-9a1c-14dc5cc8e823",
+              "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+              "title": "Weather",
+              "description": "Show current weather conditions on your page",
+              "serverProcessedContent": {
+                "htmlStrings": {},
+                "searchablePlainTexts": {},
+                "imageSources": {},
+                "links": {}
+              },
+              "dataVersion": "1.2",
+              "properties": {
+                "temperatureUnit": "F",
+                "locations": [
+                  {
+                    "latitude": 47.604,
+                    "longitude": -122.329,
+                    "name": "Seattle, United States",
+                    "showCustomizedDisplayName": false
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "controlType": 3,
+            "displayMode": 2,
+            "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+            "position": {
+              "controlIndex": 2,
+              "sectionIndex": 1,
+              "sectionFactor": 8,
+              "zoneIndex": 1,
+              "layoutIndex": 1
+            },
+            "webPartId": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
+            "emphasis": {},
+            "webPartData": {
+              "dataVersion": "1.0",
+              "description": "Display a key location on a map",
+              "id": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
+              "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
+              "properties": {
+                "pushPins": [],
+                "maxNumberOfPushPins": 1,
+                "shouldShowPushPinTitle": true,
+                "zoomLevel": 12,
+                "mapType": "road"
+              },
+              "title": "Bing Maps",
+              "dynamicDataPaths": { "dynamicProperty0": "WebPart.2bacb933-9f9d-457f-bfa5-b00bfc9cd625.69800bc3-0d7c-495c-a5b6-3423f226d5c5:queryText" }, "dynamicDataValues": { "dynamicProperty1": "" }
+            }
+          },
+          {
+            "displayMode": 2,
+            "position": {
+              "zoneIndex": 1,
+              "sectionIndex": 2,
+              "sectionFactor": 4,
+              "layoutIndex": 1
+            },
+            "emphasis": {}
+          },
+          {
+            "controlType": 0,
+            "pageSettingsSlice": {
+              "isDefaultDescription": true,
+              "isDefaultThumbnail": true
             }
           }
-        },
-        {
-          "controlType": 3,
-          "displayMode": 2,
-          "id": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-          "position": {
-            "controlIndex": 2,
-            "sectionIndex": 1,
-            "sectionFactor": 8,
-            "zoneIndex": 1,
-            "layoutIndex": 1
-          },
-          "webPartId": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
-          "emphasis": {},
-          "webPartData": {
-            "dataVersion": "1.0",
-            "description": "Display a key location on a map",
-            "id": "e377ea37-9047-43b9-8cdb-a761be2f8e09",
-            "instanceId": "89c644b3-f69c-4e84-85d7-dfa04c6163b5",
-            "properties": {
-              "pushPins": [],
-              "maxNumberOfPushPins": 1,
-              "shouldShowPushPinTitle": true,
-              "zoomLevel": 12,
-              "mapType": "road"
-            },
-            "title": "Bing Maps",
-            "dynamicDataPaths": { "dynamicProperty0": "WebPart.2bacb933-9f9d-457f-bfa5-b00bfc9cd625.69800bc3-0d7c-495c-a5b6-3423f226d5c5:queryText" }, "dynamicDataValues": { "dynamicProperty1": "" }
-          }
-        },
-        {
-          "displayMode": 2,
-          "position": {
-            "zoneIndex": 1,
-            "sectionIndex": 2,
-            "sectionFactor": 4,
-            "layoutIndex": 1
-          },
-          "emphasis": {}
-        },
-        {
-          "controlType": 0,
-          "pageSettingsSlice": {
-            "isDefaultDescription": true,
-            "isDefaultThumbnail": true
-          }
-        }
-      ])
-    }));
-  });
+        ])
+      }));
+    }
+  );
 
   it('correctly handles sections in reverse order', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')`) > -1) {
         return {
           "IsPageCheckedOutToCurrentUser": true,
@@ -2622,7 +2663,7 @@ describe(commands.PAGE_CLIENTSIDEWEBPART_ADD, () => {
     });
 
     let data: string = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
         data = opts.data;
         return {};
@@ -2839,42 +2880,48 @@ describe(commands.PAGE_CLIENTSIDEWEBPART_ADD, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if webPartProperties and webPartData are specified', async () => {
-    const actual = await command.validate({
-      options: {
-        pageName: 'page.aspx',
-        webUrl: 'https://contoso.sharepoint.com',
-        webPartId: '3ede60d3-dc2c-438b-b5bf-cc40bb2351e1',
-        webPartProperties: '{}',
-        webPartData: '{}'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if webPartProperties and webPartData are specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          pageName: 'page.aspx',
+          webUrl: 'https://contoso.sharepoint.com',
+          webPartId: '3ede60d3-dc2c-438b-b5bf-cc40bb2351e1',
+          webPartProperties: '{}',
+          webPartData: '{}'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if webPartProperties value is not valid JSON', async () => {
-    const actual = await command.validate({
-      options: {
-        pageName: 'page.aspx',
-        webUrl: 'https://contoso.sharepoint.com',
-        webPartId: '3ede60d3-dc2c-438b-b5bf-cc40bb2351e1',
-        webPartProperties: '{Foo:bar'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if webPartProperties value is not valid JSON',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          pageName: 'page.aspx',
+          webUrl: 'https://contoso.sharepoint.com',
+          webPartId: '3ede60d3-dc2c-438b-b5bf-cc40bb2351e1',
+          webPartProperties: '{Foo:bar'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when webPartProperties value is valid JSON', async () => {
-    const actual = await command.validate({
-      options: {
-        pageName: 'page.aspx',
-        webUrl: 'https://contoso.sharepoint.com',
-        webPartId: '3ede60d3-dc2c-438b-b5bf-cc40bb2351e1',
-        webPartProperties: '{}'
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when webPartProperties value is valid JSON',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          pageName: 'page.aspx',
+          webUrl: 'https://contoso.sharepoint.com',
+          webPartId: '3ede60d3-dc2c-438b-b5bf-cc40bb2351e1',
+          webPartProperties: '{}'
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('fails validation if webPartData value is not valid JSON', async () => {
     const actual = await command.validate({
@@ -2907,23 +2954,27 @@ describe(commands.PAGE_CLIENTSIDEWEBPART_ADD, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('passes validation when name and webURL specified, webUrl is a valid SharePoint URL and webPartId is specified', async () => {
-    const actual = await command.validate({
-      options: {
-        pageName: 'page.aspx',
-        webUrl: 'https://contoso.sharepoint.com',
-        webPartId: '3ede60d3-dc2c-438b-b5bf-cc40bb2351e1'
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when name and webURL specified, webUrl is a valid SharePoint URL and webPartId is specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          pageName: 'page.aspx',
+          webUrl: 'https://contoso.sharepoint.com',
+          webPartId: '3ede60d3-dc2c-438b-b5bf-cc40bb2351e1'
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when name and webURL specified, webUrl is a valid SharePoint URL and standardWebPart is specified instead of webPartId', async () => {
-    const actual = await command.validate({
-      options: { pageName: 'page.aspx', webUrl: 'https://contoso.sharepoint.com', standardWebPart: 'BingMap' }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when name and webURL specified, webUrl is a valid SharePoint URL and standardWebPart is specified instead of webPartId',
+    async () => {
+      const actual = await command.validate({
+        options: { pageName: 'page.aspx', webUrl: 'https://contoso.sharepoint.com', standardWebPart: 'BingMap' }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('passes validation when name has no extension', async () => {
     const actual = await command.validate({
@@ -2955,17 +3006,19 @@ describe(commands.PAGE_CLIENTSIDEWEBPART_ADD, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if section has invalid (non number) value', async () => {
-    const actual = await command.validate({
-      options: {
-        pageName: 'page.aspx',
-        webUrl: 'https://contoso.sharepoint.com',
-        webPartId: '3ede60d3-dc2c-438b-b5bf-cc40bb2351e1',
-        section: 'foobar'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if section has invalid (non number) value',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          pageName: 'page.aspx',
+          webUrl: 'https://contoso.sharepoint.com',
+          webPartId: '3ede60d3-dc2c-438b-b5bf-cc40bb2351e1',
+          section: 'foobar'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if column has invalid (negative) value', async () => {
     const actual = await command.validate({

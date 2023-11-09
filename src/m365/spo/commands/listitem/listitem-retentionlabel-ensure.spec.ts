@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import spoWebRetentionLabelListCommand from '../web/web-retentionlabel-list.js';
 import command from './listitem-retentionlabel-ensure.js';
@@ -60,14 +59,14 @@ describe(commands.LISTITEM_RETENTIONLABEL_ENSURE, () => {
   let log: any[];
   let logger: Logger;
   let commandInfo: CommandInfo;
-  let loggerLogStderrSpy: sinon.SinonSpy;
+  let loggerLogStderrSpy: jest.SpyInstance;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').callsFake(() => Promise.resolve());
-    sinon.stub(telemetry, 'trackEvent').callsFake(() => { });
-    sinon.stub(pid, 'getProcessName').callsFake(() => '');
-    sinon.stub(session, 'getId').callsFake(() => '');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation(() => Promise.resolve());
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockImplementation(() => { });
+    jest.spyOn(pid, 'getProcessName').mockClear().mockImplementation(() => '');
+    jest.spyOn(session, 'getId').mockClear().mockImplementation(() => '');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -85,8 +84,8 @@ describe(commands.LISTITEM_RETENTIONLABEL_ENSURE, () => {
         log.push(msg);
       }
     };
-    loggerLogStderrSpy = sinon.spy(logger, 'logToStderr');
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command): Promise<any> => {
+    loggerLogStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
+    jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command): Promise<any> => {
       if (command === spoWebRetentionLabelListCommand) {
         return { stdout: JSON.stringify(mockSpoWebRetentionLabelListResponseArray) };
       }
@@ -96,7 +95,7 @@ describe(commands.LISTITEM_RETENTIONLABEL_ENSURE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post,
       Cli.executeCommandWithOutput,
@@ -104,8 +103,8 @@ describe(commands.LISTITEM_RETENTIONLABEL_ENSURE, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -117,44 +116,50 @@ describe(commands.LISTITEM_RETENTIONLABEL_ENSURE, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('fails validation if listId, listTitle or listUrl option is not passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if listId, listTitle or listUrl option is not passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: webUrl, listItemId: 1, name: labelName } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: webUrl, listItemId: 1, name: labelName } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', listItemId: 1, listTitle: listTitle, name: labelName } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', listItemId: 1, listTitle: listTitle, name: labelName } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the listId option is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: webUrl, listId: '12345', listItemId: 1, name: labelName } }, commandInfo);
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if both listId and listTitle options are passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both listId and listTitle options are passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: webUrl, listId: listId, listTitle: listTitle, listItemId: 1 } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: webUrl, listId: listId, listTitle: listTitle, listItemId: 1 } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if listItemId is not passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -172,7 +177,7 @@ describe(commands.LISTITEM_RETENTIONLABEL_ENSURE, () => {
   });
 
   it('fails validation if name or id option is not passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -194,165 +199,177 @@ describe(commands.LISTITEM_RETENTIONLABEL_ENSURE, () => {
     assert(actual);
   });
 
-  it('passes validation if the url option is a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, listId: listId, listItemId: 1, name: labelName } }, commandInfo);
-    assert(actual);
-  });
+  it('passes validation if the url option is a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, listId: listId, listItemId: 1, name: labelName } }, commandInfo);
+      assert(actual);
+    }
+  );
 
   it('passes validation if the listId option is a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: webUrl, listId: listId, listItemId: 1, name: labelName } }, commandInfo);
     assert(actual);
   });
 
-  it('applies a retentionlabel based on listId and name without assetId', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/_api/web/lists(guid'${formatting.encodeQueryParameter(listId)}')/items(1)/SetComplianceTag()`
-        && JSON.stringify(opts.data) === '{"complianceTag":"Some label","isTagPolicyHold":true,"isTagPolicyRecord":false,"isEventBasedTag":true,"isTagSuperLock":false,"isUnlockedAsDefault":false}') {
-        return;
-      }
+  it('applies a retentionlabel based on listId and name without assetId',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/_api/web/lists(guid'${formatting.encodeQueryParameter(listId)}')/items(1)/SetComplianceTag()`
+          && JSON.stringify(opts.data) === '{"complianceTag":"Some label","isTagPolicyHold":true,"isTagPolicyRecord":false,"isEventBasedTag":true,"isTagSuperLock":false,"isUnlockedAsDefault":false}') {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: false,
-        listId: listId,
-        webUrl: webUrl,
-        listItemId: 1,
-        name: labelName
-      }
-    });
-    assert(loggerLogStderrSpy.notCalled);
-  });
+      await command.action(logger, {
+        options: {
+          debug: false,
+          listId: listId,
+          webUrl: webUrl,
+          listItemId: 1,
+          name: labelName
+        }
+      });
+      assert(loggerLogStderrSpy.notCalled);
+    }
+  );
 
-  it('applies a retentionlabel based on listId, id and with assetId (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/_api/web/lists(guid'${formatting.encodeQueryParameter(listId)}')/items(1)/SetComplianceTag()`
-        && JSON.stringify(opts.data) === '{"complianceTag":"Some label","isTagPolicyHold":true,"isTagPolicyRecord":false,"isEventBasedTag":true,"isTagSuperLock":false,"isUnlockedAsDefault":false}') {
-        return;
-      }
+  it('applies a retentionlabel based on listId, id and with assetId (debug)',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/_api/web/lists(guid'${formatting.encodeQueryParameter(listId)}')/items(1)/SetComplianceTag()`
+          && JSON.stringify(opts.data) === '{"complianceTag":"Some label","isTagPolicyHold":true,"isTagPolicyRecord":false,"isEventBasedTag":true,"isTagSuperLock":false,"isUnlockedAsDefault":false}') {
+          return;
+        }
 
-      if (opts.url === `https://contoso.sharepoint.com/_api/web/lists(guid'${listId}')/items(${1})/ValidateUpdateListItem()`) {
-        return {
-          "value": [
-            {
-              "ErrorCode": 0,
-              "ErrorMessage": null,
-              "FieldName": "ComplianceAssetId",
-              "FieldValue": "XYZ",
-              "HasException": false,
-              "ItemId": 1
-            }
-          ]
-        };
-      }
+        if (opts.url === `https://contoso.sharepoint.com/_api/web/lists(guid'${listId}')/items(${1})/ValidateUpdateListItem()`) {
+          return {
+            "value": [
+              {
+                "ErrorCode": 0,
+                "ErrorMessage": null,
+                "FieldName": "ComplianceAssetId",
+                "FieldValue": "XYZ",
+                "HasException": false,
+                "ItemId": 1
+              }
+            ]
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.doesNotReject(command.action(logger, {
-      options: {
-        debug: true,
-        listId: listId,
-        webUrl: webUrl,
-        listItemId: 1,
-        id: labelId,
-        assetId: 'XYZ'
-      }
-    }));
-  });
+      await assert.doesNotReject(command.action(logger, {
+        options: {
+          debug: true,
+          listId: listId,
+          webUrl: webUrl,
+          listItemId: 1,
+          id: labelId,
+          assetId: 'XYZ'
+        }
+      }));
+    }
+  );
 
-  it('applies a retentionlabel based on listTitle, id and assetId (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/_api/web/lists/getByTitle('${formatting.encodeQueryParameter(listTitle)}')/items(1)/SetComplianceTag()`
-        && JSON.stringify(opts.data) === '{"complianceTag":"Some label","isTagPolicyHold":true,"isTagPolicyRecord":false,"isEventBasedTag":true,"isTagSuperLock":false,"isUnlockedAsDefault":false}') {
-        return;
-      }
+  it('applies a retentionlabel based on listTitle, id and assetId (debug)',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/_api/web/lists/getByTitle('${formatting.encodeQueryParameter(listTitle)}')/items(1)/SetComplianceTag()`
+          && JSON.stringify(opts.data) === '{"complianceTag":"Some label","isTagPolicyHold":true,"isTagPolicyRecord":false,"isEventBasedTag":true,"isTagSuperLock":false,"isUnlockedAsDefault":false}') {
+          return;
+        }
 
-      if (opts.url === `https://contoso.sharepoint.com/_api/web/lists/getByTitle('${formatting.encodeQueryParameter(listTitle)}')/items(${1})/ValidateUpdateListItem()`) {
-        return {
-          "value": [
-            {
-              "ErrorCode": 0,
-              "ErrorMessage": null,
-              "FieldName": "ComplianceAssetId",
-              "FieldValue": "XYZ",
-              "HasException": false,
-              "ItemId": 1
-            }
-          ]
-        };
-      }
+        if (opts.url === `https://contoso.sharepoint.com/_api/web/lists/getByTitle('${formatting.encodeQueryParameter(listTitle)}')/items(${1})/ValidateUpdateListItem()`) {
+          return {
+            "value": [
+              {
+                "ErrorCode": 0,
+                "ErrorMessage": null,
+                "FieldName": "ComplianceAssetId",
+                "FieldValue": "XYZ",
+                "HasException": false,
+                "ItemId": 1
+              }
+            ]
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.doesNotReject(command.action(logger, {
-      options: {
-        debug: true,
-        listTitle: listTitle,
-        webUrl: webUrl,
-        listItemId: 1,
-        id: labelId,
-        assetId: 'XYZ'
-      }
-    }));
-  });
+      await assert.doesNotReject(command.action(logger, {
+        options: {
+          debug: true,
+          listTitle: listTitle,
+          webUrl: webUrl,
+          listItemId: 1,
+          id: labelId,
+          assetId: 'XYZ'
+        }
+      }));
+    }
+  );
 
-  it('applies a retentionlabel based on listUrl, id and assetId (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/_api/web/GetList(@listUrl)/items(1)/SetComplianceTag()?@listUrl='${formatting.encodeQueryParameter(listUrl)}'`
-        && JSON.stringify(opts.data) === '{"complianceTag":"Some label","isTagPolicyHold":true,"isTagPolicyRecord":false,"isEventBasedTag":true,"isTagSuperLock":false,"isUnlockedAsDefault":false}') {
-        return;
-      }
+  it('applies a retentionlabel based on listUrl, id and assetId (debug)',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/_api/web/GetList(@listUrl)/items(1)/SetComplianceTag()?@listUrl='${formatting.encodeQueryParameter(listUrl)}'`
+          && JSON.stringify(opts.data) === '{"complianceTag":"Some label","isTagPolicyHold":true,"isTagPolicyRecord":false,"isEventBasedTag":true,"isTagSuperLock":false,"isUnlockedAsDefault":false}') {
+          return;
+        }
 
-      if (opts.url === `https://contoso.sharepoint.com/_api/web/GetList(@listUrl)/items(${1})/ValidateUpdateListItem()?@listUrl='${formatting.encodeQueryParameter(listUrl)}'`) {
-        return {
-          "value": [
-            {
-              "ErrorCode": 0,
-              "ErrorMessage": null,
-              "FieldName": "ComplianceAssetId",
-              "FieldValue": "XYZ",
-              "HasException": false,
-              "ItemId": 1
-            }
-          ]
-        };
-      }
+        if (opts.url === `https://contoso.sharepoint.com/_api/web/GetList(@listUrl)/items(${1})/ValidateUpdateListItem()?@listUrl='${formatting.encodeQueryParameter(listUrl)}'`) {
+          return {
+            "value": [
+              {
+                "ErrorCode": 0,
+                "ErrorMessage": null,
+                "FieldName": "ComplianceAssetId",
+                "FieldValue": "XYZ",
+                "HasException": false,
+                "ItemId": 1
+              }
+            ]
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.doesNotReject(command.action(logger, {
-      options: {
-        debug: true,
-        listUrl: listUrl,
-        webUrl: webUrl,
-        listItemId: 1,
-        id: labelId,
-        assetId: 'XYZ'
-      }
-    }));
-  });
+      await assert.doesNotReject(command.action(logger, {
+        options: {
+          debug: true,
+          listUrl: listUrl,
+          webUrl: webUrl,
+          listItemId: 1,
+          id: labelId,
+          assetId: 'XYZ'
+        }
+      }));
+    }
+  );
 
-  it('throws an error when a retentionlabel cannot be found on the site', async () => {
-    await assert.rejects(command.action(logger, {
-      options: {
-        debug: false,
-        listId: listId,
-        webUrl: webUrl,
-        listItemId: 1,
-        name: 'Some non-existing label'
-      }
-    }), new CommandError('The specified retention label does not exist'));
-  });
+  it('throws an error when a retentionlabel cannot be found on the site',
+    async () => {
+      await assert.rejects(command.action(logger, {
+        options: {
+          debug: false,
+          listId: listId,
+          webUrl: webUrl,
+          listItemId: 1,
+          name: 'Some non-existing label'
+        }
+      }), new CommandError('The specified retention label does not exist'));
+    }
+  );
 
   it('correctly handles API OData error', async () => {
     const errorMessage = 'Something went wrong';
 
-    sinon.stub(request, 'post').callsFake(async () => { throw { error: { error: { message: errorMessage } } }; });
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async () => { throw { error: { error: { message: errorMessage } } }; });
 
     await assert.rejects(command.action(logger, {
       options: {

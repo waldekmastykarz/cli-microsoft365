@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './list-roleinheritance-break.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -21,12 +20,12 @@ describe(commands.LIST_ROLEINHERITANCE_BREAK, () => {
   let commandInfo: CommandInfo;
   let promptOptions: any;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -44,22 +43,22 @@ describe(commands.LIST_ROLEINHERITANCE_BREAK, () => {
         log.push(msg);
       }
     };
-    sinon.stub(Cli, 'prompt').callsFake(async (options) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options) => {
       promptOptions = options;
       return { continue: false };
     });
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       Cli.prompt,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -71,13 +70,15 @@ describe(commands.LIST_ROLEINHERITANCE_BREAK, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('fails validation if the url option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the url option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if listId and listTitle are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -90,7 +91,7 @@ describe(commands.LIST_ROLEINHERITANCE_BREAK, () => {
   });
 
   it('fails validation if listId and listUrl are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -103,7 +104,7 @@ describe(commands.LIST_ROLEINHERITANCE_BREAK, () => {
   });
 
   it('fails validation if listTitle and listUrl are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -115,23 +116,27 @@ describe(commands.LIST_ROLEINHERITANCE_BREAK, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if neither listTitle nor listId or listUrl is specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if neither listTitle nor listId or listUrl is specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the url option is a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if the url option is a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the id option is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '12345' } }, commandInfo);
@@ -144,7 +149,7 @@ describe(commands.LIST_ROLEINHERITANCE_BREAK, () => {
   });
 
   it('break role inheritance on list by title', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://contoso.sharepoint.com/_api/web/lists/getByTitle(\'test\')/breakroleinheritance(true)') {
         return;
       }
@@ -162,49 +167,53 @@ describe(commands.LIST_ROLEINHERITANCE_BREAK, () => {
     });
   });
 
-  it('break role inheritance on list by title and clear all permissions', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === 'https://contoso.sharepoint.com/_api/web/lists/getByTitle(\'test\')/breakroleinheritance(false)') {
-        return;
-      }
+  it('break role inheritance on list by title and clear all permissions',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://contoso.sharepoint.com/_api/web/lists/getByTitle(\'test\')/breakroleinheritance(false)') {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: 'https://contoso.sharepoint.com',
-        listTitle: 'test',
-        clearExistingPermissions: true,
-        force: true
-      }
-    });
-  });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: 'https://contoso.sharepoint.com',
+          listTitle: 'test',
+          clearExistingPermissions: true,
+          force: true
+        }
+      });
+    }
+  );
 
-  it('reset role inheritance on list by list url and break all the permissions', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === 'https://contoso.sharepoint.com/_api/web/GetList(\'%2Fsites%2Fdocuments\')/breakroleinheritance(false)') {
-        return;
-      }
+  it('reset role inheritance on list by list url and break all the permissions',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://contoso.sharepoint.com/_api/web/GetList(\'%2Fsites%2Fdocuments\')/breakroleinheritance(false)') {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: 'https://contoso.sharepoint.com',
-        listUrl: 'sites/documents',
-        clearExistingPermissions: true,
-        force: true
-      }
-    });
-  });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: 'https://contoso.sharepoint.com',
+          listUrl: 'sites/documents',
+          clearExistingPermissions: true,
+          force: true
+        }
+      });
+    }
+  );
 
 
   it('break role inheritance on list by id', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://contoso.sharepoint.com/_api/web/lists(guid\'202b8199-b9de-43fd-9737-7f213f51c991\')/breakroleinheritance(true)') {
         return;
       }
@@ -222,104 +231,114 @@ describe(commands.LIST_ROLEINHERITANCE_BREAK, () => {
     });
   });
 
-  it('break role inheritance on list by id and clear all permissions', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === 'https://contoso.sharepoint.com/_api/web/lists(guid\'202b8199-b9de-43fd-9737-7f213f51c991\')/breakroleinheritance(false)') {
-        return;
-      }
+  it('break role inheritance on list by id and clear all permissions',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://contoso.sharepoint.com/_api/web/lists(guid\'202b8199-b9de-43fd-9737-7f213f51c991\')/breakroleinheritance(false)') {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: 'https://contoso.sharepoint.com',
-        listId: '202b8199-b9de-43fd-9737-7f213f51c991',
-        clearExistingPermissions: true,
-        force: true
-      }
-    });
-  });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: 'https://contoso.sharepoint.com',
+          listId: '202b8199-b9de-43fd-9737-7f213f51c991',
+          clearExistingPermissions: true,
+          force: true
+        }
+      });
+    }
+  );
 
-  it('list role inheritance break command handles reject request correctly', async () => {
-    const error = {
-      error: {
-        'odata.error': {
-          code: '-1, Microsoft.SharePoint.Client.InvalidOperationException',
-          message: {
-            value: 'An error has occurred'
+  it('list role inheritance break command handles reject request correctly',
+    async () => {
+      const error = {
+        error: {
+          'odata.error': {
+            code: '-1, Microsoft.SharePoint.Client.InvalidOperationException',
+            message: {
+              value: 'An error has occurred'
+            }
           }
         }
-      }
-    };
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/web/lists/getByTitle(\'test\')/breakroleinheritance(true)') > -1) {
-        throw error;
-      }
+      };
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/web/lists/getByTitle(\'test\')/breakroleinheritance(true)') > -1) {
+          throw error;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: 'https://contoso.sharepoint.com',
-        listTitle: 'test',
-        force: true
-      }
-    }), new CommandError(error.error['odata.error'].message.value));
-  });
-
-  it('aborts breaking role inheritance when prompt not confirmed', async () => {
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: false });
-
-    const postSpy = sinon.spy(request, 'post');
-    await command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: 'https://contoso.sharepoint.com',
-        listTitle: 'test'
-      }
-    });
-    assert(postSpy.notCalled);
-  });
-
-  it('prompts before breaking role inheritance when confirmation argument not passed (Title)', async () => {
-    await command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: 'https://contoso.sharepoint.com',
-        listTitle: 'test'
-      }
-    });
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      await assert.rejects(command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: 'https://contoso.sharepoint.com',
+          listTitle: 'test',
+          force: true
+        }
+      }), new CommandError(error.error['odata.error'].message.value));
     }
-    assert(promptIssued);
-  });
+  );
 
-  it('prompts before breaking role inheritance when confirmation argument not passed (id)', async () => {
-    await command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: 'https://contoso.sharepoint.com',
-        listId: '202b8199-b9de-43fd-9737-7f213f51c991'
-      }
-    });
-    let promptIssued = false;
+  it('aborts breaking role inheritance when prompt not confirmed',
+    async () => {
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: false });
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      const postSpy = jest.spyOn(request, 'post').mockClear();
+      await command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: 'https://contoso.sharepoint.com',
+          listTitle: 'test'
+        }
+      });
+      assert(postSpy.notCalled);
     }
-    assert(promptIssued);
-  });
+  );
+
+  it('prompts before breaking role inheritance when confirmation argument not passed (Title)',
+    async () => {
+      await command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: 'https://contoso.sharepoint.com',
+          listTitle: 'test'
+        }
+      });
+      let promptIssued = false;
+
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+      assert(promptIssued);
+    }
+  );
+
+  it('prompts before breaking role inheritance when confirmation argument not passed (id)',
+    async () => {
+      await command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: 'https://contoso.sharepoint.com',
+          listId: '202b8199-b9de-43fd-9737-7f213f51c991'
+        }
+      });
+      let promptIssued = false;
+
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+      assert(promptIssued);
+    }
+  );
 
   it('break role inheritance when prompt confirmed', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/lists/getByTitle(\'test\')/breakroleinheritance(true)') > -1) {
         return;
       }
@@ -327,8 +346,8 @@ describe(commands.LIST_ROLEINHERITANCE_BREAK, () => {
       throw 'Invalid request';
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
     await command.action(logger, {
       options: {

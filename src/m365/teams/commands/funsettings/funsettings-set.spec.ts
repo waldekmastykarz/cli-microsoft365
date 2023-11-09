@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './funsettings-set.js';
 
@@ -18,11 +17,11 @@ describe(commands.FUNSETTINGS_SET, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -44,14 +43,14 @@ describe(commands.FUNSETTINGS_SET, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.patch
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -64,7 +63,7 @@ describe(commands.FUNSETTINGS_SET, () => {
   });
 
   it('sets allowGiphy settings to false', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/teams/6703ac8a-c49b-4fd4-8223-11f09f201302` &&
         JSON.stringify(opts.data) === JSON.stringify({
           funSettings: {
@@ -83,7 +82,7 @@ describe(commands.FUNSETTINGS_SET, () => {
   });
 
   it('sets allowGiphy settings to true', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/teams/6703ac8a-c49b-4fd4-8223-11f09f201302` &&
         JSON.stringify(opts.data) === JSON.stringify({
           funSettings: {
@@ -102,7 +101,7 @@ describe(commands.FUNSETTINGS_SET, () => {
   });
 
   it('sets giphyContentRating to moderate', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/teams/6703ac8a-c49b-4fd4-8223-11f09f201302` &&
         JSON.stringify(opts.data) === JSON.stringify({
           funSettings: {
@@ -121,7 +120,7 @@ describe(commands.FUNSETTINGS_SET, () => {
   });
 
   it('sets giphyContentRating to strict', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/teams/6703ac8a-c49b-4fd4-8223-11f09f201302` &&
         JSON.stringify(opts.data) === JSON.stringify({
           funSettings: {
@@ -140,7 +139,7 @@ describe(commands.FUNSETTINGS_SET, () => {
   });
 
   it('sets allowStickersAndMemes to true', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/teams/6703ac8a-c49b-4fd4-8223-11f09f201302` &&
         JSON.stringify(opts.data) === JSON.stringify({
           funSettings: {
@@ -159,7 +158,7 @@ describe(commands.FUNSETTINGS_SET, () => {
   });
 
   it('sets allowStickersAndMemes to false', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/teams/6703ac8a-c49b-4fd4-8223-11f09f201302` &&
         JSON.stringify(opts.data) === JSON.stringify({
           funSettings: {
@@ -179,7 +178,7 @@ describe(commands.FUNSETTINGS_SET, () => {
 
 
   it('sets allowCustomMemes to true', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/teams/6703ac8a-c49b-4fd4-8223-11f09f201302` &&
         JSON.stringify(opts.data) === JSON.stringify({
           funSettings: {
@@ -198,7 +197,7 @@ describe(commands.FUNSETTINGS_SET, () => {
   });
 
   it('sets allowCustomMemes to false', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/teams/6703ac8a-c49b-4fd4-8223-11f09f201302` &&
         JSON.stringify(opts.data) === JSON.stringify({
           funSettings: {
@@ -217,7 +216,7 @@ describe(commands.FUNSETTINGS_SET, () => {
   });
 
   it('sets allowCustomMemes to false (debug)', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/teams/6703ac8a-c49b-4fd4-8223-11f09f201302` &&
         JSON.stringify(opts.data) === JSON.stringify({
           funSettings: {
@@ -247,7 +246,7 @@ describe(commands.FUNSETTINGS_SET, () => {
         }
       }
     };
-    sinon.stub(request, 'patch').rejects(error);
+    jest.spyOn(request, 'patch').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, {
       options: {
@@ -275,36 +274,42 @@ describe(commands.FUNSETTINGS_SET, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation when giphyContentRating is moderate or strict', async () => {
-    const actualModerate = await command.validate({
-      options: { teamId: 'b1cf424e-f4f6-40b2-974e-6041524f4d66', giphyContentRating: 'moderate' }
-    }, commandInfo);
+  it('passes validation when giphyContentRating is moderate or strict',
+    async () => {
+      const actualModerate = await command.validate({
+        options: { teamId: 'b1cf424e-f4f6-40b2-974e-6041524f4d66', giphyContentRating: 'moderate' }
+      }, commandInfo);
 
-    const actualStrict = await command.validate({
-      options: { teamId: 'b1cf424e-f4f6-40b2-974e-6041524f4d66', giphyContentRating: 'strict' }
-    }, commandInfo);
+      const actualStrict = await command.validate({
+        options: { teamId: 'b1cf424e-f4f6-40b2-974e-6041524f4d66', giphyContentRating: 'strict' }
+      }, commandInfo);
 
-    const actual = actualModerate && actualStrict;
-    assert.strictEqual(actual, true);
-  });
+      const actual = actualModerate && actualStrict;
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when giphyContentRating is not moderate or strict', async () => {
-    const actual = await command.validate({
-      options: { teamId: 'b1cf424e-f4f6-40b2-974e-6041524f4d66', giphyContentRating: 'somethingelse' }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation when giphyContentRating is not moderate or strict',
+    async () => {
+      const actual = await command.validate({
+        options: { teamId: 'b1cf424e-f4f6-40b2-974e-6041524f4d66', giphyContentRating: 'somethingelse' }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when allowStickersAndMemes is a valid boolean', async () => {
-    const actualTrue = await command.validate({
-      options: { teamId: 'b1cf424e-f4f6-40b2-974e-6041524f4d66', allowStickersAndMemes: true }
-    }, commandInfo);
+  it('passes validation when allowStickersAndMemes is a valid boolean',
+    async () => {
+      const actualTrue = await command.validate({
+        options: { teamId: 'b1cf424e-f4f6-40b2-974e-6041524f4d66', allowStickersAndMemes: true }
+      }, commandInfo);
 
-    const actualFalse = await command.validate({
-      options: { teamId: 'b1cf424e-f4f6-40b2-974e-6041524f4d66', allowStickersAndMemes: false }
-    }, commandInfo);
+      const actualFalse = await command.validate({
+        options: { teamId: 'b1cf424e-f4f6-40b2-974e-6041524f4d66', allowStickersAndMemes: false }
+      }, commandInfo);
 
-    const actual = actualTrue && actualFalse;
-    assert.strictEqual(actual, true);
-  });
+      const actual = actualTrue && actualFalse;
+      assert.strictEqual(actual, true);
+    }
+  );
 });

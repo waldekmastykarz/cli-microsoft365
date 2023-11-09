@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import { mockCanvasContent, mockPage } from './page-control-set.mock.js';
 import command from './page-header-set.js';
@@ -20,11 +19,11 @@ describe(commands.PAGE_HEADER_SET, () => {
   let commandInfo: CommandInfo;
   let data: string;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -43,7 +42,7 @@ describe(commands.PAGE_HEADER_SET, () => {
       }
     };
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')?$select=IsPageCheckedOutToCurrentUser,Title`) > -1) {
         return {
           IsPageCheckedOutToCurrentUser: true,
@@ -58,7 +57,7 @@ describe(commands.PAGE_HEADER_SET, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')/SavePageAsDraft`) > -1) {
         data = opts.data;
         return '';
@@ -69,15 +68,15 @@ describe(commands.PAGE_HEADER_SET, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post
     ]);
     data = '';
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -94,9 +93,9 @@ describe(commands.PAGE_HEADER_SET, () => {
   });
 
   it('checks out page if not checked out by the current user', async () => {
-    sinonUtil.restore([request.get, request.post]);
+    jestUtil.restore([request.get, request.post]);
     let checkedOut = false;
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$select=IsPageCheckedOutToCurrentUser,Title`) > -1) {
         return {
           IsPageCheckedOutToCurrentUser: false,
@@ -107,7 +106,7 @@ describe(commands.PAGE_HEADER_SET, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/checkoutpage`) > -1) {
         checkedOut = true;
         return mockPage.ListItemAllFields;
@@ -130,45 +129,47 @@ describe(commands.PAGE_HEADER_SET, () => {
     assert.strictEqual(checkedOut, true);
   });
 
-  it('doesn\'t check out page if not checked out by the current user', async () => {
-    sinonUtil.restore([request.get, request.post]);
-    let checkingOut = false;
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$select=IsPageCheckedOutToCurrentUser,Title`) > -1) {
-        return {
-          IsPageCheckedOutToCurrentUser: true,
-          Title: 'Page'
-        };
-      }
+  it('doesn\'t check out page if not checked out by the current user',
+    async () => {
+      jestUtil.restore([request.get, request.post]);
+      let checkingOut = false;
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$select=IsPageCheckedOutToCurrentUser,Title`) > -1) {
+          return {
+            IsPageCheckedOutToCurrentUser: true,
+            Title: 'Page'
+          };
+        }
 
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$expand=ListItemAllFields`) > -1) {
-        return { CanvasContent1: mockCanvasContent };
-      }
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$expand=ListItemAllFields`) > -1) {
+          return { CanvasContent1: mockCanvasContent };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/checkoutpage`) > -1) {
-        checkingOut = true;
-        return {};
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/checkoutpage`) > -1) {
+          checkingOut = true;
+          return {};
+        }
 
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/SavePageAsDraft`) > -1) {
-        return {};
-      }
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/SavePageAsDraft`) > -1) {
+          return {};
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        pageName: 'home.aspx',
-        webUrl: 'https://contoso.sharepoint.com/sites/newsletter'
-      }
-    });
-    assert.deepStrictEqual(checkingOut, false);
-  });
+      await command.action(logger, {
+        options: {
+          pageName: 'home.aspx',
+          webUrl: 'https://contoso.sharepoint.com/sites/newsletter'
+        }
+      });
+      assert.deepStrictEqual(checkingOut, false);
+    }
+  );
 
   it('sets page header to default when no type specified', async () => {
     const mockData = {
@@ -207,8 +208,8 @@ describe(commands.PAGE_HEADER_SET, () => {
       AuthorByline: []
     };
 
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jestUtil.restore(request.get);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')?$select=IsPageCheckedOutToCurrentUser,Title`) > -1) {
         return {
           IsPageCheckedOutToCurrentUser: true,
@@ -252,8 +253,8 @@ describe(commands.PAGE_HEADER_SET, () => {
       CanvasContent1: '<div>just some test content</div>'
     };
 
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jestUtil.restore(request.get);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')?$select=IsPageCheckedOutToCurrentUser,Title`) > -1) {
         return {
           IsPageCheckedOutToCurrentUser: true,
@@ -291,60 +292,64 @@ describe(commands.PAGE_HEADER_SET, () => {
     assert.strictEqual(JSON.stringify(data), JSON.stringify(mockData));
   });
 
-  it('sets page header to custom when custom type specified (debug)', async () => {
-    const mockData = {
-      LayoutWebpartsContent: '[{"id":"cbe7b0a9-3504-44dd-a3a3-0e5cacd07788","instanceId":"cbe7b0a9-3504-44dd-a3a3-0e5cacd07788","title":"Title Region","description":"Title Region Description","serverProcessedContent":{"htmlStrings":{},"searchablePlainTexts":{},"imageSources":{"imageSource":"/sites/team-a/siteassets/hero.jpg"},"links":{},"customMetadata":{"imageSource":{"siteId":"c7678ab2-c9dc-454b-b2ee-7fcffb983d4e","webId":"0df4d2d2-5ecf-45e9-94f5-c638106bfc65","listId":"e1557527-d333-49f2-9d60-ea8a3003fda8","uniqueId":"102f496d-23a2-415f-803a-232b8a6c7613"}}},"dataVersion":"1.4","properties":{"imageSourceType":2,"layoutType":"FullWidthImage","textAlignment":"Left","showTopicHeader":false,"showPublishDate":false,"topicHeader":"","authors":[],"altText":"","webId":"0df4d2d2-5ecf-45e9-94f5-c638106bfc65","siteId":"c7678ab2-c9dc-454b-b2ee-7fcffb983d4e","listId":"e1557527-d333-49f2-9d60-ea8a3003fda8","uniqueId":"102f496d-23a2-415f-803a-232b8a6c7613","translateX":42.3837520042758,"translateY":56.4285714285714}}]',
-      CanvasContent1: '<div>just some test content</div>'
-    };
+  it('sets page header to custom when custom type specified (debug)',
+    async () => {
+      const mockData = {
+        LayoutWebpartsContent: '[{"id":"cbe7b0a9-3504-44dd-a3a3-0e5cacd07788","instanceId":"cbe7b0a9-3504-44dd-a3a3-0e5cacd07788","title":"Title Region","description":"Title Region Description","serverProcessedContent":{"htmlStrings":{},"searchablePlainTexts":{},"imageSources":{"imageSource":"/sites/team-a/siteassets/hero.jpg"},"links":{},"customMetadata":{"imageSource":{"siteId":"c7678ab2-c9dc-454b-b2ee-7fcffb983d4e","webId":"0df4d2d2-5ecf-45e9-94f5-c638106bfc65","listId":"e1557527-d333-49f2-9d60-ea8a3003fda8","uniqueId":"102f496d-23a2-415f-803a-232b8a6c7613"}}},"dataVersion":"1.4","properties":{"imageSourceType":2,"layoutType":"FullWidthImage","textAlignment":"Left","showTopicHeader":false,"showPublishDate":false,"topicHeader":"","authors":[],"altText":"","webId":"0df4d2d2-5ecf-45e9-94f5-c638106bfc65","siteId":"c7678ab2-c9dc-454b-b2ee-7fcffb983d4e","listId":"e1557527-d333-49f2-9d60-ea8a3003fda8","uniqueId":"102f496d-23a2-415f-803a-232b8a6c7613","translateX":42.3837520042758,"translateY":56.4285714285714}}]',
+        CanvasContent1: '<div>just some test content</div>'
+      };
 
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')?$select=IsPageCheckedOutToCurrentUser,Title`) > -1) {
-        return {
-          IsPageCheckedOutToCurrentUser: true,
-          Title: 'Page'
-        };
-      }
+      jestUtil.restore(request.get);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')?$select=IsPageCheckedOutToCurrentUser,Title`) > -1) {
+          return {
+            IsPageCheckedOutToCurrentUser: true,
+            Title: 'Page'
+          };
+        }
 
-      if ((opts.url as string).indexOf(`/_api/site?`) > -1) {
-        return {
-          Id: 'c7678ab2-c9dc-454b-b2ee-7fcffb983d4e'
-        };
-      }
+        if ((opts.url as string).indexOf(`/_api/site?`) > -1) {
+          return {
+            Id: 'c7678ab2-c9dc-454b-b2ee-7fcffb983d4e'
+          };
+        }
 
-      if ((opts.url as string).indexOf(`/_api/web?`) > -1) {
-        return {
-          Id: '0df4d2d2-5ecf-45e9-94f5-c638106bfc65'
-        };
-      }
+        if ((opts.url as string).indexOf(`/_api/web?`) > -1) {
+          return {
+            Id: '0df4d2d2-5ecf-45e9-94f5-c638106bfc65'
+          };
+        }
 
-      if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='%2Fsites%2Fteam-a%2Fsiteassets%2Fhero.jpg')?$select=ListId,UniqueId`) > -1) {
-        return {
-          ListId: 'e1557527-d333-49f2-9d60-ea8a3003fda8',
-          UniqueId: '102f496d-23a2-415f-803a-232b8a6c7613'
-        };
-      }
+        if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='%2Fsites%2Fteam-a%2Fsiteassets%2Fhero.jpg')?$select=ListId,UniqueId`) > -1) {
+          return {
+            ListId: 'e1557527-d333-49f2-9d60-ea8a3003fda8',
+            UniqueId: '102f496d-23a2-415f-803a-232b8a6c7613'
+          };
+        }
 
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')?$expand=ListItemAllFields`) > -1) {
-        return { CanvasContent1: mockCanvasContent };
-      }
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')?$expand=ListItemAllFields`) > -1) {
+          return { CanvasContent1: mockCanvasContent };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, pageName: 'page.aspx', webUrl: 'https://contoso.sharepoint.com/sites/team-a', type: 'Custom', imageUrl: '/sites/team-a/siteassets/hero.jpg', translateX: 42.3837520042758, translateY: 56.4285714285714 } });
-    assert.strictEqual(JSON.stringify(data), JSON.stringify(mockData));
-  });
+      await command.action(logger, { options: { debug: true, pageName: 'page.aspx', webUrl: 'https://contoso.sharepoint.com/sites/team-a', type: 'Custom', imageUrl: '/sites/team-a/siteassets/hero.jpg', translateX: 42.3837520042758, translateY: 56.4285714285714 } });
+      assert.strictEqual(JSON.stringify(data), JSON.stringify(mockData));
+    }
+  );
 
-  it('sets image to empty when header set to custom and no image specified', async () => {
-    const mockData = {
-      LayoutWebpartsContent: '[{"id":"cbe7b0a9-3504-44dd-a3a3-0e5cacd07788","instanceId":"cbe7b0a9-3504-44dd-a3a3-0e5cacd07788","title":"Title Region","description":"Title Region Description","serverProcessedContent":{"htmlStrings":{},"searchablePlainTexts":{},"imageSources":{"imageSource":""},"links":{},"customMetadata":{"imageSource":{"siteId":"","webId":"","listId":"","uniqueId":""}}},"dataVersion":"1.4","properties":{"imageSourceType":2,"layoutType":"FullWidthImage","textAlignment":"Left","showTopicHeader":false,"showPublishDate":false,"topicHeader":"","authors":[],"altText":"","webId":"","siteId":"","listId":"","uniqueId":"","translateX":0,"translateY":0}}]',
-      CanvasContent1: '<div>just some test content</div>'
-    };
+  it('sets image to empty when header set to custom and no image specified',
+    async () => {
+      const mockData = {
+        LayoutWebpartsContent: '[{"id":"cbe7b0a9-3504-44dd-a3a3-0e5cacd07788","instanceId":"cbe7b0a9-3504-44dd-a3a3-0e5cacd07788","title":"Title Region","description":"Title Region Description","serverProcessedContent":{"htmlStrings":{},"searchablePlainTexts":{},"imageSources":{"imageSource":""},"links":{},"customMetadata":{"imageSource":{"siteId":"","webId":"","listId":"","uniqueId":""}}},"dataVersion":"1.4","properties":{"imageSourceType":2,"layoutType":"FullWidthImage","textAlignment":"Left","showTopicHeader":false,"showPublishDate":false,"topicHeader":"","authors":[],"altText":"","webId":"","siteId":"","listId":"","uniqueId":"","translateX":0,"translateY":0}}]',
+        CanvasContent1: '<div>just some test content</div>'
+      };
 
-    await command.action(logger, { options: { pageName: 'page.aspx', webUrl: 'https://contoso.sharepoint.com/sites/team-a', type: 'Custom' } });
-    assert.strictEqual(JSON.stringify(data), JSON.stringify(mockData));
-  });
+      await command.action(logger, { options: { pageName: 'page.aspx', webUrl: 'https://contoso.sharepoint.com/sites/team-a', type: 'Custom' } });
+      assert.strictEqual(JSON.stringify(data), JSON.stringify(mockData));
+    }
+  );
 
   it('sets focus coordinates to 0 0 if none specified', async () => {
     const mockData = {
@@ -352,8 +357,8 @@ describe(commands.PAGE_HEADER_SET, () => {
       CanvasContent1: '<div>just some test content</div>'
     };
 
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jestUtil.restore(request.get);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')?$select=IsPageCheckedOutToCurrentUser,Title`) > -1) {
         return {
           IsPageCheckedOutToCurrentUser: true,
@@ -438,8 +443,8 @@ describe(commands.PAGE_HEADER_SET, () => {
   });
 
   it('correctly handles OData error when retrieving modern page', async () => {
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').callsFake(() => {
+    jestUtil.restore(request.get);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
       throw { error: { 'odata.error': { message: { value: 'An error has occurred' } } } };
     });
 
@@ -447,41 +452,43 @@ describe(commands.PAGE_HEADER_SET, () => {
       new CommandError('An error has occurred'));
   });
 
-  it('correctly handles error when the specified image doesn\'t exist', async () => {
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')?$select=IsPageCheckedOutToCurrentUser,Title`) > -1) {
-        return {
-          IsPageCheckedOutToCurrentUser: true,
-          Title: 'Page'
-        };
-      }
+  it('correctly handles error when the specified image doesn\'t exist',
+    async () => {
+      jestUtil.restore(request.get);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')?$select=IsPageCheckedOutToCurrentUser,Title`) > -1) {
+          return {
+            IsPageCheckedOutToCurrentUser: true,
+            Title: 'Page'
+          };
+        }
 
-      if ((opts.url as string).indexOf(`/_api/site?`) > -1) {
-        return {
-          Id: 'c7678ab2-c9dc-454b-b2ee-7fcffb983d4e'
-        };
-      }
+        if ((opts.url as string).indexOf(`/_api/site?`) > -1) {
+          return {
+            Id: 'c7678ab2-c9dc-454b-b2ee-7fcffb983d4e'
+          };
+        }
 
-      if ((opts.url as string).indexOf(`/_api/web?`) > -1) {
-        return {
-          Id: '0df4d2d2-5ecf-45e9-94f5-c638106bfc65'
-        };
-      }
+        if ((opts.url as string).indexOf(`/_api/web?`) > -1) {
+          return {
+            Id: '0df4d2d2-5ecf-45e9-94f5-c638106bfc65'
+          };
+        }
 
-      if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='%2Fsites%2Fteam-a%2Fsiteassets%2Fhero.jpg')?$select=ListId,UniqueId`) > -1) {
-        throw { error: { 'odata.error': { message: { value: 'An error has occurred' } } } };
-      }
+        if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='%2Fsites%2Fteam-a%2Fsiteassets%2Fhero.jpg')?$select=ListId,UniqueId`) > -1) {
+          throw { error: { 'odata.error': { message: { value: 'An error has occurred' } } } };
+        }
 
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')?$expand=ListItemAllFields`) > -1) {
-        return { CanvasContent1: mockCanvasContent };
-      }
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/page.aspx')?$expand=ListItemAllFields`) > -1) {
+          return { CanvasContent1: mockCanvasContent };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, { options: { pageName: 'page.aspx', webUrl: 'https://contoso.sharepoint.com/sites/team-a', type: 'Custom', imageUrl: '/sites/team-a/siteassets/hero.jpg', translateX: 42.3837520042758, translateY: 56.4285714285714 } } as any), new CommandError('An error has occurred'));
-  });
+      await assert.rejects(command.action(logger, { options: { pageName: 'page.aspx', webUrl: 'https://contoso.sharepoint.com/sites/team-a', type: 'Custom', imageUrl: '/sites/team-a/siteassets/hero.jpg', translateX: 42.3837520042758, translateY: 56.4285714285714 } } as any), new CommandError('An error has occurred'));
+    }
+  );
 
   it('fails validation if webUrl is not an absolute URL', async () => {
     const actual = await command.validate({ options: { pageName: 'page.aspx', webUrl: 'foo' } }, commandInfo);
@@ -493,10 +500,12 @@ describe(commands.PAGE_HEADER_SET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('passes validation when name and webURL specified and webUrl is a valid SharePoint URL', async () => {
-    const actual = await command.validate({ options: { pageName: 'page.aspx', webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when name and webURL specified and webUrl is a valid SharePoint URL',
+    async () => {
+      const actual = await command.validate({ options: { pageName: 'page.aspx', webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('passes validation when pageName has no extension', async () => {
     const actual = await command.validate({ options: { pageName: 'page', webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);

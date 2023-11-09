@@ -87,7 +87,7 @@ class SpoTermGroupAddCommand extends SpoCommand {
     let termGroup: TermGroup;
 
     try {
-      const webUrl: string = args.options.webUrl || await spo.getSpoAdminUrl(logger, this.debug);
+      const webUrl: string = args.options.webUrl || (await spo.getSpoAdminUrl(logger, this.debug));
       const res: ContextInfo = await spo.getRequestDigest(webUrl);
       formDigest = res.FormDigestValue;
 

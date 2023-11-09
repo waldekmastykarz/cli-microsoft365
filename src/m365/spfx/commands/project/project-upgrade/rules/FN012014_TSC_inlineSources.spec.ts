@@ -12,18 +12,20 @@ describe('FN012014_TSC_inlineSources', () => {
     rule = new FN012014_TSC_inlineSources(false);
   });
 
-  it('doesn\'t return notification if inlineSources is already up-to-date', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      tsConfigJson: {
-        compilerOptions: {
-          inlineSources: false
+  it('doesn\'t return notification if inlineSources is already up-to-date',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        tsConfigJson: {
+          compilerOptions: {
+            inlineSources: false
+          }
         }
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
   it('doesn\'t return notification if object is missing', () => {
     const project: Project = {

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './file-remove.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -23,12 +22,12 @@ describe(commands.FILE_REMOVE, () => {
   let requests: any[];
   let promptOptions: any;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -47,22 +46,22 @@ describe(commands.FILE_REMOVE, () => {
       }
     };
     requests = [];
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       Cli.prompt,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -88,38 +87,42 @@ describe(commands.FILE_REMOVE, () => {
     assert.strictEqual((alias && alias.indexOf(commands.PAGE_TEMPLATE_REMOVE) > -1), true);
   });
 
-  it('prompts before removing file when confirmation argument not passed (id)', async () => {
-    await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com', id: '0cd891ef-afce-4e55-b836-fce03286cccf' } });
-    let promptIssued = false;
+  it('prompts before removing file when confirmation argument not passed (id)',
+    async () => {
+      await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com', id: '0cd891ef-afce-4e55-b836-fce03286cccf' } });
+      let promptIssued = false;
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+
+      assert(promptIssued);
     }
+  );
 
-    assert(promptIssued);
-  });
+  it('prompts before removing file when confirmation argument not passed (title)',
+    async () => {
+      await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com', id: '0cd891ef-afce-4e55-b836-fce03286cccf' } });
+      let promptIssued = false;
 
-  it('prompts before removing file when confirmation argument not passed (title)', async () => {
-    await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com', id: '0cd891ef-afce-4e55-b836-fce03286cccf' } });
-    let promptIssued = false;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      assert(promptIssued);
     }
-
-    assert(promptIssued);
-  });
+  );
 
   it('aborts removing file when prompt not confirmed', async () => {
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: false });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: false });
 
     await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com', id: '0cd891ef-afce-4e55-b836-fce03286cccf' } });
     assert(requests.length === 0);
   });
 
   it('removes the file when prompt confirmed (id)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
 
       if ((opts.url as string).indexOf(`/_api/web/GetFileById(guid'`) > -1) {
@@ -133,8 +136,8 @@ describe(commands.FILE_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
     await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com', id: '0cd891ef-afce-4e55-b836-fce03286cccf' } });
     let correctRequestIssued = false;
@@ -148,45 +151,47 @@ describe(commands.FILE_REMOVE, () => {
     assert(correctRequestIssued);
   });
 
-  it('removes the file when webUrl does not includes a trailing /', async () => {
-    const siteUrl: string = 'https://contoso.sharepoint.com';
-    const fileUrl: string = 'SharedDocuments/Document.docx';
+  it('removes the file when webUrl does not includes a trailing /',
+    async () => {
+      const siteUrl: string = 'https://contoso.sharepoint.com';
+      const fileUrl: string = 'SharedDocuments/Document.docx';
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      requests.push(opts);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        requests.push(opts);
 
-      if ((opts.url as string).indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter('/' + fileUrl)}')`) > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return;
+        if ((opts.url as string).indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter('/' + fileUrl)}')`) > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return;
+          }
         }
-      }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: true }
-    ));
-    await command.action(logger, { options: { webUrl: siteUrl, url: fileUrl } });
-    let correctRequestIssued = false;
-    requests.forEach(r => {
-      if (r.url.indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter('/' + fileUrl)}')`) > -1 &&
-        r.headers.accept &&
-        r.headers.accept.indexOf('application/json') === 0) {
-        correctRequestIssued = true;
-      }
-    });
-    assert(correctRequestIssued);
-  });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: true }
+      ));
+      await command.action(logger, { options: { webUrl: siteUrl, url: fileUrl } });
+      let correctRequestIssued = false;
+      requests.forEach(r => {
+        if (r.url.indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter('/' + fileUrl)}')`) > -1 &&
+          r.headers.accept &&
+          r.headers.accept.indexOf('application/json') === 0) {
+          correctRequestIssued = true;
+        }
+      });
+      assert(correctRequestIssued);
+    }
+  );
 
   it('removes the file when webUrl includes a trailing /', async () => {
     const siteUrl: string = 'https://contoso.sharepoint.com/';
     const fileUrl: string = 'SharedDocuments/Document.docx';
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
 
       if ((opts.url as string).indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter('/' + fileUrl)}')`) > -1) {
@@ -200,8 +205,8 @@ describe(commands.FILE_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: true }
     ));
     await command.action(logger, { options: { webUrl: siteUrl, url: fileUrl } });
@@ -216,275 +221,291 @@ describe(commands.FILE_REMOVE, () => {
     assert(correctRequestIssued);
   });
 
-  it('removes the file when webUrl does not includes a trailing / and fileUrl is server relative', async () => {
-    const siteUrl: string = 'https://contoso.sharepoint.com';
-    const fileUrl: string = '/SharedDocuments/Document.docx';
+  it('removes the file when webUrl does not includes a trailing / and fileUrl is server relative',
+    async () => {
+      const siteUrl: string = 'https://contoso.sharepoint.com';
+      const fileUrl: string = '/SharedDocuments/Document.docx';
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      requests.push(opts);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        requests.push(opts);
 
-      if ((opts.url as string).indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(fileUrl)}')`) > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return;
+        if ((opts.url as string).indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(fileUrl)}')`) > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return;
+          }
         }
-      }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: true }
-    ));
-    await command.action(logger, { options: { webUrl: siteUrl, url: fileUrl } });
-    let correctRequestIssued = false;
-    requests.forEach(r => {
-      if (r.url.indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(fileUrl)}')`) > -1 &&
-        r.headers.accept &&
-        r.headers.accept.indexOf('application/json') === 0) {
-        correctRequestIssued = true;
-      }
-    });
-    assert(correctRequestIssued);
-  });
-
-  it('removes the file when webUrl includes a trailing / and fileUrl is server relative', async () => {
-    const siteUrl: string = 'https://contoso.sharepoint.com/';
-    const fileUrl: string = '/SharedDocuments/Document.docx';
-
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      requests.push(opts);
-
-      if ((opts.url as string).indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(fileUrl)}')`) > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return;
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: true }
+      ));
+      await command.action(logger, { options: { webUrl: siteUrl, url: fileUrl } });
+      let correctRequestIssued = false;
+      requests.forEach(r => {
+        if (r.url.indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(fileUrl)}')`) > -1 &&
+          r.headers.accept &&
+          r.headers.accept.indexOf('application/json') === 0) {
+          correctRequestIssued = true;
         }
-      }
+      });
+      assert(correctRequestIssued);
+    }
+  );
 
-      throw 'Invalid request';
-    });
+  it('removes the file when webUrl includes a trailing / and fileUrl is server relative',
+    async () => {
+      const siteUrl: string = 'https://contoso.sharepoint.com/';
+      const fileUrl: string = '/SharedDocuments/Document.docx';
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: true }
-    ));
-    await command.action(logger, { options: { webUrl: siteUrl, url: fileUrl } });
-    let correctRequestIssued = false;
-    requests.forEach(r => {
-      if (r.url.indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(fileUrl)}')`) > -1 &&
-        r.headers.accept &&
-        r.headers.accept.indexOf('application/json') === 0) {
-        correctRequestIssued = true;
-      }
-    });
-    assert(correctRequestIssued);
-  });
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        requests.push(opts);
 
-  it('removes the file when webUrl (subsite) does not includes a trailing / ', async () => {
-    const siteUrl: string = 'https://contoso.sharepoint.com/sites/subsite';
-    const fileUrl: string = 'SharedDocuments/Document.docx';
-
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      requests.push(opts);
-
-      if ((opts.url as string).indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter('/sites/subsite/' + fileUrl)}')`) > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return;
+        if ((opts.url as string).indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(fileUrl)}')`) > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return;
+          }
         }
-      }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
-
-    await command.action(logger, { options: { webUrl: siteUrl, url: fileUrl } });
-    let correctRequestIssued = false;
-    requests.forEach(r => {
-      if (r.url.indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter('/sites/subsite/' + fileUrl)}')`) > -1 &&
-        r.headers.accept &&
-        r.headers.accept.indexOf('application/json') === 0) {
-        correctRequestIssued = true;
-      }
-    });
-    assert(correctRequestIssued);
-  });
-
-  it('removes the file when webUrl (subsite) includes a trailing /', async () => {
-    const siteUrl: string = 'https://contoso.sharepoint.com/sites/subsite/';
-    const fileUrl: string = 'SharedDocuments/Document.docx';
-
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      requests.push(opts);
-
-      if ((opts.url as string).indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter('/sites/subsite/' + fileUrl)}')`) > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return;
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: true }
+      ));
+      await command.action(logger, { options: { webUrl: siteUrl, url: fileUrl } });
+      let correctRequestIssued = false;
+      requests.forEach(r => {
+        if (r.url.indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(fileUrl)}')`) > -1 &&
+          r.headers.accept &&
+          r.headers.accept.indexOf('application/json') === 0) {
+          correctRequestIssued = true;
         }
-      }
+      });
+      assert(correctRequestIssued);
+    }
+  );
 
-      throw 'Invalid request';
-    });
+  it('removes the file when webUrl (subsite) does not includes a trailing / ',
+    async () => {
+      const siteUrl: string = 'https://contoso.sharepoint.com/sites/subsite';
+      const fileUrl: string = 'SharedDocuments/Document.docx';
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: true }
-    ));
-    await command.action(logger, { options: { webUrl: siteUrl, url: fileUrl } });
-    let correctRequestIssued = false;
-    requests.forEach(r => {
-      if (r.url.indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter('/sites/subsite/' + fileUrl)}')`) > -1 &&
-        r.headers.accept &&
-        r.headers.accept.indexOf('application/json') === 0) {
-        correctRequestIssued = true;
-      }
-    });
-    assert(correctRequestIssued);
-  });
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        requests.push(opts);
 
-  it('removes the file when webUrl (subsite) does not includes a trailing / and fileUrl is server relative', async () => {
-    const siteUrl: string = 'https://contoso.sharepoint.com/sites/subsite';
-    const fileUrl: string = '/sites/subsite/SharedDocuments/Document.docx';
-
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      requests.push(opts);
-
-      if ((opts.url as string).indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(fileUrl)}')`) > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return;
+        if ((opts.url as string).indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter('/sites/subsite/' + fileUrl)}')`) > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return;
+          }
         }
-      }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    await command.action(logger, { options: { webUrl: siteUrl, url: fileUrl } });
-    let correctRequestIssued = false;
-    requests.forEach(r => {
-      if (r.url.indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(fileUrl)}')`) > -1 &&
-        r.headers.accept &&
-        r.headers.accept.indexOf('application/json') === 0) {
-        correctRequestIssued = true;
-      }
-    });
-    assert(correctRequestIssued);
-  });
-
-  it('removes the file when webUrl (subsite) includes a trailing / and fileUrl is server relative', async () => {
-    const siteUrl: string = 'https://contoso.sharepoint.com/sites/subsite/';
-    const fileUrl: string = '/sites/subsite/SharedDocuments/Document.docx';
-
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      requests.push(opts);
-
-      if ((opts.url as string).indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(fileUrl)}')`) > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return;
+      await command.action(logger, { options: { webUrl: siteUrl, url: fileUrl } });
+      let correctRequestIssued = false;
+      requests.forEach(r => {
+        if (r.url.indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter('/sites/subsite/' + fileUrl)}')`) > -1 &&
+          r.headers.accept &&
+          r.headers.accept.indexOf('application/json') === 0) {
+          correctRequestIssued = true;
         }
-      }
+      });
+      assert(correctRequestIssued);
+    }
+  );
 
-      throw 'Invalid request';
-    });
+  it('removes the file when webUrl (subsite) includes a trailing /',
+    async () => {
+      const siteUrl: string = 'https://contoso.sharepoint.com/sites/subsite/';
+      const fileUrl: string = 'SharedDocuments/Document.docx';
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        requests.push(opts);
 
-    await command.action(logger, { options: { webUrl: siteUrl, url: fileUrl } });
-    let correctRequestIssued = false;
-    requests.forEach(r => {
-      if (r.url.indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(fileUrl)}')`) > -1 &&
-        r.headers.accept &&
-        r.headers.accept.indexOf('application/json') === 0) {
-        correctRequestIssued = true;
-      }
-    });
-    assert(correctRequestIssued);
-  });
-
-  it('removes the file when webUrl (subsite) does not includes a trailing / and fileUrl is site relative', async () => {
-    const siteUrl: string = 'https://contoso.sharepoint.com/sites/subsite';
-    const fileUrl: string = 'SharedDocuments/Document.docx';
-
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      requests.push(opts);
-
-      if ((opts.url as string).indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter('/sites/subsite/' + fileUrl)}')`) > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return;
+        if ((opts.url as string).indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter('/sites/subsite/' + fileUrl)}')`) > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return;
+          }
         }
-      }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
-
-    await command.action(logger, { options: { webUrl: siteUrl, url: fileUrl } });
-    let correctRequestIssued = false;
-    requests.forEach(r => {
-      if (r.url.indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter('/sites/subsite/' + fileUrl)}')`) > -1 &&
-        r.headers.accept &&
-        r.headers.accept.indexOf('application/json') === 0) {
-        correctRequestIssued = true;
-      }
-    });
-    assert(correctRequestIssued);
-  });
-
-  it('removes the file when webUrl (subsite) includes a trailing / and fileUrl is site relative', async () => {
-    const siteUrl: string = 'https://contoso.sharepoint.com/sites/subsite/';
-    const fileUrl: string = 'SharedDocuments/Document.docx';
-
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      requests.push(opts);
-
-      if ((opts.url as string).indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter('/sites/subsite/' + fileUrl)}')`) > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return;
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: true }
+      ));
+      await command.action(logger, { options: { webUrl: siteUrl, url: fileUrl } });
+      let correctRequestIssued = false;
+      requests.forEach(r => {
+        if (r.url.indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter('/sites/subsite/' + fileUrl)}')`) > -1 &&
+          r.headers.accept &&
+          r.headers.accept.indexOf('application/json') === 0) {
+          correctRequestIssued = true;
         }
-      }
+      });
+      assert(correctRequestIssued);
+    }
+  );
 
-      throw 'Invalid request';
-    });
+  it('removes the file when webUrl (subsite) does not includes a trailing / and fileUrl is server relative',
+    async () => {
+      const siteUrl: string = 'https://contoso.sharepoint.com/sites/subsite';
+      const fileUrl: string = '/sites/subsite/SharedDocuments/Document.docx';
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        requests.push(opts);
 
-    await command.action(logger, { options: { webUrl: siteUrl, url: fileUrl } });
-    let correctRequestIssued = false;
-    requests.forEach(r => {
-      if (r.url.indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter('/sites/subsite/' + fileUrl)}')`) > -1 &&
-        r.headers.accept &&
-        r.headers.accept.indexOf('application/json') === 0) {
-        correctRequestIssued = true;
-      }
-    });
-    assert(correctRequestIssued);
-  });
+        if ((opts.url as string).indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(fileUrl)}')`) > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return;
+          }
+        }
+
+        throw 'Invalid request';
+      });
+
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
+
+      await command.action(logger, { options: { webUrl: siteUrl, url: fileUrl } });
+      let correctRequestIssued = false;
+      requests.forEach(r => {
+        if (r.url.indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(fileUrl)}')`) > -1 &&
+          r.headers.accept &&
+          r.headers.accept.indexOf('application/json') === 0) {
+          correctRequestIssued = true;
+        }
+      });
+      assert(correctRequestIssued);
+    }
+  );
+
+  it('removes the file when webUrl (subsite) includes a trailing / and fileUrl is server relative',
+    async () => {
+      const siteUrl: string = 'https://contoso.sharepoint.com/sites/subsite/';
+      const fileUrl: string = '/sites/subsite/SharedDocuments/Document.docx';
+
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        requests.push(opts);
+
+        if ((opts.url as string).indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(fileUrl)}')`) > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return;
+          }
+        }
+
+        throw 'Invalid request';
+      });
+
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
+
+      await command.action(logger, { options: { webUrl: siteUrl, url: fileUrl } });
+      let correctRequestIssued = false;
+      requests.forEach(r => {
+        if (r.url.indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(fileUrl)}')`) > -1 &&
+          r.headers.accept &&
+          r.headers.accept.indexOf('application/json') === 0) {
+          correctRequestIssued = true;
+        }
+      });
+      assert(correctRequestIssued);
+    }
+  );
+
+  it('removes the file when webUrl (subsite) does not includes a trailing / and fileUrl is site relative',
+    async () => {
+      const siteUrl: string = 'https://contoso.sharepoint.com/sites/subsite';
+      const fileUrl: string = 'SharedDocuments/Document.docx';
+
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        requests.push(opts);
+
+        if ((opts.url as string).indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter('/sites/subsite/' + fileUrl)}')`) > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return;
+          }
+        }
+
+        throw 'Invalid request';
+      });
+
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
+
+      await command.action(logger, { options: { webUrl: siteUrl, url: fileUrl } });
+      let correctRequestIssued = false;
+      requests.forEach(r => {
+        if (r.url.indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter('/sites/subsite/' + fileUrl)}')`) > -1 &&
+          r.headers.accept &&
+          r.headers.accept.indexOf('application/json') === 0) {
+          correctRequestIssued = true;
+        }
+      });
+      assert(correctRequestIssued);
+    }
+  );
+
+  it('removes the file when webUrl (subsite) includes a trailing / and fileUrl is site relative',
+    async () => {
+      const siteUrl: string = 'https://contoso.sharepoint.com/sites/subsite/';
+      const fileUrl: string = 'SharedDocuments/Document.docx';
+
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        requests.push(opts);
+
+        if ((opts.url as string).indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter('/sites/subsite/' + fileUrl)}')`) > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return;
+          }
+        }
+
+        throw 'Invalid request';
+      });
+
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
+
+      await command.action(logger, { options: { webUrl: siteUrl, url: fileUrl } });
+      let correctRequestIssued = false;
+      requests.forEach(r => {
+        if (r.url.indexOf(`GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter('/sites/subsite/' + fileUrl)}')`) > -1 &&
+          r.headers.accept &&
+          r.headers.accept.indexOf('application/json') === 0) {
+          correctRequestIssued = true;
+        }
+      });
+      assert(correctRequestIssued);
+    }
+  );
 
   it('recycles the file when prompt confirmed (id)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
 
       if ((opts.url as string).indexOf(`/recycle()`) > -1) {
@@ -498,8 +519,8 @@ describe(commands.FILE_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
     await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com', id: '0cd891ef-afce-4e55-b836-fce03286cccf', recycle: true } });
     let correctRequestIssued = false;
@@ -514,7 +535,7 @@ describe(commands.FILE_REMOVE, () => {
   });
 
   it('removes the file when prompt confirmed (url)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
 
       if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='`) > -1) {
@@ -528,8 +549,8 @@ describe(commands.FILE_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
     await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com', url: '0cd891ef-afce-4e55-b836-fce03286cccf' } });
     let correctRequestIssued = false;
@@ -544,7 +565,7 @@ describe(commands.FILE_REMOVE, () => {
   });
 
   it('recycles the file when prompt confirmed (url)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
 
       if ((opts.url as string).indexOf(`/recycle()`) > -1) {
@@ -558,8 +579,8 @@ describe(commands.FILE_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
     await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com', url: '0cd891ef-afce-4e55-b836-fce03286cccf', recycle: true } });
     let correctRequestIssued = false;
@@ -586,7 +607,7 @@ describe(commands.FILE_REMOVE, () => {
       }
     };
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/GetFileById(') > -1) {
         throw error;
       }
@@ -607,7 +628,7 @@ describe(commands.FILE_REMOVE, () => {
   });
 
   it('uses correct API url when id option is passed', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/GetFileById(guid') > -1) {
         return;
       }
@@ -627,7 +648,7 @@ describe(commands.FILE_REMOVE, () => {
   });
 
   it('uses correct API url when url option is passed', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/GetFileByServerRelativePath(DecodedUrl=') > -1) {
         return;
       }
@@ -647,7 +668,7 @@ describe(commands.FILE_REMOVE, () => {
   });
 
   it('uses correct API url when recycle option is passed', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/recycle()') > -1) {
         return;
       }
@@ -667,28 +688,34 @@ describe(commands.FILE_REMOVE, () => {
     });
   });
 
-  it('fails validation if both id and title options are not passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both id and title options are not passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if the url option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', id: '0cd891ef-afce-4e55-b836-fce03286cccf' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the url option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', id: '0cd891ef-afce-4e55-b836-fce03286cccf' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the url option is a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF' } }, commandInfo);
-    assert(actual);
-  });
+  it('passes validation if the url option is a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF' } }, commandInfo);
+      assert(actual);
+    }
+  );
 
   it('fails validation if the id option is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '12345' } }, commandInfo);
@@ -701,7 +728,7 @@ describe(commands.FILE_REMOVE, () => {
   });
 
   it('fails validation if both id and url options are passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }

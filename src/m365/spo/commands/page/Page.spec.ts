@@ -1,8 +1,7 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import { Logger } from '../../../../cli/Logger.js';
 import request from '../../../../request.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { Page } from './Page.js';
 
 describe('Page', () => {
@@ -25,14 +24,14 @@ describe('Page', () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post
     ]);
   });
 
   it('correctly handles error when parsing modern page', (done) => {
-    sinon.stub(request, 'get').callsFake(async () => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async () => {
       return {
         ListItemAllFields: {
           ClientSideApplicationId: 'b6917cb1-93a0-4b97-a84d-7cf49975d4ec',
@@ -53,7 +52,7 @@ describe('Page', () => {
   it('correctly retrieves page from the root of tenant (debug)', (done) => {
     let getCallIssued = false;
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`https://contoso.sharepoint.com/_api/web/GetFileByServerRelativePath(DecodedUrl='/SitePages/page.aspx')?$expand=ListItemAllFields/ClientSideApplicationId`) > -1) {
         getCallIssued = true;
         return {
@@ -134,7 +133,7 @@ describe('Page', () => {
   it('correctly retrieves page from sub site (debug)', (done) => {
     let getCallIssued = false;
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`https://contoso.sharepoint.com/sites/team-a/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/page.aspx')?$expand=ListItemAllFields/ClientSideApplicationId`) > -1) {
         getCallIssued = true;
         return {
@@ -211,7 +210,7 @@ describe('Page', () => {
   });
 
   it('correctly handles checking out modern page', (done) => {
-    sinon.stub(request, 'post').callsFake(async () => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async () => {
       return {};
     });
 
@@ -224,25 +223,27 @@ describe('Page', () => {
       });
   });
 
-  it('correctly handles error when checking out modern page with no data returned', (done) => {
-    sinon.stub(request, 'post').callsFake(async () => {
-      return null;
-    });
-
-    Page
-      .checkout('page.aspx', 'https://contoso.sharepoint.com', logger, false, false)
-      .then((): void => {
-        done(new Error('Parsing page didn\'t fail while expected'));
-      }, (): void => {
-        done();
+  it('correctly handles error when checking out modern page with no data returned',
+    (done) => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async () => {
+        return null;
       });
-  });
+
+      Page
+        .checkout('page.aspx', 'https://contoso.sharepoint.com', logger, false, false)
+        .then((): void => {
+          done(new Error('Parsing page didn\'t fail while expected'));
+        }, (): void => {
+          done();
+        });
+    }
+  );
 
 
   it('correctly handles error in checking out modern page request', (done) => {
     let getCallIssued = false;
 
-    sinon.stub(request, 'post').callsFake(async () => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async () => {
       getCallIssued = true;
       return null;
     });

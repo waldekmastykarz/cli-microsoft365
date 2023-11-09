@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './team-set.js';
 
@@ -18,11 +17,11 @@ describe(commands.TEAM_SET, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -44,13 +43,13 @@ describe(commands.TEAM_SET, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.patch
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -72,7 +71,7 @@ describe(commands.TEAM_SET, () => {
   });
 
   it('sets the visibility settings correctly', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups/8231f9f2-701f-4c6e-93ce-ecb563e3c1ee` &&
         JSON.stringify(opts.data) === JSON.stringify({
           visibility: 'Public'
@@ -89,7 +88,7 @@ describe(commands.TEAM_SET, () => {
   });
 
   it('sets the mailNickName correctly', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups/8231f9f2-701f-4c6e-93ce-ecb563e3c1ee` &&
         JSON.stringify(opts.data) === JSON.stringify({
           mailNickName: 'NewNickName'
@@ -106,7 +105,7 @@ describe(commands.TEAM_SET, () => {
   });
 
   it('sets the description settings correctly', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups/8231f9f2-701f-4c6e-93ce-ecb563e3c1ee` &&
         JSON.stringify(opts.data) === JSON.stringify({
           description: 'desc'
@@ -122,7 +121,7 @@ describe(commands.TEAM_SET, () => {
   });
 
   it('sets the classification settings correctly', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups/8231f9f2-701f-4c6e-93ce-ecb563e3c1ee` &&
         JSON.stringify(opts.data) === JSON.stringify({
           classification: 'MBI'
@@ -138,7 +137,7 @@ describe(commands.TEAM_SET, () => {
   });
 
   it('should handle Microsoft graph error response', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups/8231f9f2-701f-4c6e-93ce-ecb563e3c1ee`) {
         throw {
           "error": {
@@ -173,13 +172,15 @@ describe(commands.TEAM_SET, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('fails validation if visibility is not a valid visibility Private|Public', async () => {
-    const actual = await command.validate({
-      options: {
-        id: '8231f9f2-701f-4c6e-93ce-ecb563e3c1ee',
-        visibility: 'hidden'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, false);
-  });
+  it('fails validation if visibility is not a valid visibility Private|Public',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          id: '8231f9f2-701f-4c6e-93ce-ecb563e3c1ee',
+          visibility: 'hidden'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, false);
+    }
+  );
 });

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './bucket-set.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -100,12 +99,12 @@ describe(commands.BUCKET_SET, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.accessTokens[(command as any).resource] = {
       accessToken: 'abc',
@@ -131,7 +130,7 @@ describe(commands.BUCKET_SET, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.patch,
       cli.getSettingWithDefaultValue,
@@ -139,8 +138,8 @@ describe(commands.BUCKET_SET, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.accessTokens = {};
   });
@@ -153,15 +152,17 @@ describe(commands.BUCKET_SET, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('fails validation id when id and plan details are specified', async () => {
-    const actual = await command.validate({
-      options: {
-        id: validBucketId,
-        planId: validPlanId
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation id when id and plan details are specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          id: validBucketId,
+          planId: validPlanId
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation when owner group id is not a guid', async () => {
     const actual = await command.validate({
@@ -174,16 +175,18 @@ describe(commands.BUCKET_SET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation when plan id is used with owner group name', async () => {
-    const actual = await command.validate({
-      options: {
-        name: validBucketName,
-        planId: validPlanId,
-        ownerGroupName: validOwnerGroupName
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation when plan id is used with owner group name',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          name: validBucketName,
+          planId: validPlanId,
+          ownerGroupName: validOwnerGroupName
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation when plan id is used with owner group id', async () => {
     const actual = await command.validate({
@@ -196,36 +199,42 @@ describe(commands.BUCKET_SET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation when roster id is used with owner group name', async () => {
-    const actual = await command.validate({
-      options: {
-        name: validBucketName,
-        rosterId: validRosterId,
-        ownerGroupName: validOwnerGroupName
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation when roster id is used with owner group name',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          name: validBucketName,
+          rosterId: validRosterId,
+          ownerGroupName: validOwnerGroupName
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when roster id is used with owner group id', async () => {
-    const actual = await command.validate({
-      options: {
-        name: validBucketName,
-        rosterId: validRosterId,
-        ownerGroupId: validOwnerGroupId
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation when roster id is used with owner group id',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          name: validBucketName,
+          rosterId: validRosterId,
+          ownerGroupId: validOwnerGroupId
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when new name or order hint is not specified', async () => {
-    const actual = await command.validate({
-      options: {
-        id: validBucketId
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation when new name or order hint is not specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          id: validBucketId
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('validates for a correct input with id', async () => {
     const actual = await command.validate({
@@ -250,7 +259,7 @@ describe(commands.BUCKET_SET, () => {
   });
 
   it('fails validation when no groups found', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validOwnerGroupName)}'`) {
         return { "value": [] };
       }
@@ -268,7 +277,7 @@ describe(commands.BUCKET_SET, () => {
   });
 
   it('fails validation when multiple groups found', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -276,7 +285,7 @@ describe(commands.BUCKET_SET, () => {
       return defaultValue;
     });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validOwnerGroupName)}'`) {
         return multipleGroupResponse;
       }
@@ -294,7 +303,7 @@ describe(commands.BUCKET_SET, () => {
   });
 
   it('fails validation when no buckets found', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${validPlanId}/buckets`) {
         return { "value": [] };
       }
@@ -311,7 +320,7 @@ describe(commands.BUCKET_SET, () => {
   });
 
   it('fails validation when multiple buckets found', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -319,7 +328,7 @@ describe(commands.BUCKET_SET, () => {
       return defaultValue;
     });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${validPlanId}/buckets`) {
         return multipleBucketByNameResponse;
       }
@@ -335,51 +344,53 @@ describe(commands.BUCKET_SET, () => {
     }), new CommandError("Multiple buckets with name 'Bucket name' found. Found: vncYUXCRBke28qMLB-d4xJcACtNz."));
   });
 
-  it('handles selecting single result when multiple buckets with the specified name found and cli is set to prompt', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validOwnerGroupName)}'`) {
-        return singleGroupResponse;
-      }
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups/${validOwnerGroupId}/planner/plans`) {
-        return singlePlanResponse;
-      }
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${validPlanId}/buckets`) {
-        return multipleBucketByNameResponse;
-      }
+  it('handles selecting single result when multiple buckets with the specified name found and cli is set to prompt',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validOwnerGroupName)}'`) {
+          return singleGroupResponse;
+        }
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups/${validOwnerGroupId}/planner/plans`) {
+          return singlePlanResponse;
+        }
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${validPlanId}/buckets`) {
+          return multipleBucketByNameResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/buckets/${validBucketId}`) {
-        return;
-      }
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/buckets/${validBucketId}`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves(singleBucketByNameResponse.value[0]);
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves(singleBucketByNameResponse.value[0]);
 
-    await assert.doesNotReject(command.action(logger, {
-      options: {
-        name: validBucketName,
-        planTitle: validPlanTitle,
-        ownerGroupName: validOwnerGroupName,
-        newName: 'New bucket name',
-        orderHint: validOrderHint
-      }
-    }));
-  });
+      await assert.doesNotReject(command.action(logger, {
+        options: {
+          name: validBucketName,
+          planTitle: validPlanTitle,
+          ownerGroupName: validOwnerGroupName,
+          newName: 'New bucket name',
+          orderHint: validOrderHint
+        }
+      }));
+    }
+  );
 
   it('correctly updates bucket by id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/buckets/${validBucketId}`) {
         return singleBucketByIdResponse;
       }
 
       throw 'Invalid request';
     });
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/buckets/${validBucketId}`) {
         return;
       }
@@ -396,7 +407,7 @@ describe(commands.BUCKET_SET, () => {
   });
 
   it('correctly updates bucket by name', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validOwnerGroupName)}'`) {
         return singleGroupResponse;
       }
@@ -409,7 +420,7 @@ describe(commands.BUCKET_SET, () => {
 
       throw 'Invalid request';
     });
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/buckets/${validBucketId}`) {
         return;
       }
@@ -429,7 +440,7 @@ describe(commands.BUCKET_SET, () => {
   });
 
   it('correctly updates bucket by name with rosterId', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/beta/planner/rosters/${validRosterId}/plans`) {
         return planResponse;
       }
@@ -440,7 +451,7 @@ describe(commands.BUCKET_SET, () => {
       throw 'Invalid Request';
     });
 
-    const patchStub = sinon.stub(request, 'patch').callsFake(async (opts) => {
+    const patchStub = jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/buckets/${validBucketId}`) {
         return;
       }
@@ -461,7 +472,7 @@ describe(commands.BUCKET_SET, () => {
   });
 
   it('correctly updates bucket by name with group ID', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups/${validOwnerGroupId}/planner/plans`) {
         return singlePlanResponse;
       }
@@ -471,7 +482,7 @@ describe(commands.BUCKET_SET, () => {
 
       throw 'Invalid request';
     });
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/buckets/${validBucketId}`) {
         return;
       }

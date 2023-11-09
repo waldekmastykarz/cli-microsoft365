@@ -1,25 +1,24 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import { session } from '../utils/session.js';
 import { cache } from './cache.js';
-import { sinonUtil } from './sinonUtil.js';
+import { jestUtil } from './jestUtil.js';
 
 describe('utils/session', () => {
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       cache.getValue,
       cache.setValue
     ]);
   });
 
   it('returns existing session ID if available', () => {
-    sinon.stub(cache, 'getValue').callsFake(() => '123');
+    jest.spyOn(cache, 'getValue').mockClear().mockImplementation(() => '123');
     assert.strictEqual(session.getId(1), '123');
   });
 
   it('returns new session ID if no ID available', () => {
-    sinon.stub(cache, 'getValue').returns(undefined);
-    sinon.stub(cache, 'setValue').callsFake(() => { });
+    jest.spyOn(cache, 'getValue').mockClear().mockReturnValue(undefined);
+    jest.spyOn(cache, 'setValue').mockClear().mockImplementation(() => { });
     assert(session.getId(1).length > 3);
   });
 });

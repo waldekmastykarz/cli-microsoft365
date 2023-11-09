@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,21 +8,21 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './notebook-list.js';
 
 describe(commands.NOTEBOOK_LIST, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -41,18 +40,18 @@ describe(commands.NOTEBOOK_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -93,49 +92,51 @@ describe(commands.NOTEBOOK_LIST, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('lists Microsoft OneNote notebooks for the currently logged in user (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/me/onenote/notebooks`) {
-        return {
-          "value": [
-            {
-              "id": "1-99a44a87-c92f-495a-8295-3ab308387821",
-              "createdDateTime": "2021-11-15T10:27:22Z",
-              "displayName": "Meeting Notes",
-              "lastModifiedDateTime": "2021-11-15T10:27:22Z"
-            },
-            {
-              "id": "1-1c1fbd21-1d48-4057-bfb1-ce41b4f7d624",
-              "createdDateTime": "2020-01-13T17:52:03Z",
-              "displayName": "My Notebook",
-              "lastModifiedDateTime": "2020-01-13T17:52:03Z"
-            }
-          ]
-        };
-      }
+  it('lists Microsoft OneNote notebooks for the currently logged in user (debug)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/me/onenote/notebooks`) {
+          return {
+            "value": [
+              {
+                "id": "1-99a44a87-c92f-495a-8295-3ab308387821",
+                "createdDateTime": "2021-11-15T10:27:22Z",
+                "displayName": "Meeting Notes",
+                "lastModifiedDateTime": "2021-11-15T10:27:22Z"
+              },
+              {
+                "id": "1-1c1fbd21-1d48-4057-bfb1-ce41b4f7d624",
+                "createdDateTime": "2020-01-13T17:52:03Z",
+                "displayName": "My Notebook",
+                "lastModifiedDateTime": "2020-01-13T17:52:03Z"
+              }
+            ]
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true } });
-    assert(loggerLogSpy.calledWith([
-      {
-        "id": "1-99a44a87-c92f-495a-8295-3ab308387821",
-        "createdDateTime": "2021-11-15T10:27:22Z",
-        "displayName": "Meeting Notes",
-        "lastModifiedDateTime": "2021-11-15T10:27:22Z"
-      },
-      {
-        "id": "1-1c1fbd21-1d48-4057-bfb1-ce41b4f7d624",
-        "createdDateTime": "2020-01-13T17:52:03Z",
-        "displayName": "My Notebook",
-        "lastModifiedDateTime": "2020-01-13T17:52:03Z"
-      }
-    ]));
-  });
+      await command.action(logger, { options: { debug: true } });
+      assert(loggerLogSpy.calledWith([
+        {
+          "id": "1-99a44a87-c92f-495a-8295-3ab308387821",
+          "createdDateTime": "2021-11-15T10:27:22Z",
+          "displayName": "Meeting Notes",
+          "lastModifiedDateTime": "2021-11-15T10:27:22Z"
+        },
+        {
+          "id": "1-1c1fbd21-1d48-4057-bfb1-ce41b4f7d624",
+          "createdDateTime": "2020-01-13T17:52:03Z",
+          "displayName": "My Notebook",
+          "lastModifiedDateTime": "2020-01-13T17:52:03Z"
+        }
+      ]));
+    }
+  );
 
   it('lists Microsoft OneNote notebooks for user by id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users/2609af39-7775-4f94-a3dc-0dd67657e900/onenote/notebooks`) {
         return {
           "value": [
@@ -176,7 +177,7 @@ describe(commands.NOTEBOOK_LIST, () => {
   });
 
   it('lists Microsoft OneNote notebooks in group by id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups/233e43d0-dc6a-482e-9b4e-0de7a7bce9b4/onenote/notebooks`) {
         return {
           "value": [
@@ -216,20 +217,22 @@ describe(commands.NOTEBOOK_LIST, () => {
     ]));
   });
 
-  it('handles error when retrieving Microsoft OneNote notebooks in group by name', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/v1.0/groups?$filter=displayName eq '`) > -1) {
-        throw 'An error has occurred';
-      }
+  it('handles error when retrieving Microsoft OneNote notebooks in group by name',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/v1.0/groups?$filter=displayName eq '`) > -1) {
+          throw 'An error has occurred';
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, { options: { groupName: 'MyGroup' } } as any), new CommandError('An error has occurred'));
-  });
+      await assert.rejects(command.action(logger, { options: { groupName: 'MyGroup' } } as any), new CommandError('An error has occurred'));
+    }
+  );
 
   it('lists Microsoft OneNote notebooks in group by name', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/v1.0/groups?$filter=displayName eq '`) > -1) {
         return {
           "value": [
@@ -281,20 +284,22 @@ describe(commands.NOTEBOOK_LIST, () => {
     ]));
   });
 
-  it('handles error when retrieving Microsoft OneNote notebooks for site', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/v1.0/sites/`) > -1) {
-        return Promise.reject('An error has occurred');
-      }
+  it('handles error when retrieving Microsoft OneNote notebooks for site',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/v1.0/sites/`) > -1) {
+          return Promise.reject('An error has occurred');
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/testsite' } } as any), new CommandError('An error has occurred'));
-  });
+      await assert.rejects(command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/testsite' } } as any), new CommandError('An error has occurred'));
+    }
+  );
 
   it('lists Microsoft OneNote notebooks for site', async () => {
-    const getRequestStub = sinon.stub(request, 'get');
+    const getRequestStub = jest.spyOn(request, 'get').mockClear().mockImplementation();
     getRequestStub.onCall(0)
       .callsFake(async (opts) => {
         if ((opts.url as string).indexOf('/v1.0/sites/') > -1) {
@@ -350,7 +355,7 @@ describe(commands.NOTEBOOK_LIST, () => {
   });
 
   it('lists Microsoft OneNote notebooks for user by name', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users/user1@contoso.onmicrosoft.com/onenote/notebooks`) {
         return {
           "value": [

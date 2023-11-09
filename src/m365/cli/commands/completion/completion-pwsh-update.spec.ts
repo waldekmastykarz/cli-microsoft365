@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import { autocomplete } from '../../../../autocomplete.js';
 import { Logger } from '../../../../cli/Logger.js';
 import { telemetry } from '../../../../telemetry.js';
@@ -11,14 +10,14 @@ import command from './completion-pwsh-update.js';
 describe(commands.COMPLETION_PWSH_UPDATE, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
-  let generateShCompletionStub: sinon.SinonStub;
+  let loggerLogToStderrSpy: jest.SpyInstance;
+  let generateShCompletionStub: jest.Mock;
 
-  before(() => {
-    sinon.stub(telemetry, 'trackEvent').callsFake(() => { });
-    sinon.stub(pid, 'getProcessName').callsFake(() => '');
-    sinon.stub(session, 'getId').callsFake(() => '');
-    generateShCompletionStub = sinon.stub(autocomplete, 'generateShCompletion').callsFake(() => { });
+  beforeAll(() => {
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockImplementation(() => { });
+    jest.spyOn(pid, 'getProcessName').mockClear().mockImplementation(() => '');
+    jest.spyOn(session, 'getId').mockClear().mockImplementation(() => '');
+    generateShCompletionStub = jest.spyOn(autocomplete, 'generateShCompletion').mockClear().mockImplementation(() => { });
   });
 
   beforeEach(() => {
@@ -34,15 +33,15 @@ describe(commands.COMPLETION_PWSH_UPDATE, () => {
         log.push(msg);
       }
     };
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
   });
 
   afterEach(() => {
-    generateShCompletionStub.reset();
+    generateShCompletionStub.mockReset();
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
   });
 
   it('has correct name', () => {

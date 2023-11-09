@@ -1,9 +1,8 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import request from "../request.js";
 import { aadGroup } from './aadGroup.js';
 import { formatting } from './formatting.js';
-import { sinonUtil } from "./sinonUtil.js";
+import { jestUtil } from "./jestUtil.js";
 import { Logger } from '../cli/Logger.js';
 import { Cli } from '../cli/Cli.js';
 import { settingsNames } from '../settingsNames.js';
@@ -21,7 +20,7 @@ describe('utils/aadGroup', () => {
   let logger: Logger;
   let log: string[];
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
   });
 
@@ -41,7 +40,7 @@ describe('utils/aadGroup', () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.patch,
       cli.getSettingWithDefaultValue,
@@ -50,7 +49,7 @@ describe('utils/aadGroup', () => {
   });
 
   it('correctly get a single group by id.', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups/${validGroupId}`) {
         return singleGroupResponse;
       }
@@ -62,136 +61,150 @@ describe('utils/aadGroup', () => {
     assert.strictEqual(actual, singleGroupResponse);
   });
 
-  it('throws error message when no group was found using getGroupByDisplayName', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validGroupName)}'`) {
-        return { value: [] };
-      }
+  it('throws error message when no group was found using getGroupByDisplayName',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validGroupName)}'`) {
+          return { value: [] };
+        }
 
-      return 'Invalid Request';
-    });
+        return 'Invalid Request';
+      });
 
-    await assert.rejects(aadGroup.getGroupByDisplayName(validGroupName), Error(`The specified group '${validGroupName}' does not exist.`));
-  });
+      await assert.rejects(aadGroup.getGroupByDisplayName(validGroupName), Error(`The specified group '${validGroupName}' does not exist.`));
+    }
+  );
 
-  it('throws error message when multiple groups were found using getGroupByDisplayName', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('throws error message when multiple groups were found using getGroupByDisplayName',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validGroupName)}'`) {
-        return {
-          value: [
-            { id: validGroupId, displayName: validGroupName },
-            { id: validGroupId, displayName: validGroupName }
-          ]
-        };
-      }
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validGroupName)}'`) {
+          return {
+            value: [
+              { id: validGroupId, displayName: validGroupName },
+              { id: validGroupId, displayName: validGroupName }
+            ]
+          };
+        }
 
-      return 'Invalid Request';
-    });
+        return 'Invalid Request';
+      });
 
-    await assert.rejects(aadGroup.getGroupByDisplayName(validGroupName), Error("Multiple groups with name 'Group name' found. Found: 00000000-0000-0000-0000-000000000000."));
-  });
+      await assert.rejects(aadGroup.getGroupByDisplayName(validGroupName), Error("Multiple groups with name 'Group name' found. Found: 00000000-0000-0000-0000-000000000000."));
+    }
+  );
 
-  it('correctly get single group by name using getGroupByDisplayName', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validGroupName)}'`) {
-        return {
-          value: [
-            singleGroupResponse
-          ]
-        };
-      }
+  it('correctly get single group by name using getGroupByDisplayName',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validGroupName)}'`) {
+          return {
+            value: [
+              singleGroupResponse
+            ]
+          };
+        }
 
-      return 'Invalid Request';
-    });
+        return 'Invalid Request';
+      });
 
-    const actual = await aadGroup.getGroupByDisplayName(validGroupName);
-    assert.deepStrictEqual(actual, singleGroupResponse);
-  });
+      const actual = await aadGroup.getGroupByDisplayName(validGroupName);
+      assert.deepStrictEqual(actual, singleGroupResponse);
+    }
+  );
 
-  it('correctly get single group id by name using getGroupIdByDisplayName', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validGroupName)}'&$select=id`) {
-        return {
-          value: [
-            { id: singleGroupResponse.id }
-          ]
-        };
-      }
+  it('correctly get single group id by name using getGroupIdByDisplayName',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validGroupName)}'&$select=id`) {
+          return {
+            value: [
+              { id: singleGroupResponse.id }
+            ]
+          };
+        }
 
-      return 'Invalid Request';
-    });
+        return 'Invalid Request';
+      });
 
-    const actual = await aadGroup.getGroupIdByDisplayName(validGroupName);
-    assert.deepStrictEqual(actual, singleGroupResponse.id);
-  });
+      const actual = await aadGroup.getGroupIdByDisplayName(validGroupName);
+      assert.deepStrictEqual(actual, singleGroupResponse.id);
+    }
+  );
 
-  it('throws error message when no group was found using getGroupIdByDisplayName', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validGroupName)}'&$select=id`) {
-        return { value: [] };
-      }
+  it('throws error message when no group was found using getGroupIdByDisplayName',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validGroupName)}'&$select=id`) {
+          return { value: [] };
+        }
 
-      return 'Invalid Request';
-    });
+        return 'Invalid Request';
+      });
 
-    await assert.rejects(aadGroup.getGroupIdByDisplayName(validGroupName), Error(`The specified group '${validGroupName}' does not exist.`));
-  });
+      await assert.rejects(aadGroup.getGroupIdByDisplayName(validGroupName), Error(`The specified group '${validGroupName}' does not exist.`));
+    }
+  );
 
-  it('throws error message when multiple groups were found using getGroupIdByDisplayName', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('throws error message when multiple groups were found using getGroupIdByDisplayName',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validGroupName)}'&$select=id`) {
-        return {
-          value: [
-            { id: validGroupId },
-            { id: validGroupId }
-          ]
-        };
-      }
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validGroupName)}'&$select=id`) {
+          return {
+            value: [
+              { id: validGroupId },
+              { id: validGroupId }
+            ]
+          };
+        }
 
-      return 'Invalid Request';
-    });
+        return 'Invalid Request';
+      });
 
-    await assert.rejects(aadGroup.getGroupIdByDisplayName(validGroupName), Error(`Multiple groups with name 'Group name' found. Found: 00000000-0000-0000-0000-000000000000.`));
-  });
+      await assert.rejects(aadGroup.getGroupIdByDisplayName(validGroupName), Error(`Multiple groups with name 'Group name' found. Found: 00000000-0000-0000-0000-000000000000.`));
+    }
+  );
 
-  it('handles selecting single result when multiple groups with the specified name found using getGroupIdByDisplayName and cli is set to prompt', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validGroupName)}'&$select=id`) {
-        return {
-          value: [
-            { id: validGroupId },
-            { id: validGroupId }
-          ]
-        };
-      }
+  it('handles selecting single result when multiple groups with the specified name found using getGroupIdByDisplayName and cli is set to prompt',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validGroupName)}'&$select=id`) {
+          return {
+            value: [
+              { id: validGroupId },
+              { id: validGroupId }
+            ]
+          };
+        }
 
-      return 'Invalid Request';
-    });
+        return 'Invalid Request';
+      });
 
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves({ id: validGroupId });
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves({ id: validGroupId });
 
-    const actual = await aadGroup.getGroupIdByDisplayName(validGroupName);
-    assert.deepStrictEqual(actual, validGroupId);
-  });
+      const actual = await aadGroup.getGroupIdByDisplayName(validGroupName);
+      assert.deepStrictEqual(actual, validGroupId);
+    }
+  );
 
   it('updates a group to public successfully', async () => {
-    const patchStub = sinon.stub(request, 'patch').callsFake(async opts => {
+    const patchStub = jest.spyOn(request, 'patch').mockClear().mockImplementation(async opts => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups/${validGroupId}`) {
         return;
       }
@@ -204,7 +217,7 @@ describe('utils/aadGroup', () => {
   });
 
   it('updates a group to private successfully', async () => {
-    const patchStub = sinon.stub(request, 'patch').callsFake(async opts => {
+    const patchStub = jest.spyOn(request, 'patch').mockClear().mockImplementation(async opts => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups/${validGroupId}`) {
         return;
       }
@@ -216,28 +229,30 @@ describe('utils/aadGroup', () => {
     assert(patchStub.called);
   });
 
-  it('handles selecting single result when multiple groups with the specified name found and cli is set to prompt', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validGroupName)}'`) {
-        return {
-          value: [
-            { id: validGroupId, displayName: validGroupName },
-            { id: validGroupId, displayName: validGroupName }
-          ]
-        };
-      }
+  it('handles selecting single result when multiple groups with the specified name found and cli is set to prompt',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validGroupName)}'`) {
+          return {
+            value: [
+              { id: validGroupId, displayName: validGroupName },
+              { id: validGroupId, displayName: validGroupName }
+            ]
+          };
+        }
 
-      return 'Invalid Request';
-    });
+        return 'Invalid Request';
+      });
 
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves({ id: validGroupId, displayName: validGroupName });
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves({ id: validGroupId, displayName: validGroupName });
 
-    const actual = await aadGroup.getGroupByDisplayName(validGroupName);
-    assert.deepStrictEqual(actual, singleGroupResponse);
-  });
+      const actual = await aadGroup.getGroupByDisplayName(validGroupName);
+      assert.deepStrictEqual(actual, singleGroupResponse);
+    }
+  );
 
   it('returns true if group is a valid m365group', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups/${validGroupId}?$select=groupTypes`) {
         return {
           groupTypes: [
@@ -253,7 +268,7 @@ describe('utils/aadGroup', () => {
   });
 
   it('returns false if group is not a m365group', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups/${validGroupId}?$select=groupTypes`) {
         return {
           groupTypes: []

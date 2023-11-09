@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -11,7 +10,7 @@ import { aadUser } from '../../../../utils/aadUser.js';
 import { accessToken } from '../../../../utils/accessToken.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { formatting } from '../../../../utils/formatting.js';
 import commands from '../../commands.js';
 import command from './meeting-list.js';
@@ -140,21 +139,21 @@ describe(commands.MEETING_LIST, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.accessTokens[auth.defaultResource] = {
       expiresOn: 'abc',
       accessToken: 'abc'
     };
     commandInfo = Cli.getCommandInfo(command);
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(false);
+    jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(false);
   });
 
   beforeEach(() => {
@@ -170,11 +169,11 @@ describe(commands.MEETING_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       accessToken.isAppOnlyAccessToken,
       request.get,
       request.post,
@@ -182,8 +181,8 @@ describe(commands.MEETING_LIST, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.accessTokens = {};
   });
@@ -200,15 +199,19 @@ describe(commands.MEETING_LIST, () => {
     assert.deepStrictEqual(command.defaultProperties(), ['subject', 'startDateTime', 'endDateTime']);
   });
 
-  it('completes validation when the startDateTime is a valid ISODateTime, endDateTime is a valid ISODateTime and userId is a valid Guid', async () => {
-    const actual = await command.validate({ options: { startDateTime: startDateTime, endDateTime: endDateTime, userId: userId } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('completes validation when the startDateTime is a valid ISODateTime, endDateTime is a valid ISODateTime and userId is a valid Guid',
+    async () => {
+      const actual = await command.validate({ options: { startDateTime: startDateTime, endDateTime: endDateTime, userId: userId } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when the startDateTime is not a valid ISODateTime', async () => {
-    const actual = await command.validate({ options: { startDateTime: 'foo', userId: userId } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation when the startDateTime is not a valid ISODateTime',
+    async () => {
+      const actual = await command.validate({ options: { startDateTime: 'foo', userId: userId } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation when the userId is not a valid guid', async () => {
     const actual = await command.validate({ options: { startDateTime: startDateTime, userId: 'foo' } }, commandInfo);
@@ -230,26 +233,32 @@ describe(commands.MEETING_LIST, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation when the endDateTime is not a valid ISODateTime', async () => {
-    const actual = await command.validate({ options: { startDateTime: startDateTime, endDateTime: 'foo', userId: userId } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation when the endDateTime is not a valid ISODateTime',
+    async () => {
+      const actual = await command.validate({ options: { startDateTime: startDateTime, endDateTime: 'foo', userId: userId } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('throws an error when the userName, userId or email is not filled in when signed in using app-only authentication', async () => {
-    sinonUtil.restore(accessToken.isAppOnlyAccessToken);
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
+  it('throws an error when the userName, userId or email is not filled in when signed in using app-only authentication',
+    async () => {
+      jestUtil.restore(accessToken.isAppOnlyAccessToken);
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
 
-    await assert.rejects(command.action(logger, { options: { startDateTime: '2022-04-04' } } as any),
-      new CommandError(`The option 'userId', 'userName' or 'email' is required when retrieving meetings using app only permissions`));
-  });
+      await assert.rejects(command.action(logger, { options: { startDateTime: '2022-04-04' } } as any),
+        new CommandError(`The option 'userId', 'userName' or 'email' is required when retrieving meetings using app only permissions`));
+    }
+  );
 
-  it('throws an error when the userName is filled in when signed in using delegated authentication', async () => {
-    await assert.rejects(command.action(logger, { options: { startDateTime: '2022-04-04', email: userName } } as any),
-      new CommandError(`The options 'userId', 'userName' and 'email' cannot be used when retrieving meetings using delegated permissions`));
-  });
+  it('throws an error when the userName is filled in when signed in using delegated authentication',
+    async () => {
+      await assert.rejects(command.action(logger, { options: { startDateTime: '2022-04-04', email: userName } } as any),
+        new CommandError(`The options 'userId', 'userName' and 'email' cannot be used when retrieving meetings using delegated permissions`));
+    }
+  );
 
   it('logs meetings for the currently logged in user', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url === `https://graph.microsoft.com/v1.0/me/events?$filter=start/dateTime ge '${startDateTime}' and end/dateTime lt '${endDateTime}' and isOrganizer eq true&$select=onlineMeeting`) {
         return calendarMeetingsResponse;
       }
@@ -257,7 +266,7 @@ describe(commands.MEETING_LIST, () => {
       throw 'Invalid request: ' + opts.url;
     });
 
-    sinon.stub(request, 'post').callsFake(async opts => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/$batch') {
         return graphBatchResponse;
       }
@@ -278,10 +287,10 @@ describe(commands.MEETING_LIST, () => {
   });
 
   it('logs meetings for a user specified by userId', async () => {
-    sinonUtil.restore(accessToken.isAppOnlyAccessToken);
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
+    jestUtil.restore(accessToken.isAppOnlyAccessToken);
+    jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
 
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users/${userId}/events?$filter=start/dateTime ge '${startDateTime}'&$select=onlineMeeting`) {
         return calendarMeetingsResponse;
       }
@@ -289,7 +298,7 @@ describe(commands.MEETING_LIST, () => {
       throw 'Invalid request: ' + opts.url;
     });
 
-    sinon.stub(request, 'post').callsFake(async opts => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/$batch') {
         return graphBatchResponse;
       }
@@ -309,10 +318,10 @@ describe(commands.MEETING_LIST, () => {
   });
 
   it('logs meetings for a user specified by userName', async () => {
-    sinonUtil.restore(accessToken.isAppOnlyAccessToken);
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
+    jestUtil.restore(accessToken.isAppOnlyAccessToken);
+    jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
 
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users/${userName}/events?$filter=start/dateTime ge '${startDateTime}'&$select=onlineMeeting`) {
         return calendarMeetingsResponse;
       }
@@ -320,7 +329,7 @@ describe(commands.MEETING_LIST, () => {
       throw 'Invalid request: ' + opts.url;
     });
 
-    sinon.stub(request, 'post').callsFake(async opts => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/$batch') {
         return graphBatchResponse;
       }
@@ -340,11 +349,11 @@ describe(commands.MEETING_LIST, () => {
   });
 
   it('logs meetings for a user specified by email', async () => {
-    sinonUtil.restore(accessToken.isAppOnlyAccessToken);
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
-    sinon.stub(aadUser, 'getUserIdByEmail').resolves(userId);
+    jestUtil.restore(accessToken.isAppOnlyAccessToken);
+    jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
+    jest.spyOn(aadUser, 'getUserIdByEmail').mockClear().mockImplementation().resolves(userId);
 
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users/${userId}/events?$filter=start/dateTime ge '${startDateTime}'&$select=onlineMeeting`) {
         return calendarMeetingsResponse;
       }
@@ -352,7 +361,7 @@ describe(commands.MEETING_LIST, () => {
       throw 'Invalid request: ' + opts.url;
     });
 
-    sinon.stub(request, 'post').callsFake(async opts => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/$batch') {
         return graphBatchResponse;
       }
@@ -371,53 +380,55 @@ describe(commands.MEETING_LIST, () => {
     assert(loggerLogSpy.calledWith(meetings));
   });
 
-  it('filters out non meeting events when retrieving calendar events', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/me/events?$filter=start/dateTime ge '${startDateTime}'&$select=onlineMeeting`) {
-        return {
-          value: [
-            calendarMeetingsResponse.value[0],
-            {
-              onlineMeeting: null
-            }
-          ]
-        };
-      }
-
-      throw 'Invalid request: ' + opts.url;
-    });
-
-    const postStub = sinon.stub(request, 'post').callsFake(async opts => {
-      if (opts.url === 'https://graph.microsoft.com/v1.0/$batch') {
-        return graphBatchResponse;
-      }
-
-      throw 'Invalid request: ' + opts.url;
-    });
-
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        startDateTime: startDateTime
-      }
-    });
-
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, {
-      requests: [
-        {
-          id: 0,
-          method: 'GET',
-          url: `me/onlineMeetings?$filter=joinWebUrl eq '${formatting.encodeQueryParameter(calendarMeetingsResponse.value[0].onlineMeeting.joinUrl)}'`
+  it('filters out non meeting events when retrieving calendar events',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/me/events?$filter=start/dateTime ge '${startDateTime}'&$select=onlineMeeting`) {
+          return {
+            value: [
+              calendarMeetingsResponse.value[0],
+              {
+                onlineMeeting: null
+              }
+            ]
+          };
         }
-      ]
-    });
-  });
+
+        throw 'Invalid request: ' + opts.url;
+      });
+
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
+        if (opts.url === 'https://graph.microsoft.com/v1.0/$batch') {
+          return graphBatchResponse;
+        }
+
+        throw 'Invalid request: ' + opts.url;
+      });
+
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          startDateTime: startDateTime
+        }
+      });
+
+      assert.deepStrictEqual(postStub.mock.lastCall[0].data, {
+        requests: [
+          {
+            id: 0,
+            method: 'GET',
+            url: `me/onlineMeetings?$filter=joinWebUrl eq '${formatting.encodeQueryParameter(calendarMeetingsResponse.value[0].onlineMeeting.joinUrl)}'`
+          }
+        ]
+      });
+    }
+  );
 
   it('retrieves meetings correctly when specifying userId', async () => {
-    sinonUtil.restore(accessToken.isAppOnlyAccessToken);
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
+    jestUtil.restore(accessToken.isAppOnlyAccessToken);
+    jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
 
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users/${userId}/events?$filter=start/dateTime ge '${startDateTime}'&$select=onlineMeeting`) {
         return calendarMeetingsResponse;
       }
@@ -425,7 +436,7 @@ describe(commands.MEETING_LIST, () => {
       throw 'Invalid request: ' + opts.url;
     });
 
-    const postStub = sinon.stub(request, 'post').callsFake(async opts => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/$batch') {
         return graphBatchResponse;
       }
@@ -441,7 +452,7 @@ describe(commands.MEETING_LIST, () => {
       }
     });
 
-    assert.deepStrictEqual(postStub.firstCall.args[0].data, {
+    assert.deepStrictEqual(postStub.mock.calls[0][0].data, {
       requests: [
         {
           id: 0,
@@ -453,10 +464,10 @@ describe(commands.MEETING_LIST, () => {
   });
 
   it('retrieves meetings correctly when specifying userName', async () => {
-    sinonUtil.restore(accessToken.isAppOnlyAccessToken);
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
+    jestUtil.restore(accessToken.isAppOnlyAccessToken);
+    jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
 
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users/${userName}/events?$filter=start/dateTime ge '${startDateTime}'&$select=onlineMeeting`) {
         return calendarMeetingsResponse;
       }
@@ -464,7 +475,7 @@ describe(commands.MEETING_LIST, () => {
       throw 'Invalid request: ' + opts.url;
     });
 
-    const postStub = sinon.stub(request, 'post').callsFake(async opts => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/$batch') {
         return graphBatchResponse;
       }
@@ -480,7 +491,7 @@ describe(commands.MEETING_LIST, () => {
       }
     });
 
-    assert.deepStrictEqual(postStub.firstCall.args[0].data, {
+    assert.deepStrictEqual(postStub.mock.calls[0][0].data, {
       requests: [
         {
           id: 0,
@@ -492,11 +503,11 @@ describe(commands.MEETING_LIST, () => {
   });
 
   it('retrieves meetings correctly when specifying email', async () => {
-    sinonUtil.restore(accessToken.isAppOnlyAccessToken);
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
-    sinon.stub(aadUser, 'getUserIdByEmail').resolves(userId);
+    jestUtil.restore(accessToken.isAppOnlyAccessToken);
+    jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
+    jest.spyOn(aadUser, 'getUserIdByEmail').mockClear().mockImplementation().resolves(userId);
 
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users/${userId}/events?$filter=start/dateTime ge '${startDateTime}'&$select=onlineMeeting`) {
         return calendarMeetingsResponse;
       }
@@ -504,7 +515,7 @@ describe(commands.MEETING_LIST, () => {
       throw 'Invalid request: ' + opts.url;
     });
 
-    const postStub = sinon.stub(request, 'post').callsFake(async opts => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/$batch') {
         return graphBatchResponse;
       }
@@ -520,7 +531,7 @@ describe(commands.MEETING_LIST, () => {
       }
     });
 
-    assert.deepStrictEqual(postStub.firstCall.args[0].data, {
+    assert.deepStrictEqual(postStub.mock.calls[0][0].data, {
       requests: [
         {
           id: 0,
@@ -532,10 +543,10 @@ describe(commands.MEETING_LIST, () => {
   });
 
   it('handles error correctly when retrieving calendar events', async () => {
-    sinonUtil.restore(accessToken.isAppOnlyAccessToken);
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
+    jestUtil.restore(accessToken.isAppOnlyAccessToken);
+    jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
 
-    sinon.stub(request, 'get').rejects({
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects({
       error: {
         error: {
           message: 'User could not be found.'
@@ -553,9 +564,9 @@ describe(commands.MEETING_LIST, () => {
   });
 
   it('handles error correctly when retrieving meetings', async () => {
-    sinon.stub(request, 'get').resolves(calendarMeetingsResponse);
+    jest.spyOn(request, 'get').mockClear().mockImplementation().resolves(calendarMeetingsResponse);
 
-    sinon.stub(request, 'post').resolves({
+    jest.spyOn(request, 'post').mockClear().mockImplementation().resolves({
       responses: [
         {
           id: '0',
@@ -577,29 +588,31 @@ describe(commands.MEETING_LIST, () => {
     }), new CommandError('Something went wrong.'));
   });
 
-  it('handles error without message correctly when retrieving meetings', async () => {
-    sinon.stub(request, 'get').resolves(calendarMeetingsResponse);
+  it('handles error without message correctly when retrieving meetings',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation().resolves(calendarMeetingsResponse);
 
-    sinon.stub(request, 'post').resolves({
-      responses: [
-        {
-          id: '0',
-          status: 404,
-          body: {
-            error: {
-              message: '',
-              code: 'Forbidden'
+      jest.spyOn(request, 'post').mockClear().mockImplementation().resolves({
+        responses: [
+          {
+            id: '0',
+            status: 404,
+            body: {
+              error: {
+                message: '',
+                code: 'Forbidden'
+              }
             }
           }
-        }
-      ]
-    });
+        ]
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        verbose: true,
-        startDateTime: startDateTime
-      }
-    }), new CommandError('Forbidden'));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          verbose: true,
+          startDateTime: startDateTime
+        }
+      }), new CommandError('Forbidden'));
+    }
+  );
 });

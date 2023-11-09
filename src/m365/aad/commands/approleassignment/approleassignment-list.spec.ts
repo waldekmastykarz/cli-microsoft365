@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './approleassignment-list.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -413,7 +412,7 @@ describe(commands.APPROLEASSIGNMENT_LIST, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
   const jsonOutput = [
@@ -437,12 +436,12 @@ describe(commands.APPROLEASSIGNMENT_LIST, () => {
     }
   ];
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -460,18 +459,18 @@ describe(commands.APPROLEASSIGNMENT_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -487,54 +486,64 @@ describe(commands.APPROLEASSIGNMENT_LIST, () => {
     assert.deepStrictEqual(command.defaultProperties(), ['resourceDisplayName', 'roleName']);
   });
 
-  it('retrieves App Role assignments for the specified appDisplayName', async () => {
-    sinon.stub(request, 'get').callsFake(RequestStub.retrieveAppRoles);
+  it('retrieves App Role assignments for the specified appDisplayName',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(RequestStub.retrieveAppRoles);
 
-    await command.action(logger, { options: { output: 'json', appDisplayName: CommandActionParameters.appNameWithRoleAssignments } });
-    assert(loggerLogSpy.calledWith(jsonOutput));
-  });
+      await command.action(logger, { options: { output: 'json', appDisplayName: CommandActionParameters.appNameWithRoleAssignments } });
+      assert(loggerLogSpy.calledWith(jsonOutput));
+    }
+  );
 
   it('retrieves App Role assignments for the specified appId', async () => {
-    sinon.stub(request, 'get').callsFake(RequestStub.retrieveAppRoles);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(RequestStub.retrieveAppRoles);
 
     await command.action(logger, { options: { output: 'json', appId: CommandActionParameters.appIdWithRoleAssignments } });
     assert(loggerLogSpy.calledWith(jsonOutput));
   });
 
-  it('retrieves App Role assignments for the specified appId and outputs text', async () => {
-    sinon.stub(request, 'get').callsFake(RequestStub.retrieveAppRoles);
+  it('retrieves App Role assignments for the specified appId and outputs text',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(RequestStub.retrieveAppRoles);
 
-    await command.action(logger, { options: { output: 'text', appId: CommandActionParameters.appIdWithRoleAssignments } });
-    assert(loggerLogSpy.calledWith(jsonOutput));
-  });
+      await command.action(logger, { options: { output: 'text', appId: CommandActionParameters.appIdWithRoleAssignments } });
+      assert(loggerLogSpy.calledWith(jsonOutput));
+    }
+  );
 
-  it('retrieves App Role assignments for the specified appObjectId and outputs text', async () => {
-    sinon.stub(request, 'get').callsFake(RequestStub.retrieveAppRoles);
+  it('retrieves App Role assignments for the specified appObjectId and outputs text',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(RequestStub.retrieveAppRoles);
 
-    await command.action(logger, { options: { output: 'text', appObjectId: CommandActionParameters.objectIdWithRoleAssignments } });
-    assert(loggerLogSpy.calledWith(jsonOutput));
-  });
+      await command.action(logger, { options: { output: 'text', appObjectId: CommandActionParameters.objectIdWithRoleAssignments } });
+      assert(loggerLogSpy.calledWith(jsonOutput));
+    }
+  );
 
   it('correctly handles an appId that does not exist', async () => {
-    sinon.stub(request, 'get').callsFake(RequestStub.retrieveAppRoles);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(RequestStub.retrieveAppRoles);
 
     await assert.rejects(command.action(logger, { options: { appId: CommandActionParameters.invalidAppId } } as any), new CommandError('app registration not found'));
   });
 
-  it('correctly handles a service principal that does not have any app role assignments', async () => {
-    sinon.stub(request, 'get').callsFake(RequestStub.retrieveAppRoles);
+  it('correctly handles a service principal that does not have any app role assignments',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(RequestStub.retrieveAppRoles);
 
-    await assert.rejects(command.action(logger, { options: { appObjectId: CommandActionParameters.objectIdNoRoleAssignments } } as any), new CommandError('no app role assignments found'));
-  });
+      await assert.rejects(command.action(logger, { options: { appObjectId: CommandActionParameters.objectIdNoRoleAssignments } } as any), new CommandError('no app role assignments found'));
+    }
+  );
 
-  it('correctly handles no app role assignments for the specified app', async () => {
-    sinon.stub(request, 'get').callsFake(RequestStub.retrieveAppRoles);
+  it('correctly handles no app role assignments for the specified app',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(RequestStub.retrieveAppRoles);
 
-    await assert.rejects(command.action(logger, { options: { appId: CommandActionParameters.appIdWithNoRoleAssignments } } as any), new CommandError('app registration not found'));
-  });
+      await assert.rejects(command.action(logger, { options: { appId: CommandActionParameters.appIdWithNoRoleAssignments } } as any), new CommandError('app registration not found'));
+    }
+  );
 
   it('correctly handles API OData error', async () => {
-    sinon.stub(request, 'get').rejects({
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects({
       error: {
         'odata.error': {
           code: '-1, InvalidOperationException',
@@ -548,18 +557,20 @@ describe(commands.APPROLEASSIGNMENT_LIST, () => {
     await assert.rejects(command.action(logger, { options: { appObjectId: '021d971f-779d-439b-8006-9f084423f344' } } as any), new CommandError(`Resource '' does not exist or one of its queried reference-property objects are not present`));
   });
 
-  it('fails validation if neither appId nor appDisplayName are not specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if neither appId nor appDisplayName are not specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: {} }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: {} }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the appId is not a valid GUID', async () => {
     const actual = await command.validate({ options: { appId: '123' } }, commandInfo);
@@ -571,31 +582,35 @@ describe(commands.APPROLEASSIGNMENT_LIST, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if both appId and appDisplayName are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both appId and appDisplayName are specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { appId: CommandActionParameters.appIdWithNoRoleAssignments, appDisplayName: CommandActionParameters.appNameWithRoleAssignments } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { appId: CommandActionParameters.appIdWithNoRoleAssignments, appDisplayName: CommandActionParameters.appNameWithRoleAssignments } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if appObjectId and appDisplayName are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if appObjectId and appDisplayName are specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { appDisplayName: CommandActionParameters.appNameWithRoleAssignments, appObjectId: CommandActionParameters.objectIdWithRoleAssignments } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { appDisplayName: CommandActionParameters.appNameWithRoleAssignments, appObjectId: CommandActionParameters.objectIdWithRoleAssignments } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation when the appId option specified', async () => {
     const actual = await command.validate({ options: { appId: CommandActionParameters.appIdWithNoRoleAssignments } }, commandInfo);

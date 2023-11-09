@@ -1,11 +1,10 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../Auth.js';
 import { Logger } from '../cli/Logger.js';
 import config from '../config.js';
 import { RoleDefinition } from '../m365/spo/commands/roledefinition/RoleDefinition.js';
 import request from '../request.js';
-import { sinonUtil } from '../utils/sinonUtil.js';
+import { jestUtil } from './jestUtil.js';
 import { FormDigestInfo, spo } from '../utils/spo.js';
 import { aadGroup } from './aadGroup.js';
 import { formatting } from './formatting.js';
@@ -13,7 +12,7 @@ import { formatting } from './formatting.js';
 const stubPostResponses: any = (
   folderAddResp: any = null
 ) => {
-  return sinon.stub(request, 'post').callsFake((opts) => {
+  return jest.spyOn(request, 'post').mockClear().mockImplementation((opts) => {
     if ((opts.url as string).indexOf('/_api/web/GetFolderByServerRelativePath') > -1) {
       if (folderAddResp) {
         return folderAddResp;
@@ -30,7 +29,7 @@ const stubPostResponses: any = (
 const stubGetResponses: any = (
   getFolderByServerRelativeUrlResp: any = null
 ) => {
-  return sinon.stub(request, 'get').callsFake((opts) => {
+  return jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
     if ((opts.url as string).indexOf('/_api/web/GetFolderByServerRelativePath(DecodedUrl=') > -1) {
       if (getFolderByServerRelativeUrlResp) {
         return getFolderByServerRelativeUrlResp;
@@ -46,9 +45,9 @@ const stubGetResponses: any = (
 describe('utils/spo', () => {
   let logger: Logger;
   let log: string[];
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
 
-  before(() => {
+  beforeAll(() => {
     auth.service.connected = true;
   });
 
@@ -65,11 +64,11 @@ describe('utils/spo', () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post,
       auth.storeConnectionInfo,
@@ -85,13 +84,13 @@ describe('utils/spo', () => {
     auth.service.tenantId = undefined;
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
   it('reuses current digestcontext when expireat is a future date', (done) => {
-    sinon.stub(request, 'post').callsFake(() => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(() => {
       return Promise.reject('Invalid request');
     });
 
@@ -118,36 +117,38 @@ describe('utils/spo', () => {
       }, err => done(err));
   });
 
-  it('reuses current digestcontext when expireat is a future date (debug)', (done) => {
-    sinon.stub(request, 'post').callsFake(() => {
-      return Promise.reject('Invalid request');
-    });
+  it('reuses current digestcontext when expireat is a future date (debug)',
+    (done) => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(() => {
+        return Promise.reject('Invalid request');
+      });
 
-    const futureDate = new Date();
-    futureDate.setSeconds(futureDate.getSeconds() + 1800);
+      const futureDate = new Date();
+      futureDate.setSeconds(futureDate.getSeconds() + 1800);
 
-    const ctx: FormDigestInfo = {
-      FormDigestValue: 'value',
-      FormDigestTimeoutSeconds: 1800,
-      FormDigestExpiresAt: futureDate,
-      WebFullUrl: 'https://contoso.sharepoint.com'
-    };
+      const ctx: FormDigestInfo = {
+        FormDigestValue: 'value',
+        FormDigestTimeoutSeconds: 1800,
+        FormDigestExpiresAt: futureDate,
+        WebFullUrl: 'https://contoso.sharepoint.com'
+      };
 
-    spo
-      .ensureFormDigest('https://contoso.sharepoint.com', logger, ctx, true)
-      .then((formDigest) => {
-        try {
-          assert.notStrictEqual(typeof formDigest, 'undefined');
-          done();
-        }
-        catch (e) {
-          done(e);
-        }
-      }, err => done(err));
-  });
+      spo
+        .ensureFormDigest('https://contoso.sharepoint.com', logger, ctx, true)
+        .then((formDigest) => {
+          try {
+            assert.notStrictEqual(typeof formDigest, 'undefined');
+            done();
+          }
+          catch (e) {
+            done(e);
+          }
+        }, err => done(err));
+    }
+  );
 
   it('retrieves new digestcontext when no context present', (done) => {
-    sinon.stub(request, 'post').callsFake((opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation((opts) => {
       if ((opts.url as string).indexOf('/_api/contextinfo') > -1) {
         return Promise.resolve({
           FormDigestValue: 'abc'
@@ -172,7 +173,7 @@ describe('utils/spo', () => {
   });
 
   it('retrieves updated digestcontext when expireat is past date', (done) => {
-    sinon.stub(request, 'post').callsFake((opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation((opts) => {
       if ((opts.url as string).indexOf('/_api/contextinfo') > -1) {
         return Promise.resolve({
           FormDigestValue: 'abc',
@@ -207,71 +208,75 @@ describe('utils/spo', () => {
       }, err => done(err));
   });
 
-  it('retrieves updated digestcontext when expireat is past date (debug)', (done) => {
-    sinon.stub(request, 'post').callsFake((opts) => {
-      if ((opts.url as string).indexOf('/_api/contextinfo') > -1) {
-        return Promise.resolve({
-          FormDigestValue: 'abc'
-        });
-      }
-      return Promise.reject('Invalid request');
-    });
+  it('retrieves updated digestcontext when expireat is past date (debug)',
+    (done) => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation((opts) => {
+        if ((opts.url as string).indexOf('/_api/contextinfo') > -1) {
+          return Promise.resolve({
+            FormDigestValue: 'abc'
+          });
+        }
+        return Promise.reject('Invalid request');
+      });
 
-    const pastDate = new Date();
-    pastDate.setSeconds(pastDate.getSeconds() - 1800);
+      const pastDate = new Date();
+      pastDate.setSeconds(pastDate.getSeconds() - 1800);
 
-    const ctx: FormDigestInfo = {
-      FormDigestValue: 'value',
-      FormDigestTimeoutSeconds: 1800,
-      FormDigestExpiresAt: pastDate,
-      WebFullUrl: 'https://contoso.sharepoint.com'
-    };
+      const ctx: FormDigestInfo = {
+        FormDigestValue: 'value',
+        FormDigestTimeoutSeconds: 1800,
+        FormDigestExpiresAt: pastDate,
+        WebFullUrl: 'https://contoso.sharepoint.com'
+      };
 
-    spo
-      .ensureFormDigest('https://contoso.sharepoint.com', logger, ctx, false)
-      .then(ctx => {
+      spo
+        .ensureFormDigest('https://contoso.sharepoint.com', logger, ctx, false)
+        .then(ctx => {
+          try {
+            assert.notStrictEqual(typeof ctx, 'undefined');
+            done();
+          }
+          catch (e) {
+            done(e);
+          }
+        }, err => done(err));
+    }
+  );
+
+  it('handles error when contextinfo could not be retrieved (debug)',
+    (done) => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation((opts) => {
+        if ((opts.url as string).indexOf('/_api/contextinfo') > -1) {
+          return Promise.reject('Invalid request');
+        }
+        return Promise.reject('Invalid request');
+      });
+
+      const pastDate = new Date();
+      pastDate.setSeconds(pastDate.getSeconds() - 1800);
+
+      const ctx: FormDigestInfo = {
+        FormDigestValue: 'value',
+        FormDigestTimeoutSeconds: 1800,
+        FormDigestExpiresAt: pastDate,
+        WebFullUrl: 'https://contoso.sharepoint.com'
+      };
+
+      spo.ensureFormDigest('https://contoso.sharepoint.com', logger, ctx, true).catch((err?: any) => {
         try {
-          assert.notStrictEqual(typeof ctx, 'undefined');
+          assert(err === "Invalid request");
           done();
         }
         catch (e) {
           done(e);
         }
-      }, err => done(err));
-  });
-
-  it('handles error when contextinfo could not be retrieved (debug)', (done) => {
-    sinon.stub(request, 'post').callsFake((opts) => {
-      if ((opts.url as string).indexOf('/_api/contextinfo') > -1) {
-        return Promise.reject('Invalid request');
-      }
-      return Promise.reject('Invalid request');
-    });
-
-    const pastDate = new Date();
-    pastDate.setSeconds(pastDate.getSeconds() - 1800);
-
-    const ctx: FormDigestInfo = {
-      FormDigestValue: 'value',
-      FormDigestTimeoutSeconds: 1800,
-      FormDigestExpiresAt: pastDate,
-      WebFullUrl: 'https://contoso.sharepoint.com'
-    };
-
-    spo.ensureFormDigest('https://contoso.sharepoint.com', logger, ctx, true).catch((err?: any) => {
-      try {
-        assert(err === "Invalid request");
-        done();
-      }
-      catch (e) {
-        done(e);
-      }
-    });
-  });
+      });
+    }
+  );
 
   it('retrieves tenant app catalog url', async () => {
     auth.service.spoUrl = 'https://contoso.sharepoint.com';
-    sinon.stub(request, 'get').callsFake((opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
       if (opts.url === 'https://contoso.sharepoint.com/_api/SP_TenantSettings_Current') {
         return Promise.resolve({ CorporateCatalogUrl: 'https://contoso.sharepoint.com/sites/appcatalog' });
       }
@@ -286,7 +291,7 @@ describe('utils/spo', () => {
 
   it('returns null when tenant app catalog not configured', async () => {
     auth.service.spoUrl = 'https://contoso.sharepoint.com';
-    sinon.stub(request, 'get').callsFake((opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
       if (opts.url === 'https://contoso.sharepoint.com/_api/SP_TenantSettings_Current') {
         return Promise.resolve({ CorporateCatalogUrl: null });
       }
@@ -298,131 +303,141 @@ describe('utils/spo', () => {
     assert.deepEqual(tenantAppCatalogUrl, null);
   });
 
-  it('handles error when retrieving SPO URL failed while retrieving tenant app catalog url', (done) => {
-    const errorMessage = 'Couldn\'t retrieve SharePoint URL';
-    auth.service.spoUrl = undefined;
+  it('handles error when retrieving SPO URL failed while retrieving tenant app catalog url',
+    (done) => {
+      const errorMessage = 'Couldn\'t retrieve SharePoint URL';
+      auth.service.spoUrl = undefined;
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/SP_TenantSettings_Current') > -1) {
-        return Promise.reject('An error has occurred');
-      }
-
-      return Promise.reject(errorMessage);
-    });
-
-    spo
-      .getTenantAppCatalogUrl(logger, false)
-      .then(() => {
-        done('Expected error');
-      }, (err: string) => {
-        try {
-          assert.strictEqual(err, errorMessage);
-          done();
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/SP_TenantSettings_Current') > -1) {
+          return Promise.reject('An error has occurred');
         }
-        catch (e) {
-          done(e);
-        }
-      });
-  });
 
-  it('handles error when retrieving the tenant app catalog URL fails', (done) => {
-    const errorMessage = 'Couldn\'t retrieve tenant app catalog URL';
-    auth.service.spoUrl = 'https://contoso.sharepoint.com';
-
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/SP_TenantSettings_Current') > -1) {
         return Promise.reject(errorMessage);
-      }
-
-      return Promise.reject('Invalid request');
-    });
-
-    spo
-      .getTenantAppCatalogUrl(logger, false)
-      .then(() => {
-        done('Expected error');
-      }, (err: string) => {
-        try {
-          assert.strictEqual(err, errorMessage);
-          done();
-        }
-        catch (e) {
-          done(e);
-        }
       });
-  });
 
-  it('retrieves SPO URL from MS Graph when not retrieved previously', (done) => {
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    sinon.stub(request, 'get').callsFake((opts) => {
-      if (opts.url === 'https://graph.microsoft.com/v1.0/sites/root?$select=webUrl') {
-        return Promise.resolve({ webUrl: 'https://contoso.sharepoint.com' });
-      }
+      spo
+        .getTenantAppCatalogUrl(logger, false)
+        .then(() => {
+          done('Expected error');
+        }, (err: string) => {
+          try {
+            assert.strictEqual(err, errorMessage);
+            done();
+          }
+          catch (e) {
+            done(e);
+          }
+        });
+    }
+  );
 
-      return Promise.reject('Invalid request');
-    });
+  it('handles error when retrieving the tenant app catalog URL fails',
+    (done) => {
+      const errorMessage = 'Couldn\'t retrieve tenant app catalog URL';
+      auth.service.spoUrl = 'https://contoso.sharepoint.com';
 
-    spo
-      .getSpoUrl(logger, false)
-      .then((spoUrl: string) => {
-        try {
-          assert.strictEqual(spoUrl, 'https://contoso.sharepoint.com');
-          done();
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/SP_TenantSettings_Current') > -1) {
+          return Promise.reject(errorMessage);
         }
-        catch (e) {
-          done(e);
-        }
+
+        return Promise.reject('Invalid request');
       });
-  });
 
-  it('retrieves SPO URL from MS Graph when not retrieved previously (debug)', (done) => {
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    sinon.stub(request, 'get').callsFake((opts) => {
-      if (opts.url === 'https://graph.microsoft.com/v1.0/sites/root?$select=webUrl') {
-        return Promise.resolve({ webUrl: 'https://contoso.sharepoint.com' });
-      }
+      spo
+        .getTenantAppCatalogUrl(logger, false)
+        .then(() => {
+          done('Expected error');
+        }, (err: string) => {
+          try {
+            assert.strictEqual(err, errorMessage);
+            done();
+          }
+          catch (e) {
+            done(e);
+          }
+        });
+    }
+  );
 
-      return Promise.reject('Invalid request');
-    });
-
-    spo
-      .getSpoUrl(logger, true)
-      .then((spoUrl: string) => {
-        try {
-          assert.strictEqual(spoUrl, 'https://contoso.sharepoint.com');
-          done();
+  it('retrieves SPO URL from MS Graph when not retrieved previously',
+    (done) => {
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
+        if (opts.url === 'https://graph.microsoft.com/v1.0/sites/root?$select=webUrl') {
+          return Promise.resolve({ webUrl: 'https://contoso.sharepoint.com' });
         }
-        catch (e) {
-          done(e);
-        }
+
+        return Promise.reject('Invalid request');
       });
-  });
 
-  it('returns retrieved SPO URL when persisting connection info failed', (done) => {
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.reject());
-    sinon.stub(request, 'get').callsFake((opts) => {
-      if (opts.url === 'https://graph.microsoft.com/v1.0/sites/root?$select=webUrl') {
-        return Promise.resolve({ webUrl: 'https://contoso.sharepoint.com' });
-      }
+      spo
+        .getSpoUrl(logger, false)
+        .then((spoUrl: string) => {
+          try {
+            assert.strictEqual(spoUrl, 'https://contoso.sharepoint.com');
+            done();
+          }
+          catch (e) {
+            done(e);
+          }
+        });
+    }
+  );
 
-      return Promise.reject('Invalid request');
-    });
-
-    spo
-      .getSpoUrl(logger, false)
-      .then((spoUrl: string) => {
-        try {
-          assert.strictEqual(spoUrl, 'https://contoso.sharepoint.com');
-          done();
+  it('retrieves SPO URL from MS Graph when not retrieved previously (debug)',
+    (done) => {
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+      jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
+        if (opts.url === 'https://graph.microsoft.com/v1.0/sites/root?$select=webUrl') {
+          return Promise.resolve({ webUrl: 'https://contoso.sharepoint.com' });
         }
-        catch (e) {
-          done(e);
-        }
+
+        return Promise.reject('Invalid request');
       });
-  });
+
+      spo
+        .getSpoUrl(logger, true)
+        .then((spoUrl: string) => {
+          try {
+            assert.strictEqual(spoUrl, 'https://contoso.sharepoint.com');
+            done();
+          }
+          catch (e) {
+            done(e);
+          }
+        });
+    }
+  );
+
+  it('returns retrieved SPO URL when persisting connection info failed',
+    (done) => {
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.reject());
+      jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
+        if (opts.url === 'https://graph.microsoft.com/v1.0/sites/root?$select=webUrl') {
+          return Promise.resolve({ webUrl: 'https://contoso.sharepoint.com' });
+        }
+
+        return Promise.reject('Invalid request');
+      });
+
+      spo
+        .getSpoUrl(logger, false)
+        .then((spoUrl: string) => {
+          try {
+            assert.strictEqual(spoUrl, 'https://contoso.sharepoint.com');
+            done();
+          }
+          catch (e) {
+            done(e);
+          }
+        });
+    }
+  );
 
   it('returns error when retrieving SPO URL failed', (done) => {
-    sinon.stub(request, 'get').callsFake((opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/sites/root?$select=webUrl') {
         return Promise.reject('An error has occurred');
       }
@@ -446,7 +461,7 @@ describe('utils/spo', () => {
   });
 
   it('returns error when retrieving SPO admin URL failed', (done) => {
-    sinon.stub(spo, 'getSpoUrl').callsFake(() => Promise.reject('An error has occurred'));
+    jest.spyOn(spo, 'getSpoUrl').mockClear().mockImplementation(() => Promise.reject('An error has occurred'));
 
     spo
       .getSpoAdminUrl(logger, false)
@@ -464,8 +479,8 @@ describe('utils/spo', () => {
   });
 
   it('retrieves tenant ID when not retrieved previously', (done) => {
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    sinon.stub(request, 'post').callsFake((opts) => {
+    jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+    jest.spyOn(request, 'post').mockClear().mockImplementation((opts) => {
       if (opts.url === 'https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery') {
         return Promise.resolve(JSON.stringify([{
           _ObjectIdentity_: 'tenantId'
@@ -474,8 +489,8 @@ describe('utils/spo', () => {
 
       return Promise.reject('Invalid request');
     });
-    sinon.stub(spo, 'getSpoAdminUrl').callsFake(() => Promise.resolve('https://contoso-admin.sharepoint.com'));
-    sinon.stub(spo, 'getRequestDigest').callsFake(() => Promise.resolve({
+    jest.spyOn(spo, 'getSpoAdminUrl').mockClear().mockImplementation(() => Promise.resolve('https://contoso-admin.sharepoint.com'));
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation(() => Promise.resolve({
       FormDigestValue: 'abc',
       FormDigestExpiresAt: new Date(),
       FormDigestTimeoutSeconds: 1800,
@@ -496,8 +511,8 @@ describe('utils/spo', () => {
   });
 
   it('retrieves tenant ID when not retrieved previously (debug)', (done) => {
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.resolve());
-    sinon.stub(request, 'post').callsFake((opts) => {
+    jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+    jest.spyOn(request, 'post').mockClear().mockImplementation((opts) => {
       if (opts.url === 'https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery') {
         return Promise.resolve(JSON.stringify([{
           _ObjectIdentity_: 'tenantId'
@@ -506,8 +521,8 @@ describe('utils/spo', () => {
 
       return Promise.reject('Invalid request');
     });
-    sinon.stub(spo, 'getSpoAdminUrl').callsFake(() => Promise.resolve('https://contoso-admin.sharepoint.com'));
-    sinon.stub(spo, 'getRequestDigest').callsFake(() => Promise.resolve({
+    jest.spyOn(spo, 'getSpoAdminUrl').mockClear().mockImplementation(() => Promise.resolve('https://contoso-admin.sharepoint.com'));
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation(() => Promise.resolve({
       FormDigestValue: 'abc',
       FormDigestExpiresAt: new Date(),
       FormDigestTimeoutSeconds: 1800,
@@ -527,42 +542,44 @@ describe('utils/spo', () => {
       });
   });
 
-  it('returns retrieved tenant ID when persisting connection info failed', (done) => {
-    sinon.stub(auth, 'storeConnectionInfo').callsFake(() => Promise.reject('An error has occurred'));
-    sinon.stub(request, 'post').callsFake((opts) => {
-      if (opts.url === 'https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery') {
-        return Promise.resolve(JSON.stringify([{
-          _ObjectIdentity_: 'tenantId'
-        }]));
-      }
-
-      return Promise.reject('Invalid request');
-    });
-    sinon.stub(spo, 'getSpoAdminUrl').callsFake(() => Promise.resolve('https://contoso-admin.sharepoint.com'));
-    sinon.stub(spo, 'getRequestDigest').callsFake(() => Promise.resolve({
-      FormDigestValue: 'abc',
-      FormDigestExpiresAt: new Date(),
-      FormDigestTimeoutSeconds: 1800,
-      WebFullUrl: 'https://contoso-admin.sharepoint.com'
-    }));
-
-    spo
-      .getTenantId(logger, false)
-      .then((tenantId: string) => {
-        try {
-          assert.strictEqual(tenantId, 'tenantId');
-          done();
+  it('returns retrieved tenant ID when persisting connection info failed',
+    (done) => {
+      jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation(() => Promise.reject('An error has occurred'));
+      jest.spyOn(request, 'post').mockClear().mockImplementation((opts) => {
+        if (opts.url === 'https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery') {
+          return Promise.resolve(JSON.stringify([{
+            _ObjectIdentity_: 'tenantId'
+          }]));
         }
-        catch (e) {
-          done(e);
-        }
+
+        return Promise.reject('Invalid request');
       });
-  });
+      jest.spyOn(spo, 'getSpoAdminUrl').mockClear().mockImplementation(() => Promise.resolve('https://contoso-admin.sharepoint.com'));
+      jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation(() => Promise.resolve({
+        FormDigestValue: 'abc',
+        FormDigestExpiresAt: new Date(),
+        FormDigestTimeoutSeconds: 1800,
+        WebFullUrl: 'https://contoso-admin.sharepoint.com'
+      }));
+
+      spo
+        .getTenantId(logger, false)
+        .then((tenantId: string) => {
+          try {
+            assert.strictEqual(tenantId, 'tenantId');
+            done();
+          }
+          catch (e) {
+            done(e);
+          }
+        });
+    }
+  );
 
   it('returns error when retrieving tenant ID failed', (done) => {
-    sinon.stub(request, 'post').callsFake(() => Promise.reject('An error has occurred'));
-    sinon.stub(spo, 'getSpoAdminUrl').callsFake(() => Promise.resolve('https://contoso-admin.sharepoint.com'));
-    sinon.stub(spo, 'getRequestDigest').callsFake(() => Promise.resolve({
+    jest.spyOn(request, 'post').mockClear().mockImplementation(() => Promise.reject('An error has occurred'));
+    jest.spyOn(spo, 'getSpoAdminUrl').mockClear().mockImplementation(() => Promise.resolve('https://contoso-admin.sharepoint.com'));
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation(() => Promise.resolve({
       FormDigestValue: 'abc',
       FormDigestExpiresAt: new Date(),
       FormDigestTimeoutSeconds: 1800,
@@ -654,22 +671,24 @@ describe('utils/spo', () => {
       });
   });
 
-  it('should succeed in adding folder if it does not exist (debug)', (done) => {
-    const folderDoesNotExistErrorResp: any = new Promise<any>((resolve, reject) => {
-      return reject(JSON.stringify({ "odata.error": { "code": "-2130575338, Microsoft.SharePoint.SPException", "message": { "lang": "en-US", "value": "Error: Not found." } } }));
-    });
-    stubGetResponses(folderDoesNotExistErrorResp);
-    stubPostResponses();
-
-    spo
-      .ensureFolder("https://contoso.sharepoint.com", "abc", logger, true)
-      .then(() => {
-        assert.strictEqual(loggerLogSpy.lastCall.args[0], 'All sub-folders exist');
-        done();
-      }, (err: any) => {
-        done(err);
+  it('should succeed in adding folder if it does not exist (debug)',
+    (done) => {
+      const folderDoesNotExistErrorResp: any = new Promise<any>((resolve, reject) => {
+        return reject(JSON.stringify({ "odata.error": { "code": "-2130575338, Microsoft.SharePoint.SPException", "message": { "lang": "en-US", "value": "Error: Not found." } } }));
       });
-  });
+      stubGetResponses(folderDoesNotExistErrorResp);
+      stubPostResponses();
+
+      spo
+        .ensureFolder("https://contoso.sharepoint.com", "abc", logger, true)
+        .then(() => {
+          assert.strictEqual(loggerLogSpy.mock.lastCall[0], 'All sub-folders exist');
+          done();
+        }, (err: any) => {
+          done(err);
+        });
+    }
+  );
 
   it('should succeed in adding folder if it does not exist', (done) => {
     const folderDoesNotExistErrorResp: any = new Promise<any>((resolve, reject) => {
@@ -716,108 +735,120 @@ describe('utils/spo', () => {
       });
   });
 
-  it('should have the correct url when calling AddSubFolderUsingPath (POST)', (done) => {
-    const postStubs: sinon.SinonStub = stubPostResponses();
-    const folderDoesNotExistErrorResp: any = new Promise<any>((resolve, reject) => {
-      return reject(JSON.stringify({ "odata.error": { "code": "-2130575338, Microsoft.SharePoint.SPException", "message": { "lang": "en-US", "value": "Error: Not found." } } }));
-    });
-    stubGetResponses(folderDoesNotExistErrorResp);
-
-    spo
-      .ensureFolder("https://contoso.sharepoint.com", "/folder2/folder3", logger, true)
-      .then(() => {
-        assert.strictEqual(postStubs.lastCall.args[0].url, 'https://contoso.sharepoint.com/_api/web/GetFolderByServerRelativePath(DecodedUrl=@a1)/AddSubFolderUsingPath(DecodedUrl=@a2)?@a1=%27%2Ffolder2%27&@a2=%27folder3%27');
-        done();
-      }, (err: any) => {
-        done(err);
+  it('should have the correct url when calling AddSubFolderUsingPath (POST)',
+    (done) => {
+      const postStubs: jest.Mock = stubPostResponses();
+      const folderDoesNotExistErrorResp: any = new Promise<any>((resolve, reject) => {
+        return reject(JSON.stringify({ "odata.error": { "code": "-2130575338, Microsoft.SharePoint.SPException", "message": { "lang": "en-US", "value": "Error: Not found." } } }));
       });
-  });
+      stubGetResponses(folderDoesNotExistErrorResp);
 
-  it('should have the correct url including uppercase letters when calling AddSubFolderUsingPath', (done) => {
-    const postStubs: sinon.SinonStub = stubPostResponses();
-    const folderDoesNotExistErrorResp: any = new Promise<any>((resolve, reject) => {
-      return reject(JSON.stringify({ "odata.error": { "code": "-2130575338, Microsoft.SharePoint.SPException", "message": { "lang": "en-US", "value": "Error: Not found." } } }));
-    });
-    stubGetResponses(folderDoesNotExistErrorResp);
+      spo
+        .ensureFolder("https://contoso.sharepoint.com", "/folder2/folder3", logger, true)
+        .then(() => {
+          assert.strictEqual(postStubs.mock.lastCall[0].url, 'https://contoso.sharepoint.com/_api/web/GetFolderByServerRelativePath(DecodedUrl=@a1)/AddSubFolderUsingPath(DecodedUrl=@a2)?@a1=%27%2Ffolder2%27&@a2=%27folder3%27');
+          done();
+        }, (err: any) => {
+          done(err);
+        });
+    }
+  );
 
-    spo
-      .ensureFolder("https://contoso.sharepoint.com/sites/Site1", "/folder2/folder3", logger, true)
-      .then(() => {
-        assert.strictEqual(postStubs.lastCall.args[0].url, 'https://contoso.sharepoint.com/sites/Site1/_api/web/GetFolderByServerRelativePath(DecodedUrl=@a1)/AddSubFolderUsingPath(DecodedUrl=@a2)?@a1=%27%2Fsites%2FSite1%2Ffolder2%27&@a2=%27folder3%27');
-        done();
-      }, (err: any) => {
-        done(err);
+  it('should have the correct url including uppercase letters when calling AddSubFolderUsingPath',
+    (done) => {
+      const postStubs: jest.Mock = stubPostResponses();
+      const folderDoesNotExistErrorResp: any = new Promise<any>((resolve, reject) => {
+        return reject(JSON.stringify({ "odata.error": { "code": "-2130575338, Microsoft.SharePoint.SPException", "message": { "lang": "en-US", "value": "Error: Not found." } } }));
       });
-  });
+      stubGetResponses(folderDoesNotExistErrorResp);
 
-  it('should call two times AddSubFolderUsingPath when folderUrl is folder2/folder3', (done) => {
-    const postStubs: sinon.SinonStub = stubPostResponses();
-    const folderDoesNotExistErrorResp: any = new Promise<any>((resolve, reject) => {
-      return reject(JSON.stringify({ "odata.error": { "code": "-2130575338, Microsoft.SharePoint.SPException", "message": { "lang": "en-US", "value": "Error: Not found." } } }));
-    });
-    stubGetResponses(folderDoesNotExistErrorResp);
+      spo
+        .ensureFolder("https://contoso.sharepoint.com/sites/Site1", "/folder2/folder3", logger, true)
+        .then(() => {
+          assert.strictEqual(postStubs.mock.lastCall[0].url, 'https://contoso.sharepoint.com/sites/Site1/_api/web/GetFolderByServerRelativePath(DecodedUrl=@a1)/AddSubFolderUsingPath(DecodedUrl=@a2)?@a1=%27%2Fsites%2FSite1%2Ffolder2%27&@a2=%27folder3%27');
+          done();
+        }, (err: any) => {
+          done(err);
+        });
+    }
+  );
 
-    spo
-      .ensureFolder("https://contoso.sharepoint.com/sites/Site1", "/folder2/folder3", logger, true)
-      .then(() => {
-        assert.strictEqual(postStubs.getCall(0).args[0].url, 'https://contoso.sharepoint.com/sites/Site1/_api/web/GetFolderByServerRelativePath(DecodedUrl=@a1)/AddSubFolderUsingPath(DecodedUrl=@a2)?@a1=%27%2Fsites%2FSite1%27&@a2=%27folder2%27');
-        assert.strictEqual(postStubs.getCall(1).args[0].url, 'https://contoso.sharepoint.com/sites/Site1/_api/web/GetFolderByServerRelativePath(DecodedUrl=@a1)/AddSubFolderUsingPath(DecodedUrl=@a2)?@a1=%27%2Fsites%2FSite1%2Ffolder2%27&@a2=%27folder3%27');
-        done();
-      }, (err: any) => {
-        done(err);
+  it('should call two times AddSubFolderUsingPath when folderUrl is folder2/folder3',
+    (done) => {
+      const postStubs: jest.Mock = stubPostResponses();
+      const folderDoesNotExistErrorResp: any = new Promise<any>((resolve, reject) => {
+        return reject(JSON.stringify({ "odata.error": { "code": "-2130575338, Microsoft.SharePoint.SPException", "message": { "lang": "en-US", "value": "Error: Not found." } } }));
       });
-  });
+      stubGetResponses(folderDoesNotExistErrorResp);
 
-  it('should handle end slashes in the command options for webUrl and for folder', (done) => {
-    const postStubs: sinon.SinonStub = stubPostResponses();
-    const folderDoesNotExistErrorResp: any = new Promise<any>((resolve, reject) => {
-      return reject(JSON.stringify({ "odata.error": { "code": "-2130575338, Microsoft.SharePoint.SPException", "message": { "lang": "en-US", "value": "Error: Not found." } } }));
-    });
-    stubGetResponses(folderDoesNotExistErrorResp);
+      spo
+        .ensureFolder("https://contoso.sharepoint.com/sites/Site1", "/folder2/folder3", logger, true)
+        .then(() => {
+          assert.strictEqual(postStubs.mock.calls[0][0].url, 'https://contoso.sharepoint.com/sites/Site1/_api/web/GetFolderByServerRelativePath(DecodedUrl=@a1)/AddSubFolderUsingPath(DecodedUrl=@a2)?@a1=%27%2Fsites%2FSite1%27&@a2=%27folder2%27');
+          assert.strictEqual(postStubs.mock.calls[1][0].url, 'https://contoso.sharepoint.com/sites/Site1/_api/web/GetFolderByServerRelativePath(DecodedUrl=@a1)/AddSubFolderUsingPath(DecodedUrl=@a2)?@a1=%27%2Fsites%2FSite1%2Ffolder2%27&@a2=%27folder3%27');
+          done();
+        }, (err: any) => {
+          done(err);
+        });
+    }
+  );
 
-    spo
-      .ensureFolder("https://contoso.sharepoint.com/sites/Site1/", "/folder2/folder3/", logger, true)
-      .then(() => {
-        assert.strictEqual(postStubs.getCall(0).args[0].url, 'https://contoso.sharepoint.com/sites/Site1/_api/web/GetFolderByServerRelativePath(DecodedUrl=@a1)/AddSubFolderUsingPath(DecodedUrl=@a2)?@a1=%27%2Fsites%2FSite1%27&@a2=%27folder2%27');
-        assert.strictEqual(postStubs.getCall(1).args[0].url, 'https://contoso.sharepoint.com/sites/Site1/_api/web/GetFolderByServerRelativePath(DecodedUrl=@a1)/AddSubFolderUsingPath(DecodedUrl=@a2)?@a1=%27%2Fsites%2FSite1%2Ffolder2%27&@a2=%27folder3%27');
-        done();
-      }, (err: any) => {
-        done(err);
+  it('should handle end slashes in the command options for webUrl and for folder',
+    (done) => {
+      const postStubs: jest.Mock = stubPostResponses();
+      const folderDoesNotExistErrorResp: any = new Promise<any>((resolve, reject) => {
+        return reject(JSON.stringify({ "odata.error": { "code": "-2130575338, Microsoft.SharePoint.SPException", "message": { "lang": "en-US", "value": "Error: Not found." } } }));
       });
-  });
+      stubGetResponses(folderDoesNotExistErrorResp);
 
-  it('should have the correct url when folder option has uppercase letters when calling AddSubFolderUsingPath', (done) => {
-    const postStubs: sinon.SinonStub = stubPostResponses();
-    const folderDoesNotExistErrorResp: any = new Promise<any>((resolve, reject) => {
-      return reject(JSON.stringify({ "odata.error": { "code": "-2130575338, Microsoft.SharePoint.SPException", "message": { "lang": "en-US", "value": "Error: Not found." } } }));
-    });
-    stubGetResponses(folderDoesNotExistErrorResp);
+      spo
+        .ensureFolder("https://contoso.sharepoint.com/sites/Site1/", "/folder2/folder3/", logger, true)
+        .then(() => {
+          assert.strictEqual(postStubs.mock.calls[0][0].url, 'https://contoso.sharepoint.com/sites/Site1/_api/web/GetFolderByServerRelativePath(DecodedUrl=@a1)/AddSubFolderUsingPath(DecodedUrl=@a2)?@a1=%27%2Fsites%2FSite1%27&@a2=%27folder2%27');
+          assert.strictEqual(postStubs.mock.calls[1][0].url, 'https://contoso.sharepoint.com/sites/Site1/_api/web/GetFolderByServerRelativePath(DecodedUrl=@a1)/AddSubFolderUsingPath(DecodedUrl=@a2)?@a1=%27%2Fsites%2FSite1%2Ffolder2%27&@a2=%27folder3%27');
+          done();
+        }, (err: any) => {
+          done(err);
+        });
+    }
+  );
 
-    spo
-      .ensureFolder("https://contoso.sharepoint.com/sites/site1/", "PnP1/Folder2/", logger, true)
-      .then(() => {
-        assert.strictEqual(postStubs.getCall(0).args[0].url, 'https://contoso.sharepoint.com/sites/site1/_api/web/GetFolderByServerRelativePath(DecodedUrl=@a1)/AddSubFolderUsingPath(DecodedUrl=@a2)?@a1=%27%2Fsites%2Fsite1%27&@a2=%27PnP1%27');
-        assert.strictEqual(postStubs.getCall(1).args[0].url, 'https://contoso.sharepoint.com/sites/site1/_api/web/GetFolderByServerRelativePath(DecodedUrl=@a1)/AddSubFolderUsingPath(DecodedUrl=@a2)?@a1=%27%2Fsites%2Fsite1%2FPnP1%27&@a2=%27Folder2%27');
-        done();
-      }, (err: any) => {
-        done(err);
+  it('should have the correct url when folder option has uppercase letters when calling AddSubFolderUsingPath',
+    (done) => {
+      const postStubs: jest.Mock = stubPostResponses();
+      const folderDoesNotExistErrorResp: any = new Promise<any>((resolve, reject) => {
+        return reject(JSON.stringify({ "odata.error": { "code": "-2130575338, Microsoft.SharePoint.SPException", "message": { "lang": "en-US", "value": "Error: Not found." } } }));
       });
-  });
+      stubGetResponses(folderDoesNotExistErrorResp);
 
-  it('should call GetFolderByServerRelativeUrl with the correct url OData values', (done) => {
-    stubPostResponses();
-    const getStubs: sinon.SinonStub = stubGetResponses();
+      spo
+        .ensureFolder("https://contoso.sharepoint.com/sites/site1/", "PnP1/Folder2/", logger, true)
+        .then(() => {
+          assert.strictEqual(postStubs.mock.calls[0][0].url, 'https://contoso.sharepoint.com/sites/site1/_api/web/GetFolderByServerRelativePath(DecodedUrl=@a1)/AddSubFolderUsingPath(DecodedUrl=@a2)?@a1=%27%2Fsites%2Fsite1%27&@a2=%27PnP1%27');
+          assert.strictEqual(postStubs.mock.calls[1][0].url, 'https://contoso.sharepoint.com/sites/site1/_api/web/GetFolderByServerRelativePath(DecodedUrl=@a1)/AddSubFolderUsingPath(DecodedUrl=@a2)?@a1=%27%2Fsites%2Fsite1%2FPnP1%27&@a2=%27Folder2%27');
+          done();
+        }, (err: any) => {
+          done(err);
+        });
+    }
+  );
 
-    spo
-      .ensureFolder("https://contoso.sharepoint.com/sites/Site1", "/folder2/folder3", logger, true)
-      .then(() => {
-        assert.strictEqual(getStubs.getCall(0).args[0].url, 'https://contoso.sharepoint.com/sites/Site1/_api/web/GetFolderByServerRelativePath(DecodedUrl=\'%2Fsites%2FSite1%2Ffolder2\')');
-        assert.strictEqual(getStubs.getCall(1).args[0].url, 'https://contoso.sharepoint.com/sites/Site1/_api/web/GetFolderByServerRelativePath(DecodedUrl=\'%2Fsites%2FSite1%2Ffolder2%2Ffolder3\')');
-        done();
-      }, (err: any) => {
-        done(err);
-      });
-  });
+  it('should call GetFolderByServerRelativeUrl with the correct url OData values',
+    (done) => {
+      stubPostResponses();
+      const getStubs: jest.Mock = stubGetResponses();
+
+      spo
+        .ensureFolder("https://contoso.sharepoint.com/sites/Site1", "/folder2/folder3", logger, true)
+        .then(() => {
+          assert.strictEqual(getStubs.mock.calls[0][0].url, 'https://contoso.sharepoint.com/sites/Site1/_api/web/GetFolderByServerRelativePath(DecodedUrl=\'%2Fsites%2FSite1%2Ffolder2\')');
+          assert.strictEqual(getStubs.mock.calls[1][0].url, 'https://contoso.sharepoint.com/sites/Site1/_api/web/GetFolderByServerRelativePath(DecodedUrl=\'%2Fsites%2FSite1%2Ffolder2%2Ffolder3\')');
+          done();
+        }, (err: any) => {
+          done(err);
+        });
+    }
+  );
 
   //#region Custom Action Mock Responses
   const customActionOnSiteResponse1 = { "ClientSideComponentId": "d1e5e0d6-109d-40c4-a53e-924073fe9bbd", "ClientSideComponentProperties": "{\"testMessage\":\"Test message\"}", "CommandUIExtension": null, "Description": null, "Group": null, "Id": "a6c7bef2-42d5-405c-a89f-6e36b3c302b3", "ImageUrl": null, "Location": "ClientSideExtension.ApplicationCustomizer", "Name": "YourName", "RegistrationId": null, "RegistrationType": 0, "Rights": { "High": "0", "Low": "0" }, "Scope": 2, "ScriptBlock": null, "ScriptSrc": null, "Sequence": 0, "Title": "YourAppCustomizer", "Url": null, "VersionOfUserCustomAction": "16.0.1.0" };
@@ -830,7 +861,7 @@ describe('utils/spo', () => {
   //#endregion
 
   it(`returns a list of custom actions with scope 'All'`, async () => {
-    sinon.stub(request, 'get').callsFake((opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
       if ((opts.url as string).indexOf('/_api/Site/UserCustomActions') > -1) {
         return Promise.resolve({ value: customActionsOnSiteResponse });
       }
@@ -849,7 +880,7 @@ describe('utils/spo', () => {
   });
 
   it(`returns a list of custom actions with scope 'Site'`, async () => {
-    sinon.stub(request, 'get').callsFake((opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
       if ((opts.url as string).indexOf('/_api/Site/UserCustomActions') > -1) {
         return Promise.resolve({ value: customActionsOnSiteResponse });
       }
@@ -862,7 +893,7 @@ describe('utils/spo', () => {
   });
 
   it(`returns a list of custom actions with scope 'Web'`, async () => {
-    sinon.stub(request, 'get').callsFake((opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
       if ((opts.url as string).indexOf('/_api/Web/UserCustomActions') > -1) {
         return Promise.resolve({ value: customActionsOnWebResponse });
       }
@@ -874,21 +905,23 @@ describe('utils/spo', () => {
     assert.deepEqual(customActions, customActionsOnWebResponse);
   });
 
-  it(`returns a list of custom actions with scope 'Web' with a filter`, async () => {
-    sinon.stub(request, 'get').callsFake((opts) => {
-      if ((opts.url as string).indexOf(`/_api/Web/UserCustomActions?$filter=ClientSideComponentId eq guid'b41916e7-e69d-467f-b37f-ff8ecf8f99f2'`) > -1) {
-        return Promise.resolve({ value: [customActionOnWebResponse1] });
-      }
+  it(`returns a list of custom actions with scope 'Web' with a filter`,
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
+        if ((opts.url as string).indexOf(`/_api/Web/UserCustomActions?$filter=ClientSideComponentId eq guid'b41916e7-e69d-467f-b37f-ff8ecf8f99f2'`) > -1) {
+          return Promise.resolve({ value: [customActionOnWebResponse1] });
+        }
 
-      return Promise.reject('Invalid request');
-    });
+        return Promise.reject('Invalid request');
+      });
 
-    const customActions = await spo.getCustomActions('https://contoso.sharepoint.com/sites/sales', 'Web', `ClientSideComponentId eq guid'b41916e7-e69d-467f-b37f-ff8ecf8f99f2'`);
-    assert.deepEqual(customActions, [customActionOnWebResponse1]);
-  });
+      const customActions = await spo.getCustomActions('https://contoso.sharepoint.com/sites/sales', 'Web', `ClientSideComponentId eq guid'b41916e7-e69d-467f-b37f-ff8ecf8f99f2'`);
+      assert.deepEqual(customActions, [customActionOnWebResponse1]);
+    }
+  );
 
   it(`retrieves a custom action by id with scope 'All'`, async () => {
-    sinon.stub(request, 'get').callsFake((opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
       if ((opts.url as string).indexOf(`/_api/Site/UserCustomActions(guid'd1e5e0d6-109d-40c4-a53e-924073fe9bbd')`) > -1) {
         return Promise.resolve(customActionOnSiteResponse1);
       }
@@ -904,7 +937,7 @@ describe('utils/spo', () => {
   });
 
   it(`retrieves a custom action by id with scope 'Site'`, async () => {
-    sinon.stub(request, 'get').callsFake((opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
       if ((opts.url as string).indexOf(`/_api/Site/UserCustomActions(guid'd1e5e0d6-109d-40c4-a53e-924073fe9bbd')`) > -1) {
         return Promise.resolve(customActionOnSiteResponse1);
       }
@@ -917,7 +950,7 @@ describe('utils/spo', () => {
   });
 
   it(`retrieves Azure AD ID by SPO user ID sucessfully`, async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/sites/sales/_api/web/siteusers/GetById('9')?$select=AadObjectId`) {
         return {
           AadObjectId: {
@@ -953,7 +986,7 @@ describe('utils/spo', () => {
       UserPrincipalName: 'john.doe@contoso.com'
     };
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/sites/sales/_api/web/siteusers/GetByEmail('${formatting.encodeQueryParameter('john.doe@contoso.com')}')`) {
         return userResponse;
       }
@@ -965,25 +998,29 @@ describe('utils/spo', () => {
     assert.deepEqual(user, userResponse);
   });
 
-  it(`throws error retrieving a custom action by id with a wrong scope value`, async () => {
-    try {
-      await spo.getCustomActionById('https://contoso.sharepoint.com/sites/sales', 'd1e5e0d6-109d-40c4-a53e-924073fe9bbd', 'Invalid');
-      assert.fail('Expected an error to be thrown');
+  it(`throws error retrieving a custom action by id with a wrong scope value`,
+    async () => {
+      try {
+        await spo.getCustomActionById('https://contoso.sharepoint.com/sites/sales', 'd1e5e0d6-109d-40c4-a53e-924073fe9bbd', 'Invalid');
+        assert.fail('Expected an error to be thrown');
+      }
+      catch (e) {
+        assert.deepEqual(e, `Invalid scope 'Invalid'. Allowed values are 'Site', 'Web' or 'All'.`);
+      }
     }
-    catch (e) {
-      assert.deepEqual(e, `Invalid scope 'Invalid'. Allowed values are 'Site', 'Web' or 'All'.`);
-    }
-  });
+  );
 
-  it(`throws error retrieving a list of custom actions with a wrong scope value`, async () => {
-    try {
-      await spo.getCustomActions('https://contoso.sharepoint.com/sites/sales', 'Invalid');
-      assert.fail('Expected an error to be thrown');
+  it(`throws error retrieving a list of custom actions with a wrong scope value`,
+    async () => {
+      try {
+        await spo.getCustomActions('https://contoso.sharepoint.com/sites/sales', 'Invalid');
+        assert.fail('Expected an error to be thrown');
+      }
+      catch (e) {
+        assert.deepEqual(e, `Invalid scope 'Invalid'. Allowed values are 'Site', 'Web' or 'All'.`);
+      }
     }
-    catch (e) {
-      assert.deepEqual(e, `Invalid scope 'Invalid'. Allowed values are 'Site', 'Web' or 'All'.`);
-    }
-  });
+  );
 
   //#region Navigation menu state responses
   const topNavigationResponse = { 'AudienceIds': [], 'FriendlyUrlPrefix': '', 'IsAudienceTargetEnabledForGlobalNav': false, 'Nodes': [{ 'AudienceIds': [], 'CurrentLCID': 1033, 'CustomProperties': [], 'FriendlyUrlSegment': '', 'IsDeleted': false, 'IsHidden': false, 'IsTitleForExistingLanguage': false, 'Key': '2039', 'Nodes': [{ 'AudienceIds': [], 'CurrentLCID': 1033, 'CustomProperties': [], 'FriendlyUrlSegment': '', 'IsDeleted': false, 'IsHidden': false, 'IsTitleForExistingLanguage': false, 'Key': '2041', 'Nodes': [], 'NodeType': 0, 'OpenInNewWindow': true, 'SimpleUrl': '/sites/PnPCoreSDKTestGroup', 'Title': 'Sub level 1', 'Translations': [] }], 'NodeType': 0, 'OpenInNewWindow': null, 'SimpleUrl': '/sites/PnPCoreSDKTestGroup', 'Title': 'Site A', 'Translations': [] }, { 'AudienceIds': [], 'CurrentLCID': 1033, 'CustomProperties': [], 'FriendlyUrlSegment': '', 'IsDeleted': false, 'IsHidden': false, 'IsTitleForExistingLanguage': false, 'Key': '2040', 'Nodes': [], 'NodeType': 0, 'OpenInNewWindow': true, 'SimpleUrl': '/sites/PnPCoreSDKTestGroup', 'Title': 'Site B', 'Translations': [] }, { 'AudienceIds': [], 'CurrentLCID': 1033, 'CustomProperties': [], 'FriendlyUrlSegment': '', 'IsDeleted': false, 'IsHidden': false, 'IsTitleForExistingLanguage': false, 'Key': '2001', 'Nodes': [], 'NodeType': 0, 'OpenInNewWindow': true, 'SimpleUrl': '/sites/team-a/sitepages/about.aspx', 'Title': 'About', 'Translations': [] }], 'SimpleUrl': '', 'SPSitePrefix': '/sites/SharePointDemoSite', 'SPWebPrefix': '/sites/SharePointDemoSite', 'StartingNodeKey': '1025', 'StartingNodeTitle': 'Quick launch', 'Version': '2023-03-09T18:33:53.5468097Z' };
@@ -992,7 +1029,7 @@ describe('utils/spo', () => {
   //#endregion
 
   it(`retrieves the quick launch navigation response`, async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/navigation/MenuState`) {
         return quickLaunchResponse;
       }
@@ -1005,7 +1042,7 @@ describe('utils/spo', () => {
   });
 
   it(`retrieves the top navigation response`, async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/navigation/MenuState`) {
         return topNavigationResponse;
       }
@@ -1018,7 +1055,7 @@ describe('utils/spo', () => {
   });
 
   it(`saves the menu state for the top navigation`, async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/navigation/MenuState`) {
         return topNavigationResponse;
       }
@@ -1032,7 +1069,7 @@ describe('utils/spo', () => {
 
     const topNavigation = await spo.getTopNavigationMenuState(webUrl);
     await spo.saveMenuState(webUrl, topNavigation);
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, { menuState: topNavigation });
+    assert.deepStrictEqual(postStub.mock.lastCall[0].data, { menuState: topNavigation });
   });
 
   it(`retrieves spo group by name sucessfully`, async () => {
@@ -1051,7 +1088,7 @@ describe('utils/spo', () => {
       RequestToJoinLeaveEmailSetting: null
     };
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/sites/sales/_api/web/sitegroups/GetByName('${formatting.encodeQueryParameter('groupname')}')`) {
         return groupResponse;
       }
@@ -1091,7 +1128,7 @@ describe('utils/spo', () => {
       RoleTypeKindValue: "Reader"
     };
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/sites/sales/_api/web/roledefinitions`) {
         return { value: [roledefinitionResponse] };
       }
@@ -1104,7 +1141,7 @@ describe('utils/spo', () => {
   });
 
   it(`handles error when no roledefinition by name is found`, async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/sites/sales/_api/web/roledefinitions`) {
         return { value: [] };
       }
@@ -1116,10 +1153,10 @@ describe('utils/spo', () => {
   });
 
   it('checks successfully if site exists', async () => {
-    sinon.stub(spo, 'getSpoAdminUrl').resolves('https://contoso-admin.sharepoint.com');
-    sinon.stub(spo, 'ensureFormDigest').resolves({ FormDigestValue: 'abc', FormDigestTimeoutSeconds: 1800, FormDigestExpiresAt: new Date(), WebFullUrl: 'https://contoso.sharepoint.com' });
+    jest.spyOn(spo, 'getSpoAdminUrl').mockClear().mockImplementation().resolves('https://contoso-admin.sharepoint.com');
+    jest.spyOn(spo, 'ensureFormDigest').mockClear().mockImplementation().resolves({ FormDigestValue: 'abc', FormDigestTimeoutSeconds: 1800, FormDigestExpiresAt: new Date(), WebFullUrl: 'https://contoso.sharepoint.com' });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery`) {
         if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="197" ObjectPathId="196" /><ObjectPath Id="199" ObjectPathId="198" /><Query Id="200" ObjectPathId="198"><Query SelectAllProperties="true"><Properties /></Query></Query></Actions><ObjectPaths><Constructor Id="196" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /><Method Id="198" ParentId="196" Name="GetSitePropertiesByUrl"><Parameters><Parameter Type="String">https://contoso.sharepoint.com</Parameter><Parameter Type="Boolean">false</Parameter></Parameters></Method></ObjectPaths></Request>`) {
           return JSON.stringify([
@@ -1144,11 +1181,11 @@ describe('utils/spo', () => {
   });
 
   it('handles error when checking site', async () => {
-    sinon.stub(spo, 'getSpoAdminUrl').resolves('https://contoso-admin.sharepoint.com');
-    sinon.stub(spo, 'ensureFormDigest').resolves({ FormDigestValue: 'abc', FormDigestTimeoutSeconds: 1800, FormDigestExpiresAt: new Date(), WebFullUrl: 'https://contoso.sharepoint.com' });
-    sinon.stub(spo, 'siteExistsInTheRecycleBin').resolves(true);
+    jest.spyOn(spo, 'getSpoAdminUrl').mockClear().mockImplementation().resolves('https://contoso-admin.sharepoint.com');
+    jest.spyOn(spo, 'ensureFormDigest').mockClear().mockImplementation().resolves({ FormDigestValue: 'abc', FormDigestTimeoutSeconds: 1800, FormDigestExpiresAt: new Date(), WebFullUrl: 'https://contoso.sharepoint.com' });
+    jest.spyOn(spo, 'siteExistsInTheRecycleBin').mockClear().mockImplementation().resolves(true);
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery`) {
         if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="197" ObjectPathId="196" /><ObjectPath Id="199" ObjectPathId="198" /><Query Id="200" ObjectPathId="198"><Query SelectAllProperties="true"><Properties /></Query></Query></Actions><ObjectPaths><Constructor Id="196" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /><Method Id="198" ParentId="196" Name="GetSitePropertiesByUrl"><Parameters><Parameter Type="String">https://contoso.sharepoint.com</Parameter><Parameter Type="Boolean">false</Parameter></Parameters></Method></ObjectPaths></Request>`) {
           return JSON.stringify([
@@ -1173,36 +1210,38 @@ describe('utils/spo', () => {
     }
   });
 
-  it('handles no site exception and checks for site in recycle bin', async () => {
-    sinon.stub(spo, 'getSpoAdminUrl').resolves('https://contoso-admin.sharepoint.com');
-    sinon.stub(spo, 'ensureFormDigest').resolves({ FormDigestValue: 'abc', FormDigestTimeoutSeconds: 1800, FormDigestExpiresAt: new Date(), WebFullUrl: 'https://contoso.sharepoint.com' });
-    sinon.stub(spo, 'siteExistsInTheRecycleBin').resolves(true);
+  it('handles no site exception and checks for site in recycle bin',
+    async () => {
+      jest.spyOn(spo, 'getSpoAdminUrl').mockClear().mockImplementation().resolves('https://contoso-admin.sharepoint.com');
+      jest.spyOn(spo, 'ensureFormDigest').mockClear().mockImplementation().resolves({ FormDigestValue: 'abc', FormDigestTimeoutSeconds: 1800, FormDigestExpiresAt: new Date(), WebFullUrl: 'https://contoso.sharepoint.com' });
+      jest.spyOn(spo, 'siteExistsInTheRecycleBin').mockClear().mockImplementation().resolves(true);
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery`) {
-        if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="197" ObjectPathId="196" /><ObjectPath Id="199" ObjectPathId="198" /><Query Id="200" ObjectPathId="198"><Query SelectAllProperties="true"><Properties /></Query></Query></Actions><ObjectPaths><Constructor Id="196" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /><Method Id="198" ParentId="196" Name="GetSitePropertiesByUrl"><Parameters><Parameter Type="String">https://contoso.sharepoint.com</Parameter><Parameter Type="Boolean">false</Parameter></Parameters></Method></ObjectPaths></Request>`) {
-          return JSON.stringify([
-            {
-              "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.7324.1200", "ErrorInfo": {
-                "ErrorMessage": "Cannot get site https:\u002f\u002fcontoso.sharepoint.com", "ErrorValue": null, "TraceCorrelationId": "e13c489e-2026-5000-8242-7ec96d02ba1d", "ErrorCode": -1, "ErrorTypeName": "Microsoft.Online.SharePoint.Common.SpoNoSiteException"
-              }, "TraceCorrelationId": "e13c489e-2026-5000-8242-7ec96d02ba1d"
-            }
-          ]);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery`) {
+          if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="197" ObjectPathId="196" /><ObjectPath Id="199" ObjectPathId="198" /><Query Id="200" ObjectPathId="198"><Query SelectAllProperties="true"><Properties /></Query></Query></Actions><ObjectPaths><Constructor Id="196" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /><Method Id="198" ParentId="196" Name="GetSitePropertiesByUrl"><Parameters><Parameter Type="String">https://contoso.sharepoint.com</Parameter><Parameter Type="Boolean">false</Parameter></Parameters></Method></ObjectPaths></Request>`) {
+            return JSON.stringify([
+              {
+                "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.7324.1200", "ErrorInfo": {
+                  "ErrorMessage": "Cannot get site https:\u002f\u002fcontoso.sharepoint.com", "ErrorValue": null, "TraceCorrelationId": "e13c489e-2026-5000-8242-7ec96d02ba1d", "ErrorCode": -1, "ErrorTypeName": "Microsoft.Online.SharePoint.Common.SpoNoSiteException"
+                }, "TraceCorrelationId": "e13c489e-2026-5000-8242-7ec96d02ba1d"
+              }
+            ]);
+          }
         }
-      }
 
-      throw 'invalid request';
-    });
+        throw 'invalid request';
+      });
 
-    const actual = await spo.siteExists('https://contoso.sharepoint.com', logger, true);
-    assert.deepEqual(actual, true);
-  });
+      const actual = await spo.siteExists('https://contoso.sharepoint.com', logger, true);
+      assert.deepEqual(actual, true);
+    }
+  );
 
   it('checks succesfully if site exists in recycle bin', async () => {
-    sinon.stub(spo, 'getSpoAdminUrl').resolves('https://contoso-admin.sharepoint.com');
-    sinon.stub(spo, 'ensureFormDigest').resolves({ FormDigestValue: 'abc', FormDigestTimeoutSeconds: 1800, FormDigestExpiresAt: new Date(), WebFullUrl: 'https://contoso.sharepoint.com' });
+    jest.spyOn(spo, 'getSpoAdminUrl').mockClear().mockImplementation().resolves('https://contoso-admin.sharepoint.com');
+    jest.spyOn(spo, 'ensureFormDigest').mockClear().mockImplementation().resolves({ FormDigestValue: 'abc', FormDigestTimeoutSeconds: 1800, FormDigestExpiresAt: new Date(), WebFullUrl: 'https://contoso.sharepoint.com' });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery`) {
         if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="181" ObjectPathId="180" /><Query Id="182" ObjectPathId="180"><Query SelectAllProperties="true"><Properties /></Query></Query></Actions><ObjectPaths><Method Id="180" ParentId="175" Name="GetDeletedSitePropertiesByUrl"><Parameters><Parameter Type="String">https://contoso.sharepoint.com</Parameter></Parameters></Method><Constructor Id="175" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /></ObjectPaths></Request>`) {
           return JSON.stringify([
@@ -1224,35 +1263,37 @@ describe('utils/spo', () => {
     assert.deepEqual(actual, true);
   });
 
-  it('handles no site in recycle bin exception because of unknown error', async () => {
-    sinon.stub(spo, 'getSpoAdminUrl').resolves('https://contoso-admin.sharepoint.com');
-    sinon.stub(spo, 'ensureFormDigest').resolves({ FormDigestValue: 'abc', FormDigestTimeoutSeconds: 1800, FormDigestExpiresAt: new Date(), WebFullUrl: 'https://contoso.sharepoint.com' });
+  it('handles no site in recycle bin exception because of unknown error',
+    async () => {
+      jest.spyOn(spo, 'getSpoAdminUrl').mockClear().mockImplementation().resolves('https://contoso-admin.sharepoint.com');
+      jest.spyOn(spo, 'ensureFormDigest').mockClear().mockImplementation().resolves({ FormDigestValue: 'abc', FormDigestTimeoutSeconds: 1800, FormDigestExpiresAt: new Date(), WebFullUrl: 'https://contoso.sharepoint.com' });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery`) {
-        if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="181" ObjectPathId="180" /><Query Id="182" ObjectPathId="180"><Query SelectAllProperties="true"><Properties /></Query></Query></Actions><ObjectPaths><Method Id="180" ParentId="175" Name="GetDeletedSitePropertiesByUrl"><Parameters><Parameter Type="String">https://contoso.sharepoint.com</Parameter></Parameters></Method><Constructor Id="175" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /></ObjectPaths></Request>`) {
-          return JSON.stringify([
-            {
-              "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.7324.1200", "ErrorInfo": {
-                "ErrorMessage": "Unknown Error", "ErrorValue": null, "TraceCorrelationId": "b33c489e-009b-5000-8240-a8c28e5fd8b4", "ErrorCode": -1, "ErrorTypeName": "Microsoft.SharePoint.Client.UnknownError"
-              }, "TraceCorrelationId": "b33c489e-009b-5000-8240-a8c28e5fd8b4"
-            }
-          ]);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery`) {
+          if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="181" ObjectPathId="180" /><Query Id="182" ObjectPathId="180"><Query SelectAllProperties="true"><Properties /></Query></Query></Actions><ObjectPaths><Method Id="180" ParentId="175" Name="GetDeletedSitePropertiesByUrl"><Parameters><Parameter Type="String">https://contoso.sharepoint.com</Parameter></Parameters></Method><Constructor Id="175" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /></ObjectPaths></Request>`) {
+            return JSON.stringify([
+              {
+                "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.7324.1200", "ErrorInfo": {
+                  "ErrorMessage": "Unknown Error", "ErrorValue": null, "TraceCorrelationId": "b33c489e-009b-5000-8240-a8c28e5fd8b4", "ErrorCode": -1, "ErrorTypeName": "Microsoft.SharePoint.Client.UnknownError"
+                }, "TraceCorrelationId": "b33c489e-009b-5000-8240-a8c28e5fd8b4"
+              }
+            ]);
+          }
         }
-      }
 
-      throw 'invalid request';
-    });
+        throw 'invalid request';
+      });
 
-    const actual = await spo.siteExistsInTheRecycleBin('https://contoso.sharepoint.com', logger, true);
-    assert.deepEqual(actual, false);
-  });
+      const actual = await spo.siteExistsInTheRecycleBin('https://contoso.sharepoint.com', logger, true);
+      assert.deepEqual(actual, false);
+    }
+  );
 
   it('handles error when checking site is in recycle bin', async () => {
-    sinon.stub(spo, 'getSpoAdminUrl').resolves('https://contoso-admin.sharepoint.com');
-    sinon.stub(spo, 'ensureFormDigest').resolves({ FormDigestValue: 'abc', FormDigestTimeoutSeconds: 1800, FormDigestExpiresAt: new Date(), WebFullUrl: 'https://contoso.sharepoint.com' });
+    jest.spyOn(spo, 'getSpoAdminUrl').mockClear().mockImplementation().resolves('https://contoso-admin.sharepoint.com');
+    jest.spyOn(spo, 'ensureFormDigest').mockClear().mockImplementation().resolves({ FormDigestValue: 'abc', FormDigestTimeoutSeconds: 1800, FormDigestExpiresAt: new Date(), WebFullUrl: 'https://contoso.sharepoint.com' });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery`) {
         if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="181" ObjectPathId="180" /><Query Id="182" ObjectPathId="180"><Query SelectAllProperties="true"><Properties /></Query></Query></Actions><ObjectPaths><Method Id="180" ParentId="175" Name="GetDeletedSitePropertiesByUrl"><Parameters><Parameter Type="String">https://contoso.sharepoint.com</Parameter></Parameters></Method><Constructor Id="175" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /></ObjectPaths></Request>`) {
           return (JSON.stringify([
@@ -1278,10 +1319,10 @@ describe('utils/spo', () => {
   });
 
   it('deletes a site from the recycle bin succesfully', async () => {
-    sinon.stub(spo, 'getSpoAdminUrl').resolves('https://contoso-admin.sharepoint.com');
-    sinon.stub(spo, 'ensureFormDigest').resolves({ FormDigestValue: 'abc', FormDigestTimeoutSeconds: 1800, FormDigestExpiresAt: new Date(), WebFullUrl: 'https://contoso.sharepoint.com' });
+    jest.spyOn(spo, 'getSpoAdminUrl').mockClear().mockImplementation().resolves('https://contoso-admin.sharepoint.com');
+    jest.spyOn(spo, 'ensureFormDigest').mockClear().mockImplementation().resolves({ FormDigestValue: 'abc', FormDigestTimeoutSeconds: 1800, FormDigestExpiresAt: new Date(), WebFullUrl: 'https://contoso.sharepoint.com' });
 
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery`) {
         if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="185" ObjectPathId="184" /><Query Id="186" ObjectPathId="184"><Query SelectAllProperties="false"><Properties><Property Name="IsComplete" ScalarProperty="true" /><Property Name="PollingInterval" ScalarProperty="true" /></Properties></Query></Query></Actions><ObjectPaths><Method Id="184" ParentId="175" Name="RemoveDeletedSite"><Parameters><Parameter Type="String">https://contoso.sharepoint.com</Parameter></Parameters></Method><Constructor Id="175" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /></ObjectPaths></Request>`) {
           return JSON.stringify([
@@ -1303,40 +1344,42 @@ describe('utils/spo', () => {
     assert(postStub.called);
   });
 
-  it('handles an exception when trying to delete a site from the recycle bin', async () => {
-    sinon.stub(spo, 'getSpoAdminUrl').resolves('https://contoso-admin.sharepoint.com');
-    sinon.stub(spo, 'ensureFormDigest').resolves({ FormDigestValue: 'abc', FormDigestTimeoutSeconds: 1800, FormDigestExpiresAt: new Date(), WebFullUrl: 'https://contoso.sharepoint.com' });
+  it('handles an exception when trying to delete a site from the recycle bin',
+    async () => {
+      jest.spyOn(spo, 'getSpoAdminUrl').mockClear().mockImplementation().resolves('https://contoso-admin.sharepoint.com');
+      jest.spyOn(spo, 'ensureFormDigest').mockClear().mockImplementation().resolves({ FormDigestValue: 'abc', FormDigestTimeoutSeconds: 1800, FormDigestExpiresAt: new Date(), WebFullUrl: 'https://contoso.sharepoint.com' });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery`) {
-        if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="185" ObjectPathId="184" /><Query Id="186" ObjectPathId="184"><Query SelectAllProperties="false"><Properties><Property Name="IsComplete" ScalarProperty="true" /><Property Name="PollingInterval" ScalarProperty="true" /></Properties></Query></Query></Actions><ObjectPaths><Method Id="184" ParentId="175" Name="RemoveDeletedSite"><Parameters><Parameter Type="String">https://contoso.sharepoint.com</Parameter></Parameters></Method><Constructor Id="175" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /></ObjectPaths></Request>`) {
-          return JSON.stringify([
-            {
-              "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.7324.1200", "ErrorInfo": {
-                "ErrorMessage": "An error has occurred.", "ErrorValue": null, "TraceCorrelationId": "b33c489e-009b-5000-8240-a8c28e5fd8b4", "ErrorCode": -1, "ErrorTypeName": "SPException"
-              }, "TraceCorrelationId": "b33c489e-009b-5000-8240-a8c28e5fd8b4"
-            }
-          ]);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery`) {
+          if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="185" ObjectPathId="184" /><Query Id="186" ObjectPathId="184"><Query SelectAllProperties="false"><Properties><Property Name="IsComplete" ScalarProperty="true" /><Property Name="PollingInterval" ScalarProperty="true" /></Properties></Query></Query></Actions><ObjectPaths><Method Id="184" ParentId="175" Name="RemoveDeletedSite"><Parameters><Parameter Type="String">https://contoso.sharepoint.com</Parameter></Parameters></Method><Constructor Id="175" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /></ObjectPaths></Request>`) {
+            return JSON.stringify([
+              {
+                "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.7324.1200", "ErrorInfo": {
+                  "ErrorMessage": "An error has occurred.", "ErrorValue": null, "TraceCorrelationId": "b33c489e-009b-5000-8240-a8c28e5fd8b4", "ErrorCode": -1, "ErrorTypeName": "SPException"
+                }, "TraceCorrelationId": "b33c489e-009b-5000-8240-a8c28e5fd8b4"
+              }
+            ]);
+          }
         }
+
+        throw 'invalid request';
+      });
+
+      try {
+        await spo.deleteSiteFromTheRecycleBin('https://contoso.sharepoint.com', logger, true);
+        assert.fail('No error message thrown.');
       }
-
-      throw 'invalid request';
-    });
-
-    try {
-      await spo.deleteSiteFromTheRecycleBin('https://contoso.sharepoint.com', logger, true);
-      assert.fail('No error message thrown.');
+      catch (ex) {
+        assert.deepStrictEqual(ex, 'An error has occurred.');
+      }
     }
-    catch (ex) {
-      assert.deepStrictEqual(ex, 'An error has occurred.');
-    }
-  });
+  );
 
   it('deletes a site from the recycle bin succesfully and waits', async () => {
-    sinon.stub(spo, 'getSpoAdminUrl').resolves('https://contoso-admin.sharepoint.com');
-    sinon.stub(spo, 'ensureFormDigest').resolves({ FormDigestValue: 'abc', FormDigestTimeoutSeconds: 1800, FormDigestExpiresAt: new Date(), WebFullUrl: 'https://contoso.sharepoint.com' });
+    jest.spyOn(spo, 'getSpoAdminUrl').mockClear().mockImplementation().resolves('https://contoso-admin.sharepoint.com');
+    jest.spyOn(spo, 'ensureFormDigest').mockClear().mockImplementation().resolves({ FormDigestValue: 'abc', FormDigestTimeoutSeconds: 1800, FormDigestExpiresAt: new Date(), WebFullUrl: 'https://contoso.sharepoint.com' });
 
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery`) {
         if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="185" ObjectPathId="184" /><Query Id="186" ObjectPathId="184"><Query SelectAllProperties="false"><Properties><Property Name="IsComplete" ScalarProperty="true" /><Property Name="PollingInterval" ScalarProperty="true" /></Properties></Query></Query></Actions><ObjectPaths><Method Id="184" ParentId="175" Name="RemoveDeletedSite"><Parameters><Parameter Type="String">https://contoso.sharepoint.com</Parameter></Parameters></Method><Constructor Id="175" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /></ObjectPaths></Request>`) {
           return JSON.stringify([
@@ -1375,7 +1418,7 @@ describe('utils/spo', () => {
       throw 'invalid request';
     });
 
-    sinon.stub(global, 'setTimeout').callsFake((fn) => {
+    jest.spyOn(global, 'setTimeout').mockClear().mockImplementation((fn) => {
       fn();
       return {} as any;
     });
@@ -1385,10 +1428,10 @@ describe('utils/spo', () => {
   });
 
   it('adds a classic site with minimal options successfully', async () => {
-    sinon.stub(spo, 'getSpoAdminUrl').resolves('https://contoso-admin.sharepoint.com');
-    sinon.stub(spo, 'ensureFormDigest').resolves({ FormDigestValue: 'abc', FormDigestTimeoutSeconds: 1800, FormDigestExpiresAt: new Date(), WebFullUrl: 'https://contoso.sharepoint.com' });
+    jest.spyOn(spo, 'getSpoAdminUrl').mockClear().mockImplementation().resolves('https://contoso-admin.sharepoint.com');
+    jest.spyOn(spo, 'ensureFormDigest').mockClear().mockImplementation().resolves({ FormDigestValue: 'abc', FormDigestTimeoutSeconds: 1800, FormDigestExpiresAt: new Date(), WebFullUrl: 'https://contoso.sharepoint.com' });
 
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery`) {
         if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="4" ObjectPathId="3" /><ObjectPath Id="6" ObjectPathId="5" /><Query Id="7" ObjectPathId="3"><Query SelectAllProperties="true"><Properties /></Query></Query><Query Id="8" ObjectPathId="5"><Query SelectAllProperties="false"><Properties><Property Name="IsComplete" ScalarProperty="true" /><Property Name="PollingInterval" ScalarProperty="true" /></Properties></Query></Query></Actions><ObjectPaths><Constructor Id="3" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /><Method Id="5" ParentId="3" Name="CreateSite"><Parameters><Parameter TypeId="{11f84fff-b8cf-47b6-8b50-34e692656606}"><Property Name="CompatibilityLevel" Type="Int32">0</Property><Property Name="Lcid" Type="UInt32">1033</Property><Property Name="Owner" Type="String">john.doe@contoso.com</Property><Property Name="StorageMaximumLevel" Type="Int64">100</Property><Property Name="StorageWarningLevel" Type="Int64">100</Property><Property Name="Template" Type="String">STS#0</Property><Property Name="TimeZoneId" Type="Int32">undefined</Property><Property Name="Title" Type="String">team</Property><Property Name="Url" Type="String">https://contoso.sharepoint.com/sites/team</Property><Property Name="UserCodeMaximumLevel" Type="Double">0</Property><Property Name="UserCodeWarningLevel" Type="Double">0</Property></Parameter></Parameters></Method></ObjectPaths></Request>`) {
           return JSON.stringify([
@@ -1420,63 +1463,65 @@ describe('utils/spo', () => {
     assert(postStub.called);
   });
 
-  it('adds a classic site with full options successfully and waits for completing', async () => {
-    sinon.stub(spo, 'getSpoAdminUrl').resolves('https://contoso-admin.sharepoint.com');
-    sinon.stub(spo, 'ensureFormDigest').resolves({ FormDigestValue: 'abc', FormDigestTimeoutSeconds: 1800, FormDigestExpiresAt: new Date(), WebFullUrl: 'https://contoso.sharepoint.com' });
-    sinon.stub(spo, 'siteExists').resolves(true);
-    sinon.stub(spo, 'deleteSiteFromTheRecycleBin').resolves();
+  it('adds a classic site with full options successfully and waits for completing',
+    async () => {
+      jest.spyOn(spo, 'getSpoAdminUrl').mockClear().mockImplementation().resolves('https://contoso-admin.sharepoint.com');
+      jest.spyOn(spo, 'ensureFormDigest').mockClear().mockImplementation().resolves({ FormDigestValue: 'abc', FormDigestTimeoutSeconds: 1800, FormDigestExpiresAt: new Date(), WebFullUrl: 'https://contoso.sharepoint.com' });
+      jest.spyOn(spo, 'siteExists').mockClear().mockImplementation().resolves(true);
+      jest.spyOn(spo, 'deleteSiteFromTheRecycleBin').mockClear().mockImplementation().resolves();
 
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery`) {
-        if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="4" ObjectPathId="3" /><ObjectPath Id="6" ObjectPathId="5" /><Query Id="7" ObjectPathId="3"><Query SelectAllProperties="true"><Properties /></Query></Query><Query Id="8" ObjectPathId="5"><Query SelectAllProperties="false"><Properties><Property Name="IsComplete" ScalarProperty="true" /><Property Name="PollingInterval" ScalarProperty="true" /></Properties></Query></Query></Actions><ObjectPaths><Constructor Id="3" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /><Method Id="5" ParentId="3" Name="CreateSite"><Parameters><Parameter TypeId="{11f84fff-b8cf-47b6-8b50-34e692656606}"><Property Name="CompatibilityLevel" Type="Int32">0</Property><Property Name="Lcid" Type="UInt32">1033</Property><Property Name="Owner" Type="String">john.doe@contoso.com</Property><Property Name="StorageMaximumLevel" Type="Int64">300</Property><Property Name="StorageWarningLevel" Type="Int64">275</Property><Property Name="Template" Type="String">PUBLISHING#0</Property><Property Name="TimeZoneId" Type="Int32">4</Property><Property Name="Title" Type="String">team</Property><Property Name="Url" Type="String">https://contoso.sharepoint.com/sites/team</Property><Property Name="UserCodeMaximumLevel" Type="Double">100</Property><Property Name="UserCodeWarningLevel" Type="Double">90</Property></Parameter></Parameters></Method></ObjectPaths></Request>`) {
-          return JSON.stringify([
-            {
-              "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.7324.1200", "ErrorInfo": null, "TraceCorrelationId": "d53a489e-c0c0-5000-58fc-d03b433dca89"
-            }, 4, {
-              "IsNull": false
-            }, 6, {
-              "IsNull": false
-            }, 7, {
-              "_ObjectType_": "Microsoft.Online.SharePoint.TenantAdministration.Tenant", "_ObjectIdentity_": "d53a489e-c0c0-5000-58fc-d03b433dca89|908bed80-a04a-4433-b4a0-883d9847d110:67753f63-bc14-4012-869e-f808a43fe023\nTenant", "AllowDownloadingNonWebViewableFiles": true, "AllowedDomainListForSyncClient": [
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery`) {
+          if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="4" ObjectPathId="3" /><ObjectPath Id="6" ObjectPathId="5" /><Query Id="7" ObjectPathId="3"><Query SelectAllProperties="true"><Properties /></Query></Query><Query Id="8" ObjectPathId="5"><Query SelectAllProperties="false"><Properties><Property Name="IsComplete" ScalarProperty="true" /><Property Name="PollingInterval" ScalarProperty="true" /></Properties></Query></Query></Actions><ObjectPaths><Constructor Id="3" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /><Method Id="5" ParentId="3" Name="CreateSite"><Parameters><Parameter TypeId="{11f84fff-b8cf-47b6-8b50-34e692656606}"><Property Name="CompatibilityLevel" Type="Int32">0</Property><Property Name="Lcid" Type="UInt32">1033</Property><Property Name="Owner" Type="String">john.doe@contoso.com</Property><Property Name="StorageMaximumLevel" Type="Int64">300</Property><Property Name="StorageWarningLevel" Type="Int64">275</Property><Property Name="Template" Type="String">PUBLISHING#0</Property><Property Name="TimeZoneId" Type="Int32">4</Property><Property Name="Title" Type="String">team</Property><Property Name="Url" Type="String">https://contoso.sharepoint.com/sites/team</Property><Property Name="UserCodeMaximumLevel" Type="Double">100</Property><Property Name="UserCodeWarningLevel" Type="Double">90</Property></Parameter></Parameters></Method></ObjectPaths></Request>`) {
+            return JSON.stringify([
+              {
+                "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.7324.1200", "ErrorInfo": null, "TraceCorrelationId": "d53a489e-c0c0-5000-58fc-d03b433dca89"
+              }, 4, {
+                "IsNull": false
+              }, 6, {
+                "IsNull": false
+              }, 7, {
+                "_ObjectType_": "Microsoft.Online.SharePoint.TenantAdministration.Tenant", "_ObjectIdentity_": "d53a489e-c0c0-5000-58fc-d03b433dca89|908bed80-a04a-4433-b4a0-883d9847d110:67753f63-bc14-4012-869e-f808a43fe023\nTenant", "AllowDownloadingNonWebViewableFiles": true, "AllowedDomainListForSyncClient": [
 
-              ], "AllowEditing": true, "AllowLimitedAccessOnUnmanagedDevices": false, "BccExternalSharingInvitations": false, "BccExternalSharingInvitationsList": null, "BlockAccessOnUnmanagedDevices": false, "BlockDownloadOfAllFilesForGuests": false, "BlockDownloadOfAllFilesOnUnmanagedDevices": false, "BlockDownloadOfViewableFilesForGuests": false, "BlockDownloadOfViewableFilesOnUnmanagedDevices": false, "BlockMacSync": false, "CommentsOnSitePagesDisabled": false, "CompatibilityRange": "15,15", "ConditionalAccessPolicy": 0, "DefaultLinkPermission": 0, "DefaultSharingLinkType": 3, "DisableReportProblemDialog": false, "DisallowInfectedFileDownload": false, "DisplayNamesOfFileViewers": true, "DisplayStartASiteOption": true, "EmailAttestationReAuthDays": 30, "EmailAttestationRequired": false, "EnableGuestSignInAcceleration": false, "ExcludedFileExtensionsForSyncClient": [
-                ""
-              ], "ExternalServicesEnabled": true, "FileAnonymousLinkType": 2, "FilePickerExternalImageSearchEnabled": true, "FolderAnonymousLinkType": 2, "HideSyncButtonOnODB": false, "IPAddressAllowList": "", "IPAddressEnforcement": false, "IPAddressWACTokenLifetime": 15, "IsUnmanagedSyncClientForTenantRestricted": false, "IsUnmanagedSyncClientRestrictionFlightEnabled": true, "LegacyAuthProtocolsEnabled": true, "NoAccessRedirectUrl": null, "NotificationsInOneDriveForBusinessEnabled": true, "NotificationsInSharePointEnabled": true, "NotifyOwnersWhenInvitationsAccepted": true, "NotifyOwnersWhenItemsReshared": true, "ODBAccessRequests": 0, "ODBMembersCanShare": 0, "OfficeClientADALDisabled": false, "OneDriveForGuestsEnabled": false, "OneDriveStorageQuota": 1048576, "OptOutOfGrooveBlock": false, "OptOutOfGrooveSoftBlock": false, "OrphanedPersonalSitesRetentionPeriod": 30, "OwnerAnonymousNotification": true, "PermissiveBrowserFileHandlingOverride": false, "PreventExternalUsersFromResharing": false, "ProvisionSharedWithEveryoneFolder": false, "PublicCdnAllowedFileTypes": "CSS,EOT,GIF,ICO,JPEG,JPG,JS,MAP,PNG,SVG,TTF,WOFF", "PublicCdnEnabled": false, "PublicCdnOrigins": [
+                ], "AllowEditing": true, "AllowLimitedAccessOnUnmanagedDevices": false, "BccExternalSharingInvitations": false, "BccExternalSharingInvitationsList": null, "BlockAccessOnUnmanagedDevices": false, "BlockDownloadOfAllFilesForGuests": false, "BlockDownloadOfAllFilesOnUnmanagedDevices": false, "BlockDownloadOfViewableFilesForGuests": false, "BlockDownloadOfViewableFilesOnUnmanagedDevices": false, "BlockMacSync": false, "CommentsOnSitePagesDisabled": false, "CompatibilityRange": "15,15", "ConditionalAccessPolicy": 0, "DefaultLinkPermission": 0, "DefaultSharingLinkType": 3, "DisableReportProblemDialog": false, "DisallowInfectedFileDownload": false, "DisplayNamesOfFileViewers": true, "DisplayStartASiteOption": true, "EmailAttestationReAuthDays": 30, "EmailAttestationRequired": false, "EnableGuestSignInAcceleration": false, "ExcludedFileExtensionsForSyncClient": [
+                  ""
+                ], "ExternalServicesEnabled": true, "FileAnonymousLinkType": 2, "FilePickerExternalImageSearchEnabled": true, "FolderAnonymousLinkType": 2, "HideSyncButtonOnODB": false, "IPAddressAllowList": "", "IPAddressEnforcement": false, "IPAddressWACTokenLifetime": 15, "IsUnmanagedSyncClientForTenantRestricted": false, "IsUnmanagedSyncClientRestrictionFlightEnabled": true, "LegacyAuthProtocolsEnabled": true, "NoAccessRedirectUrl": null, "NotificationsInOneDriveForBusinessEnabled": true, "NotificationsInSharePointEnabled": true, "NotifyOwnersWhenInvitationsAccepted": true, "NotifyOwnersWhenItemsReshared": true, "ODBAccessRequests": 0, "ODBMembersCanShare": 0, "OfficeClientADALDisabled": false, "OneDriveForGuestsEnabled": false, "OneDriveStorageQuota": 1048576, "OptOutOfGrooveBlock": false, "OptOutOfGrooveSoftBlock": false, "OrphanedPersonalSitesRetentionPeriod": 30, "OwnerAnonymousNotification": true, "PermissiveBrowserFileHandlingOverride": false, "PreventExternalUsersFromResharing": false, "ProvisionSharedWithEveryoneFolder": false, "PublicCdnAllowedFileTypes": "CSS,EOT,GIF,ICO,JPEG,JPG,JS,MAP,PNG,SVG,TTF,WOFF", "PublicCdnEnabled": false, "PublicCdnOrigins": [
 
-              ], "RequireAcceptingAccountMatchInvitedAccount": false, "RequireAnonymousLinksExpireInDays": 0, "ResourceQuota": 5300, "ResourceQuotaAllocated": 1200, "RootSiteUrl": "https:\u002f\u002fcontoso.sharepoint.com", "SearchResolveExactEmailOrUPN": false, "SharingAllowedDomainList": null, "SharingBlockedDomainList": null, "SharingCapability": 2, "SharingDomainRestrictionMode": 0, "ShowAllUsersClaim": true, "ShowEveryoneClaim": true, "ShowEveryoneExceptExternalUsersClaim": true, "ShowNGSCDialogForSyncOnODB": true, "ShowPeoplePickerSuggestionsForGuestUsers": false, "SignInAccelerationDomain": "", "SpecialCharactersStateInFileFolderNames": 1, "StartASiteFormUrl": null, "StorageQuota": 1061376, "StorageQuotaAllocated": 10669260800, "UseFindPeopleInPeoplePicker": false, "UsePersistentCookiesForExplorerView": false, "UserVoiceForFeedbackEnabled": true
-            }, 8, {
-              "_ObjectType_": "Microsoft.Online.SharePoint.TenantAdministration.SpoOperation", "_ObjectIdentity_": "d53a489e-c0c0-5000-58fc-d03b433dca89|908bed80-a04a-4433-b4a0-883d9847d110:67753f63-bc14-4012-869e-f808a43fe023\nSpoOperation\nCreateSite\n636536245073557362\nhttps%3a%2f%2fcontoso.sharepoint.com%2fsites%2fteam\n00000000-0000-0000-0000-000000000000", "IsComplete": false, "PollingInterval": 15000
-            }
-          ]);
+                ], "RequireAcceptingAccountMatchInvitedAccount": false, "RequireAnonymousLinksExpireInDays": 0, "ResourceQuota": 5300, "ResourceQuotaAllocated": 1200, "RootSiteUrl": "https:\u002f\u002fcontoso.sharepoint.com", "SearchResolveExactEmailOrUPN": false, "SharingAllowedDomainList": null, "SharingBlockedDomainList": null, "SharingCapability": 2, "SharingDomainRestrictionMode": 0, "ShowAllUsersClaim": true, "ShowEveryoneClaim": true, "ShowEveryoneExceptExternalUsersClaim": true, "ShowNGSCDialogForSyncOnODB": true, "ShowPeoplePickerSuggestionsForGuestUsers": false, "SignInAccelerationDomain": "", "SpecialCharactersStateInFileFolderNames": 1, "StartASiteFormUrl": null, "StorageQuota": 1061376, "StorageQuotaAllocated": 10669260800, "UseFindPeopleInPeoplePicker": false, "UsePersistentCookiesForExplorerView": false, "UserVoiceForFeedbackEnabled": true
+              }, 8, {
+                "_ObjectType_": "Microsoft.Online.SharePoint.TenantAdministration.SpoOperation", "_ObjectIdentity_": "d53a489e-c0c0-5000-58fc-d03b433dca89|908bed80-a04a-4433-b4a0-883d9847d110:67753f63-bc14-4012-869e-f808a43fe023\nSpoOperation\nCreateSite\n636536245073557362\nhttps%3a%2f%2fcontoso.sharepoint.com%2fsites%2fteam\n00000000-0000-0000-0000-000000000000", "IsComplete": false, "PollingInterval": 15000
+              }
+            ]);
+          }
+          if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><Query Id="188" ObjectPathId="184"><Query SelectAllProperties="false"><Properties><Property Name="IsComplete" ScalarProperty="true" /><Property Name="PollingInterval" ScalarProperty="true" /></Properties></Query></Query></Actions><ObjectPaths><Identity Id="184" Name="d53a489e-c0c0-5000-58fc-d03b433dca89|908bed80-a04a-4433-b4a0-883d9847d110:67753f63-bc14-4012-869e-f808a43fe023&#xA;SpoOperation&#xA;CreateSite&#xA;636536245073557362&#xA;https%3a%2f%2fcontoso.sharepoint.com%2fsites%2fteam&#xA;00000000-0000-0000-0000-000000000000" /></ObjectPaths></Request>`) {
+            return JSON.stringify([
+              {
+                "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.7324.1200", "ErrorInfo": null, "TraceCorrelationId": "803b489e-9066-5000-58fc-dc40eb096913"
+              }, 39, {
+                "_ObjectType_": "Microsoft.Online.SharePoint.TenantAdministration.SpoOperation", "_ObjectIdentity_": "803b489e-9066-5000-58fc-dc40eb096913|908bed80-a04a-4433-b4a0-883d9847d110:67753f63-bc14-4012-869e-f808a43fe023\nSpoOperation\nCreateSite\n636536251347192220\nhttps%3a%2f%2fcontoso.sharepoint.com%2fsites%2fteam\n00000000-0000-0000-0000-000000000000", "IsComplete": true, "PollingInterval": 5000
+              }
+            ]);
+          }
         }
-        if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><Query Id="188" ObjectPathId="184"><Query SelectAllProperties="false"><Properties><Property Name="IsComplete" ScalarProperty="true" /><Property Name="PollingInterval" ScalarProperty="true" /></Properties></Query></Query></Actions><ObjectPaths><Identity Id="184" Name="d53a489e-c0c0-5000-58fc-d03b433dca89|908bed80-a04a-4433-b4a0-883d9847d110:67753f63-bc14-4012-869e-f808a43fe023&#xA;SpoOperation&#xA;CreateSite&#xA;636536245073557362&#xA;https%3a%2f%2fcontoso.sharepoint.com%2fsites%2fteam&#xA;00000000-0000-0000-0000-000000000000" /></ObjectPaths></Request>`) {
-          return JSON.stringify([
-            {
-              "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.7324.1200", "ErrorInfo": null, "TraceCorrelationId": "803b489e-9066-5000-58fc-dc40eb096913"
-            }, 39, {
-              "_ObjectType_": "Microsoft.Online.SharePoint.TenantAdministration.SpoOperation", "_ObjectIdentity_": "803b489e-9066-5000-58fc-dc40eb096913|908bed80-a04a-4433-b4a0-883d9847d110:67753f63-bc14-4012-869e-f808a43fe023\nSpoOperation\nCreateSite\n636536251347192220\nhttps%3a%2f%2fcontoso.sharepoint.com%2fsites%2fteam\n00000000-0000-0000-0000-000000000000", "IsComplete": true, "PollingInterval": 5000
-            }
-          ]);
-        }
-      }
 
-      throw 'invalid request';
-    });
+        throw 'invalid request';
+      });
 
-    sinon.stub(global, 'setTimeout').callsFake((fn) => {
-      fn();
-      return {} as any;
-    });
+      jest.spyOn(global, 'setTimeout').mockClear().mockImplementation((fn) => {
+        fn();
+        return {} as any;
+      });
 
-    await spo.addSite('team', logger, true, true, 'ClassicSite', undefined, undefined, 'john.doe@contoso.com', undefined, true, undefined, undefined, 1033, 'https://contoso.sharepoint.com/sites/team', undefined, undefined, 4, 'PUBLISHING#0', 100, 90, 300, 275);
-    assert(postStub.called);
-  });
+      await spo.addSite('team', logger, true, true, 'ClassicSite', undefined, undefined, 'john.doe@contoso.com', undefined, true, undefined, undefined, 1033, 'https://contoso.sharepoint.com/sites/team', undefined, undefined, 4, 'PUBLISHING#0', 100, 90, 300, 275);
+      assert(postStub.called);
+    }
+  );
 
   it('handles exception when creating a classic site', async () => {
-    sinon.stub(spo, 'getSpoAdminUrl').resolves('https://contoso-admin.sharepoint.com');
-    sinon.stub(spo, 'ensureFormDigest').resolves({ FormDigestValue: 'abc', FormDigestTimeoutSeconds: 1800, FormDigestExpiresAt: new Date(), WebFullUrl: 'https://contoso.sharepoint.com' });
+    jest.spyOn(spo, 'getSpoAdminUrl').mockClear().mockImplementation().resolves('https://contoso-admin.sharepoint.com');
+    jest.spyOn(spo, 'ensureFormDigest').mockClear().mockImplementation().resolves({ FormDigestValue: 'abc', FormDigestTimeoutSeconds: 1800, FormDigestExpiresAt: new Date(), WebFullUrl: 'https://contoso.sharepoint.com' });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery`) {
         if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="4" ObjectPathId="3" /><ObjectPath Id="6" ObjectPathId="5" /><Query Id="7" ObjectPathId="3"><Query SelectAllProperties="true"><Properties /></Query></Query><Query Id="8" ObjectPathId="5"><Query SelectAllProperties="false"><Properties><Property Name="IsComplete" ScalarProperty="true" /><Property Name="PollingInterval" ScalarProperty="true" /></Properties></Query></Query></Actions><ObjectPaths><Constructor Id="3" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /><Method Id="5" ParentId="3" Name="CreateSite"><Parameters><Parameter TypeId="{11f84fff-b8cf-47b6-8b50-34e692656606}"><Property Name="CompatibilityLevel" Type="Int32">0</Property><Property Name="Lcid" Type="UInt32">1033</Property><Property Name="Owner" Type="String">john.doe@contoso.com</Property><Property Name="StorageMaximumLevel" Type="Int64">100</Property><Property Name="StorageWarningLevel" Type="Int64">100</Property><Property Name="Template" Type="String">STS#0</Property><Property Name="TimeZoneId" Type="Int32">undefined</Property><Property Name="Title" Type="String">team</Property><Property Name="Url" Type="String">https://contoso.sharepoint.com/sites/team</Property><Property Name="UserCodeMaximumLevel" Type="Double">0</Property><Property Name="UserCodeWarningLevel" Type="Double">0</Property></Parameter></Parameters></Method></ObjectPaths></Request>`) {
           return JSON.stringify([
@@ -1502,9 +1547,9 @@ describe('utils/spo', () => {
   });
 
   it('successfully creates a team site', async () => {
-    sinon.stub(spo, 'getSpoUrl').resolves('https://contoso.sharepoint.com');
+    jest.spyOn(spo, 'getSpoUrl').mockClear().mockImplementation().resolves('https://contoso.sharepoint.com');
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/_api/GroupSiteManager/CreateGroupEx`) {
         return { SiteUrl: 'https://contoso.sharepoint.com/sites/team', ErrorMessage: null };
       }
@@ -1517,9 +1562,9 @@ describe('utils/spo', () => {
   });
 
   it('handles exception when creating a team site', async () => {
-    sinon.stub(spo, 'getSpoUrl').resolves('https://contoso.sharepoint.com');
+    jest.spyOn(spo, 'getSpoUrl').mockClear().mockImplementation().resolves('https://contoso.sharepoint.com');
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/_api/GroupSiteManager/CreateGroupEx`) {
         return { ErrorMessage: 'The teamsite already exists.' };
       }
@@ -1537,9 +1582,9 @@ describe('utils/spo', () => {
   });
 
   it('successfully creates a communication site', async () => {
-    sinon.stub(spo, 'getSpoUrl').resolves('https://contoso.sharepoint.com');
+    jest.spyOn(spo, 'getSpoUrl').mockClear().mockImplementation().resolves('https://contoso.sharepoint.com');
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/_api/SPSiteManager/Create`) {
         return { SiteStatus: 2, SiteUrl: 'https://contoso.sharepoint.com/sites/team' };
       }
@@ -1552,9 +1597,9 @@ describe('utils/spo', () => {
   });
 
   it('handles exception when creating a communication site', async () => {
-    sinon.stub(spo, 'getSpoUrl').resolves('https://contoso.sharepoint.com');
+    jest.spyOn(spo, 'getSpoUrl').mockClear().mockImplementation().resolves('https://contoso.sharepoint.com');
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/_api/SPSiteManager/Create`) {
         return { SiteStatus: 0 };
       }
@@ -1571,55 +1616,61 @@ describe('utils/spo', () => {
     }
   });
 
-  it('successfully creates a communication site with site design Topic', async () => {
-    sinon.stub(spo, 'getSpoUrl').resolves('https://contoso.sharepoint.com');
+  it('successfully creates a communication site with site design Topic',
+    async () => {
+      jest.spyOn(spo, 'getSpoUrl').mockClear().mockImplementation().resolves('https://contoso.sharepoint.com');
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/_api/SPSiteManager/Create`) {
-        return { SiteStatus: 2, SiteUrl: 'https://contoso.sharepoint.com/sites/team' };
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/_api/SPSiteManager/Create`) {
+          return { SiteStatus: 2, SiteUrl: 'https://contoso.sharepoint.com/sites/team' };
+        }
 
-      throw 'invalid request';
-    });
+        throw 'invalid request';
+      });
 
-    const actual = await spo.addSite('team', logger, true, false, 'CommunicationSite', undefined, 'team description', 'john.doe@contoso.com', true, undefined, 'LBI', undefined, 1033, 'https://contoso.sharepoint.com/sites/team', 'Topic');
-    assert.deepStrictEqual(actual, 'https://contoso.sharepoint.com/sites/team');
-  });
+      const actual = await spo.addSite('team', logger, true, false, 'CommunicationSite', undefined, 'team description', 'john.doe@contoso.com', true, undefined, 'LBI', undefined, 1033, 'https://contoso.sharepoint.com/sites/team', 'Topic');
+      assert.deepStrictEqual(actual, 'https://contoso.sharepoint.com/sites/team');
+    }
+  );
 
-  it('successfully creates a communication site with site design Showcase', async () => {
-    sinon.stub(spo, 'getSpoUrl').resolves('https://contoso.sharepoint.com');
+  it('successfully creates a communication site with site design Showcase',
+    async () => {
+      jest.spyOn(spo, 'getSpoUrl').mockClear().mockImplementation().resolves('https://contoso.sharepoint.com');
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/_api/SPSiteManager/Create`) {
-        return { SiteStatus: 2, SiteUrl: 'https://contoso.sharepoint.com/sites/team' };
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/_api/SPSiteManager/Create`) {
+          return { SiteStatus: 2, SiteUrl: 'https://contoso.sharepoint.com/sites/team' };
+        }
 
-      throw 'invalid request';
-    });
+        throw 'invalid request';
+      });
 
-    const actual = await spo.addSite('team', logger, true, false, 'CommunicationSite', undefined, 'team description', 'john.doe@contoso.com', true, undefined, 'LBI', undefined, 1033, 'https://contoso.sharepoint.com/sites/team', 'Showcase');
-    assert.deepStrictEqual(actual, 'https://contoso.sharepoint.com/sites/team');
-  });
+      const actual = await spo.addSite('team', logger, true, false, 'CommunicationSite', undefined, 'team description', 'john.doe@contoso.com', true, undefined, 'LBI', undefined, 1033, 'https://contoso.sharepoint.com/sites/team', 'Showcase');
+      assert.deepStrictEqual(actual, 'https://contoso.sharepoint.com/sites/team');
+    }
+  );
 
-  it('successfully creates a communication site with site design Blank', async () => {
-    sinon.stub(spo, 'getSpoUrl').resolves('https://contoso.sharepoint.com');
+  it('successfully creates a communication site with site design Blank',
+    async () => {
+      jest.spyOn(spo, 'getSpoUrl').mockClear().mockImplementation().resolves('https://contoso.sharepoint.com');
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/_api/SPSiteManager/Create`) {
-        return { SiteStatus: 2, SiteUrl: 'https://contoso.sharepoint.com/sites/team' };
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/_api/SPSiteManager/Create`) {
+          return { SiteStatus: 2, SiteUrl: 'https://contoso.sharepoint.com/sites/team' };
+        }
 
-      throw 'invalid request';
-    });
+        throw 'invalid request';
+      });
 
-    const actual = await spo.addSite('team', logger, true, false, 'CommunicationSite', undefined, undefined, 'john.doe@contoso.com', true, undefined, undefined, undefined, 1033, 'https://contoso.sharepoint.com/sites/team', 'Blank');
-    assert.deepStrictEqual(actual, 'https://contoso.sharepoint.com/sites/team');
-  });
+      const actual = await spo.addSite('team', logger, true, false, 'CommunicationSite', undefined, undefined, 'john.doe@contoso.com', true, undefined, undefined, undefined, 1033, 'https://contoso.sharepoint.com/sites/team', 'Blank');
+      assert.deepStrictEqual(actual, 'https://contoso.sharepoint.com/sites/team');
+    }
+  );
 
   it('applies a site design successfully', async () => {
-    sinon.stub(spo, 'getSpoUrl').resolves('https://contoso.sharepoint.com');
+    jest.spyOn(spo, 'getSpoUrl').mockClear().mockImplementation().resolves('https://contoso.sharepoint.com');
 
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.ApplySiteDesign`) {
         return { "ID": "4bfe70f8-f806-479c-9bf3-ffb2167b9ff5", "LogonName": "i:0#.f|membership|admin@contoso.onmicrosoft.com", "SiteDesignID": "6ec3ca5b-d04b-4381-b169-61378556d76e", "SiteID": "24cea241-ad89-44b8-8669-d60d88d38575", "WebID": "e87e4ab8-2732-4a90-836d-9b3d0cd3a5cf" };
       }
@@ -1639,7 +1690,7 @@ describe('utils/spo', () => {
       WebFullUrl: 'https://contoso.sharepoint.com'
     };
 
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/_vti_bin/client.svc/ProcessQuery`) {
         if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="48" ObjectPathId="47" /></Actions><ObjectPaths><Method Id="47" ParentId="34" Name="SetSiteAdmin"><Parameters><Parameter Type="String">https://contoso.sharepoint.com/sites/team</Parameter><Parameter Type="String">john.doe@contoso.com</Parameter><Parameter Type="Boolean">true</Parameter></Parameters></Method><Constructor Id="34" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /></ObjectPaths></Request>`) {
           return JSON.stringify([
@@ -1667,7 +1718,7 @@ describe('utils/spo', () => {
       WebFullUrl: 'https://contoso.sharepoint.com'
     };
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/_vti_bin/client.svc/ProcessQuery`) {
         if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="48" ObjectPathId="47" /></Actions><ObjectPaths><Method Id="47" ParentId="34" Name="SetSiteAdmin"><Parameters><Parameter Type="String">https://contoso.sharepoint.com/sites/team</Parameter><Parameter Type="String">john.doe@contoso.com</Parameter><Parameter Type="Boolean">true</Parameter></Parameters></Method><Constructor Id="34" TypeId="{268004ae-ef6b-4e9b-8425-127220d84719}" /></ObjectPaths></Request>`) {
           return JSON.stringify([
@@ -1693,7 +1744,7 @@ describe('utils/spo', () => {
   });
 
   it('sets groupified site admins successfully', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=userPrincipalName eq 'john.doe@contoso.com' or userPrincipalName eq 'sansa.stark@contoso.com'&$select=id`) {
         return {
           value: [
@@ -1706,7 +1757,7 @@ describe('utils/spo', () => {
       throw 'invalid request';
     });
 
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso-admin.sharepoint.com/_api/SP.Directory.DirectorySession/Group('e10a459e-60c8-4000-8240-a68d6a12d39e')/Owners/Add(objectId='b17ff355-cc97-4b90-9b46-e33d0d70d728', principalName='')`) {
         return;
       }
@@ -1723,7 +1774,7 @@ describe('utils/spo', () => {
   });
 
   it('handles when site owners not found', async () => {
-    const getStub = sinon.stub(request, 'get').callsFake(async (opts) => {
+    const getStub = jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=userPrincipalName eq 'john.doe@contoso.com' or userPrincipalName eq 'sansa.stark@contoso.com'&$select=id`) {
         return {
           value: []
@@ -1738,19 +1789,19 @@ describe('utils/spo', () => {
   });
 
   it('sets a group connected site successfully', async () => {
-    sinon.stub(spo, 'getTenantId').resolves('a61d499e-50aa-5000-8242-7169ab88ce08|908bed80-a04a-4433-b4a0-883d9847d110:67753f63-bc14-4012-869e-f808a43fe023&#xA;Tenant');
-    sinon.stub(spo, 'getSpoAdminUrl').resolves('https://contoso-admin.sharepoint.com');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+    jest.spyOn(spo, 'getTenantId').mockClear().mockImplementation().resolves('a61d499e-50aa-5000-8242-7169ab88ce08|908bed80-a04a-4433-b4a0-883d9847d110:67753f63-bc14-4012-869e-f808a43fe023&#xA;Tenant');
+    jest.spyOn(spo, 'getSpoAdminUrl').mockClear().mockImplementation().resolves('https://contoso-admin.sharepoint.com');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'value',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
       WebFullUrl: 'https://contoso.sharepoint.com'
     });
-    sinon.stub(aadGroup, 'setGroup').resolves();
-    sinon.stub(spo, 'setGroupifiedSiteOwners').resolves();
-    sinon.stub(spo, 'applySiteDesign').resolves();
+    jest.spyOn(aadGroup, 'setGroup').mockClear().mockImplementation().resolves();
+    jest.spyOn(spo, 'setGroupifiedSiteOwners').mockClear().mockImplementation().resolves();
+    jest.spyOn(spo, 'applySiteDesign').mockClear().mockImplementation().resolves();
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/_api/site?$select=GroupId,Id`) {
         return {
           Id: '255a50b2-527f-4413-8485-57f4c17a24d1',
@@ -1762,7 +1813,7 @@ describe('utils/spo', () => {
     });
 
 
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso-admin.sharepoint.com/_api/SPOGroup/UpdateGroupPropertiesBySiteId`) {
         return;
       }
@@ -1796,7 +1847,7 @@ describe('utils/spo', () => {
       throw 'invalid request';
     });
 
-    sinon.stub(global, 'setTimeout').callsFake((fn) => {
+    jest.spyOn(global, 'setTimeout').mockClear().mockImplementation((fn) => {
       fn();
       return {} as any;
     });
@@ -1805,60 +1856,62 @@ describe('utils/spo', () => {
     assert(postStub.called);
   });
 
-  it('sets a group connected site successfully with minmal options', async () => {
-    sinon.stub(spo, 'getTenantId').resolves('a61d499e-50aa-5000-8242-7169ab88ce08|908bed80-a04a-4433-b4a0-883d9847d110:67753f63-bc14-4012-869e-f808a43fe023&#xA;Tenant');
-    sinon.stub(spo, 'getSpoAdminUrl').resolves('https://contoso-admin.sharepoint.com');
-    sinon.stub(spo, 'getRequestDigest').resolves({
-      FormDigestValue: 'value',
-      FormDigestTimeoutSeconds: 1800,
-      FormDigestExpiresAt: new Date(),
-      WebFullUrl: 'https://contoso.sharepoint.com'
-    });
+  it('sets a group connected site successfully with minmal options',
+    async () => {
+      jest.spyOn(spo, 'getTenantId').mockClear().mockImplementation().resolves('a61d499e-50aa-5000-8242-7169ab88ce08|908bed80-a04a-4433-b4a0-883d9847d110:67753f63-bc14-4012-869e-f808a43fe023&#xA;Tenant');
+      jest.spyOn(spo, 'getSpoAdminUrl').mockClear().mockImplementation().resolves('https://contoso-admin.sharepoint.com');
+      jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
+        FormDigestValue: 'value',
+        FormDigestTimeoutSeconds: 1800,
+        FormDigestExpiresAt: new Date(),
+        WebFullUrl: 'https://contoso.sharepoint.com'
+      });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/_api/site?$select=GroupId,Id`) {
-        return {
-          Id: '255a50b2-527f-4413-8485-57f4c17a24d1',
-          GroupId: 'e10a459e-60c8-4000-8240-a68d6a12d39e'
-        };
-      }
-
-      throw 'invalid request';
-    });
-
-
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === 'https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery') {
-        if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><SetProperty Id="27" ObjectPathId="5" Name="SharingCapability"><Parameter Type="Enum">0</Parameter></SetProperty><ObjectPath Id="14" ObjectPathId="13" /><ObjectIdentityQuery Id="15" ObjectPathId="5" /><Query Id="16" ObjectPathId="13"><Query SelectAllProperties="false"><Properties><Property Name="IsComplete" ScalarProperty="true" /><Property Name="PollingInterval" ScalarProperty="true" /></Properties></Query></Query></Actions><ObjectPaths><Identity Id="5" Name="53d8499e-d0d2-5000-cb83-9ade5be42ca4|908bed80-a04a-4433-b4a0-883d9847d110:67753f63-bc14-4012-869e-f808a43fe023&#xA;SiteProperties&#xA;https%3A%2F%2Fcontoso.sharepoint.com" /><Method Id="13" ParentId="5" Name="Update" /></ObjectPaths></Request>`) {
-          return JSON.stringify([
-            {
-              "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.7324.1200", "ErrorInfo": null, "TraceCorrelationId": "803b489e-9066-5000-58fc-dc40eb096913"
-            }, 39, {
-              "_ObjectType_": "Microsoft.Online.SharePoint.TenantAdministration.SpoOperation", "_ObjectIdentity_": "803b489e-9066-5000-58fc-dc40eb096913|908bed80-a04a-4433-b4a0-883d9847d110:67753f63-bc14-4012-869e-f808a43fe023\nSpoOperation\nSetSite\n636540580851601240\nhttps%3a%2f%2fcontoso.sharepoint.com%2fsites%2fteam\n00000000-0000-0000-0000-000000000000", "IsComplete": true, "PollingInterval": 5000
-            }
-          ]);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/_api/site?$select=GroupId,Id`) {
+          return {
+            Id: '255a50b2-527f-4413-8485-57f4c17a24d1',
+            GroupId: 'e10a459e-60c8-4000-8240-a68d6a12d39e'
+          };
         }
-      }
 
-      throw 'invalid request';
-    });
+        throw 'invalid request';
+      });
 
-    await spo.updateSite('https://contoso.sharepoint.com', logger, true, 'team', undefined, undefined, undefined, undefined, undefined, undefined, 'Disabled');
-    assert(postStub.called);
-  });
+
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery') {
+          if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><SetProperty Id="27" ObjectPathId="5" Name="SharingCapability"><Parameter Type="Enum">0</Parameter></SetProperty><ObjectPath Id="14" ObjectPathId="13" /><ObjectIdentityQuery Id="15" ObjectPathId="5" /><Query Id="16" ObjectPathId="13"><Query SelectAllProperties="false"><Properties><Property Name="IsComplete" ScalarProperty="true" /><Property Name="PollingInterval" ScalarProperty="true" /></Properties></Query></Query></Actions><ObjectPaths><Identity Id="5" Name="53d8499e-d0d2-5000-cb83-9ade5be42ca4|908bed80-a04a-4433-b4a0-883d9847d110:67753f63-bc14-4012-869e-f808a43fe023&#xA;SiteProperties&#xA;https%3A%2F%2Fcontoso.sharepoint.com" /><Method Id="13" ParentId="5" Name="Update" /></ObjectPaths></Request>`) {
+            return JSON.stringify([
+              {
+                "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.7324.1200", "ErrorInfo": null, "TraceCorrelationId": "803b489e-9066-5000-58fc-dc40eb096913"
+              }, 39, {
+                "_ObjectType_": "Microsoft.Online.SharePoint.TenantAdministration.SpoOperation", "_ObjectIdentity_": "803b489e-9066-5000-58fc-dc40eb096913|908bed80-a04a-4433-b4a0-883d9847d110:67753f63-bc14-4012-869e-f808a43fe023\nSpoOperation\nSetSite\n636540580851601240\nhttps%3a%2f%2fcontoso.sharepoint.com%2fsites%2fteam\n00000000-0000-0000-0000-000000000000", "IsComplete": true, "PollingInterval": 5000
+              }
+            ]);
+          }
+        }
+
+        throw 'invalid request';
+      });
+
+      await spo.updateSite('https://contoso.sharepoint.com', logger, true, 'team', undefined, undefined, undefined, undefined, undefined, undefined, 'Disabled');
+      assert(postStub.called);
+    }
+  );
 
   it('sets a non group connected site successfully', async () => {
-    sinon.stub(spo, 'getTenantId').resolves('a61d499e-50aa-5000-8242-7169ab88ce08|908bed80-a04a-4433-b4a0-883d9847d110:67753f63-bc14-4012-869e-f808a43fe023&#xA;Tenant');
-    sinon.stub(spo, 'getSpoAdminUrl').resolves('https://contoso-admin.sharepoint.com');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+    jest.spyOn(spo, 'getTenantId').mockClear().mockImplementation().resolves('a61d499e-50aa-5000-8242-7169ab88ce08|908bed80-a04a-4433-b4a0-883d9847d110:67753f63-bc14-4012-869e-f808a43fe023&#xA;Tenant');
+    jest.spyOn(spo, 'getSpoAdminUrl').mockClear().mockImplementation().resolves('https://contoso-admin.sharepoint.com');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'value',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
       WebFullUrl: 'https://contoso.sharepoint.com'
     });
-    sinon.stub(spo, 'setSiteAdmin').resolves();
+    jest.spyOn(spo, 'setSiteAdmin').mockClear().mockImplementation().resolves();
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/_api/site?$select=GroupId,Id`) {
         return {
           Id: '255a50b2-527f-4413-8485-57f4c17a24d1',
@@ -1870,7 +1923,7 @@ describe('utils/spo', () => {
     });
 
 
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery') {
         if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><SetProperty Id="27" ObjectPathId="5" Name="Title"><Parameter Type="String">team</Parameter></SetProperty><ObjectPath Id="14" ObjectPathId="13" /><ObjectIdentityQuery Id="15" ObjectPathId="5" /><Query Id="16" ObjectPathId="13"><Query SelectAllProperties="false"><Properties><Property Name="IsComplete" ScalarProperty="true" /><Property Name="PollingInterval" ScalarProperty="true" /></Properties></Query></Query></Actions><ObjectPaths><Identity Id="5" Name="53d8499e-d0d2-5000-cb83-9ade5be42ca4|908bed80-a04a-4433-b4a0-883d9847d110:67753f63-bc14-4012-869e-f808a43fe023&#xA;SiteProperties&#xA;https%3A%2F%2Fcontoso.sharepoint.com" /><Method Id="13" ParentId="5" Name="Update" /></ObjectPaths></Request>`) {
           return JSON.stringify([
@@ -1890,47 +1943,49 @@ describe('utils/spo', () => {
     assert(postStub.called);
   });
 
-  it('handles exception when using isPublic with a group connected site', async () => {
-    sinon.stub(spo, 'getTenantId').resolves('a61d499e-50aa-5000-8242-7169ab88ce08|908bed80-a04a-4433-b4a0-883d9847d110:67753f63-bc14-4012-869e-f808a43fe023&#xA;Tenant');
-    sinon.stub(spo, 'getSpoAdminUrl').resolves('https://contoso-admin.sharepoint.com');
-    sinon.stub(spo, 'getRequestDigest').resolves({
-      FormDigestValue: 'value',
-      FormDigestTimeoutSeconds: 1800,
-      FormDigestExpiresAt: new Date(),
-      WebFullUrl: 'https://contoso.sharepoint.com'
-    });
+  it('handles exception when using isPublic with a group connected site',
+    async () => {
+      jest.spyOn(spo, 'getTenantId').mockClear().mockImplementation().resolves('a61d499e-50aa-5000-8242-7169ab88ce08|908bed80-a04a-4433-b4a0-883d9847d110:67753f63-bc14-4012-869e-f808a43fe023&#xA;Tenant');
+      jest.spyOn(spo, 'getSpoAdminUrl').mockClear().mockImplementation().resolves('https://contoso-admin.sharepoint.com');
+      jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
+        FormDigestValue: 'value',
+        FormDigestTimeoutSeconds: 1800,
+        FormDigestExpiresAt: new Date(),
+        WebFullUrl: 'https://contoso.sharepoint.com'
+      });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/_api/site?$select=GroupId,Id`) {
-        return {
-          Id: '255a50b2-527f-4413-8485-57f4c17a24d1',
-          GroupId: '00000000-0000-0000-0000-000000000000'
-        };
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/_api/site?$select=GroupId,Id`) {
+          return {
+            Id: '255a50b2-527f-4413-8485-57f4c17a24d1',
+            GroupId: '00000000-0000-0000-0000-000000000000'
+          };
+        }
+
+        throw 'invalid request';
+      });
+
+      try {
+        await spo.updateSite('https://contoso.sharepoint.com', logger, true, 'team', undefined, undefined, true);
+        assert.fail('No error message thrown.');
       }
-
-      throw 'invalid request';
-    });
-
-    try {
-      await spo.updateSite('https://contoso.sharepoint.com', logger, true, 'team', undefined, undefined, true);
-      assert.fail('No error message thrown.');
+      catch (ex) {
+        assert.deepStrictEqual(ex, `The isPublic option can't be set on a site that is not groupified`);
+      }
     }
-    catch (ex) {
-      assert.deepStrictEqual(ex, `The isPublic option can't be set on a site that is not groupified`);
-    }
-  });
+  );
 
   it('handles exception when updating site', async () => {
-    sinon.stub(spo, 'getTenantId').resolves('a61d499e-50aa-5000-8242-7169ab88ce08|908bed80-a04a-4433-b4a0-883d9847d110:67753f63-bc14-4012-869e-f808a43fe023&#xA;Tenant');
-    sinon.stub(spo, 'getSpoAdminUrl').resolves('https://contoso-admin.sharepoint.com');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+    jest.spyOn(spo, 'getTenantId').mockClear().mockImplementation().resolves('a61d499e-50aa-5000-8242-7169ab88ce08|908bed80-a04a-4433-b4a0-883d9847d110:67753f63-bc14-4012-869e-f808a43fe023&#xA;Tenant');
+    jest.spyOn(spo, 'getSpoAdminUrl').mockClear().mockImplementation().resolves('https://contoso-admin.sharepoint.com');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'value',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
       WebFullUrl: 'https://contoso.sharepoint.com'
     });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/_api/site?$select=GroupId,Id`) {
         return {
           Id: '255a50b2-527f-4413-8485-57f4c17a24d1',
@@ -1942,7 +1997,7 @@ describe('utils/spo', () => {
     });
 
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://contoso-admin.sharepoint.com/_vti_bin/client.svc/ProcessQuery') {
         if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><SetProperty Id="27" ObjectPathId="5" Name="Title"><Parameter Type="String">team</Parameter></SetProperty><ObjectPath Id="14" ObjectPathId="13" /><ObjectIdentityQuery Id="15" ObjectPathId="5" /><Query Id="16" ObjectPathId="13"><Query SelectAllProperties="false"><Properties><Property Name="IsComplete" ScalarProperty="true" /><Property Name="PollingInterval" ScalarProperty="true" /></Properties></Query></Query></Actions><ObjectPaths><Identity Id="5" Name="53d8499e-d0d2-5000-cb83-9ade5be42ca4|908bed80-a04a-4433-b4a0-883d9847d110:67753f63-bc14-4012-869e-f808a43fe023&#xA;SiteProperties&#xA;https%3A%2F%2Fcontoso.sharepoint.com" /><Method Id="13" ParentId="5" Name="Update" /></ObjectPaths></Request>`) {
           return JSON.stringify([
@@ -2005,7 +2060,7 @@ describe('utils/spo', () => {
       }]
     };
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/_api/web`) {
         return webResponse;
       }

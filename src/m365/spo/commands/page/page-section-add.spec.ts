@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './page-section-add.js';
 
@@ -18,11 +17,11 @@ describe(commands.PAGE_SECTION_ADD, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -43,11 +42,11 @@ describe(commands.PAGE_SECTION_ADD, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([request.post, request.get]);
+    jestUtil.restore([request.post, request.get]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -61,7 +60,7 @@ describe(commands.PAGE_SECTION_ADD, () => {
 
   it('checks out page if not checked out by the current user', async () => {
     let checkedOut = false;
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$select=CanvasContent1,IsPageCheckedOutToCurrentUser`) > -1) {
         return {
           "IsPageCheckedOutToCurrentUser": false,
@@ -72,7 +71,7 @@ describe(commands.PAGE_SECTION_ADD, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/checkoutpage`) > -1) {
         checkedOut = true;
         return {};
@@ -96,44 +95,46 @@ describe(commands.PAGE_SECTION_ADD, () => {
     assert.deepEqual(checkedOut, true);
   });
 
-  it('doesn\'t check out page if not checked out by the current user', async () => {
-    let checkingOut = false;
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$select=CanvasContent1,IsPageCheckedOutToCurrentUser`) > -1) {
-        return {
-          "IsPageCheckedOutToCurrentUser": true,
-          "CanvasContent1": "[{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
-        };
-      }
+  it('doesn\'t check out page if not checked out by the current user',
+    async () => {
+      let checkingOut = false;
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$select=CanvasContent1,IsPageCheckedOutToCurrentUser`) > -1) {
+          return {
+            "IsPageCheckedOutToCurrentUser": true,
+            "CanvasContent1": "[{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/checkoutpage`) > -1) {
-        checkingOut = true;
-        return {};
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/checkoutpage`) > -1) {
+          checkingOut = true;
+          return {};
+        }
 
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/savepage`) > -1) {
-        return {};
-      }
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/savepage`) > -1) {
+          return {};
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        pageName: 'home.aspx',
-        webUrl: 'https://contoso.sharepoint.com/sites/newsletter',
-        sectionTemplate: 'OneColumn'
-      }
-    });
-    assert.deepEqual(checkingOut, false);
-  });
+      await command.action(logger, {
+        options: {
+          pageName: 'home.aspx',
+          webUrl: 'https://contoso.sharepoint.com/sites/newsletter',
+          sectionTemplate: 'OneColumn'
+        }
+      });
+      assert.deepEqual(checkingOut, false);
+    }
+  );
 
   it('adds a first section to an uncustomized page', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$select=CanvasContent1,IsPageCheckedOutToCurrentUser`) > -1) {
         return {
           "IsPageCheckedOutToCurrentUser": true,
@@ -145,7 +146,7 @@ describe(commands.PAGE_SECTION_ADD, () => {
     });
 
     let data: string = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/savepage`) > -1) {
         data = JSON.stringify(opts.data);
         return {};
@@ -165,75 +166,79 @@ describe(commands.PAGE_SECTION_ADD, () => {
     assert.strictEqual(data, JSON.stringify({ "CanvasContent1": "[{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"sectionFactor\":12,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]" }));
   });
 
-  it('adds a first section to an uncustomized page with order set to 1', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$select=CanvasContent1,IsPageCheckedOutToCurrentUser`) > -1) {
-        return {
-          "IsPageCheckedOutToCurrentUser": true,
-          "CanvasContent1": "[{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
-        };
-      }
+  it('adds a first section to an uncustomized page with order set to 1',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$select=CanvasContent1,IsPageCheckedOutToCurrentUser`) > -1) {
+          return {
+            "IsPageCheckedOutToCurrentUser": true,
+            "CanvasContent1": "[{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    let data: string = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/savepage`) > -1) {
-        data = JSON.stringify(opts.data);
-        return {};
-      }
+      let data: string = '';
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/savepage`) > -1) {
+          data = JSON.stringify(opts.data);
+          return {};
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options:
-      {
-        pageName: 'home.aspx',
-        webUrl: 'https://contoso.sharepoint.com/sites/newsletter',
-        sectionTemplate: 'OneColumn',
-        order: 1
-      }
-    });
-    assert.strictEqual(data, JSON.stringify({ "CanvasContent1": "[{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"sectionFactor\":12,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]" }));
-  });
+      await command.action(logger, {
+        options:
+        {
+          pageName: 'home.aspx',
+          webUrl: 'https://contoso.sharepoint.com/sites/newsletter',
+          sectionTemplate: 'OneColumn',
+          order: 1
+        }
+      });
+      assert.strictEqual(data, JSON.stringify({ "CanvasContent1": "[{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"sectionFactor\":12,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]" }));
+    }
+  );
 
-  it('adds a first section to an uncustomized page correctly even when CanvasContent1 of returned page is null', async () => {
-    sinon.stub(request, 'get').callsFake((opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$select=CanvasContent1,IsPageCheckedOutToCurrentUser`) > -1) {
-        return Promise.resolve({
-          "IsPageCheckedOutToCurrentUser": true,
-          "CanvasContent1": null
-        });
-      }
+  it('adds a first section to an uncustomized page correctly even when CanvasContent1 of returned page is null',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$select=CanvasContent1,IsPageCheckedOutToCurrentUser`) > -1) {
+          return Promise.resolve({
+            "IsPageCheckedOutToCurrentUser": true,
+            "CanvasContent1": null
+          });
+        }
 
-      return Promise.reject('Invalid request');
-    });
+        return Promise.reject('Invalid request');
+      });
 
-    let data: string = '';
-    sinon.stub(request, 'post').callsFake((opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/savepage`) > -1) {
-        data = JSON.stringify(opts.data);
-        return Promise.resolve({});
-      }
+      let data: string = '';
+      jest.spyOn(request, 'post').mockClear().mockImplementation((opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/savepage`) > -1) {
+          data = JSON.stringify(opts.data);
+          return Promise.resolve({});
+        }
 
-      return Promise.reject('Invalid request');
-    });
+        return Promise.reject('Invalid request');
+      });
 
-    await command.action(logger, {
-      options:
-      {
-        pageName: 'home.aspx',
-        webUrl: 'https://contoso.sharepoint.com/sites/newsletter',
-        sectionTemplate: 'OneColumn'
-      }
-    });
-    assert.strictEqual(data, JSON.stringify({ "CanvasContent1": "[{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"sectionFactor\":12,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]" }));
-  });
+      await command.action(logger, {
+        options:
+        {
+          pageName: 'home.aspx',
+          webUrl: 'https://contoso.sharepoint.com/sites/newsletter',
+          sectionTemplate: 'OneColumn'
+        }
+      });
+      assert.strictEqual(data, JSON.stringify({ "CanvasContent1": "[{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"sectionFactor\":12,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]" }));
+    }
+  );
 
   it('adds a first section to the page if no order specified', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$select=CanvasContent1,IsPageCheckedOutToCurrentUser`) > -1) {
         return {
           "IsPageCheckedOutToCurrentUser": true,
@@ -245,7 +250,7 @@ describe(commands.PAGE_SECTION_ADD, () => {
     });
 
     let data: string = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/savepage`) > -1) {
         data = JSON.stringify(opts.data);
         return {};
@@ -266,7 +271,7 @@ describe(commands.PAGE_SECTION_ADD, () => {
   });
 
   it('adds a first section to the page if order 1 specified', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$select=CanvasContent1,IsPageCheckedOutToCurrentUser`) > -1) {
         return {
           "IsPageCheckedOutToCurrentUser": true,
@@ -278,7 +283,7 @@ describe(commands.PAGE_SECTION_ADD, () => {
     });
 
     let data: string = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/savepage`) > -1) {
         data = JSON.stringify(opts.data);
         return {};
@@ -300,7 +305,7 @@ describe(commands.PAGE_SECTION_ADD, () => {
   });
 
   it('adds a section to the beginning of the page', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$select=CanvasContent1,IsPageCheckedOutToCurrentUser`) > -1) {
         return {
           "IsPageCheckedOutToCurrentUser": true,
@@ -312,7 +317,7 @@ describe(commands.PAGE_SECTION_ADD, () => {
     });
 
     let data: string = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/savepage`) > -1) {
         data = JSON.stringify(opts.data);
         return {};
@@ -333,109 +338,115 @@ describe(commands.PAGE_SECTION_ADD, () => {
     assert.strictEqual(data, JSON.stringify({ "CanvasContent1": "[{\"displayMode\":2,\"position\":{\"zoneIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":8,\"layoutIndex\":1},\"emphasis\":{}},{\"displayMode\":2,\"position\":{\"zoneIndex\":0.5,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"sectionFactor\":12,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]" }));
   });
 
-  it('adds a section to the end of the page when order not specified', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$select=CanvasContent1,IsPageCheckedOutToCurrentUser`) > -1) {
-        return {
-          "IsPageCheckedOutToCurrentUser": true,
-          "CanvasContent1": "[{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"sectionFactor\":12,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
-        };
-      }
+  it('adds a section to the end of the page when order not specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$select=CanvasContent1,IsPageCheckedOutToCurrentUser`) > -1) {
+          return {
+            "IsPageCheckedOutToCurrentUser": true,
+            "CanvasContent1": "[{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"sectionFactor\":12,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    let data: string = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/savepage`) > -1) {
-        data = JSON.stringify(opts.data);
-        return {};
-      }
+      let data: string = '';
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/savepage`) > -1) {
+          data = JSON.stringify(opts.data);
+          return {};
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options:
-      {
-        pageName: 'home.aspx',
-        webUrl: 'https://contoso.sharepoint.com/sites/newsletter',
-        sectionTemplate: 'TwoColumnRight'
-      }
-    });
-    assert.strictEqual(data, JSON.stringify({ "CanvasContent1": "[{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"sectionFactor\":12,\"layoutIndex\":1},\"emphasis\":{}},{\"displayMode\":2,\"position\":{\"zoneIndex\":2,\"sectionIndex\":1,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"displayMode\":2,\"position\":{\"zoneIndex\":2,\"sectionIndex\":2,\"sectionFactor\":8,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]" }));
-  });
+      await command.action(logger, {
+        options:
+        {
+          pageName: 'home.aspx',
+          webUrl: 'https://contoso.sharepoint.com/sites/newsletter',
+          sectionTemplate: 'TwoColumnRight'
+        }
+      });
+      assert.strictEqual(data, JSON.stringify({ "CanvasContent1": "[{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"sectionFactor\":12,\"layoutIndex\":1},\"emphasis\":{}},{\"displayMode\":2,\"position\":{\"zoneIndex\":2,\"sectionIndex\":1,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"displayMode\":2,\"position\":{\"zoneIndex\":2,\"sectionIndex\":2,\"sectionFactor\":8,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]" }));
+    }
+  );
 
-  it('adds a section to the end of the page when order set to last section', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$select=CanvasContent1,IsPageCheckedOutToCurrentUser`) > -1) {
-        return {
-          "IsPageCheckedOutToCurrentUser": true,
-          "CanvasContent1": "[{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"sectionFactor\":12,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
-        };
-      }
+  it('adds a section to the end of the page when order set to last section',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$select=CanvasContent1,IsPageCheckedOutToCurrentUser`) > -1) {
+          return {
+            "IsPageCheckedOutToCurrentUser": true,
+            "CanvasContent1": "[{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"sectionFactor\":12,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    let data: string = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/savepage`) > -1) {
-        data = JSON.stringify(opts.data);
-        return {};
-      }
+      let data: string = '';
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/savepage`) > -1) {
+          data = JSON.stringify(opts.data);
+          return {};
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options:
-      {
-        pageName: 'home.aspx',
-        webUrl: 'https://contoso.sharepoint.com/sites/newsletter',
-        sectionTemplate: 'TwoColumnRight',
-        order: 2
-      }
-    });
-    assert.strictEqual(data, JSON.stringify({ "CanvasContent1": "[{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"sectionFactor\":12,\"layoutIndex\":1},\"emphasis\":{}},{\"displayMode\":2,\"position\":{\"zoneIndex\":2,\"sectionIndex\":1,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"displayMode\":2,\"position\":{\"zoneIndex\":2,\"sectionIndex\":2,\"sectionFactor\":8,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]" }));
-  });
+      await command.action(logger, {
+        options:
+        {
+          pageName: 'home.aspx',
+          webUrl: 'https://contoso.sharepoint.com/sites/newsletter',
+          sectionTemplate: 'TwoColumnRight',
+          order: 2
+        }
+      });
+      assert.strictEqual(data, JSON.stringify({ "CanvasContent1": "[{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"sectionFactor\":12,\"layoutIndex\":1},\"emphasis\":{}},{\"displayMode\":2,\"position\":{\"zoneIndex\":2,\"sectionIndex\":1,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"displayMode\":2,\"position\":{\"zoneIndex\":2,\"sectionIndex\":2,\"sectionFactor\":8,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]" }));
+    }
+  );
 
-  it('adds a section to the end of the page when order is larger than the last section', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$select=CanvasContent1,IsPageCheckedOutToCurrentUser`) > -1) {
-        return {
-          "IsPageCheckedOutToCurrentUser": true,
-          "CanvasContent1": "[{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"sectionFactor\":12,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
-        };
-      }
+  it('adds a section to the end of the page when order is larger than the last section',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$select=CanvasContent1,IsPageCheckedOutToCurrentUser`) > -1) {
+          return {
+            "IsPageCheckedOutToCurrentUser": true,
+            "CanvasContent1": "[{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"sectionFactor\":12,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    let data: string = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/savepage`) > -1) {
-        data = JSON.stringify(opts.data);
-        return {};
-      }
+      let data: string = '';
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/savepage`) > -1) {
+          data = JSON.stringify(opts.data);
+          return {};
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options:
-      {
-        pageName: 'home.aspx',
-        webUrl: 'https://contoso.sharepoint.com/sites/newsletter',
-        sectionTemplate: 'TwoColumnRight',
-        order: 5
-      }
-    });
-    assert.strictEqual(data, JSON.stringify({ "CanvasContent1": "[{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"sectionFactor\":12,\"layoutIndex\":1},\"emphasis\":{}},{\"displayMode\":2,\"position\":{\"zoneIndex\":2,\"sectionIndex\":1,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"displayMode\":2,\"position\":{\"zoneIndex\":2,\"sectionIndex\":2,\"sectionFactor\":8,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]" }));
-  });
+      await command.action(logger, {
+        options:
+        {
+          pageName: 'home.aspx',
+          webUrl: 'https://contoso.sharepoint.com/sites/newsletter',
+          sectionTemplate: 'TwoColumnRight',
+          order: 5
+        }
+      });
+      assert.strictEqual(data, JSON.stringify({ "CanvasContent1": "[{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"sectionFactor\":12,\"layoutIndex\":1},\"emphasis\":{}},{\"displayMode\":2,\"position\":{\"zoneIndex\":2,\"sectionIndex\":1,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"displayMode\":2,\"position\":{\"zoneIndex\":2,\"sectionIndex\":2,\"sectionFactor\":8,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]" }));
+    }
+  );
 
   it('adds a section between two other sections', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$select=CanvasContent1,IsPageCheckedOutToCurrentUser`) > -1) {
         return {
           "IsPageCheckedOutToCurrentUser": true,
@@ -447,7 +458,7 @@ describe(commands.PAGE_SECTION_ADD, () => {
     });
 
     let data: string = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/savepage`) > -1) {
         data = JSON.stringify(opts.data);
         return {};
@@ -469,7 +480,7 @@ describe(commands.PAGE_SECTION_ADD, () => {
   });
 
   it('adds a section between two other sections (2)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$select=CanvasContent1,IsPageCheckedOutToCurrentUser`) > -1) {
         return {
           "IsPageCheckedOutToCurrentUser": true,
@@ -481,7 +492,7 @@ describe(commands.PAGE_SECTION_ADD, () => {
     });
 
     let data: string = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/savepage`) > -1) {
         data = JSON.stringify(opts.data);
         return {};
@@ -502,111 +513,117 @@ describe(commands.PAGE_SECTION_ADD, () => {
     assert.strictEqual(data, JSON.stringify({ "CanvasContent1": "[{\"displayMode\":2,\"position\":{\"zoneIndex\":0.5,\"sectionIndex\":1,\"sectionFactor\":6,\"layoutIndex\":1},\"emphasis\":{}},{\"displayMode\":2,\"position\":{\"zoneIndex\":0.5,\"sectionIndex\":2,\"sectionFactor\":6,\"layoutIndex\":1},\"emphasis\":{}},{\"displayMode\":2,\"position\":{\"zoneIndex\":0.75,\"sectionIndex\":1,\"sectionFactor\":6,\"layoutIndex\":1},\"emphasis\":{}},{\"displayMode\":2,\"position\":{\"zoneIndex\":0.75,\"sectionIndex\":2,\"sectionFactor\":6,\"layoutIndex\":1},\"emphasis\":{}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"sectionFactor\":12,\"layoutIndex\":1},\"emphasis\":{}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1.5,\"sectionIndex\":1,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1.5,\"sectionIndex\":2,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"displayMode\":2,\"position\":{\"zoneIndex\":1.5,\"sectionIndex\":3,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"displayMode\":2,\"position\":{\"zoneIndex\":2,\"sectionIndex\":1,\"sectionFactor\":4,\"layoutIndex\":1},\"emphasis\":{}},{\"displayMode\":2,\"position\":{\"zoneIndex\":2,\"sectionIndex\":2,\"sectionFactor\":8,\"layoutIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]" }));
   });
 
-  it('adds a Vertical section at the end to an uncustomized page', async () => {
-    sinon.stub(request, 'get').callsFake((opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$select=CanvasContent1,IsPageCheckedOutToCurrentUser`) > -1) {
-        return Promise.resolve({
-          "IsPageCheckedOutToCurrentUser": true,
-          "CanvasContent1": "[{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
-        });
-      }
+  it('adds a Vertical section at the end to an uncustomized page',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$select=CanvasContent1,IsPageCheckedOutToCurrentUser`) > -1) {
+          return Promise.resolve({
+            "IsPageCheckedOutToCurrentUser": true,
+            "CanvasContent1": "[{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
+          });
+        }
 
-      return Promise.reject('Invalid request');
-    });
+        return Promise.reject('Invalid request');
+      });
 
-    let data: string = '';
-    sinon.stub(request, 'post').callsFake((opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/savepage`) > -1) {
-        data = JSON.stringify(opts.data);
-        return Promise.resolve({});
-      }
+      let data: string = '';
+      jest.spyOn(request, 'post').mockClear().mockImplementation((opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/savepage`) > -1) {
+          data = JSON.stringify(opts.data);
+          return Promise.resolve({});
+        }
 
-      return Promise.reject('Invalid request');
-    });
+        return Promise.reject('Invalid request');
+      });
 
-    await command.action(logger, {
-      options:
-      {
-        pageName: 'home.aspx',
-        webUrl: 'https://contoso.sharepoint.com/sites/newsletter',
-        sectionTemplate: 'Vertical'
-      }
-    });
-    assert.strictEqual(data, JSON.stringify({ "CanvasContent1": "[{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"sectionFactor\":12,\"layoutIndex\":2,\"isLayoutReflowOnTop\":false,\"controlIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]" }));
-  });
+      await command.action(logger, {
+        options:
+        {
+          pageName: 'home.aspx',
+          webUrl: 'https://contoso.sharepoint.com/sites/newsletter',
+          sectionTemplate: 'Vertical'
+        }
+      });
+      assert.strictEqual(data, JSON.stringify({ "CanvasContent1": "[{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"sectionFactor\":12,\"layoutIndex\":2,\"isLayoutReflowOnTop\":false,\"controlIndex\":1},\"emphasis\":{}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]" }));
+    }
+  );
 
 
-  it('adds a Vertical section at the end with correct zoneEmphasisValue to an uncustomized page', async () => {
-    sinon.stub(request, 'get').callsFake((opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$select=CanvasContent1,IsPageCheckedOutToCurrentUser`) > -1) {
-        return Promise.resolve({
-          "IsPageCheckedOutToCurrentUser": true,
-          "CanvasContent1": "[{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
-        });
-      }
+  it('adds a Vertical section at the end with correct zoneEmphasisValue to an uncustomized page',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$select=CanvasContent1,IsPageCheckedOutToCurrentUser`) > -1) {
+          return Promise.resolve({
+            "IsPageCheckedOutToCurrentUser": true,
+            "CanvasContent1": "[{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
+          });
+        }
 
-      return Promise.reject('Invalid request');
-    });
+        return Promise.reject('Invalid request');
+      });
 
-    let data: string = '';
-    sinon.stub(request, 'post').callsFake((opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/savepage`) > -1) {
-        data = JSON.stringify(opts.data);
-        return Promise.resolve({});
-      }
+      let data: string = '';
+      jest.spyOn(request, 'post').mockClear().mockImplementation((opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/savepage`) > -1) {
+          data = JSON.stringify(opts.data);
+          return Promise.resolve({});
+        }
 
-      return Promise.reject('Invalid request');
-    });
+        return Promise.reject('Invalid request');
+      });
 
-    await command.action(logger, {
-      options:
-      {
-        pageName: 'home.aspx',
-        webUrl: 'https://contoso.sharepoint.com/sites/newsletter',
-        sectionTemplate: 'Vertical',
-        zoneEmphasis: 'Neutral'
-      }
-    });
-    assert.strictEqual(data, JSON.stringify({ "CanvasContent1": "[{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"sectionFactor\":12,\"layoutIndex\":2,\"isLayoutReflowOnTop\":false,\"controlIndex\":1},\"emphasis\":{\"zoneEmphasis\":1}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]" }));
-  });
+      await command.action(logger, {
+        options:
+        {
+          pageName: 'home.aspx',
+          webUrl: 'https://contoso.sharepoint.com/sites/newsletter',
+          sectionTemplate: 'Vertical',
+          zoneEmphasis: 'Neutral'
+        }
+      });
+      assert.strictEqual(data, JSON.stringify({ "CanvasContent1": "[{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"sectionFactor\":12,\"layoutIndex\":2,\"isLayoutReflowOnTop\":false,\"controlIndex\":1},\"emphasis\":{\"zoneEmphasis\":1}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]" }));
+    }
+  );
 
-  it('adds a Vertical section at the end with correct zoneEmphasisValue and isLayoutReflowOnTop values to an uncustomized page', async () => {
-    sinon.stub(request, 'get').callsFake((opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$select=CanvasContent1,IsPageCheckedOutToCurrentUser`) > -1) {
-        return Promise.resolve({
-          "IsPageCheckedOutToCurrentUser": true,
-          "CanvasContent1": "[{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
-        });
-      }
+  it('adds a Vertical section at the end with correct zoneEmphasisValue and isLayoutReflowOnTop values to an uncustomized page',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')?$select=CanvasContent1,IsPageCheckedOutToCurrentUser`) > -1) {
+          return Promise.resolve({
+            "IsPageCheckedOutToCurrentUser": true,
+            "CanvasContent1": "[{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]"
+          });
+        }
 
-      return Promise.reject('Invalid request');
-    });
+        return Promise.reject('Invalid request');
+      });
 
-    let data: string = '';
-    sinon.stub(request, 'post').callsFake((opts) => {
-      if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/savepage`) > -1) {
-        data = JSON.stringify(opts.data);
-        return Promise.resolve({});
-      }
+      let data: string = '';
+      jest.spyOn(request, 'post').mockClear().mockImplementation((opts) => {
+        if ((opts.url as string).indexOf(`/_api/sitepages/pages/GetByUrl('sitepages/home.aspx')/savepage`) > -1) {
+          data = JSON.stringify(opts.data);
+          return Promise.resolve({});
+        }
 
-      return Promise.reject('Invalid request');
-    });
+        return Promise.reject('Invalid request');
+      });
 
-    await command.action(logger, {
-      options:
-      {
-        pageName: 'home.aspx',
-        webUrl: 'https://contoso.sharepoint.com/sites/newsletter',
-        sectionTemplate: 'Vertical',
-        zoneEmphasis: 'Neutral',
-        isLayoutReflowOnTop: true
-      }
-    });
-    assert.strictEqual(data, JSON.stringify({ "CanvasContent1": "[{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"sectionFactor\":12,\"layoutIndex\":2,\"isLayoutReflowOnTop\":true,\"controlIndex\":1},\"emphasis\":{\"zoneEmphasis\":1}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]" }));
-  });
+      await command.action(logger, {
+        options:
+        {
+          pageName: 'home.aspx',
+          webUrl: 'https://contoso.sharepoint.com/sites/newsletter',
+          sectionTemplate: 'Vertical',
+          zoneEmphasis: 'Neutral',
+          isLayoutReflowOnTop: true
+        }
+      });
+      assert.strictEqual(data, JSON.stringify({ "CanvasContent1": "[{\"displayMode\":2,\"position\":{\"zoneIndex\":1,\"sectionIndex\":1,\"sectionFactor\":12,\"layoutIndex\":2,\"isLayoutReflowOnTop\":true,\"controlIndex\":1},\"emphasis\":{\"zoneEmphasis\":1}},{\"controlType\":0,\"pageSettingsSlice\":{\"isDefaultDescription\":true,\"isDefaultThumbnail\":true}}]" }));
+    }
+  );
 
   it('correctly handles random API error', async () => {
-    sinon.stub(request, 'get').callsFake(() => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
       throw 'An error has occurred';
     });
 
@@ -682,81 +699,93 @@ describe(commands.PAGE_SECTION_ADD, () => {
   });
 
 
-  it('fails validation if isLayoutReflowOnTop is valid but sectionTemplate is not Vertical', async () => {
-    const actual = await command.validate({
-      options: {
-        pageName: 'page.aspx',
-        webUrl: 'https://contoso.sharepoint.com',
-        sectionTemplate: 'OneColumn',
-        isLayoutReflowOnTop: true
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if isLayoutReflowOnTop is valid but sectionTemplate is not Vertical',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          pageName: 'page.aspx',
+          webUrl: 'https://contoso.sharepoint.com',
+          sectionTemplate: 'OneColumn',
+          isLayoutReflowOnTop: true
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if all the parameters are specified for a regular Section', async () => {
-    const actual = await command.validate({
-      options: {
-        order: 1,
-        sectionTemplate: 'OneColumn',
-        webUrl: 'https://contoso.sharepoint.com',
-        pageName: 'Home.aspx',
-        zoneEmphasis: 'None'
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if all the parameters are specified for a regular Section',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          order: 1,
+          sectionTemplate: 'OneColumn',
+          webUrl: 'https://contoso.sharepoint.com',
+          pageName: 'Home.aspx',
+          zoneEmphasis: 'None'
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if all the parameters are specified for Vertical Section', async () => {
-    const actual = await command.validate({
-      options: {
-        order: 1,
-        sectionTemplate: 'Vertical',
-        webUrl: 'https://contoso.sharepoint.com',
-        pageName: 'Home.aspx',
-        zoneEmphasis: 'None',
-        isLayoutReflowOnTop: false
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if all the parameters are specified for Vertical Section',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          order: 1,
+          sectionTemplate: 'Vertical',
+          webUrl: 'https://contoso.sharepoint.com',
+          pageName: 'Home.aspx',
+          zoneEmphasis: 'None',
+          isLayoutReflowOnTop: false
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if order, zoneEmphasis and isLayoutReflowOnTop are not specified', async () => {
-    const actual = await command.validate({
-      options: {
-        sectionTemplate: 'OneColumn',
-        webUrl: 'https://contoso.sharepoint.com',
-        pageName: 'Home.aspx'
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if order, zoneEmphasis and isLayoutReflowOnTop are not specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          sectionTemplate: 'OneColumn',
+          webUrl: 'https://contoso.sharepoint.com',
+          pageName: 'Home.aspx'
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if order and isLayoutReflowOnTop are not specified', async () => {
-    const actual = await command.validate({
-      options: {
-        sectionTemplate: 'OneColumn',
-        webUrl: 'https://contoso.sharepoint.com',
-        pageName: 'Home.aspx',
-        zoneEmphasis: 'None'
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if order and isLayoutReflowOnTop are not specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          sectionTemplate: 'OneColumn',
+          webUrl: 'https://contoso.sharepoint.com',
+          pageName: 'Home.aspx',
+          zoneEmphasis: 'None'
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if isLayoutReflowOnTop is specified along with Vertical sectionTemplate', async () => {
-    const actual = await command.validate({
-      options: {
-        sectionTemplate: 'Vertical',
-        webUrl: 'https://contoso.sharepoint.com',
-        pageName: 'Home.aspx',
-        zoneEmphasis: 'None',
-        order: 1,
-        isLayoutReflowOnTop: false
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if isLayoutReflowOnTop is specified along with Vertical sectionTemplate',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          sectionTemplate: 'Vertical',
+          webUrl: 'https://contoso.sharepoint.com',
+          pageName: 'Home.aspx',
+          zoneEmphasis: 'None',
+          order: 1,
+          isLayoutReflowOnTop: false
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('passes validation if order is not specified', async () => {
     const actual = await command.validate({

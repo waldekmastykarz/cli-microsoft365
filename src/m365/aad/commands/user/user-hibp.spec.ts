@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
 import { Logger } from '../../../../cli/Logger.js';
@@ -9,7 +8,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './user-hibp.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -18,15 +17,15 @@ describe(commands.USER_HIBP, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
     commandInfo = Cli.getCommandInfo(command);
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
   });
 
   beforeEach(() => {
@@ -42,18 +41,18 @@ describe(commands.USER_HIBP, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
   });
 
   it('has correct name', () => {
@@ -65,7 +64,7 @@ describe(commands.USER_HIBP, () => {
   });
 
   it('fails validation if userName and apiKey is not specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -93,7 +92,7 @@ describe(commands.USER_HIBP, () => {
   });
 
   it('checks user is pwned using userName', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://haveibeenpwned.com/api/v3/breachedaccount/${formatting.encodeQueryParameter('account-exists@hibp-integration-tests.com')}`) {
         return [{ "Name": "Adobe" }];
       }
@@ -106,7 +105,7 @@ describe(commands.USER_HIBP, () => {
   });
 
   it('checks user is pwned using userName (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://haveibeenpwned.com/api/v3/breachedaccount/${formatting.encodeQueryParameter('account-exists@hibp-integration-tests.com')}`) {
         // this is the actual truncated response as the API would return
         return [{ "Name": "Adobe" }];
@@ -120,7 +119,7 @@ describe(commands.USER_HIBP, () => {
   });
 
   it('checks user is pwned using userName and multiple breaches', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://haveibeenpwned.com/api/v3/breachedaccount/${formatting.encodeQueryParameter('account-exists@hibp-integration-tests.com')}`) {
         // this is the actual truncated response as the API would return
         return [{ "Name": "Adobe" }, { "Name": "Gawker" }, { "Name": "Stratfor" }];
@@ -134,7 +133,7 @@ describe(commands.USER_HIBP, () => {
   });
 
   it('checks user is pwned using userName and domain', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://haveibeenpwned.com/api/v3/breachedaccount/${formatting.encodeQueryParameter('account-exists@hibp-integration-tests.com')}?domain=adobe.com`) {
         // this is the actual truncated response as the API would return
         return [{ "Name": "Adobe" }];
@@ -147,26 +146,28 @@ describe(commands.USER_HIBP, () => {
     assert(loggerLogSpy.calledWith([{ "Name": "Adobe" }]));
   });
 
-  it('checks user is pwned using userName and domain with a domain that does not exists', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://haveibeenpwned.com/api/v3/breachedaccount/${formatting.encodeQueryParameter('account-exists@hibp-integration-tests.com')}?domain=adobe.xxx`) {
-        // this is the actual truncated response as the API would return
-        throw {
-          "response": {
-            "status": 404
-          }
-        };
-      }
+  it('checks user is pwned using userName and domain with a domain that does not exists',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://haveibeenpwned.com/api/v3/breachedaccount/${formatting.encodeQueryParameter('account-exists@hibp-integration-tests.com')}?domain=adobe.xxx`) {
+          // this is the actual truncated response as the API would return
+          throw {
+            "response": {
+              "status": 404
+            }
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, userName: 'account-exists@hibp-integration-tests.com', domain: "adobe.xxx", apiKey: "2975xc539c304xf797f665x43f8x557x" } });
-    assert(loggerLogSpy.calledWith("No pwnage found"));
-  });
+      await command.action(logger, { options: { debug: true, userName: 'account-exists@hibp-integration-tests.com', domain: "adobe.xxx", apiKey: "2975xc539c304xf797f665x43f8x557x" } });
+      assert(loggerLogSpy.calledWith("No pwnage found"));
+    }
+  );
 
   it('correctly handles no pwnage found (debug)', async () => {
-    sinon.stub(request, 'get').rejects({
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects({
       "response": {
         "status": 404
       }
@@ -177,7 +178,7 @@ describe(commands.USER_HIBP, () => {
   });
 
   it('correctly handles no pwnage found (verbose)', async () => {
-    sinon.stub(request, 'get').rejects({
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects({
       "response": {
         "status": 404
       }
@@ -188,14 +189,14 @@ describe(commands.USER_HIBP, () => {
   });
 
   it('correctly handles unauthorized request', async () => {
-    sinon.stub(request, 'get').rejects(new Error("Access denied due to improperly formed hibp-api-key."));
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error("Access denied due to improperly formed hibp-api-key."));
 
     await assert.rejects(command.action(logger, { options: { userName: 'account-notexists@hibp-integration-tests.com' } } as any),
       new CommandError("Access denied due to improperly formed hibp-api-key."));
   });
 
   it('fails validation if the userName is not a valid UPN.', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }

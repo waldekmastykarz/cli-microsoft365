@@ -1,6 +1,5 @@
 import assert from 'assert';
 import fs from 'fs';
-import sinon from 'sinon';
 import { telemetry } from '../../telemetry.js';
 import auth from '../../Auth.js';
 import { Cli } from '../../cli/Cli.js';
@@ -10,7 +9,7 @@ import { CommandError } from '../../Command.js';
 import request from '../../request.js';
 import { pid } from '../../utils/pid.js';
 import { session } from '../../utils/session.js';
-import { sinonUtil } from '../../utils/sinonUtil.js';
+import { jestUtil } from '../../utils/jestUtil.js';
 import DateAndPeriodBasedReport from './DateAndPeriodBasedReport.js';
 
 class MockCommand extends DateAndPeriodBasedReport {
@@ -36,11 +35,11 @@ describe('PeriodBasedReport', () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(mockCommand);
   });
@@ -62,14 +61,14 @@ describe('PeriodBasedReport', () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       fs.writeFileSync
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -138,7 +137,7 @@ describe('PeriodBasedReport', () => {
   });
 
   it('get unique device type in teams and export it in a period', async () => {
-    const requestStub: sinon.SinonStub = sinon.stub(request, 'get').callsFake(async opts => {
+    const requestStub: jest.Mock = jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url === `https://graph.microsoft.com/v1.0/reports/MockEndPoint(period='D7')`) {
         return `
         Report Refresh Date,Web,Windows Phone,Android Phone,iOS,Mac,Windows,Report Period
@@ -150,40 +149,44 @@ describe('PeriodBasedReport', () => {
     });
 
     await mockCommand.action(logger, { options: { period: 'D7' } });
-    assert.strictEqual(requestStub.lastCall.args[0].url, "https://graph.microsoft.com/v1.0/reports/MockEndPoint(period='D7')");
-    assert.strictEqual(requestStub.lastCall.args[0].headers["accept"], 'application/json;odata.metadata=none');
+    assert.strictEqual(requestStub.mock.lastCall[0].url, "https://graph.microsoft.com/v1.0/reports/MockEndPoint(period='D7')");
+    assert.strictEqual(requestStub.mock.lastCall[0].headers["accept"], 'application/json;odata.metadata=none');
   });
 
-  it('fails validation if the date option is not a valid date string', async () => {
-    const actual = await mockCommand.validate({
-      options:
-      {
-        date: '2018-X-09'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the date option is not a valid date string',
+    async () => {
+      const actual = await mockCommand.validate({
+        options:
+        {
+          date: '2018-X-09'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('gets details about Microsoft Teams user activity by user for the given date', async () => {
-    const requestStub: sinon.SinonStub = sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/reports/MockEndPoint(date=2019-07-13)`) {
-        return `
-        Report Refresh Date,User Principal Name,Last Activity Date,Is Deleted,Deleted Date,Assigned Products,Team Chat Message Count,Private Chat Message Count,Call Count,Meeting Count,Has Other Action,Report Period
-        2019-08-14,abisha@contoso.onmicrosoft.com,,False,,,0,0,0,0,No,7
-        2019-08-14,same@contoso.onmicrosoft.com,2019-05-22,False,,OFFICE 365 E3 DEVELOPER+MICROSOFT FLOW FREE,0,0,0,0,No,7
-        `;
-      }
+  it('gets details about Microsoft Teams user activity by user for the given date',
+    async () => {
+      const requestStub: jest.Mock = jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/reports/MockEndPoint(date=2019-07-13)`) {
+          return `
+          Report Refresh Date,User Principal Name,Last Activity Date,Is Deleted,Deleted Date,Assigned Products,Team Chat Message Count,Private Chat Message Count,Call Count,Meeting Count,Has Other Action,Report Period
+          2019-08-14,abisha@contoso.onmicrosoft.com,,False,,,0,0,0,0,No,7
+          2019-08-14,same@contoso.onmicrosoft.com,2019-05-22,False,,OFFICE 365 E3 DEVELOPER+MICROSOFT FLOW FREE,0,0,0,0,No,7
+          `;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await mockCommand.action(logger, { options: { date: '2019-07-13' } });
-    assert.strictEqual(requestStub.lastCall.args[0].url, "https://graph.microsoft.com/v1.0/reports/MockEndPoint(date=2019-07-13)");
-    assert.strictEqual(requestStub.lastCall.args[0].headers["accept"], 'application/json;odata.metadata=none');
-  });
+      await mockCommand.action(logger, { options: { date: '2019-07-13' } });
+      assert.strictEqual(requestStub.mock.lastCall[0].url, "https://graph.microsoft.com/v1.0/reports/MockEndPoint(date=2019-07-13)");
+      assert.strictEqual(requestStub.mock.lastCall[0].headers["accept"], 'application/json;odata.metadata=none');
+    }
+  );
 
   it('correctly handles random API error', async () => {
-    sinon.stub(request, 'get').rejects(new Error('An error has occurred'));
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
     await assert.rejects(mockCommand.action(logger, { options: { period: 'D7' } } as any),
       new CommandError('An error has occurred'));

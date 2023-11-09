@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import { ClientSidePage } from './clientsidepages.js';
 import command from './page-section-list.js';
@@ -17,7 +16,7 @@ import command from './page-section-list.js';
 describe(commands.PAGE_SECTION_LIST, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
   const apiResponse = {
@@ -80,11 +79,11 @@ describe(commands.PAGE_SECTION_LIST, () => {
     "UniqueId": "16035d61-edb9-4758-a490-3d13fcd9fdaa"
   };
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -102,18 +101,18 @@ describe(commands.PAGE_SECTION_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       ClientSidePage.fromHtml
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -126,7 +125,7 @@ describe(commands.PAGE_SECTION_LIST, () => {
   });
 
   it('lists sections on the modern page', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
         return apiResponse;
       }
@@ -146,7 +145,7 @@ describe(commands.PAGE_SECTION_LIST, () => {
   });
 
   it('lists sections on the modern page - no sections available', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
         return {
           "ListItemAllFields": {
@@ -217,7 +216,7 @@ describe(commands.PAGE_SECTION_LIST, () => {
   });
 
   it('lists sections on the modern page (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
         return apiResponse;
       }
@@ -236,70 +235,74 @@ describe(commands.PAGE_SECTION_LIST, () => {
     }]));
   });
 
-  it('lists sections on the modern page when the specified page name doesn\'t contain extension', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
-        return apiResponse;
-      }
+  it('lists sections on the modern page when the specified page name doesn\'t contain extension',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
+          return apiResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a', pageName: 'home', output: 'text' } });
-    assert(loggerLogSpy.calledWith([{
-      "order": 1,
-      "columns": 2
-    },
-    {
-      "order": 2,
-      "columns": 2
-    }]));
-  });
-
-  it('lists all information about sections on the modern page in json output mode', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
-        return apiResponse;
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a', pageName: 'home.aspx', output: 'json' } });
-    assert.strictEqual(JSON.stringify(log[0]), JSON.stringify([{
-      "order": 1,
-      "columns": [{
-        "factor": 6,
+      await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a', pageName: 'home', output: 'text' } });
+      assert(loggerLogSpy.calledWith([{
         "order": 1,
-        "dataVersion": "1.0",
-        "jsonData": "&#123;&quot;displayMode&quot;&#58;2,&quot;position&quot;&#58;&#123;&quot;sectionFactor&quot;&#58;6,&quot;sectionIndex&quot;&#58;1,&quot;zoneIndex&quot;&#58;1&#125;&#125;"
+        "columns": 2
       },
       {
-        "factor": 6,
         "order": 2,
-        "dataVersion": "1.0",
-        "jsonData": "&#123;&quot;displayMode&quot;&#58;2,&quot;position&quot;&#58;&#123;&quot;sectionFactor&quot;&#58;6,&quot;sectionIndex&quot;&#58;2,&quot;zoneIndex&quot;&#58;1&#125;&#125;"
-      }]
-    },
-    {
-      "order": 2,
-      "columns": [{
-        "factor": 6,
+        "columns": 2
+      }]));
+    }
+  );
+
+  it('lists all information about sections on the modern page in json output mode',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
+          return apiResponse;
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a', pageName: 'home.aspx', output: 'json' } });
+      assert.strictEqual(JSON.stringify(log[0]), JSON.stringify([{
         "order": 1,
-        "dataVersion": "1.0",
-        "jsonData": "&#123;&quot;displayMode&quot;&#58;2,&quot;position&quot;&#58;&#123;&quot;sectionFactor&quot;&#58;6,&quot;sectionIndex&quot;&#58;1,&quot;zoneIndex&quot;&#58;2&#125;&#125;"
+        "columns": [{
+          "factor": 6,
+          "order": 1,
+          "dataVersion": "1.0",
+          "jsonData": "&#123;&quot;displayMode&quot;&#58;2,&quot;position&quot;&#58;&#123;&quot;sectionFactor&quot;&#58;6,&quot;sectionIndex&quot;&#58;1,&quot;zoneIndex&quot;&#58;1&#125;&#125;"
+        },
+        {
+          "factor": 6,
+          "order": 2,
+          "dataVersion": "1.0",
+          "jsonData": "&#123;&quot;displayMode&quot;&#58;2,&quot;position&quot;&#58;&#123;&quot;sectionFactor&quot;&#58;6,&quot;sectionIndex&quot;&#58;2,&quot;zoneIndex&quot;&#58;1&#125;&#125;"
+        }]
       },
       {
-        "factor": 6,
         "order": 2,
-        "dataVersion": "1.0",
-        "jsonData": "&#123;&quot;displayMode&quot;&#58;2,&quot;position&quot;&#58;&#123;&quot;sectionFactor&quot;&#58;6,&quot;sectionIndex&quot;&#58;2,&quot;zoneIndex&quot;&#58;2&#125;&#125;"
-      }]
-    }]));
-  });
+        "columns": [{
+          "factor": 6,
+          "order": 1,
+          "dataVersion": "1.0",
+          "jsonData": "&#123;&quot;displayMode&quot;&#58;2,&quot;position&quot;&#58;&#123;&quot;sectionFactor&quot;&#58;6,&quot;sectionIndex&quot;&#58;1,&quot;zoneIndex&quot;&#58;2&#125;&#125;"
+        },
+        {
+          "factor": 6,
+          "order": 2,
+          "dataVersion": "1.0",
+          "jsonData": "&#123;&quot;displayMode&quot;&#58;2,&quot;position&quot;&#58;&#123;&quot;sectionFactor&quot;&#58;6,&quot;sectionIndex&quot;&#58;2,&quot;zoneIndex&quot;&#58;2&#125;&#125;"
+        }]
+      }]));
+    }
+  );
 
   it('shows error when the specified page is a classic page', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
         return {
           "ListItemAllFields": {
@@ -366,7 +369,7 @@ describe(commands.PAGE_SECTION_LIST, () => {
   });
 
   it('correctly handles page not found', async () => {
-    sinon.stub(request, 'get').callsFake(() => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
       throw {
         error: {
           "odata.error": {
@@ -385,7 +388,7 @@ describe(commands.PAGE_SECTION_LIST, () => {
   });
 
   it('correctly handles OData error when retrieving pages', async () => {
-    sinon.stub(request, 'get').callsFake(() => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
       throw { error: { 'odata.error': { message: { value: 'An error has occurred' } } } };
     });
 
@@ -393,8 +396,10 @@ describe(commands.PAGE_SECTION_LIST, () => {
       new CommandError('An error has occurred'));
   });
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', pageName: 'home.aspx' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', pageName: 'home.aspx' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 });

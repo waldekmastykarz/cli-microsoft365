@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './sitescript-set.js';
@@ -17,15 +16,15 @@ import command from './sitescript-set.js';
 describe(commands.SITESCRIPT_SET, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'ABC',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -49,17 +48,17 @@ describe(commands.SITESCRIPT_SET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -73,7 +72,7 @@ describe(commands.SITESCRIPT_SET, () => {
   });
 
   it('updates title of an existing site script', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.UpdateSiteScript`) > -1 &&
         JSON.stringify(opts.data) === JSON.stringify({
           updateInfo: {
@@ -104,7 +103,7 @@ describe(commands.SITESCRIPT_SET, () => {
   });
 
   it('updates title of an existing site script (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.UpdateSiteScript`) > -1 &&
         JSON.stringify(opts.data) === JSON.stringify({
           updateInfo: {
@@ -135,7 +134,7 @@ describe(commands.SITESCRIPT_SET, () => {
   });
 
   it('updates description of an existing site script', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.UpdateSiteScript`) > -1 &&
         JSON.stringify(opts.data) === JSON.stringify({
           updateInfo: {
@@ -166,7 +165,7 @@ describe(commands.SITESCRIPT_SET, () => {
   });
 
   it('updates version of an existing site script', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.UpdateSiteScript`) > -1 &&
         JSON.stringify(opts.data) === JSON.stringify({
           updateInfo: {
@@ -197,7 +196,7 @@ describe(commands.SITESCRIPT_SET, () => {
   });
 
   it('updates content of an existing site script', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.UpdateSiteScript`) > -1 &&
         JSON.stringify(opts.data) === JSON.stringify({
           updateInfo: {
@@ -228,7 +227,7 @@ describe(commands.SITESCRIPT_SET, () => {
   });
 
   it('updates all properties of an existing site script', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.UpdateSiteScript`) > -1 &&
         JSON.stringify(opts.data) === JSON.stringify({
           updateInfo: {
@@ -262,7 +261,7 @@ describe(commands.SITESCRIPT_SET, () => {
   });
 
   it('correctly handles OData error when creating site script', async () => {
-    sinon.stub(request, 'post').rejects({ error: { 'odata.error': { message: { value: 'An error has occurred' } } } });
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects({ error: { 'odata.error': { message: { value: 'An error has occurred' } } } });
 
     await assert.rejects(command.action(logger, { options: { id: '449c0c6d-5380-4df2-b84b-622e0ac8ec24', title: 'Contoso' } } as any), new CommandError('An error has occurred'));
   });
@@ -332,23 +331,29 @@ describe(commands.SITESCRIPT_SET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if script content is not a valid JSON string', async () => {
-    const actual = await command.validate({ options: { id: '449c0c6d-5380-4df2-b84b-622e0ac8ec24', content: 'abc' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if script content is not a valid JSON string',
+    async () => {
+      const actual = await command.validate({ options: { id: '449c0c6d-5380-4df2-b84b-622e0ac8ec24', content: 'abc' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation when id specified and valid GUID', async () => {
     const actual = await command.validate({ options: { id: '449c0c6d-5380-4df2-b84b-622e0ac8ec24' } }, commandInfo);
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation when id and version specified and version is a number', async () => {
-    const actual = await command.validate({ options: { id: '449c0c6d-5380-4df2-b84b-622e0ac8ec24', version: 1 } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when id and version specified and version is a number',
+    async () => {
+      const actual = await command.validate({ options: { id: '449c0c6d-5380-4df2-b84b-622e0ac8ec24', version: 1 } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when id and content specified and content is valid JSON', async () => {
-    const actual = await command.validate({ options: { id: '449c0c6d-5380-4df2-b84b-622e0ac8ec24', content: JSON.stringify({}) } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when id and content specified and content is valid JSON',
+    async () => {
+      const actual = await command.validate({ options: { id: '449c0c6d-5380-4df2-b84b-622e0ac8ec24', content: JSON.stringify({}) } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Logger } from '../../../../cli/Logger.js';
 import { CommandError } from '../../../../Command.js';
@@ -7,20 +6,20 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './homesite-get.js';
 
 describe(commands.HOMESITE_GET, () => {
   let log: any[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.spoUrl = 'https://contoso.sharepoint.com';
   });
@@ -38,17 +37,17 @@ describe(commands.HOMESITE_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -62,7 +61,7 @@ describe(commands.HOMESITE_GET, () => {
   });
 
   it('gets information about the Home Site', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://contoso.sharepoint.com/_api/SP.SPHSite/Details') {
         return {
           "SiteId": "53ad95dc-5d2c-42a3-a63c-716f7b8014f5",
@@ -86,18 +85,20 @@ describe(commands.HOMESITE_GET, () => {
     }));
   });
 
-  it(`doesn't output anything when information about the Home Site is not available`, async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === 'https://contoso.sharepoint.com/_api/SP.SPHSite/Details') {
-        return { "odata.null": true };
-      }
+  it(`doesn't output anything when information about the Home Site is not available`,
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://contoso.sharepoint.com/_api/SP.SPHSite/Details') {
+          return { "odata.null": true };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: {} } as any);
-    assert(loggerLogSpy.notCalled);
-  });
+      await command.action(logger, { options: {} } as any);
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
   it('correctly handles random API error', async () => {
     const error = {
@@ -111,7 +112,7 @@ describe(commands.HOMESITE_GET, () => {
       }
     };
 
-    sinon.stub(request, 'get').rejects(error);
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, { options: {} } as any),
       new CommandError(error.error['odata.error'].message.value));

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './feature-disable.js';
 
@@ -19,11 +18,11 @@ describe(commands.FEATURE_DISABLE, () => {
   let commandInfo: CommandInfo;
   let requests: any[];
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -45,13 +44,13 @@ describe(commands.FEATURE_DISABLE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -120,75 +119,79 @@ describe(commands.FEATURE_DISABLE, () => {
     assert(containsScopeOption);
   });
 
-  it('disables web feature (scope not defined, so defaults to web), no force', async () => {
-    const requestUrl = `https://contoso.sharepoint.com/_api/web/features/remove(featureId=guid'780ac353-eaf8-4ac2-8c47-536d93c03fd6',force=false)`;
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      {
-        requests.push(opts);
+  it('disables web feature (scope not defined, so defaults to web), no force',
+    async () => {
+      const requestUrl = `https://contoso.sharepoint.com/_api/web/features/remove(featureId=guid'780ac353-eaf8-4ac2-8c47-536d93c03fd6',force=false)`;
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        {
+          requests.push(opts);
 
-        if ((opts.url as string).indexOf(requestUrl) > -1) {
-          if (opts.headers &&
-            opts.headers.accept &&
-            (opts.headers.accept as string).indexOf('application/json') === 0) {
-            return;
+          if ((opts.url as string).indexOf(requestUrl) > -1) {
+            if (opts.headers &&
+              opts.headers.accept &&
+              (opts.headers.accept as string).indexOf('application/json') === 0) {
+              return;
+            }
           }
-        }
 
-        throw 'Invalid request';
-      }
-    });
-
-    try {
-      await command.action(logger, { options: { debug: true, id: '780ac353-eaf8-4ac2-8c47-536d93c03fd6', webUrl: 'https://contoso.sharepoint.com' } });
-      let correctRequestIssued = false;
-      requests.forEach(r => {
-        if (r.url.indexOf(requestUrl) > -1 && r.headers.accept && r.headers.accept.indexOf('application/json') === 0) {
-          correctRequestIssued = true;
+          throw 'Invalid request';
         }
       });
-      assert(correctRequestIssued);
-    }
-    finally {
-      sinonUtil.restore(request.post);
-    }
-  });
 
-  it('disables web feature (scope not defined, so defaults to web), with force', async () => {
-    const requestUrl = `https://contoso.sharepoint.com/_api/web/features/remove(featureId=guid'780ac353-eaf8-4ac2-8c47-536d93c03fd6',force=true)`;
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      {
-        requests.push(opts);
-
-        if ((opts.url as string).indexOf(requestUrl) > -1) {
-          if (opts.headers &&
-            opts.headers.accept &&
-            (opts.headers.accept as string).indexOf('application/json') === 0) {
-            return;
+      try {
+        await command.action(logger, { options: { debug: true, id: '780ac353-eaf8-4ac2-8c47-536d93c03fd6', webUrl: 'https://contoso.sharepoint.com' } });
+        let correctRequestIssued = false;
+        requests.forEach(r => {
+          if (r.url.indexOf(requestUrl) > -1 && r.headers.accept && r.headers.accept.indexOf('application/json') === 0) {
+            correctRequestIssued = true;
           }
-        }
-
-        throw 'Invalid request';
+        });
+        assert(correctRequestIssued);
       }
-    });
+      finally {
+        jestUtil.restore(request.post);
+      }
+    }
+  );
 
-    try {
-      await command.action(logger, { options: { debug: true, id: '780ac353-eaf8-4ac2-8c47-536d93c03fd6', webUrl: 'https://contoso.sharepoint.com', force: true } });
-      let correctRequestIssued = false;
-      requests.forEach(r => {
-        if (r.url.indexOf(requestUrl) > -1 && r.headers.accept && r.headers.accept.indexOf('application/json') === 0) {
-          correctRequestIssued = true;
+  it('disables web feature (scope not defined, so defaults to web), with force',
+    async () => {
+      const requestUrl = `https://contoso.sharepoint.com/_api/web/features/remove(featureId=guid'780ac353-eaf8-4ac2-8c47-536d93c03fd6',force=true)`;
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        {
+          requests.push(opts);
+
+          if ((opts.url as string).indexOf(requestUrl) > -1) {
+            if (opts.headers &&
+              opts.headers.accept &&
+              (opts.headers.accept as string).indexOf('application/json') === 0) {
+              return;
+            }
+          }
+
+          throw 'Invalid request';
         }
       });
-      assert(correctRequestIssued);
+
+      try {
+        await command.action(logger, { options: { debug: true, id: '780ac353-eaf8-4ac2-8c47-536d93c03fd6', webUrl: 'https://contoso.sharepoint.com', force: true } });
+        let correctRequestIssued = false;
+        requests.forEach(r => {
+          if (r.url.indexOf(requestUrl) > -1 && r.headers.accept && r.headers.accept.indexOf('application/json') === 0) {
+            correctRequestIssued = true;
+          }
+        });
+        assert(correctRequestIssued);
+      }
+      finally {
+        jestUtil.restore(request.post);
+      }
     }
-    finally {
-      sinonUtil.restore(request.post);
-    }
-  });
+  );
 
   it('disables site feature (scope explicitly set), no force', async () => {
     const requestUrl = `https://contoso.sharepoint.com/_api/site/features/remove(featureId=guid'780ac353-eaf8-4ac2-8c47-536d93c03fd6',force=false)`;
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       {
         requests.push(opts);
 
@@ -215,7 +218,7 @@ describe(commands.FEATURE_DISABLE, () => {
       assert(correctRequestIssued);
     }
     finally {
-      sinonUtil.restore(request.post);
+      jestUtil.restore(request.post);
     }
   });
 
@@ -231,7 +234,7 @@ describe(commands.FEATURE_DISABLE, () => {
       }
     };
 
-    sinon.stub(request, 'post').rejects(err);
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects(err);
 
     await assert.rejects(command.action(logger, {
       options: {

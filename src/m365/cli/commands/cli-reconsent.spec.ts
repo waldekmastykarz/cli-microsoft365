@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import { CommandError } from '../../../Command.js';
 import { Cli } from '../../../cli/Cli.js';
 import { Logger } from '../../../cli/Logger.js';
@@ -14,14 +13,14 @@ describe(commands.RECONSENT, () => {
   let log: string[];
   let logger: Logger;
   let cli: Cli;
-  let getSettingWithDefaultValueStub: sinon.SinonStub;
-  let loggerLogSpy: sinon.SinonSpy;
-  let openStub: sinon.SinonStub;
+  let getSettingWithDefaultValueStub: jest.Mock;
+  let loggerLogSpy: jest.SpyInstance;
+  let openStub: jest.Mock;
 
-  before(() => {
-    sinon.stub(telemetry, 'trackEvent').callsFake(() => { });
-    sinon.stub(pid, 'getProcessName').callsFake(() => '');
-    sinon.stub(session, 'getId').callsFake(() => '');
+  beforeAll(() => {
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockImplementation(() => { });
+    jest.spyOn(pid, 'getProcessName').mockClear().mockImplementation(() => '');
+    jest.spyOn(session, 'getId').mockClear().mockImplementation(() => '');
   });
 
   beforeEach(() => {
@@ -38,19 +37,19 @@ describe(commands.RECONSENT, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
-    getSettingWithDefaultValueStub = sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((() => false));
-    openStub = sinon.stub(browserUtil, 'open').callsFake(async () => { return; });
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    getSettingWithDefaultValueStub = jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((() => false));
+    openStub = jest.spyOn(browserUtil, 'open').mockClear().mockImplementation(async () => { return; });
   });
 
   afterEach(() => {
-    loggerLogSpy.restore();
-    getSettingWithDefaultValueStub.restore();
-    openStub.restore();
+    loggerLogSpy.mockRestore();
+    getSettingWithDefaultValueStub.mockRestore();
+    openStub.mockRestore();
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
   });
 
   it('has correct name', () => {
@@ -67,11 +66,11 @@ describe(commands.RECONSENT, () => {
   });
 
   it('shows message with url (using autoOpenLinksInBrowser)', async () => {
-    getSettingWithDefaultValueStub.restore();
-    getSettingWithDefaultValueStub = sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((() => true));
+    getSettingWithDefaultValueStub.mockRestore();
+    getSettingWithDefaultValueStub = jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((() => true));
 
-    openStub.restore();
-    openStub = sinon.stub(browserUtil, 'open').callsFake(async (url) => {
+    openStub.mockRestore();
+    openStub = jest.spyOn(browserUtil, 'open').mockClear().mockImplementation(async (url) => {
       if (url === 'https://login.microsoftonline.com/common/oauth2/authorize?client_id=31359c7f-bd7e-475c-86db-fdb8c937548e&response_type=code&prompt=admin_consent') {
         return;
       }
@@ -83,11 +82,11 @@ describe(commands.RECONSENT, () => {
   });
 
   it('throws error when open in browser fails', async () => {
-    getSettingWithDefaultValueStub.restore();
-    getSettingWithDefaultValueStub = sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((() => true));
+    getSettingWithDefaultValueStub.mockRestore();
+    getSettingWithDefaultValueStub = jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((() => true));
 
-    openStub.restore();
-    openStub = sinon.stub(browserUtil, 'open').callsFake(async (url) => {
+    openStub.mockRestore();
+    openStub = jest.spyOn(browserUtil, 'open').mockClear().mockImplementation(async (url) => {
       if (url === 'https://login.microsoftonline.com/common/oauth2/authorize?client_id=31359c7f-bd7e-475c-86db-fdb8c937548e&response_type=code&prompt=admin_consent') {
         throw 'An error occurred';
       }

@@ -1,6 +1,5 @@
 import { ExternalConnectors } from '@microsoft/microsoft-graph-types';
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Logger } from '../../../../cli/Logger.js';
 import { CommandError } from '../../../../Command.js';
@@ -8,14 +7,14 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './externalconnection-get.js';
 
 describe(commands.EXTERNALCONNECTION_GET, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
 
   const externalConnection: ExternalConnectors.ExternalConnection =
   {
@@ -30,11 +29,11 @@ describe(commands.EXTERNALCONNECTION_GET, () => {
     }
   };
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
   });
 
@@ -51,18 +50,18 @@ describe(commands.EXTERNALCONNECTION_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -75,7 +74,7 @@ describe(commands.EXTERNALCONNECTION_GET, () => {
   });
 
   it('correctly handles error', async () => {
-    sinon.stub(request, 'get').callsFake(() => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
       throw 'An error has occurred';
     });
 
@@ -85,56 +84,60 @@ describe(commands.EXTERNALCONNECTION_GET, () => {
     }), new CommandError('An error has occurred'));
   });
 
-  it('should get external connection information for the Microsoft Search by id (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/external/connections/contosohr`) {
-        return externalConnection;
-      }
-      throw 'Invalid request';
-    });
+  it('should get external connection information for the Microsoft Search by id (debug)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/external/connections/contosohr`) {
+          return externalConnection;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        id: 'contosohr'
-      }
-    });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          id: 'contosohr'
+        }
+      });
 
-    const call: sinon.SinonSpyCall = loggerLogSpy.lastCall;
-    assert.strictEqual(call.args[0].id, 'contosohr');
-    assert.strictEqual(call.args[0].name, 'Contoso HR');
-    assert.strictEqual(call.args[0].description, 'Connection to index Contoso HR system');
-    assert.strictEqual(call.args[0].state, 'draft');
-  });
+      const call: sinon.SinonSpyCall = loggerLogSpy.mock.lastCall;
+      assert.strictEqual(call.mock.calls[0].id, 'contosohr');
+      assert.strictEqual(call.mock.calls[0].name, 'Contoso HR');
+      assert.strictEqual(call.mock.calls[0].description, 'Connection to index Contoso HR system');
+      assert.strictEqual(call.mock.calls[0].state, 'draft');
+    }
+  );
 
-  it('should get external connection information for the Microsoft Search by name', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/v1.0/external/connections?$filter=name eq '`) > -1) {
-        return {
-          "value": [
-            externalConnection
-          ]
-        };
-      }
+  it('should get external connection information for the Microsoft Search by name',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/v1.0/external/connections?$filter=name eq '`) > -1) {
+          return {
+            "value": [
+              externalConnection
+            ]
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        name: 'Contoso HR'
-      }
-    });
-    const call: sinon.SinonSpyCall = loggerLogSpy.lastCall;
-    assert.strictEqual(call.args[0].id, 'contosohr');
-    assert.strictEqual(call.args[0].name, 'Contoso HR');
-    assert.strictEqual(call.args[0].description, 'Connection to index Contoso HR system');
-    assert.strictEqual(call.args[0].state, 'draft');
-  });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          name: 'Contoso HR'
+        }
+      });
+      const call: sinon.SinonSpyCall = loggerLogSpy.mock.lastCall;
+      assert.strictEqual(call.mock.calls[0].id, 'contosohr');
+      assert.strictEqual(call.mock.calls[0].name, 'Contoso HR');
+      assert.strictEqual(call.mock.calls[0].description, 'Connection to index Contoso HR system');
+      assert.strictEqual(call.mock.calls[0].state, 'draft');
+    }
+  );
 
   it('fails retrieving external connection not found by name', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/v1.0/external/connections?$filter=name eq '`) > -1) {
         return {
           "value": []

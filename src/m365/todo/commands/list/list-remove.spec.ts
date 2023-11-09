@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './list-remove.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -21,14 +20,14 @@ describe(commands.LIST_REMOVE, () => {
   let promptOptions: any;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
-    sinon.stub(Cli, 'prompt').callsFake(async (options) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options) => {
       promptOptions = options;
       return { continue: true };
     });
@@ -52,15 +51,15 @@ describe(commands.LIST_REMOVE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.delete,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -73,7 +72,7 @@ describe(commands.LIST_REMOVE, () => {
   });
 
   it('removes a To Do task list by name', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/me/todo/lists?$filter=displayName eq 'FooList'`) {
         return {
           "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#lists",
@@ -92,7 +91,7 @@ describe(commands.LIST_REMOVE, () => {
 
       throw 'Invalid request';
     });
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
+    jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/me/todo/lists/AAMkAGI3NDhlZmQzLWQxYjAtNGJjNy04NmYwLWQ0M2IzZTNlMDUwNAAuAAAAAACQ1l2jfH6VSZraktP8Z7auAQCbV93BagWITZhL3J6BMqhjAAD9pHIiAAA=`) {
         return;
       }
@@ -108,45 +107,47 @@ describe(commands.LIST_REMOVE, () => {
     assert.strictEqual(log.length, 0);
   });
 
-  it('removes a To Do task list by name when confirm option is passed', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/me/todo/lists?$filter=displayName eq 'FooList'`) {
-        return {
-          "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#lists",
-          "value": [
-            {
-              "@odata.etag": "W/\"m1fdwWoFiE2YS9yegTKoYwAA/ZGllw==\"",
-              "displayName": "FooList",
-              "isOwner": true,
-              "isShared": false,
-              "wellknownListName": "none",
-              "id": "AAMkAGI3NDhlZmQzLWQxYjAtNGJjNy04NmYwLWQ0M2IzZTNlMDUwNAAuAAAAAACQ1l2jfH6VSZraktP8Z7auAQCbV93BagWITZhL3J6BMqhjAAD9pHIiAAA="
-            }
-          ]
-        };
-      }
+  it('removes a To Do task list by name when confirm option is passed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/me/todo/lists?$filter=displayName eq 'FooList'`) {
+          return {
+            "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#lists",
+            "value": [
+              {
+                "@odata.etag": "W/\"m1fdwWoFiE2YS9yegTKoYwAA/ZGllw==\"",
+                "displayName": "FooList",
+                "isOwner": true,
+                "isShared": false,
+                "wellknownListName": "none",
+                "id": "AAMkAGI3NDhlZmQzLWQxYjAtNGJjNy04NmYwLWQ0M2IzZTNlMDUwNAAuAAAAAACQ1l2jfH6VSZraktP8Z7auAQCbV93BagWITZhL3J6BMqhjAAD9pHIiAAA="
+              }
+            ]
+          };
+        }
 
-      throw 'Invalid request';
-    });
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/me/todo/lists/AAMkAGI3NDhlZmQzLWQxYjAtNGJjNy04NmYwLWQ0M2IzZTNlMDUwNAAuAAAAAACQ1l2jfH6VSZraktP8Z7auAQCbV93BagWITZhL3J6BMqhjAAD9pHIiAAA=`) {
-        return;
-      }
+        throw 'Invalid request';
+      });
+      jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/me/todo/lists/AAMkAGI3NDhlZmQzLWQxYjAtNGJjNy04NmYwLWQ0M2IzZTNlMDUwNAAuAAAAAACQ1l2jfH6VSZraktP8Z7auAQCbV93BagWITZhL3J6BMqhjAAD9pHIiAAA=`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        name: "FooList",
-        force: true
-      }
-    } as any);
-    assert.strictEqual(log.length, 0);
-  });
+      await command.action(logger, {
+        options: {
+          name: "FooList",
+          force: true
+        }
+      } as any);
+      assert.strictEqual(log.length, 0);
+    }
+  );
 
   it('removes a To Do task list by id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/me/todo/lists?$filter=displayName eq 'FooList'`) {
         return {
           "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#lists",
@@ -165,7 +166,7 @@ describe(commands.LIST_REMOVE, () => {
 
       throw 'Invalid request';
     });
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
+    jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/me/todo/lists/AAMkAGI3NDhlZmQzLWQxYjAtNGJjNy04NmYwLWQ0M2IzZTNlMDUwNAAuAAAAAACQ1l2jfH6VSZraktP8Z7auAQCbV93BagWITZhL3J6BMqhjAAD9pHIiAAA=`) {
         return;
       }
@@ -181,25 +182,27 @@ describe(commands.LIST_REMOVE, () => {
     assert.strictEqual(log.length, 0);
   });
 
-  it('handles error correctly when a list is not found for a specific name', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/me/todo/lists?$filter=displayName eq 'FooList'`) {
-        return {
-          "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#lists",
-          "value": []
-        };
-      }
+  it('handles error correctly when a list is not found for a specific name',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/me/todo/lists?$filter=displayName eq 'FooList'`) {
+          return {
+            "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#lists",
+            "value": []
+          };
+        }
 
-      throw 'Invalid request';
-    });
-    sinon.stub(request, 'delete').callsFake(async () => {
-      return;
-    });
-    await assert.rejects(command.action(logger, { options: { name: "FooList" } } as any), new CommandError('The list FooList cannot be found'));
-  });
+        throw 'Invalid request';
+      });
+      jest.spyOn(request, 'delete').mockClear().mockImplementation(async () => {
+        return;
+      });
+      await assert.rejects(command.action(logger, { options: { name: "FooList" } } as any), new CommandError('The list FooList cannot be found'));
+    }
+  );
 
   it('handles error correctly', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/me/todo/lists?$filter=displayName eq 'FooList'`) {
         return {
           "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#lists",
@@ -218,59 +221,61 @@ describe(commands.LIST_REMOVE, () => {
 
       throw 'Invalid request';
     });
-    sinon.stub(request, 'delete').rejects(new Error('An error has occurred'));
+    jest.spyOn(request, 'delete').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
     await assert.rejects(command.action(logger, { options: { name: "FooList" } } as any), new CommandError('An error has occurred'));
   });
 
-  it('prompts before removing the list when confirm option not passed', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/me/todo/lists?$filter=displayName eq 'FooList'`) {
-        return {
-          "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#lists",
-          "value": [
-            {
-              "@odata.etag": "W/\"m1fdwWoFiE2YS9yegTKoYwAA/ZGllw==\"",
-              "displayName": "FooList",
-              "isOwner": true,
-              "isShared": false,
-              "wellknownListName": "none",
-              "id": "AAMkAGI3NDhlZmQzLWQxYjAtNGJjNy04NmYwLWQ0M2IzZTNlMDUwNAAuAAAAAACQ1l2jfH6VSZraktP8Z7auAQCbV93BagWITZhL3J6BMqhjAAD9pHIiAAA="
-            }
-          ]
-        };
+  it('prompts before removing the list when confirm option not passed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/me/todo/lists?$filter=displayName eq 'FooList'`) {
+          return {
+            "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#lists",
+            "value": [
+              {
+                "@odata.etag": "W/\"m1fdwWoFiE2YS9yegTKoYwAA/ZGllw==\"",
+                "displayName": "FooList",
+                "isOwner": true,
+                "isShared": false,
+                "wellknownListName": "none",
+                "id": "AAMkAGI3NDhlZmQzLWQxYjAtNGJjNy04NmYwLWQ0M2IzZTNlMDUwNAAuAAAAAACQ1l2jfH6VSZraktP8Z7auAQCbV93BagWITZhL3J6BMqhjAAD9pHIiAAA="
+              }
+            ]
+          };
+        }
+
+        throw 'Invalid request';
+      });
+      jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/me/todo/lists/AAMkAGI3NDhlZmQzLWQxYjAtNGJjNy04NmYwLWQ0M2IzZTNlMDUwNAAuAAAAAACQ1l2jfH6VSZraktP8Z7auAQCbV93BagWITZhL3J6BMqhjAAD9pHIiAAA=`) {
+          return;
+        }
+
+        throw 'Invalid request';
+      });
+
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: false }
+      ));
+
+      command.action(logger, {
+        options: {
+          name: "FooList"
+        }
+      } as any);
+      let promptIssued = false;
+
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
       }
-
-      throw 'Invalid request';
-    });
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/me/todo/lists/AAMkAGI3NDhlZmQzLWQxYjAtNGJjNy04NmYwLWQ0M2IzZTNlMDUwNAAuAAAAAACQ1l2jfH6VSZraktP8Z7auAQCbV93BagWITZhL3J6BMqhjAAD9pHIiAAA=`) {
-        return;
-      }
-
-      throw 'Invalid request';
-    });
-
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: false }
-    ));
-
-    command.action(logger, {
-      options: {
-        name: "FooList"
-      }
-    } as any);
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      assert(promptIssued);
     }
-    assert(promptIssued);
-  });
+  );
 
   it('fails validation if both name and id are not set', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -298,7 +303,7 @@ describe(commands.LIST_REMOVE, () => {
   });
 
   it('fails validation if both name and id are set', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import { Cli } from '../../../cli/Cli.js';
 import { CommandInfo } from '../../../cli/CommandInfo.js';
 import { Logger } from '../../../cli/Logger.js';
@@ -18,10 +17,10 @@ describe(commands.CONSENT, () => {
   let originalTenant: string;
   let originalAadAppId: string;
 
-  before(() => {
-    sinon.stub(telemetry, 'trackEvent').callsFake(() => { });
-    sinon.stub(pid, 'getProcessName').callsFake(() => '');
-    sinon.stub(session, 'getId').callsFake(() => '');
+  beforeAll(() => {
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockImplementation(() => { });
+    jest.spyOn(pid, 'getProcessName').mockClear().mockImplementation(() => '');
+    jest.spyOn(session, 'getId').mockClear().mockImplementation(() => '');
     originalTenant = config.tenant;
     originalAadAppId = config.cliAadAppId;
     commandInfo = Cli.getCommandInfo(command);
@@ -40,7 +39,7 @@ describe(commands.CONSENT, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
@@ -48,8 +47,8 @@ describe(commands.CONSENT, () => {
     config.cliAadAppId = originalAadAppId;
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
   });
 
   it('has correct name', () => {
@@ -60,17 +59,21 @@ describe(commands.CONSENT, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('shows consent URL for yammer permissions for the default multi-tenant app', async () => {
-    await command.action(logger, { options: { service: 'yammer' } });
-    assert(loggerLogSpy.calledWith(`To consent permissions for executing yammer commands, navigate in your web browser to https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=31359c7f-bd7e-475c-86db-fdb8c937548e&response_type=code&scope=https%3A%2F%2Fapi.yammer.com%2Fuser_impersonation`));
-  });
+  it('shows consent URL for yammer permissions for the default multi-tenant app',
+    async () => {
+      await command.action(logger, { options: { service: 'yammer' } });
+      assert(loggerLogSpy.calledWith(`To consent permissions for executing yammer commands, navigate in your web browser to https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=31359c7f-bd7e-475c-86db-fdb8c937548e&response_type=code&scope=https%3A%2F%2Fapi.yammer.com%2Fuser_impersonation`));
+    }
+  );
 
-  it('shows consent URL for yammer permissions for a custom single-tenant app', async () => {
-    config.tenant = 'fb5cb38f-ecdb-4c6a-a93b-b8cfd56b4a89';
-    config.cliAadAppId = '2587b55d-a41e-436d-bb1d-6223eb185dd4';
-    await command.action(logger, { options: { service: 'yammer' } });
-    assert(loggerLogSpy.calledWith(`To consent permissions for executing yammer commands, navigate in your web browser to https://login.microsoftonline.com/fb5cb38f-ecdb-4c6a-a93b-b8cfd56b4a89/oauth2/v2.0/authorize?client_id=2587b55d-a41e-436d-bb1d-6223eb185dd4&response_type=code&scope=https%3A%2F%2Fapi.yammer.com%2Fuser_impersonation`));
-  });
+  it('shows consent URL for yammer permissions for a custom single-tenant app',
+    async () => {
+      config.tenant = 'fb5cb38f-ecdb-4c6a-a93b-b8cfd56b4a89';
+      config.cliAadAppId = '2587b55d-a41e-436d-bb1d-6223eb185dd4';
+      await command.action(logger, { options: { service: 'yammer' } });
+      assert(loggerLogSpy.calledWith(`To consent permissions for executing yammer commands, navigate in your web browser to https://login.microsoftonline.com/fb5cb38f-ecdb-4c6a-a93b-b8cfd56b4a89/oauth2/v2.0/authorize?client_id=2587b55d-a41e-436d-bb1d-6223eb185dd4&response_type=code&scope=https%3A%2F%2Fapi.yammer.com%2Fuser_impersonation`));
+    }
+  );
 
   it('supports specifying service', () => {
     const options = command.options;

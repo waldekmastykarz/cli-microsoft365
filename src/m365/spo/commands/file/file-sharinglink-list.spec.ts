@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -11,7 +10,7 @@ import { formatting } from '../../../../utils/formatting.js';
 import { odata } from '../../../../utils/odata.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { GraphFileDetails } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './file-sharinglink-list.js';
@@ -19,7 +18,7 @@ import command from './file-sharinglink-list.js';
 describe(commands.FILE_SHARINGLINK_LIST, () => {
   let log: any[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
   const webUrl = 'https://contoso.sharepoint.com';
@@ -90,7 +89,7 @@ describe(commands.FILE_SHARINGLINK_LIST, () => {
   ];
 
   const stubOdataResponse: any = (graphResponse: any = null) => {
-    return sinon.stub(odata, 'getAllItems').callsFake(async (url: string) => {
+    return jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url: string) => {
       if (url === `https://graph.microsoft.com/v1.0/sites/${fileDetailsResponse.SiteId}/drives/${fileDetailsResponse.VroomDriveID}/items/${fileDetailsResponse.VroomItemID}/permissions?$filter=Link ne null`) {
         return graphResponse.value;
       }
@@ -99,7 +98,7 @@ describe(commands.FILE_SHARINGLINK_LIST, () => {
   };
 
   const stubOdataScopeResponse: any = (scope: any = null, graphResponse: any = null) => {
-    return sinon.stub(odata, 'getAllItems').callsFake(async (url: string) => {
+    return jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url: string) => {
       if (url === `https://graph.microsoft.com/v1.0/sites/${fileDetailsResponse.SiteId}/drives/${fileDetailsResponse.VroomDriveID}/items/${fileDetailsResponse.VroomItemID}/permissions?$filter=Link ne null and Link/Scope eq '${scope}'`) {
         return graphResponse.value.filter((x: any) => x.link.scope === scope);
       }
@@ -107,11 +106,11 @@ describe(commands.FILE_SHARINGLINK_LIST, () => {
     });
   };
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -129,18 +128,18 @@ describe(commands.FILE_SHARINGLINK_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       odata.getAllItems
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -154,7 +153,7 @@ describe(commands.FILE_SHARINGLINK_LIST, () => {
 
   it('retrieves sharing links from file specified by id', async () => {
     stubOdataResponse(graphResponse);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/web/GetFileById('${fileId}')?$select=SiteId,VroomItemId,VroomDriveId`) {
         return fileDetailsResponse;
       }
@@ -168,7 +167,7 @@ describe(commands.FILE_SHARINGLINK_LIST, () => {
 
   it('retrieves sharing links from file specified by url', async () => {
     stubOdataResponse(graphResponse);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/web/GetFileByServerRelativePath(decodedUrl='${formatting.encodeQueryParameter(fileUrl)}')?$select=SiteId,VroomItemId,VroomDriveId`) {
         return fileDetailsResponse;
       }
@@ -180,68 +179,76 @@ describe(commands.FILE_SHARINGLINK_LIST, () => {
     assert(loggerLogSpy.calledWith(graphResponse.value));
   });
 
-  it('retrieves sharing links from file specified by url and scope anonymous', async () => {
-    const scope = 'anonymous';
-    stubOdataScopeResponse(scope, graphResponse);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/GetFileByServerRelativePath(decodedUrl='${formatting.encodeQueryParameter(fileUrl)}')?$select=SiteId,VroomItemId,VroomDriveId`) {
-        return fileDetailsResponse;
-      }
+  it('retrieves sharing links from file specified by url and scope anonymous',
+    async () => {
+      const scope = 'anonymous';
+      stubOdataScopeResponse(scope, graphResponse);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/GetFileByServerRelativePath(decodedUrl='${formatting.encodeQueryParameter(fileUrl)}')?$select=SiteId,VroomItemId,VroomDriveId`) {
+          return fileDetailsResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { webUrl: webUrl, fileUrl: fileUrl, scope: scope, output: 'json', verbose: true } } as any);
-    assert(loggerLogSpy.calledWith(graphResponse.value.filter(x => x.link.scope === scope)));
-  });
+      await command.action(logger, { options: { webUrl: webUrl, fileUrl: fileUrl, scope: scope, output: 'json', verbose: true } } as any);
+      assert(loggerLogSpy.calledWith(graphResponse.value.filter(x => x.link.scope === scope)));
+    }
+  );
 
-  it('retrieves sharing links from file specified by url and scope users', async () => {
-    const scope = 'users';
-    stubOdataScopeResponse(scope, graphResponse);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/GetFileByServerRelativePath(decodedUrl='${formatting.encodeQueryParameter(fileUrl)}')?$select=SiteId,VroomItemId,VroomDriveId`) {
-        return fileDetailsResponse;
-      }
+  it('retrieves sharing links from file specified by url and scope users',
+    async () => {
+      const scope = 'users';
+      stubOdataScopeResponse(scope, graphResponse);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/GetFileByServerRelativePath(decodedUrl='${formatting.encodeQueryParameter(fileUrl)}')?$select=SiteId,VroomItemId,VroomDriveId`) {
+          return fileDetailsResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { webUrl: webUrl, fileUrl: fileUrl, scope: scope, output: 'json', verbose: true } } as any);
-    assert(loggerLogSpy.calledWith(graphResponse.value.filter(x => x.link.scope === scope)));
-  });
+      await command.action(logger, { options: { webUrl: webUrl, fileUrl: fileUrl, scope: scope, output: 'json', verbose: true } } as any);
+      assert(loggerLogSpy.calledWith(graphResponse.value.filter(x => x.link.scope === scope)));
+    }
+  );
 
-  it('retrieves sharing links from file specified by url and scope organization', async () => {
-    const scope = 'organization';
-    stubOdataScopeResponse(scope, graphResponse);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/GetFileByServerRelativePath(decodedUrl='${formatting.encodeQueryParameter(fileUrl)}')?$select=SiteId,VroomItemId,VroomDriveId`) {
-        return fileDetailsResponse;
-      }
+  it('retrieves sharing links from file specified by url and scope organization',
+    async () => {
+      const scope = 'organization';
+      stubOdataScopeResponse(scope, graphResponse);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/GetFileByServerRelativePath(decodedUrl='${formatting.encodeQueryParameter(fileUrl)}')?$select=SiteId,VroomItemId,VroomDriveId`) {
+          return fileDetailsResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { webUrl: webUrl, fileUrl: fileUrl, scope: scope, output: 'json', verbose: true } } as any);
-    assert(loggerLogSpy.calledWith(graphResponse.value.filter(x => x.link.scope === scope)));
-  });
+      await command.action(logger, { options: { webUrl: webUrl, fileUrl: fileUrl, scope: scope, output: 'json', verbose: true } } as any);
+      assert(loggerLogSpy.calledWith(graphResponse.value.filter(x => x.link.scope === scope)));
+    }
+  );
 
-  it('retrieves sharing links from file specified by url with output text', async () => {
-    const scope = 'anonymous';
-    stubOdataScopeResponse(scope, graphResponse);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/GetFileByServerRelativePath(decodedUrl='${formatting.encodeQueryParameter(fileUrl)}')?$select=SiteId,VroomItemId,VroomDriveId`) {
-        return fileDetailsResponse;
-      }
+  it('retrieves sharing links from file specified by url with output text',
+    async () => {
+      const scope = 'anonymous';
+      stubOdataScopeResponse(scope, graphResponse);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/GetFileByServerRelativePath(decodedUrl='${formatting.encodeQueryParameter(fileUrl)}')?$select=SiteId,VroomItemId,VroomDriveId`) {
+          return fileDetailsResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { webUrl: webUrl, fileUrl: fileUrl, scope: scope, output: 'text', verbose: true } } as any);
-    assert(loggerLogSpy.calledWith(graphResponseText));
-  });
+      await command.action(logger, { options: { webUrl: webUrl, fileUrl: fileUrl, scope: scope, output: 'text', verbose: true } } as any);
+      assert(loggerLogSpy.calledWith(graphResponseText));
+    }
+  );
 
   it('throws error when file not found by id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/web/GetFileById('${fileId}')?$select=SiteId,VroomItemId,VroomDriveId`) {
         throw { error: { 'odata.error': { message: { value: 'File Not Found.' } } } };
       }
@@ -253,10 +260,12 @@ describe(commands.FILE_SHARINGLINK_LIST, () => {
       new CommandError(`File Not Found.`));
   });
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', fileId: fileId } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', fileId: fileId } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the fileId option is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', fileId: 'invalid' } }, commandInfo);

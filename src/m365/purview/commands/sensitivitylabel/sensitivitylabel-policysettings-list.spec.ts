@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { accessToken } from '../../../../utils/accessToken.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './sensitivitylabel-policysettings-list.js';
 
@@ -28,14 +27,14 @@ describe(commands.SENSITIVITYLABEL_POLICYSETTINGS_LIST, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.accessTokens[(command as any).resource] = {
       accessToken: 'abc',
@@ -57,20 +56,20 @@ describe(commands.SENSITIVITYLABEL_POLICYSETTINGS_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(false);
+    jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(false);
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       accessToken.isAppOnlyAccessToken,
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.accessTokens = {};
   });
@@ -103,63 +102,73 @@ describe(commands.SENSITIVITYLABEL_POLICYSETTINGS_LIST, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('retrieves list of policy settings for a sensitivity label that the current logged in user has access to', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/beta/me/security/informationProtection/labelPolicySettings`) {
-        return sensitivityLabelPolicySettingsListResponse;
-      }
+  it('retrieves list of policy settings for a sensitivity label that the current logged in user has access to',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/beta/me/security/informationProtection/labelPolicySettings`) {
+          return sensitivityLabelPolicySettingsListResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { verbose: true } });
-    assert(loggerLogSpy.calledWith(sensitivityLabelPolicySettingsListResponse));
-  });
+      await command.action(logger, { options: { verbose: true } });
+      assert(loggerLogSpy.calledWith(sensitivityLabelPolicySettingsListResponse));
+    }
+  );
 
-  it('retrieves list of policy settings for a sensitivity label that the specific user has access to by its Id', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/beta/users/${userId}/security/informationProtection/labelPolicySettings`) {
-        return sensitivityLabelPolicySettingsListResponse;
-      }
+  it('retrieves list of policy settings for a sensitivity label that the specific user has access to by its Id',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/beta/users/${userId}/security/informationProtection/labelPolicySettings`) {
+          return sensitivityLabelPolicySettingsListResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { userId: userId } });
-    assert(loggerLogSpy.calledWith(sensitivityLabelPolicySettingsListResponse));
-  });
+      await command.action(logger, { options: { userId: userId } });
+      assert(loggerLogSpy.calledWith(sensitivityLabelPolicySettingsListResponse));
+    }
+  );
 
-  it('retrieves list of policy settings for a sensitivity label that the specific user has access to by its UPN', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/beta/users/${userName}/security/informationProtection/labelPolicySettings`) {
-        return sensitivityLabelPolicySettingsListResponse;
-      }
+  it('retrieves list of policy settings for a sensitivity label that the specific user has access to by its UPN',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/beta/users/${userName}/security/informationProtection/labelPolicySettings`) {
+          return sensitivityLabelPolicySettingsListResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { userName: userName } });
-    assert(loggerLogSpy.calledWith(sensitivityLabelPolicySettingsListResponse));
-  });
+      await command.action(logger, { options: { userName: userName } });
+      assert(loggerLogSpy.calledWith(sensitivityLabelPolicySettingsListResponse));
+    }
+  );
 
-  it('throws an error when using application permissions and no option is specified', async () => {
-    sinonUtil.restore(accessToken.isAppOnlyAccessToken);
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
+  it('throws an error when using application permissions and no option is specified',
+    async () => {
+      jestUtil.restore(accessToken.isAppOnlyAccessToken);
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
 
-    await assert.rejects(command.action(logger, {
-      options: {}
-    }), new CommandError(`Specify at least 'userId' or 'userName' when using application permissions.`));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {}
+      }), new CommandError(`Specify at least 'userId' or 'userName' when using application permissions.`));
+    }
+  );
 
-  it('handles error when list of policy settings for a sensitivity label is not found', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/beta/me/security/informationProtection/labelPolicySettings`) {
-        throw `Error: The resource could not be found.`;
-      }
+  it('handles error when list of policy settings for a sensitivity label is not found',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/beta/me/security/informationProtection/labelPolicySettings`) {
+          throw `Error: The resource could not be found.`;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, { options: {} }), new CommandError(`Error: The resource could not be found.`));
-  });
+      await assert.rejects(command.action(logger, { options: {} }), new CommandError(`Error: The resource could not be found.`));
+    }
+  );
 });

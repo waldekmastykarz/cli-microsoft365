@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,18 +8,18 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './list-view-field-set.js';
 
 describe(commands.LIST_VIEW_FIELD_SET, () => {
   let log: any[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogToStderrSpy: jest.SpyInstance;
   const stubAllGetRequests: any = () => {
-    return sinon.stub(request, 'get').callsFake(async (opts) => {
+    return jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/fields/getbyinternalnameortitle') > -1 || (opts.url as string).indexOf('/fields/getbyid') > -1) {
         return {
           "AllowDisplay": true,
@@ -79,11 +78,11 @@ describe(commands.LIST_VIEW_FIELD_SET, () => {
     });
   };
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -101,19 +100,19 @@ describe(commands.LIST_VIEW_FIELD_SET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -125,10 +124,12 @@ describe(commands.LIST_VIEW_FIELD_SET, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('fails validation if the url option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', listId: '0cd891ef-afce-4e55-b836-fce03286cccf', viewId: 'cc27a922-8224-4296-90a5-ebbc54da2e85', id: '330f29c5-5c4c-465f-9f4b-7903020ae1ce', position: 1 } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the url option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', listId: '0cd891ef-afce-4e55-b836-fce03286cccf', viewId: 'cc27a922-8224-4296-90a5-ebbc54da2e85', id: '330f29c5-5c4c-465f-9f4b-7903020ae1ce', position: 1 } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the listId option is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '12345', viewId: 'cc27a922-8224-4296-90a5-ebbc54da2e81', id: '330f29c5-5c4c-465f-9f4b-7903020ae1ce', position: 1 } }, commandInfo);
@@ -145,95 +146,107 @@ describe(commands.LIST_VIEW_FIELD_SET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if the position option is defined and is not a valid number', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '0cd891ef-afce-4e55-b836-fce03286cccf', viewId: 'cc27a922-8224-4296-90a5-ebbc54da2e81', id: '330f29c5-5c4c-465f-9f4b-7903020ae1ce', position: 'abc' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the position option is defined and is not a valid number',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '0cd891ef-afce-4e55-b836-fce03286cccf', viewId: 'cc27a922-8224-4296-90a5-ebbc54da2e81', id: '330f29c5-5c4c-465f-9f4b-7903020ae1ce', position: 'abc' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation if valid options are specified', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '0cd891ef-afce-4e55-b836-fce03286cccf', viewId: 'cc27a922-8224-4296-90a5-ebbc54da2e81', id: '330f29c5-5c4c-465f-9f4b-7903020ae1ce', position: 1 } }, commandInfo);
     assert.strictEqual(actual, true);
   });
 
-  it('moves the field by title to the position index to viewTitle of listId', async () => {
-    stubAllGetRequests();
+  it('moves the field by title to the position index to viewTitle of listId',
+    async () => {
+      stubAllGetRequests();
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/sites/ninja/_api/web/lists(guid'0cd891ef-afce-4e55-b836-fce03286cccf')/views/GetByTitle('MyView')/viewfields/moveviewfieldto` &&
-        JSON.stringify(opts.data) === `{"field":"Author","index":1}`) {
-        return;
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/sites/ninja/_api/web/lists(guid'0cd891ef-afce-4e55-b836-fce03286cccf')/views/GetByTitle('MyView')/viewfields/moveviewfieldto` &&
+          JSON.stringify(opts.data) === `{"field":"Author","index":1}`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/ninja', listId: '0cd891ef-afce-4e55-b836-fce03286cccf', viewTitle: 'MyView', title: 'Created By', position: 1 } });
-    assert(loggerLogSpy.notCalled);
-  });
+      await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/ninja', listId: '0cd891ef-afce-4e55-b836-fce03286cccf', viewTitle: 'MyView', title: 'Created By', position: 1 } });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
-  it('moves the field by title to the position index to viewId of listTitle (debug)', async () => {
-    stubAllGetRequests();
+  it('moves the field by title to the position index to viewId of listTitle (debug)',
+    async () => {
+      stubAllGetRequests();
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/sites/ninja/_api/web/lists/GetByTitle('Documents')/views('cc27a922-8224-4296-90a5-ebbc54da2e81')/viewfields/moveviewfieldto` &&
-        JSON.stringify(opts.data) === `{"field":"Author","index":1}`) {
-        return;
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/sites/ninja/_api/web/lists/GetByTitle('Documents')/views('cc27a922-8224-4296-90a5-ebbc54da2e81')/viewfields/moveviewfieldto` &&
+          JSON.stringify(opts.data) === `{"field":"Author","index":1}`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com/sites/ninja', listTitle: 'Documents', viewId: 'cc27a922-8224-4296-90a5-ebbc54da2e81', title: 'Created By', position: 1 } });
-    assert(loggerLogToStderrSpy.called);
-  });
+      await command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com/sites/ninja', listTitle: 'Documents', viewId: 'cc27a922-8224-4296-90a5-ebbc54da2e81', title: 'Created By', position: 1 } });
+      assert(loggerLogToStderrSpy.called);
+    }
+  );
 
-  it('moves the field by id to the position index to viewId of listTitle', async () => {
-    stubAllGetRequests();
+  it('moves the field by id to the position index to viewId of listTitle',
+    async () => {
+      stubAllGetRequests();
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/sites/ninja/_api/web/lists/GetByTitle('Documents')/views('cc27a922-8224-4296-90a5-ebbc54da2e81')/viewfields/moveviewfieldto` &&
-        JSON.stringify(opts.data) === `{"field":"Author","index":1}`) {
-        return;
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/sites/ninja/_api/web/lists/GetByTitle('Documents')/views('cc27a922-8224-4296-90a5-ebbc54da2e81')/viewfields/moveviewfieldto` &&
+          JSON.stringify(opts.data) === `{"field":"Author","index":1}`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/ninja', listTitle: 'Documents', viewId: 'cc27a922-8224-4296-90a5-ebbc54da2e81', id: '1df5e554-ec7e-46a6-901d-d85a3881cb18', position: 1 } });
-    assert(loggerLogSpy.notCalled);
-  });
+      await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/ninja', listTitle: 'Documents', viewId: 'cc27a922-8224-4296-90a5-ebbc54da2e81', id: '1df5e554-ec7e-46a6-901d-d85a3881cb18', position: 1 } });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
-  it('moves the field by id to the position index to viewTitle of listId (debug)', async () => {
-    stubAllGetRequests();
+  it('moves the field by id to the position index to viewTitle of listId (debug)',
+    async () => {
+      stubAllGetRequests();
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/sites/ninja/_api/web/lists(guid'0cd891ef-afce-4e55-b836-fce03286cccf')/views/GetByTitle('MyView')/viewfields/moveviewfieldto` &&
-        JSON.stringify(opts.data) === `{"field":"Author","index":1}`) {
-        return;
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/sites/ninja/_api/web/lists(guid'0cd891ef-afce-4e55-b836-fce03286cccf')/views/GetByTitle('MyView')/viewfields/moveviewfieldto` &&
+          JSON.stringify(opts.data) === `{"field":"Author","index":1}`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com/sites/ninja', listId: '0cd891ef-afce-4e55-b836-fce03286cccf', viewTitle: 'MyView', id: '1df5e554-ec7e-46a6-901d-d85a3881cb18', position: 1 } });
-    assert(loggerLogToStderrSpy.called);
-  });
+      await command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com/sites/ninja', listId: '0cd891ef-afce-4e55-b836-fce03286cccf', viewTitle: 'MyView', id: '1df5e554-ec7e-46a6-901d-d85a3881cb18', position: 1 } });
+      assert(loggerLogToStderrSpy.called);
+    }
+  );
 
-  it('moves the field by id to the position index to viewTitle of listUrl', async () => {
-    stubAllGetRequests();
+  it('moves the field by id to the position index to viewTitle of listUrl',
+    async () => {
+      stubAllGetRequests();
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/sites/ninja/_api/web/GetList('%2Fsites%2Fninja%2FShared%20Documents')/views/GetByTitle('MyView')/viewfields/moveviewfieldto` &&
-        JSON.stringify(opts.data) === `{"field":"Author","index":1}`) {
-        return;
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/sites/ninja/_api/web/GetList('%2Fsites%2Fninja%2FShared%20Documents')/views/GetByTitle('MyView')/viewfields/moveviewfieldto` &&
+          JSON.stringify(opts.data) === `{"field":"Author","index":1}`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/ninja', listUrl: '/sites/ninja/Shared Documents', viewTitle: 'MyView', id: '1df5e554-ec7e-46a6-901d-d85a3881cb18', position: 1 } });
-    assert(loggerLogToStderrSpy.notCalled);
-  });
+      await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/ninja', listUrl: '/sites/ninja/Shared Documents', viewTitle: 'MyView', id: '1df5e554-ec7e-46a6-901d-d85a3881cb18', position: 1 } });
+      assert(loggerLogToStderrSpy.notCalled);
+    }
+  );
 
   it('handles error correctly', async () => {
     const error = {
@@ -246,7 +259,7 @@ describe(commands.LIST_VIEW_FIELD_SET, () => {
         }
       }
     };
-    sinon.stub(request, 'get').rejects(error);
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, {
       options: {

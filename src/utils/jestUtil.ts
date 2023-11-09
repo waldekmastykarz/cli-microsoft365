@@ -1,4 +1,4 @@
-export const sinonUtil = {
+export const jestUtil = {
   restore(method: any | any[]): void {
     if (!method) {
       return;

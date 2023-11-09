@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './app-remove.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -20,14 +19,14 @@ describe(commands.APP_REMOVE, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
   let promptOptions: any;
-  let deleteRequestStub: sinon.SinonStub;
+  let deleteRequestStub: jest.Mock;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -46,14 +45,14 @@ describe(commands.APP_REMOVE, () => {
       }
     };
 
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
 
     promptOptions = undefined;
 
-    sinon.stub(request, 'get').callsFake(async (opts: any) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts: any) => {
       if ((opts.url as string).indexOf(`/v1.0/myorganization/applications?$filter=`) > -1) {
         // fake call for getting app
         if (opts.url.indexOf('startswith') === -1) {
@@ -70,7 +69,7 @@ describe(commands.APP_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    deleteRequestStub = sinon.stub(request, 'delete').callsFake(async (opts: any) => {
+    deleteRequestStub = jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts: any) => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/myorganization/applications/d75be2e1-0204-4f95-857d-51a37cf40be8') {
         return;
       }
@@ -79,7 +78,7 @@ describe(commands.APP_REMOVE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.delete,
       Cli.prompt,
@@ -88,8 +87,8 @@ describe(commands.APP_REMOVE, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -102,7 +101,7 @@ describe(commands.APP_REMOVE, () => {
   });
 
   it('fails validation if appId and name specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -115,7 +114,7 @@ describe(commands.APP_REMOVE, () => {
   });
 
   it('fails validation if objectId and name specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -127,18 +126,20 @@ describe(commands.APP_REMOVE, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if neither appId, objectId, nor name specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if neither appId, objectId, nor name specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: {} }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: {} }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the objectId is not a valid guid', async () => {
     const actual = await command.validate({ options: { objectId: 'abc' } }, commandInfo);
@@ -155,35 +156,39 @@ describe(commands.APP_REMOVE, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation if required options specified (objectId)', async () => {
-    const actual = await command.validate({ options: { objectId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if required options specified (objectId)',
+    async () => {
+      const actual = await command.validate({ options: { objectId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('passes validation if required options specified (name)', async () => {
     const actual = await command.validate({ options: { name: 'My app' } }, commandInfo);
     assert.strictEqual(actual, true);
   });
 
-  it('prompts before removing the app when confirm option not passed', async () => {
-    await command.action(logger, {
-      options: {
-        appId: 'd75be2e1-0204-4f95-857d-51a37cf40be8'
+  it('prompts before removing the app when confirm option not passed',
+    async () => {
+      await command.action(logger, {
+        options: {
+          appId: 'd75be2e1-0204-4f95-857d-51a37cf40be8'
+        }
+      });
+
+      let promptIssued = false;
+
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
       }
-    });
 
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      assert(promptIssued);
     }
-
-    assert(promptIssued);
-  });
+  );
 
   it('aborts removing the app when prompt not confirmed', async () => {
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: false });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: false });
 
     await command.action(logger, {
       options: {
@@ -194,8 +199,8 @@ describe(commands.APP_REMOVE, () => {
   });
 
   it('deletes app when prompt confirmed (debug)', async () => {
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
     await command.action(logger, {
       options: {
@@ -237,8 +242,8 @@ describe(commands.APP_REMOVE, () => {
   });
 
   it('fails to get app by id when app does not exists', async () => {
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jestUtil.restore(request.get);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/v1.0/myorganization/applications?$filter=`) > -1) {
         return { value: [] };
       }
@@ -249,8 +254,8 @@ describe(commands.APP_REMOVE, () => {
   });
 
   it('fails to get app by name when app does not exists', async () => {
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jestUtil.restore(request.get);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/v1.0/myorganization/applications?$filter=`) > -1) {
         return { value: [] };
       }
@@ -261,7 +266,7 @@ describe(commands.APP_REMOVE, () => {
   });
 
   it('fails when multiple apps with same name exists', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -269,8 +274,8 @@ describe(commands.APP_REMOVE, () => {
       return defaultValue;
     });
 
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jestUtil.restore(request.get);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/v1.0/myorganization/applications?$filter=`) > -1) {
         return {
           "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#applications",
@@ -297,30 +302,32 @@ describe(commands.APP_REMOVE, () => {
     }), new CommandError("Multiple Azure AD application registration with name 'myapp' found. Found: d75be2e1-0204-4f95-857d-51a37cf40be8, 340a4aa3-1af6-43ac-87d8-189819003952."));
   });
 
-  it('handles selecting single result when multiple apps with the specified name found and cli is set to prompt', async () => {
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=displayName eq 'myapp'&$select=id`) {
-        return {
-          "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#applications",
-          "value": [
-            { "id": "d75be2e1-0204-4f95-857d-51a37cf40be8" },
-            { "id": "340a4aa3-1af6-43ac-87d8-189819003952" }
-          ]
-        };
-      }
+  it('handles selecting single result when multiple apps with the specified name found and cli is set to prompt',
+    async () => {
+      jestUtil.restore(request.get);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=displayName eq 'myapp'&$select=id`) {
+          return {
+            "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#applications",
+            "value": [
+              { "id": "d75be2e1-0204-4f95-857d-51a37cf40be8" },
+              { "id": "340a4aa3-1af6-43ac-87d8-189819003952" }
+            ]
+          };
+        }
 
-      throw "Multiple Azure AD application registration with name 'myapp' found.";
-    });
+        throw "Multiple Azure AD application registration with name 'myapp' found.";
+      });
 
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves({ id: 'd75be2e1-0204-4f95-857d-51a37cf40be8' });
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves({ id: 'd75be2e1-0204-4f95-857d-51a37cf40be8' });
 
-    await command.action(logger, {
-      options: {
-        name: 'myapp',
-        force: true
-      }
-    });
-    assert(deleteRequestStub.called);
-  });
+      await command.action(logger, {
+        options: {
+          name: 'myapp',
+          force: true
+        }
+      });
+      assert(deleteRequestStub.called);
+    }
+  );
 });

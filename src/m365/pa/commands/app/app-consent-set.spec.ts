@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './app-consent-set.js';
 
@@ -24,11 +23,11 @@ describe(commands.APP_CONSENT_SET, () => {
   let commandInfo: CommandInfo;
   let promptOptions: any;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -46,7 +45,7 @@ describe(commands.APP_CONSENT_SET, () => {
         log.push(msg);
       }
     };
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
@@ -54,14 +53,14 @@ describe(commands.APP_CONSENT_SET, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -95,78 +94,86 @@ describe(commands.APP_CONSENT_SET, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('prompts before bypassing consent for the specified Microsoft Power App when confirm option not passed', async () => {
-    await command.action(logger, {
-      options: {
-        environmentName: environmentName,
-        name: name,
-        bypass: true
-      }
-    });
-    let promptIssued = false;
+  it('prompts before bypassing consent for the specified Microsoft Power App when confirm option not passed',
+    async () => {
+      await command.action(logger, {
+        options: {
+          environmentName: environmentName,
+          name: name,
+          bypass: true
+        }
+      });
+      let promptIssued = false;
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+
+      assert(promptIssued);
     }
+  );
 
-    assert(promptIssued);
-  });
+  it('aborts bypassing the consent for the specified Microsoft Power App when confirm option not passed and prompt not confirmed',
+    async () => {
+      const postSpy = jest.spyOn(request, 'post').mockClear();
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: false });
 
-  it('aborts bypassing the consent for the specified Microsoft Power App when confirm option not passed and prompt not confirmed', async () => {
-    const postSpy = sinon.spy(request, 'post');
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: false });
+      await command.action(logger, {
+        options: {
+          environmentName: environmentName,
+          name: name,
+          bypass: true
+        }
+      });
+      assert(postSpy.notCalled);
+    }
+  );
 
-    await command.action(logger, {
-      options: {
-        environmentName: environmentName,
-        name: name,
-        bypass: true
-      }
-    });
-    assert(postSpy.notCalled);
-  });
+  it('bypasses consent for the specified Microsoft Power App when prompt confirmed (debug)',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://api.powerapps.com/providers/Microsoft.PowerApps/scopes/admin/environments/${environmentName}/apps/${name}/setPowerAppConnectionDirectConsentBypass?api-version=2021-02-01`) {
+          return { statusCode: 204 };
+        }
 
-  it('bypasses consent for the specified Microsoft Power App when prompt confirmed (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://api.powerapps.com/providers/Microsoft.PowerApps/scopes/admin/environments/${environmentName}/apps/${name}/setPowerAppConnectionDirectConsentBypass?api-version=2021-02-01`) {
-        return { statusCode: 204 };
-      }
+        throw 'Invalid request';
+      });
 
-      throw 'Invalid request';
-    });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+      await assert.doesNotReject(command.action(logger, {
+        options: {
+          debug: true,
+          environmentName: environmentName,
+          name: name,
+          bypass: true
+        }
+      }));
+    }
+  );
 
-    await assert.doesNotReject(command.action(logger, {
-      options: {
-        debug: true,
-        environmentName: environmentName,
-        name: name,
-        bypass: true
-      }
-    }));
-  });
+  it('bypasses consent for the specified Microsoft Power App without prompting when confirm specified',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://api.powerapps.com/providers/Microsoft.PowerApps/scopes/admin/environments/${environmentName}/apps/${name}/setPowerAppConnectionDirectConsentBypass?api-version=2021-02-01`) {
+          return { statusCode: 204 };
+        }
 
-  it('bypasses consent for the specified Microsoft Power App without prompting when confirm specified', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://api.powerapps.com/providers/Microsoft.PowerApps/scopes/admin/environments/${environmentName}/apps/${name}/setPowerAppConnectionDirectConsentBypass?api-version=2021-02-01`) {
-        return { statusCode: 204 };
-      }
+        throw 'Invalid request';
+      });
 
-      throw 'Invalid request';
-    });
-
-    await assert.doesNotReject(command.action(logger, {
-      options: {
-        environmentName: environmentName,
-        name: name,
-        bypass: true,
-        force: true
-      }
-    }));
-  });
+      await assert.doesNotReject(command.action(logger, {
+        options: {
+          environmentName: environmentName,
+          name: name,
+          bypass: true,
+          force: true
+        }
+      }));
+    }
+  );
 
   it('correctly handles API OData error', async () => {
     const error = {
@@ -175,7 +182,7 @@ describe(commands.APP_CONSENT_SET, () => {
       }
     };
 
-    sinon.stub(request, 'post').rejects(error);
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, {
       options: {

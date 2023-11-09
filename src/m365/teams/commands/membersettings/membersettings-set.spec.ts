@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './membersettings-set.js';
 
@@ -18,11 +17,11 @@ describe(commands.MEMBERSETTINGS_SET, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -44,13 +43,13 @@ describe(commands.MEMBERSETTINGS_SET, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.patch
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -73,7 +72,7 @@ describe(commands.MEMBERSETTINGS_SET, () => {
   });
 
   it('sets the allowAddRemoveApps setting to true', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/teams/6703ac8a-c49b-4fd4-8223-28f0ac3a6402` &&
         JSON.stringify(opts.data) === JSON.stringify({
           memberSettings: {
@@ -91,47 +90,51 @@ describe(commands.MEMBERSETTINGS_SET, () => {
     } as any);
   });
 
-  it('sets allowCreateUpdateChannels, allowCreateUpdateRemoveConnectors and allowDeleteChannels to true', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/teams/6703ac8a-c49b-4fd4-8223-28f0ac3a6402` &&
-        JSON.stringify(opts.data) === JSON.stringify({
-          memberSettings: {
-            allowCreateUpdateChannels: true,
-            allowCreateUpdateRemoveConnectors: true,
-            allowDeleteChannels: true
-          }
-        })) {
-        return {};
-      }
+  it('sets allowCreateUpdateChannels, allowCreateUpdateRemoveConnectors and allowDeleteChannels to true',
+    async () => {
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/teams/6703ac8a-c49b-4fd4-8223-28f0ac3a6402` &&
+          JSON.stringify(opts.data) === JSON.stringify({
+            memberSettings: {
+              allowCreateUpdateChannels: true,
+              allowCreateUpdateRemoveConnectors: true,
+              allowDeleteChannels: true
+            }
+          })) {
+          return {};
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: { teamId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402', allowCreateUpdateChannels: true, allowCreateUpdateRemoveConnectors: true, allowDeleteChannels: true }
-    } as any);
-  });
+      await command.action(logger, {
+        options: { teamId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402', allowCreateUpdateChannels: true, allowCreateUpdateRemoveConnectors: true, allowDeleteChannels: true }
+      } as any);
+    }
+  );
 
-  it('sets allowCreateUpdateChannels, allowCreateUpdateRemoveTabs and allowDeleteChannels to false', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/teams/6703ac8a-c49b-4fd4-8223-28f0ac3a6402` &&
-        JSON.stringify(opts.data) === JSON.stringify({
-          memberSettings: {
-            allowCreateUpdateChannels: false,
-            allowCreateUpdateRemoveTabs: false,
-            allowDeleteChannels: false
-          }
-        })) {
-        return {};
-      }
+  it('sets allowCreateUpdateChannels, allowCreateUpdateRemoveTabs and allowDeleteChannels to false',
+    async () => {
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/teams/6703ac8a-c49b-4fd4-8223-28f0ac3a6402` &&
+          JSON.stringify(opts.data) === JSON.stringify({
+            memberSettings: {
+              allowCreateUpdateChannels: false,
+              allowCreateUpdateRemoveTabs: false,
+              allowDeleteChannels: false
+            }
+          })) {
+          return {};
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: { teamId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402', allowCreateUpdateChannels: false, allowCreateUpdateRemoveTabs: false, allowDeleteChannels: false }
-    } as any);
-  });
+      await command.action(logger, {
+        options: { teamId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402', allowCreateUpdateChannels: false, allowCreateUpdateRemoveTabs: false, allowDeleteChannels: false }
+      } as any);
+    }
+  );
 
   it('correctly handles error when updating member settings', async () => {
     const error = {
@@ -146,7 +149,7 @@ describe(commands.MEMBERSETTINGS_SET, () => {
       }
     };
 
-    sinon.stub(request, 'patch').rejects(error);
+    jest.spyOn(request, 'patch').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, { options: { teamId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402', allowAddRemoveApps: true } } as any), new CommandError('An error has occurred'));
   });
@@ -201,25 +204,29 @@ describe(commands.MEMBERSETTINGS_SET, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation if allowCreateUpdateRemoveConnectors is false', async () => {
-    const actual = await command.validate({
-      options: {
-        teamId: '6f6fd3f7-9ba5-4488-bbe6-a789004d0d55',
-        allowCreateUpdateRemoveConnectors: false
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if allowCreateUpdateRemoveConnectors is false',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          teamId: '6f6fd3f7-9ba5-4488-bbe6-a789004d0d55',
+          allowCreateUpdateRemoveConnectors: false
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if allowCreateUpdateRemoveConnectors is true', async () => {
-    const actual = await command.validate({
-      options: {
-        teamId: '6f6fd3f7-9ba5-4488-bbe6-a789004d0d55',
-        allowCreateUpdateRemoveConnectors: true
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if allowCreateUpdateRemoveConnectors is true',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          teamId: '6f6fd3f7-9ba5-4488-bbe6-a789004d0d55',
+          allowCreateUpdateRemoveConnectors: true
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('passes validation if allowCreateUpdateRemoveTabs is false', async () => {
     const actual = await command.validate({

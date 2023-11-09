@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
 import { Logger } from '../../../../cli/Logger.js';
@@ -15,11 +14,11 @@ describe(commands.CONFIG_RESET, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     commandInfo = Cli.getCommandInfo(command);
-    sinon.stub(telemetry, 'trackEvent').callsFake(() => { });
-    sinon.stub(pid, 'getProcessName').callsFake(() => '');
-    sinon.stub(session, 'getId').callsFake(() => '');
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockImplementation(() => { });
+    jest.spyOn(pid, 'getProcessName').mockClear().mockImplementation(() => '');
+    jest.spyOn(session, 'getId').mockClear().mockImplementation(() => '');
   });
 
   beforeEach(() => {
@@ -37,8 +36,8 @@ describe(commands.CONFIG_RESET, () => {
     };
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
   });
 
   it('has correct name', () => {
@@ -49,21 +48,23 @@ describe(commands.CONFIG_RESET, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('resets a specific configuration option to its default value', async () => {
-    const output = undefined;
-    const config = Cli.getInstance().config;
+  it('resets a specific configuration option to its default value',
+    async () => {
+      const output = undefined;
+      const config = Cli.getInstance().config;
 
-    let actualKey: string = '', actualValue: any;
+      let actualKey: string = '', actualValue: any;
 
-    sinon.stub(config, 'delete').callsFake(((key: string) => {
-      actualKey = key;
-      actualValue = undefined;
-    }) as any);
+      jest.spyOn(config, 'delete').mockClear().mockImplementation(((key: string) => {
+        actualKey = key;
+        actualValue = undefined;
+      }) as any);
 
-    await command.action(logger, { options: { key: settingsNames.output, value: output } });
-    assert.strictEqual(actualKey, settingsNames.output, 'Invalid key');
-    assert.strictEqual(actualValue, undefined, 'Invalid value');
-  });
+      await command.action(logger, { options: { key: settingsNames.output, value: output } });
+      assert.strictEqual(actualKey, settingsNames.output, 'Invalid key');
+      assert.strictEqual(actualValue, undefined, 'Invalid value');
+    }
+  );
 
   it('resets all configuration settings to default', async () => {
     const config = Cli.getInstance().config;
@@ -72,7 +73,7 @@ describe(commands.CONFIG_RESET, () => {
       , printErrorsAsPlainTextKey: string = '', printErrorsAsPlainTextValue: any
       , showHelpOnFailureKey: string = '', showHelpOnFailureValue: any;
 
-    sinon.stub(config, 'clear').callsFake((() => {
+    jest.spyOn(config, 'clear').mockClear().mockImplementation((() => {
       errorOutputKey = settingsNames.errorOutput;
       errorOutputValue = undefined;
 

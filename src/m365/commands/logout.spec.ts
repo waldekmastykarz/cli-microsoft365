@@ -1,26 +1,25 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../Auth.js';
 import { Logger } from '../../cli/Logger.js';
 import { CommandError } from '../../Command.js';
 import { telemetry } from '../../telemetry.js';
 import { pid } from '../../utils/pid.js';
 import { session } from '../../utils/session.js';
-import { sinonUtil } from '../../utils/sinonUtil.js';
+import { jestUtil } from '../../utils/jestUtil.js';
 import commands from './commands.js';
 import command from './logout.js';
 
 describe(commands.LOGOUT, () => {
   let log: string[];
   let logger: Logger;
-  let authClearConnectionInfoStub: sinon.SinonStub;
+  let authClearConnectionInfoStub: jest.Mock;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').callsFake(() => Promise.resolve());
-    authClearConnectionInfoStub = sinon.stub(auth, 'clearConnectionInfo').callsFake(() => Promise.resolve());
-    sinon.stub(telemetry, 'trackEvent').callsFake(() => { });
-    sinon.stub(pid, 'getProcessName').callsFake(() => '');
-    sinon.stub(session, 'getId').callsFake(() => '');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation(() => Promise.resolve());
+    authClearConnectionInfoStub = jest.spyOn(auth, 'clearConnectionInfo').mockClear().mockImplementation(() => Promise.resolve());
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockImplementation(() => { });
+    jest.spyOn(pid, 'getProcessName').mockClear().mockImplementation(() => '');
+    jest.spyOn(session, 'getId').mockClear().mockImplementation(() => '');
   });
 
   beforeEach(() => {
@@ -38,8 +37,8 @@ describe(commands.LOGOUT, () => {
     };
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
   });
 
   it('has correct name', () => {
@@ -68,50 +67,54 @@ describe(commands.LOGOUT, () => {
     assert(authClearConnectionInfoStub.called);
   });
 
-  it('correctly handles error while clearing persisted connection info', async () => {
-    sinonUtil.restore(auth.clearConnectionInfo);
-    sinon.stub(auth, 'clearConnectionInfo').callsFake(() => Promise.reject('An error has occurred'));
-    const logoutSpy = sinon.spy(auth.service, 'logout');
-    auth.service.connected = true;
+  it('correctly handles error while clearing persisted connection info',
+    async () => {
+      jestUtil.restore(auth.clearConnectionInfo);
+      jest.spyOn(auth, 'clearConnectionInfo').mockClear().mockImplementation(() => Promise.reject('An error has occurred'));
+      const logoutSpy = jest.spyOn(auth.service, 'logout').mockClear();
+      auth.service.connected = true;
 
-    try {
-      await command.action(logger, { options: {} });
-      assert(logoutSpy.called);
+      try {
+        await command.action(logger, { options: {} });
+        assert(logoutSpy.called);
+      }
+      finally {
+        jestUtil.restore([
+          auth.clearConnectionInfo,
+          auth.service.logout
+        ]);
+      }
     }
-    finally {
-      sinonUtil.restore([
-        auth.clearConnectionInfo,
-        auth.service.logout
-      ]);
-    }
-  });
+  );
 
-  it('correctly handles error while clearing persisted connection info (debug)', async () => {
-    sinon.stub(auth, 'clearConnectionInfo').callsFake(() => Promise.reject('An error has occurred'));
-    const logoutSpy = sinon.spy(auth.service, 'logout');
-    auth.service.connected = true;
+  it('correctly handles error while clearing persisted connection info (debug)',
+    async () => {
+      jest.spyOn(auth, 'clearConnectionInfo').mockClear().mockImplementation(() => Promise.reject('An error has occurred'));
+      const logoutSpy = jest.spyOn(auth.service, 'logout').mockClear();
+      auth.service.connected = true;
 
-    try {
-      await command.action(logger, { options: { debug: true } });
-      assert(logoutSpy.called);
+      try {
+        await command.action(logger, { options: { debug: true } });
+        assert(logoutSpy.called);
+      }
+      finally {
+        jestUtil.restore([
+          auth.clearConnectionInfo,
+          auth.service.logout
+        ]);
+      }
     }
-    finally {
-      sinonUtil.restore([
-        auth.clearConnectionInfo,
-        auth.service.logout
-      ]);
-    }
-  });
+  );
 
   it('correctly handles error when restoring auth information', async () => {
-    sinonUtil.restore(auth.restoreAuth);
-    sinon.stub(auth, 'restoreAuth').callsFake(() => Promise.reject('An error has occurred'));
+    jestUtil.restore(auth.restoreAuth);
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation(() => Promise.reject('An error has occurred'));
 
     try {
       await assert.rejects(command.action(logger, { options: {} } as any), new CommandError('An error has occurred'));
     }
     finally {
-      sinonUtil.restore([
+      jestUtil.restore([
         auth.clearConnectionInfo
       ]);
     }

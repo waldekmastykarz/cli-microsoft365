@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { powerPlatform } from '../../../../utils/powerPlatform.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './dataverse-table-row-list.js';
 
@@ -53,13 +52,13 @@ describe(commands.DATAVERSE_TABLE_ROW_LIST, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -77,18 +76,18 @@ describe(commands.DATAVERSE_TABLE_ROW_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       powerPlatform.getDynamicsInstanceApiUrl
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -100,60 +99,66 @@ describe(commands.DATAVERSE_TABLE_ROW_LIST, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('passes validation if required options specified (entitySetName)', async () => {
-    const actual = await command.validate({ options: { environmentName: validEnvironment, entitySetName: validEntitySetName } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if required options specified (entitySetName)',
+    async () => {
+      const actual = await command.validate({ options: { environmentName: validEnvironment, entitySetName: validEntitySetName } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('passes validation if required options specified (name)', async () => {
     const actual = await command.validate({ options: { environmentName: validEnvironment, tableName: validTableName } }, commandInfo);
     assert.strictEqual(actual, true);
   });
 
-  it('retrieves dataverse table rows with the entitySetName parameter', async () => {
-    sinon.stub(powerPlatform, 'getDynamicsInstanceApiUrl').callsFake(async () => envUrl);
+  it('retrieves dataverse table rows with the entitySetName parameter',
+    async () => {
+      jest.spyOn(powerPlatform, 'getDynamicsInstanceApiUrl').mockClear().mockImplementation(async () => envUrl);
 
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if ((opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.0/${validEntitySetName}`)) {
-        if ((opts.headers?.accept as string)?.indexOf('application/json') === 0) {
-          return rowsResponse;
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if ((opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.0/${validEntitySetName}`)) {
+          if ((opts.headers?.accept as string)?.indexOf('application/json') === 0) {
+            return rowsResponse;
+          }
         }
-      }
 
-      throw `Invalid request ${opts.url}`;
-    });
+        throw `Invalid request ${opts.url}`;
+      });
 
-    await command.action(logger, { options: { verbose: true, environmentName: validEnvironment, entitySetName: validEntitySetName } });
-    assert(loggerLogSpy.calledWith(rowsResponse.value));
-  });
+      await command.action(logger, { options: { verbose: true, environmentName: validEnvironment, entitySetName: validEntitySetName } });
+      assert(loggerLogSpy.calledWith(rowsResponse.value));
+    }
+  );
 
-  it('retrieves dataverse table rows with the tableName parameter', async () => {
-    sinon.stub(powerPlatform, 'getDynamicsInstanceApiUrl').callsFake(async () => envUrl);
+  it('retrieves dataverse table rows with the tableName parameter',
+    async () => {
+      jest.spyOn(powerPlatform, 'getDynamicsInstanceApiUrl').mockClear().mockImplementation(async () => envUrl);
 
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if ((opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.0/EntityDefinitions(LogicalName='${validTableName}')?$select=EntitySetName`)) {
-        if ((opts.headers?.accept as string)?.indexOf('application/json') === 0) {
-          return tableResponse;
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if ((opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.0/EntityDefinitions(LogicalName='${validTableName}')?$select=EntitySetName`)) {
+          if ((opts.headers?.accept as string)?.indexOf('application/json') === 0) {
+            return tableResponse;
+          }
         }
-      }
 
-      if ((opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.0/${validEntitySetName}`)) {
-        if ((opts.headers?.accept as string)?.indexOf('application/json') === 0) {
-          return rowsResponse;
+        if ((opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.0/${validEntitySetName}`)) {
+          if ((opts.headers?.accept as string)?.indexOf('application/json') === 0) {
+            return rowsResponse;
+          }
         }
-      }
 
-      throw `Invalid request ${opts.url}`;
-    });
+        throw `Invalid request ${opts.url}`;
+      });
 
-    await command.action(logger, { options: { verbose: true, environmentName: validEnvironment, tableName: validTableName } });
-    assert(loggerLogSpy.calledWith(rowsResponse.value));
-  });
+      await command.action(logger, { options: { verbose: true, environmentName: validEnvironment, tableName: validTableName } });
+      assert(loggerLogSpy.calledWith(rowsResponse.value));
+    }
+  );
 
   it('correctly handles API OData error', async () => {
-    sinon.stub(powerPlatform, 'getDynamicsInstanceApiUrl').callsFake(async () => envUrl);
+    jest.spyOn(powerPlatform, 'getDynamicsInstanceApiUrl').mockClear().mockImplementation(async () => envUrl);
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.0/${validEntitySetName}`)) {
         if ((opts.headers?.accept as string)?.indexOf('application/json') === 0) {
           throw {

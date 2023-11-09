@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,13 +9,13 @@ import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
 import commands from '../../commands.js';
-import { sinonUtil } from './../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import command from './changelog-list.js';
 
 describe(commands.CHANGELOG_LIST, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
   const validVersions = 'beta,v1.0';
   const validChangeType = 'Addition';
@@ -87,11 +86,11 @@ describe(commands.CHANGELOG_LIST, () => {
     }
   ];
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -109,17 +108,17 @@ describe(commands.CHANGELOG_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
 
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([request.get]);
+    jestUtil.restore([request.get]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -236,7 +235,7 @@ describe(commands.CHANGELOG_LIST, () => {
   });
 
   it('retrieves changelog list', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://developer.microsoft.com/en-us/graph/changelog/rss') {
         return validRSSResponse;
       }
@@ -251,7 +250,7 @@ describe(commands.CHANGELOG_LIST, () => {
   });
 
   it('retrieves changelog list as text', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://developer.microsoft.com/en-us/graph/changelog/rss') {
         return validRSSResponse;
       }
@@ -266,7 +265,7 @@ describe(commands.CHANGELOG_LIST, () => {
   });
 
   it('retrieves changelog list based on changeType', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://developer.microsoft.com/en-us/graph/changelog/rss/?filterBy=Addition') {
         return validRSSResponse;
       }
@@ -282,28 +281,30 @@ describe(commands.CHANGELOG_LIST, () => {
     assert(loggerLogSpy.calledWith(validChangelog));
   });
 
-  it('retrieves changelog list based on versions, services, startDate and endDate', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === 'https://developer.microsoft.com/en-us/graph/changelog/rss') {
-        return validRSSResponse;
-      }
+  it('retrieves changelog list based on versions, services, startDate and endDate',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://developer.microsoft.com/en-us/graph/changelog/rss') {
+          return validRSSResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        versions: validVersions,
-        services: validServices,
-        startDate: validStartDate,
-        endDate: validEndDate
-      }
-    });
-    assert(loggerLogSpy.calledWith(validChangelog));
-  });
+      await command.action(logger, {
+        options: {
+          versions: validVersions,
+          services: validServices,
+          startDate: validStartDate,
+          endDate: validEndDate
+        }
+      });
+      assert(loggerLogSpy.calledWith(validChangelog));
+    }
+  );
 
   it('correctly handles random API error', async () => {
-    sinon.stub(request, 'get').rejects(new Error('An error has occurred'));
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
     await assert.rejects(command.action(logger, { options: {} } as any), new CommandError('An error has occurred'));
   });

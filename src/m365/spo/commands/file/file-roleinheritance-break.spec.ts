@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import spoFileGetCommand from './file-get.js';
 import command from './file-roleinheritance-break.js';
@@ -25,11 +24,11 @@ describe(commands.FILE_ROLEINHERITANCE_RESET, () => {
   let commandInfo: CommandInfo;
   let promptOptions: any;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -47,7 +46,7 @@ describe(commands.FILE_ROLEINHERITANCE_RESET, () => {
         log.push(msg);
       }
     };
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
@@ -55,15 +54,15 @@ describe(commands.FILE_ROLEINHERITANCE_RESET, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       Cli.prompt,
       Cli.executeCommandWithOutput,
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -75,10 +74,12 @@ describe(commands.FILE_ROLEINHERITANCE_RESET, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', fileId: fileId, force: true } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', fileId: fileId, force: true } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the fileId option is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: webUrl, fileId: 'foo', force: true } }, commandInfo);
@@ -90,126 +91,138 @@ describe(commands.FILE_ROLEINHERITANCE_RESET, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('prompts before breaking role inheritance for the file when confirm option not passed', async () => {
-    await command.action(logger, {
-      options: {
-        webUrl: webUrl,
-        fileId: fileId
+  it('prompts before breaking role inheritance for the file when confirm option not passed',
+    async () => {
+      await command.action(logger, {
+        options: {
+          webUrl: webUrl,
+          fileId: fileId
+        }
+      });
+
+      let promptIssued = false;
+
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
       }
-    });
 
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      assert(promptIssued);
     }
+  );
 
-    assert(promptIssued);
-  });
+  it('aborts breaking role inheritance for the file when confirm option is not passed and prompt not confirmed',
+    async () => {
+      const postSpy = jest.spyOn(request, 'post').mockClear();
 
-  it('aborts breaking role inheritance for the file when confirm option is not passed and prompt not confirmed', async () => {
-    const postSpy = sinon.spy(request, 'post');
+      await command.action(logger, {
+        options: {
+          webUrl: webUrl,
+          fileId: fileId
+        }
+      });
 
-    await command.action(logger, {
-      options: {
-        webUrl: webUrl,
-        fileId: fileId
-      }
-    });
+      assert(postSpy.notCalled);
+    }
+  );
 
-    assert(postSpy.notCalled);
-  });
+  it('breaks role inheritance clearing existing permissions on file by relative URL (debug)',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(fileUrl)}')/ListItemAllFields/breakroleinheritance(false)`) {
+          return;
+        }
 
-  it('breaks role inheritance clearing existing permissions on file by relative URL (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(fileUrl)}')/ListItemAllFields/breakroleinheritance(false)`) {
-        return;
-      }
+        throw 'Invalid request';
+      });
 
-      throw 'Invalid request';
-    });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: webUrl,
+          fileUrl: fileUrl,
+          clearExistingPermissions: true,
+          force: true
+        }
+      });
+    }
+  );
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: webUrl,
-        fileUrl: fileUrl,
-        clearExistingPermissions: true,
-        force: true
-      }
-    });
-  });
+  it('breaks role inheritance keeping existing permissions on file by relative URL (debug)',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(fileUrl)}')/ListItemAllFields/breakroleinheritance(true)`) {
+          return;
+        }
 
-  it('breaks role inheritance keeping existing permissions on file by relative URL (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(fileUrl)}')/ListItemAllFields/breakroleinheritance(true)`) {
-        return;
-      }
+        throw 'Invalid request';
+      });
 
-      throw 'Invalid request';
-    });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: webUrl,
+          fileUrl: fileUrl,
+          clearExistingPermissions: false,
+          force: true
+        }
+      });
+    }
+  );
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: webUrl,
-        fileUrl: fileUrl,
-        clearExistingPermissions: false,
-        force: true
-      }
-    });
-  });
+  it('breaks role inheritance on file by Id when prompt confirmed',
+    async () => {
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command): Promise<any> => {
+        if (command === spoFileGetCommand) {
+          return ({
+            stdout: '{"LinkingUri": "https://contoso.sharepoint.com/sites/project-x/documents/Test1.docx?d=wc39926a80d2c4067afa6cff9902eb866","Name": "Test1.docx","ServerRelativeUrl": "/sites/project-x/documents/Test1.docx","UniqueId": "b2307a39-e878-458b-bc90-03bc578531d6"}'
+          });
+        }
 
-  it('breaks role inheritance on file by Id when prompt confirmed', async () => {
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command): Promise<any> => {
-      if (command === spoFileGetCommand) {
-        return ({
-          stdout: '{"LinkingUri": "https://contoso.sharepoint.com/sites/project-x/documents/Test1.docx?d=wc39926a80d2c4067afa6cff9902eb866","Name": "Test1.docx","ServerRelativeUrl": "/sites/project-x/documents/Test1.docx","UniqueId": "b2307a39-e878-458b-bc90-03bc578531d6"}'
-        });
-      }
+        throw new CommandError('Unknown case');
+      });
 
-      throw new CommandError('Unknown case');
-    });
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(fileUrl)}')/ListItemAllFields/breakroleinheritance(true)`) {
+          return;
+        }
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(fileUrl)}')/ListItemAllFields/breakroleinheritance(true)`) {
-        return;
-      }
+        throw 'Invalid request';
+      });
 
-      throw 'Invalid request';
-    });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+      await command.action(logger, {
+        options: {
+          webUrl: webUrl,
+          fileId: fileId
+        }
+      });
+    }
+  );
 
-    await command.action(logger, {
-      options: {
-        webUrl: webUrl,
-        fileId: fileId
-      }
-    });
-  });
-
-  it('correctly handles error when breaking file role inheritance', async () => {
-    const error = {
-      error: {
-        'odata.error': {
-          code: '-1, Microsoft.SharePoint.Client.InvalidOperationException',
-          message: {
-            value: 'An error has occurred'
+  it('correctly handles error when breaking file role inheritance',
+    async () => {
+      const error = {
+        error: {
+          'odata.error': {
+            code: '-1, Microsoft.SharePoint.Client.InvalidOperationException',
+            message: {
+              value: 'An error has occurred'
+            }
           }
         }
-      }
-    };
-    sinon.stub(request, 'post').rejects(error);
+      };
+      jest.spyOn(request, 'post').mockClear().mockImplementation().rejects(error);
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: webUrl,
-        fileUrl: fileUrl,
-        force: true
-      }
-    }), new CommandError(error.error['odata.error'].message.value));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: webUrl,
+          fileUrl: fileUrl,
+          force: true
+        }
+      }), new CommandError(error.error['odata.error'].message.value));
+    }
+  );
 });

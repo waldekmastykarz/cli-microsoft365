@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { Logger } from '../../../../cli/Logger.js';
@@ -8,22 +7,22 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './schemaextension-remove.js';
 
 describe(commands.SCHEMAEXTENSION_REMOVE, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
+  let loggerLogToStderrSpy: jest.SpyInstance;
   let promptOptions: any;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
   });
 
@@ -40,9 +39,9 @@ describe(commands.SCHEMAEXTENSION_REMOVE, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
@@ -50,14 +49,14 @@ describe(commands.SCHEMAEXTENSION_REMOVE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.delete,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -70,7 +69,7 @@ describe(commands.SCHEMAEXTENSION_REMOVE, () => {
   });
 
   it('removes schema extension', async () => {
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
+    jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/v1.0/schemaExtensions/`) > -1) {
         return;
       }
@@ -83,7 +82,7 @@ describe(commands.SCHEMAEXTENSION_REMOVE, () => {
   });
 
   it('removes schema extension (debug)', async () => {
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
+    jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/v1.0/schemaExtensions/`) > -1) {
         return;
       }
@@ -95,27 +94,31 @@ describe(commands.SCHEMAEXTENSION_REMOVE, () => {
     assert(loggerLogToStderrSpy.called);
   });
 
-  it('prompts before removing schema extension when confirmation argument not passed', async () => {
-    await command.action(logger, { options: { id: 'exttyee4dv5_MySchemaExtension' } });
-    let promptIssued = false;
+  it('prompts before removing schema extension when confirmation argument not passed',
+    async () => {
+      await command.action(logger, { options: { id: 'exttyee4dv5_MySchemaExtension' } });
+      let promptIssued = false;
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+
+      assert(promptIssued);
     }
+  );
 
-    assert(promptIssued);
-  });
+  it('aborts removing schema extension when prompt not confirmed',
+    async () => {
+      jest.spyOn(request, 'delete').mockClear().mockImplementation().rejects('Invalid request');
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: false });
 
-  it('aborts removing schema extension when prompt not confirmed', async () => {
-    sinon.stub(request, 'delete').rejects('Invalid request');
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: false });
-
-    await command.action(logger, { options: { id: 'exttyee4dv5_MySchemaExtension' } });
-  });
+      await command.action(logger, { options: { id: 'exttyee4dv5_MySchemaExtension' } });
+    }
+  );
 
   it('removes schema extension when prompt confirmed', async () => {
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
+    jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`v1.0/schemaExtensions/`) > -1) {
         return;
       }
@@ -123,22 +126,22 @@ describe(commands.SCHEMAEXTENSION_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
     await command.action(logger, { options: { id: 'exttyee4dv5_MySchemaExtension' } });
     assert(loggerLogSpy.notCalled);
   });
 
   it('correctly handles random API error', async () => {
-    sinon.stub(request, 'delete').rejects({ error: 'An error has occurred' });
+    jest.spyOn(request, 'delete').mockClear().mockImplementation().rejects({ error: 'An error has occurred' });
 
     await assert.rejects(command.action(logger, { options: { id: 'exttyee4dv5_MySchemaExtension', force: true } } as any),
       new CommandError('An error has occurred'));
   });
 
   it('correctly handles random API error (string error)', async () => {
-    sinon.stub(request, 'delete').rejects(new Error('An error has occurred'));
+    jest.spyOn(request, 'delete').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
     await assert.rejects(command.action(logger, { options: { id: 'exttyee4dv5_MySchemaExtension', force: true } } as any),
       new CommandError('An error has occurred'));

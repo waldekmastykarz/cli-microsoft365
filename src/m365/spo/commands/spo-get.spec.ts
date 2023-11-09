@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../Auth.js';
 import { CommandError } from '../../../Command.js';
 import { Cli } from '../../../cli/Cli.js';
@@ -14,15 +13,15 @@ import command from './spo-get.js';
 describe(commands.GET, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(auth, 'storeConnectionInfo').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(auth, 'storeConnectionInfo').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -40,15 +39,15 @@ describe(commands.GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
     auth.service.spoUrl = undefined;
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -88,12 +87,14 @@ describe(commands.GET, () => {
     }));
   });
 
-  it('throws error when trying to get SPO URL when not logged in to M365', async () => {
-    auth.service.connected = false;
+  it('throws error when trying to get SPO URL when not logged in to M365',
+    async () => {
+      auth.service.connected = false;
 
-    await assert.rejects(command.action(logger, { options: {} } as any), new CommandError('Log in to Microsoft 365 first'));
-    assert.strictEqual(auth.service.spoUrl, undefined);
-  });
+      await assert.rejects(command.action(logger, { options: {} } as any), new CommandError('Log in to Microsoft 365 first'));
+      assert.strictEqual(auth.service.spoUrl, undefined);
+    }
+  );
 
   it('Contains the correct options', () => {
     const options = command.options;

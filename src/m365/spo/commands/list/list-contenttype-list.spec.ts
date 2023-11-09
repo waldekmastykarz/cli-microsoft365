@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './list-contenttype-list.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -74,15 +73,15 @@ describe(commands.LIST_CONTENTTYPE_LIST, () => {
   let cli: Cli;
   let log: any[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -100,18 +99,18 @@ describe(commands.LIST_CONTENTTYPE_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -127,144 +126,156 @@ describe(commands.LIST_CONTENTTYPE_LIST, () => {
     assert.deepStrictEqual(command.defaultProperties(), ['StringId', 'Name', 'Hidden', 'ReadOnly', 'Sealed']);
   });
 
-  it('retrieves all content types of the specific list if listTitle option is passed (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/sites/ninja/_api/web/lists/getByTitle('Documents')/ContentTypes`) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return contentTypeResponse;
+  it('retrieves all content types of the specific list if listTitle option is passed (debug)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/sites/ninja/_api/web/lists/getByTitle('Documents')/ContentTypes`) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return contentTypeResponse;
+          }
         }
-      }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        listTitle: 'Documents',
-        webUrl: 'https://contoso.sharepoint.com/sites/ninja'
-      }
-    });
-    assert(loggerLogSpy.calledWith(contentTypeResponse.value));
-  });
-
-  it('retrieves all content types of the specific list if listTitle option is passed', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/sites/ninja/_api/web/lists/getByTitle('Documents')/ContentTypes`) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return contentTypeResponse;
+      await command.action(logger, {
+        options: {
+          debug: true,
+          listTitle: 'Documents',
+          webUrl: 'https://contoso.sharepoint.com/sites/ninja'
         }
-      }
+      });
+      assert(loggerLogSpy.calledWith(contentTypeResponse.value));
+    }
+  );
 
-      throw 'Invalid request';
-    });
-
-    await command.action(logger, {
-      options: {
-        listTitle: 'Documents',
-        webUrl: 'https://contoso.sharepoint.com/sites/ninja'
-      }
-    });
-    assert(loggerLogSpy.calledWith(contentTypeResponse.value));
-  });
-
-  it('retrieves all content types of the specific list if listId option is passed (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`https://contoso.sharepoint.com/sites/ninja/_api/web/lists(guid'dfddade1-4729-428d-881e-7fedf3cae50d')/ContentTypes`) > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return contentTypeResponse;
+  it('retrieves all content types of the specific list if listTitle option is passed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/sites/ninja/_api/web/lists/getByTitle('Documents')/ContentTypes`) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return contentTypeResponse;
+          }
         }
-      }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        listId: 'dfddade1-4729-428d-881e-7fedf3cae50d',
-        webUrl: 'https://contoso.sharepoint.com/sites/ninja'
-      }
-    });
-    assert(loggerLogSpy.calledWith(contentTypeResponse.value));
-  });
-
-  it('retrieves all content types of the specific list if listUrl option is passed', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === 'https://contoso.sharepoint.com/_api/web/GetList(\'%2Fsites%2Fdocuments\')/ContentTypes') {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return contentTypeResponse;
+      await command.action(logger, {
+        options: {
+          listTitle: 'Documents',
+          webUrl: 'https://contoso.sharepoint.com/sites/ninja'
         }
-      }
+      });
+      assert(loggerLogSpy.calledWith(contentTypeResponse.value));
+    }
+  );
 
-      throw 'Invalid request';
-    });
-
-    await command.action(logger, {
-      options: {
-        webUrl: 'https://contoso.sharepoint.com',
-        listUrl: 'sites/documents'
-      }
-    });
-    assert(loggerLogSpy.calledWith(contentTypeResponse.value));
-  });
-
-  it('retrieves all content types of the specific list if listUrl option is passed (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === 'https://contoso.sharepoint.com/_api/web/GetList(\'%2Fsites%2Fdocuments\')/ContentTypes') {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return contentTypeResponse;
+  it('retrieves all content types of the specific list if listId option is passed (debug)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`https://contoso.sharepoint.com/sites/ninja/_api/web/lists(guid'dfddade1-4729-428d-881e-7fedf3cae50d')/ContentTypes`) > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return contentTypeResponse;
+          }
         }
-      }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: 'https://contoso.sharepoint.com',
-        listUrl: 'sites/documents'
-      }
-    });
-    assert(loggerLogSpy.calledWith(contentTypeResponse.value));
-  });
-
-  it('retrieves all content types of the specific list if listId option is passed', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`https://contoso.sharepoint.com/sites/ninja/_api/web/lists(guid'dfddade1-4729-428d-881e-7fedf3cae50d')/ContentTypes`) > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return contentTypeResponse;
+      await command.action(logger, {
+        options: {
+          debug: true,
+          listId: 'dfddade1-4729-428d-881e-7fedf3cae50d',
+          webUrl: 'https://contoso.sharepoint.com/sites/ninja'
         }
-      }
+      });
+      assert(loggerLogSpy.calledWith(contentTypeResponse.value));
+    }
+  );
 
-      throw 'Invalid request';
-    });
+  it('retrieves all content types of the specific list if listUrl option is passed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://contoso.sharepoint.com/_api/web/GetList(\'%2Fsites%2Fdocuments\')/ContentTypes') {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return contentTypeResponse;
+          }
+        }
 
-    await command.action(logger, {
-      options: {
-        listId: 'dfddade1-4729-428d-881e-7fedf3cae50d',
-        webUrl: 'https://contoso.sharepoint.com/sites/ninja'
-      }
-    });
-    assert(loggerLogSpy.calledWith(contentTypeResponse.value));
-  });
+        throw 'Invalid request';
+      });
+
+      await command.action(logger, {
+        options: {
+          webUrl: 'https://contoso.sharepoint.com',
+          listUrl: 'sites/documents'
+        }
+      });
+      assert(loggerLogSpy.calledWith(contentTypeResponse.value));
+    }
+  );
+
+  it('retrieves all content types of the specific list if listUrl option is passed (debug)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://contoso.sharepoint.com/_api/web/GetList(\'%2Fsites%2Fdocuments\')/ContentTypes') {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return contentTypeResponse;
+          }
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: 'https://contoso.sharepoint.com',
+          listUrl: 'sites/documents'
+        }
+      });
+      assert(loggerLogSpy.calledWith(contentTypeResponse.value));
+    }
+  );
+
+  it('retrieves all content types of the specific list if listId option is passed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`https://contoso.sharepoint.com/sites/ninja/_api/web/lists(guid'dfddade1-4729-428d-881e-7fedf3cae50d')/ContentTypes`) > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return contentTypeResponse;
+          }
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger, {
+        options: {
+          listId: 'dfddade1-4729-428d-881e-7fedf3cae50d',
+          webUrl: 'https://contoso.sharepoint.com/sites/ninja'
+        }
+      });
+      assert(loggerLogSpy.calledWith(contentTypeResponse.value));
+    }
+  );
 
 
   it('outputs all properties when output is JSON', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/sites/ninja/_api/web/lists(guid'dfddade1-4729-428d-881e-7fedf3cae50d')/ContentTypes`) {
         if (opts.headers &&
           opts.headers.accept &&
@@ -288,7 +299,7 @@ describe(commands.LIST_CONTENTTYPE_LIST, () => {
 
   it('command correctly handles list get reject request', async () => {
     const err = 'list retrieve error';
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/_api/web/lists/getByTitle('Documents')/ContentTypes`) {
         throw err;
       }
@@ -305,28 +316,34 @@ describe(commands.LIST_CONTENTTYPE_LIST, () => {
     }), new CommandError(err));
   });
 
-  it('fails validation if both listId and listTitle options are not passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both listId and listTitle options are not passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the webUrl option is a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF' } }, commandInfo);
-    assert(actual);
-  });
+  it('passes validation if the webUrl option is a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF' } }, commandInfo);
+      assert(actual);
+    }
+  );
 
   it('fails validation if the listId option is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '12345' } }, commandInfo);
@@ -338,16 +355,18 @@ describe(commands.LIST_CONTENTTYPE_LIST, () => {
     assert(actual);
   });
 
-  it('fails validation if both listId and listTitle options are passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both listId and listTitle options are passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF', listTitle: 'Documents' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF', listTitle: 'Documents' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 });

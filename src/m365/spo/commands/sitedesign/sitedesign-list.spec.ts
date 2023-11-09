@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Logger } from '../../../../cli/Logger.js';
 import { CommandError } from '../../../../Command.js';
@@ -7,20 +6,20 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './sitedesign-list.js';
 
 describe(commands.SITEDESIGN_LIST, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.spoUrl = 'https://contoso.sharepoint.com';
   });
@@ -38,17 +37,17 @@ describe(commands.SITEDESIGN_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -66,7 +65,7 @@ describe(commands.SITEDESIGN_LIST, () => {
   });
 
   it('lists available site designs', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.GetSiteDesigns`) > -1) {
         return {
           value: [
@@ -135,7 +134,7 @@ describe(commands.SITEDESIGN_LIST, () => {
   });
 
   it('lists available site designs (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.GetSiteDesigns`) > -1) {
         return {
           value: [
@@ -203,78 +202,82 @@ describe(commands.SITEDESIGN_LIST, () => {
     ]));
   });
 
-  it('lists available site designs with all properties for JSON output', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.GetSiteDesigns`) > -1) {
-        return {
-          value: [
-            {
-              "Description": null,
-              "IsDefault": false,
-              "PreviewImageAltText": null,
-              "PreviewImageUrl": null,
-              "SiteScriptIds": [
-                "449c0c6d-5380-4df2-b84b-622e0ac8ec25"
-              ],
-              "Title": "Contoso REST",
-              "WebTemplate": "64",
-              "Id": "9b142c22-037f-4a7f-9017-e9d8c0e34b98",
-              "Version": 1
-            },
-            {
-              "Description": null,
-              "IsDefault": false,
-              "PreviewImageAltText": null,
-              "PreviewImageUrl": null,
-              "SiteScriptIds": [
-                "449c0c6d-5380-4df2-b84b-622e0ac8ec24"
-              ],
-              "Title": "REST test",
-              "WebTemplate": "64",
-              "Id": "2a9f178a-4d1d-449c-9296-df509ab4702c",
-              "Version": 1
-            }
-          ]
-        };
-      }
+  it('lists available site designs with all properties for JSON output',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.GetSiteDesigns`) > -1) {
+          return {
+            value: [
+              {
+                "Description": null,
+                "IsDefault": false,
+                "PreviewImageAltText": null,
+                "PreviewImageUrl": null,
+                "SiteScriptIds": [
+                  "449c0c6d-5380-4df2-b84b-622e0ac8ec25"
+                ],
+                "Title": "Contoso REST",
+                "WebTemplate": "64",
+                "Id": "9b142c22-037f-4a7f-9017-e9d8c0e34b98",
+                "Version": 1
+              },
+              {
+                "Description": null,
+                "IsDefault": false,
+                "PreviewImageAltText": null,
+                "PreviewImageUrl": null,
+                "SiteScriptIds": [
+                  "449c0c6d-5380-4df2-b84b-622e0ac8ec24"
+                ],
+                "Title": "REST test",
+                "WebTemplate": "64",
+                "Id": "2a9f178a-4d1d-449c-9296-df509ab4702c",
+                "Version": 1
+              }
+            ]
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { output: 'json' } });
-    assert(loggerLogSpy.calledWith([
-      {
-        "Description": null,
-        "IsDefault": false,
-        "PreviewImageAltText": null,
-        "PreviewImageUrl": null,
-        "SiteScriptIds": [
-          "449c0c6d-5380-4df2-b84b-622e0ac8ec25"
-        ],
-        "Title": "Contoso REST",
-        "WebTemplate": "64",
-        "Id": "9b142c22-037f-4a7f-9017-e9d8c0e34b98",
-        "Version": 1
-      },
-      {
-        "Description": null,
-        "IsDefault": false,
-        "PreviewImageAltText": null,
-        "PreviewImageUrl": null,
-        "SiteScriptIds": [
-          "449c0c6d-5380-4df2-b84b-622e0ac8ec24"
-        ],
-        "Title": "REST test",
-        "WebTemplate": "64",
-        "Id": "2a9f178a-4d1d-449c-9296-df509ab4702c",
-        "Version": 1
-      }
-    ]));
-  });
+      await command.action(logger, { options: { output: 'json' } });
+      assert(loggerLogSpy.calledWith([
+        {
+          "Description": null,
+          "IsDefault": false,
+          "PreviewImageAltText": null,
+          "PreviewImageUrl": null,
+          "SiteScriptIds": [
+            "449c0c6d-5380-4df2-b84b-622e0ac8ec25"
+          ],
+          "Title": "Contoso REST",
+          "WebTemplate": "64",
+          "Id": "9b142c22-037f-4a7f-9017-e9d8c0e34b98",
+          "Version": 1
+        },
+        {
+          "Description": null,
+          "IsDefault": false,
+          "PreviewImageAltText": null,
+          "PreviewImageUrl": null,
+          "SiteScriptIds": [
+            "449c0c6d-5380-4df2-b84b-622e0ac8ec24"
+          ],
+          "Title": "REST test",
+          "WebTemplate": "64",
+          "Id": "2a9f178a-4d1d-449c-9296-df509ab4702c",
+          "Version": 1
+        }
+      ]));
+    }
+  );
 
-  it('correctly handles OData error when retrieving available site designs', async () => {
-    sinon.stub(request, 'post').rejects({ error: { 'odata.error': { message: { value: 'An error has occurred' } } } });
+  it('correctly handles OData error when retrieving available site designs',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation().rejects({ error: { 'odata.error': { message: { value: 'An error has occurred' } } } });
 
-    await assert.rejects(command.action(logger, { options: {} } as any), new CommandError('An error has occurred'));
-  });
+      await assert.rejects(command.action(logger, { options: {} } as any), new CommandError('An error has occurred'));
+    }
+  );
 });

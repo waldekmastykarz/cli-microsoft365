@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,14 +8,14 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from "../../commands.js";
 import command from './serviceannouncement-message-get.js';
 
 describe(commands.SERVICEANNOUNCEMENT_MESSAGE_GET, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
   const testId = 'MC001337';
@@ -71,11 +70,11 @@ describe(commands.SERVICEANNOUNCEMENT_MESSAGE_GET, () => {
     }
   };
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -93,18 +92,18 @@ describe(commands.SERVICEANNOUNCEMENT_MESSAGE_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -135,7 +134,7 @@ describe(commands.SERVICEANNOUNCEMENT_MESSAGE_GET, () => {
   });
 
   it('correctly retrieves service update message', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/admin/serviceAnnouncement/messages/${testId}`) {
         return resMessage;
       }
@@ -149,12 +148,12 @@ describe(commands.SERVICEANNOUNCEMENT_MESSAGE_GET, () => {
       }
     });
     assert.strictEqual(loggerLogSpy.calledWith(resMessage), true);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].id, testId);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].id, testId);
     assert.strictEqual(loggerLogSpy.callCount, 1);
   });
 
   it('correctly retrieves service update message (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/admin/serviceAnnouncement/messages/${testId}`) {
         return resMessage;
       }
@@ -169,12 +168,12 @@ describe(commands.SERVICEANNOUNCEMENT_MESSAGE_GET, () => {
       }
     });
     assert.strictEqual(loggerLogSpy.calledWith(resMessage), true);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].id, testId);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].id, testId);
     assert.strictEqual(loggerLogSpy.callCount, 1);
   });
 
   it('fails when the message does not exist for the tenant', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/admin/serviceAnnouncement/messages/${testIncorrectId}`) {
         throw resResourceNotExist;
       }
@@ -186,7 +185,7 @@ describe(commands.SERVICEANNOUNCEMENT_MESSAGE_GET, () => {
   });
 
   it('lists all properties for output json', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/admin/serviceAnnouncement/messages/${testId}`) {
         return resMessage;
       }

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './contenttype-get.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -20,15 +19,15 @@ describe(commands.CONTENTTYPE_GET, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -46,18 +45,18 @@ describe(commands.CONTENTTYPE_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -70,7 +69,7 @@ describe(commands.CONTENTTYPE_GET, () => {
   });
 
   it('gets information about a site content type by id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/sites/portal/_api/web/contenttypes('0x0100558D85B7216F6A489A499DB361E1AE2F')`) {
         return contentTypeByIdResponse;
       }
@@ -83,7 +82,7 @@ describe(commands.CONTENTTYPE_GET, () => {
   });
 
   it('gets information about a site content type by name', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/contenttypes?$filter=Name eq 'PnP%20Alert'`) > -1) {
         return contentTypeByNameResponse;
       }
@@ -96,7 +95,7 @@ describe(commands.CONTENTTYPE_GET, () => {
   });
 
   it('gets information about a list content type by id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/sites/portal/_api/web/lists/getByTitle('Events')/contenttypes('0x010200973548ACFFDA0948BE80AF607C4E28F9')`) {
         return contentTypeByIdResponse;
       }
@@ -108,86 +107,98 @@ describe(commands.CONTENTTYPE_GET, () => {
     assert(loggerLogSpy.calledWith(contentTypeByIdResponse));
   });
 
-  it('gets information about a list retrieved by its title and the content type by id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/sites/portal/_api/web/lists(guid'9153a1f5-22f7-49e8-a854-06bb4477c2a2')/contenttypes('0x010200973548ACFFDA0948BE80AF607C4E28F9')`) {
-        return contentTypeByIdResponse;
-      }
+  it('gets information about a list retrieved by its title and the content type by id',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/sites/portal/_api/web/lists(guid'9153a1f5-22f7-49e8-a854-06bb4477c2a2')/contenttypes('0x010200973548ACFFDA0948BE80AF607C4E28F9')`) {
+          return contentTypeByIdResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com/sites/portal', id: '0x010200973548ACFFDA0948BE80AF607C4E28F9', listId: '9153a1f5-22f7-49e8-a854-06bb4477c2a2' } });
-    assert(loggerLogSpy.calledWith(contentTypeByIdResponse));
-  });
+      await command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com/sites/portal', id: '0x010200973548ACFFDA0948BE80AF607C4E28F9', listId: '9153a1f5-22f7-49e8-a854-06bb4477c2a2' } });
+      assert(loggerLogSpy.calledWith(contentTypeByIdResponse));
+    }
+  );
 
-  it('gets information about a list retrieved by its url and the content type by id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/sites/portal/_api/web/GetList('%2Fsites%2Fportal%2Fdocuments')/contenttypes('0x010200973548ACFFDA0948BE80AF607C4E28F9')`) {
-        return contentTypeByIdResponse;
-      }
+  it('gets information about a list retrieved by its url and the content type by id',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/sites/portal/_api/web/GetList('%2Fsites%2Fportal%2Fdocuments')/contenttypes('0x010200973548ACFFDA0948BE80AF607C4E28F9')`) {
+          return contentTypeByIdResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com/sites/portal', id: '0x010200973548ACFFDA0948BE80AF607C4E28F9', listUrl: 'documents' } });
-    assert(loggerLogSpy.calledWith(contentTypeByIdResponse));
-  });
+      await command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com/sites/portal', id: '0x010200973548ACFFDA0948BE80AF607C4E28F9', listUrl: 'documents' } });
+      assert(loggerLogSpy.calledWith(contentTypeByIdResponse));
+    }
+  );
 
-  it('gets information about a list retrieved by its title and the content type by name', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/sites/portal/_api/web/lists/getByTitle('Events')/contenttypes?$filter=Name eq 'Event'`) {
-        return contentTypeByNameResponse;
-      }
+  it('gets information about a list retrieved by its title and the content type by name',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/sites/portal/_api/web/lists/getByTitle('Events')/contenttypes?$filter=Name eq 'Event'`) {
+          return contentTypeByNameResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com/sites/portal', name: 'Event', listTitle: 'Events' } });
-    assert(loggerLogSpy.calledWith(contentTypeByNameResponse.value[0]));
-  });
+      await command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com/sites/portal', name: 'Event', listTitle: 'Events' } });
+      assert(loggerLogSpy.calledWith(contentTypeByNameResponse.value[0]));
+    }
+  );
 
-  it('gets information about a list retrieved by its id and the content type by name', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/sites/portal/_api/web/lists(guid'9153a1f5-22f7-49e8-a854-06bb4477c2a2')/contenttypes?$filter=Name eq 'Event'`) {
-        return contentTypeByNameResponse;
-      }
+  it('gets information about a list retrieved by its id and the content type by name',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/sites/portal/_api/web/lists(guid'9153a1f5-22f7-49e8-a854-06bb4477c2a2')/contenttypes?$filter=Name eq 'Event'`) {
+          return contentTypeByNameResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com/sites/portal', name: 'Event', listId: '9153a1f5-22f7-49e8-a854-06bb4477c2a2' } });
-    assert(loggerLogSpy.calledWith(contentTypeByNameResponse.value[0]));
-  });
+      await command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com/sites/portal', name: 'Event', listId: '9153a1f5-22f7-49e8-a854-06bb4477c2a2' } });
+      assert(loggerLogSpy.calledWith(contentTypeByNameResponse.value[0]));
+    }
+  );
 
-  it('gets information about a list retrieved by its url and the content type by name', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/sites/portal/_api/web/GetList('%2Fsites%2Fportal%2Fdocuments')/contenttypes?$filter=Name eq 'Event'`) {
-        return contentTypeByNameResponse;
-      }
+  it('gets information about a list retrieved by its url and the content type by name',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/sites/portal/_api/web/GetList('%2Fsites%2Fportal%2Fdocuments')/contenttypes?$filter=Name eq 'Event'`) {
+          return contentTypeByNameResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com/sites/portal', name: 'Event', listUrl: 'documents' } });
-    assert(loggerLogSpy.calledWith(contentTypeByNameResponse.value[0]));
-  });
+      await command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com/sites/portal', name: 'Event', listUrl: 'documents' } });
+      assert(loggerLogSpy.calledWith(contentTypeByNameResponse.value[0]));
+    }
+  );
 
-  it('correctly escapes special characters in the content type id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/sites/portal/_api/web/contenttypes('0%3D0100558D85B7216F6A489A499DB361E1AE2F')`) {
-        return { "odata.null": true };
-      }
+  it('correctly escapes special characters in the content type id',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/sites/portal/_api/web/contenttypes('0%3D0100558D85B7216F6A489A499DB361E1AE2F')`) {
+          return { "odata.null": true };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com/sites/portal', id: '0=0100558D85B7216F6A489A499DB361E1AE2F' } } as any),
-      new CommandError(`Content type with ID 0=0100558D85B7216F6A489A499DB361E1AE2F not found`));
-  });
+      await assert.rejects(command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com/sites/portal', id: '0=0100558D85B7216F6A489A499DB361E1AE2F' } } as any),
+        new CommandError(`Content type with ID 0=0100558D85B7216F6A489A499DB361E1AE2F not found`));
+    }
+  );
 
   it('correctly handles site content type not found by id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/sites/portal/_api/web/contenttypes('0x0100558D85B7216F6A489A499DB361E1AE2F')`) {
         return { "odata.null": true };
       }
@@ -199,21 +210,23 @@ describe(commands.CONTENTTYPE_GET, () => {
       new CommandError(`Content type with ID 0x0100558D85B7216F6A489A499DB361E1AE2F not found`));
   });
 
-  it('correctly handles site content type not found by content type name', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/sites/portal/_api/web/contenttypes?$filter=Name eq 'PnP%20Alert'`) {
-        return { "value": [] };
-      }
+  it('correctly handles site content type not found by content type name',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/sites/portal/_api/web/contenttypes?$filter=Name eq 'PnP%20Alert'`) {
+          return { "value": [] };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com/sites/portal', name: 'PnP Alert' } } as any),
-      new CommandError(`Content type with name PnP Alert not found`));
-  });
+      await assert.rejects(command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com/sites/portal', name: 'PnP Alert' } } as any),
+        new CommandError(`Content type with name PnP Alert not found`));
+    }
+  );
 
   it('correctly handles list content type not found', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/sites/portal/_api/web/lists/getByTitle('Documents')/contenttypes('0x0100558D85B7216F6A489A499DB361E1AE2F')`) {
         return { "odata.null": true };
       }
@@ -226,7 +239,7 @@ describe(commands.CONTENTTYPE_GET, () => {
   });
 
   it('correctly handles list not found', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/sites/portal/_api/web/lists/getByTitle('Documents')/contenttypes('0x0100558D85B7216F6A489A499DB361E1AE2F')`) {
         throw {
           error: {
@@ -260,13 +273,15 @@ describe(commands.CONTENTTYPE_GET, () => {
     });
   });
 
-  it('fails validation if the specified site URL is not a valid SharePoint URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'site.com', id: '0x0100558D85B7216F6A489A499DB361E1AE2F' } }, commandInfo);
-    assert.notStrictEqual(actual, false);
-  });
+  it('fails validation if the specified site URL is not a valid SharePoint URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'site.com', id: '0x0100558D85B7216F6A489A499DB361E1AE2F' } }, commandInfo);
+      assert.notStrictEqual(actual, false);
+    }
+  );
 
   it('fails validation if both id and name are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -284,7 +299,7 @@ describe(commands.CONTENTTYPE_GET, () => {
   });
 
   it('fails validation if none id or name are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }

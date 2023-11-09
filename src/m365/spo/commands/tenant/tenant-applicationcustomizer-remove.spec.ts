@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './tenant-applicationcustomizer-remove.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -55,12 +54,12 @@ describe(commands.TENANT_APPLICATIONCUSTOMIZER_REMOVE, () => {
   let commandInfo: CommandInfo;
   let promptOptions: any;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.spoUrl = spoUrl;
     commandInfo = Cli.getCommandInfo(command);
@@ -79,7 +78,7 @@ describe(commands.TENANT_APPLICATIONCUSTOMIZER_REMOVE, () => {
         log.push(msg);
       }
     };
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
@@ -87,7 +86,7 @@ describe(commands.TENANT_APPLICATIONCUSTOMIZER_REMOVE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post,
       Cli.prompt,
@@ -96,8 +95,8 @@ describe(commands.TENANT_APPLICATIONCUSTOMIZER_REMOVE, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -115,13 +114,15 @@ describe(commands.TENANT_APPLICATIONCUSTOMIZER_REMOVE, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if the clientSideComponentId is not a valid GUID', async () => {
-    const actual = await command.validate({ options: { clientSideComponentId: 'abc' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the clientSideComponentId is not a valid GUID',
+    async () => {
+      const actual = await command.validate({ options: { clientSideComponentId: 'abc' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation when all options are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -140,7 +141,7 @@ describe(commands.TENANT_APPLICATIONCUSTOMIZER_REMOVE, () => {
   });
 
   it('fails validation when no options are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -156,7 +157,7 @@ describe(commands.TENANT_APPLICATIONCUSTOMIZER_REMOVE, () => {
   });
 
   it('fails validation when title and id options are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -173,41 +174,45 @@ describe(commands.TENANT_APPLICATIONCUSTOMIZER_REMOVE, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation when title and clientSideComponentId options are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation when title and clientSideComponentId options are specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        title: title,
-        clientSideComponentId: clientSideComponentId
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          title: title,
+          clientSideComponentId: clientSideComponentId
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when id and clientSideComponentId options are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation when id and clientSideComponentId options are specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        id: id,
-        clientSideComponentId: clientSideComponentId
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          id: id,
+          clientSideComponentId: clientSideComponentId
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation if id is a valid number', async () => {
     const actual = await command.validate({ options: { id: id } }, commandInfo);
@@ -224,39 +229,43 @@ describe(commands.TENANT_APPLICATIONCUSTOMIZER_REMOVE, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('prompts before removing the specified tenant applicationcustomizer when confirm option not passed', async () => {
-    await command.action(logger, {
-      options: {
-        id: id
-      }
-    });
-    let promptIssued = false;
+  it('prompts before removing the specified tenant applicationcustomizer when confirm option not passed',
+    async () => {
+      await command.action(logger, {
+        options: {
+          id: id
+        }
+      });
+      let promptIssued = false;
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+
+      assert(promptIssued);
     }
+  );
 
-    assert(promptIssued);
-  });
-
-  it('aborts removing the specified tenant applicationcustomizer when confirm option not passed and prompt not confirmed', async () => {
-    const postSpy = sinon.spy(request, 'delete');
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: false }
-    ));
-    await command.action(logger, {
-      options: {
-        id: id
-      }
-    });
-    assert(postSpy.notCalled);
-  });
+  it('aborts removing the specified tenant applicationcustomizer when confirm option not passed and prompt not confirmed',
+    async () => {
+      const postSpy = jest.spyOn(request, 'delete').mockClear();
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: false }
+      ));
+      await command.action(logger, {
+        options: {
+          id: id
+        }
+      });
+      assert(postSpy.notCalled);
+    }
+  );
 
   it('throws error when tenant app catalog doesn\'t exist', async () => {
     const errorMessage = 'No app catalog URL found';
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${spoUrl}/_api/SP_TenantSettings_Current`) {
         return { CorporateCatalogUrl: null };
       }
@@ -272,27 +281,29 @@ describe(commands.TENANT_APPLICATIONCUSTOMIZER_REMOVE, () => {
     }), new CommandError(errorMessage));
   });
 
-  it('throws error when retrieving a tenant app catalog fails with an exception', async () => {
-    const errorMessage = 'Couldn\'t retrieve tenant app catalog URL';
+  it('throws error when retrieving a tenant app catalog fails with an exception',
+    async () => {
+      const errorMessage = 'Couldn\'t retrieve tenant app catalog URL';
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `${spoUrl}/_api/SP_TenantSettings_Current`) {
-        throw errorMessage;
-      }
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${spoUrl}/_api/SP_TenantSettings_Current`) {
+          throw errorMessage;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        title: title,
-        force: true
-      }
-    }), new CommandError(errorMessage));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          title: title,
+          force: true
+        }
+      }), new CommandError(errorMessage));
+    }
+  );
 
   it('removes an application customizer by title (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${spoUrl}/_api/SP_TenantSettings_Current`) {
         return { CorporateCatalogUrl: appCatalogUrl };
       }
@@ -304,7 +315,7 @@ describe(commands.TENANT_APPLICATIONCUSTOMIZER_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    const postSpy = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postSpy = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/sites/apps/_api/web/GetList('%2Fsites%2Fapps%2Flists%2FTenantWideExtensions')/items(4)`) {
         return;
       }
@@ -312,8 +323,8 @@ describe(commands.TENANT_APPLICATIONCUSTOMIZER_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: true }
     ));
 
@@ -327,7 +338,7 @@ describe(commands.TENANT_APPLICATIONCUSTOMIZER_REMOVE, () => {
   });
 
   it('removes an application customizer by title with confirm', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${spoUrl}/_api/SP_TenantSettings_Current`) {
         return { CorporateCatalogUrl: appCatalogUrl };
       }
@@ -339,7 +350,7 @@ describe(commands.TENANT_APPLICATIONCUSTOMIZER_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    const postSpy = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postSpy = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/sites/apps/_api/web/GetList('%2Fsites%2Fapps%2Flists%2FTenantWideExtensions')/items(4)`) {
         return;
       }
@@ -347,8 +358,8 @@ describe(commands.TENANT_APPLICATIONCUSTOMIZER_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: true }
     ));
 
@@ -362,7 +373,7 @@ describe(commands.TENANT_APPLICATIONCUSTOMIZER_REMOVE, () => {
   });
 
   it('removes an application customizer by id (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${spoUrl}/_api/SP_TenantSettings_Current`) {
         return { CorporateCatalogUrl: appCatalogUrl };
       }
@@ -374,7 +385,7 @@ describe(commands.TENANT_APPLICATIONCUSTOMIZER_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    const postSpy = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postSpy = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/sites/apps/_api/web/GetList('%2Fsites%2Fapps%2Flists%2FTenantWideExtensions')/items(4)`) {
         return;
       }
@@ -382,8 +393,8 @@ describe(commands.TENANT_APPLICATIONCUSTOMIZER_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: true }
     ));
 
@@ -396,180 +407,190 @@ describe(commands.TENANT_APPLICATIONCUSTOMIZER_REMOVE, () => {
     assert(postSpy.called);
   });
 
-  it('removes an application customizer by clientSideComponentId (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `${spoUrl}/_api/SP_TenantSettings_Current`) {
-        return { CorporateCatalogUrl: appCatalogUrl };
-      }
+  it('removes an application customizer by clientSideComponentId (debug)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${spoUrl}/_api/SP_TenantSettings_Current`) {
+          return { CorporateCatalogUrl: appCatalogUrl };
+        }
 
-      if (opts.url === `https://contoso.sharepoint.com/sites/apps/_api/web/GetList('%2Fsites%2Fapps%2Flists%2FTenantWideExtensions')/items?$filter=TenantWideExtensionLocation eq 'ClientSideExtension.ApplicationCustomizer' and TenantWideExtensionComponentId eq '7096cded-b83d-4eab-96f0-df477ed7c0bc'&$select=Id`) {
-        return applicationCustomizerResponse;
-      }
+        if (opts.url === `https://contoso.sharepoint.com/sites/apps/_api/web/GetList('%2Fsites%2Fapps%2Flists%2FTenantWideExtensions')/items?$filter=TenantWideExtensionLocation eq 'ClientSideExtension.ApplicationCustomizer' and TenantWideExtensionComponentId eq '7096cded-b83d-4eab-96f0-df477ed7c0bc'&$select=Id`) {
+          return applicationCustomizerResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    const postSpy = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/sites/apps/_api/web/GetList('%2Fsites%2Fapps%2Flists%2FTenantWideExtensions')/items(4)`) {
-        return;
-      }
+      const postSpy = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/sites/apps/_api/web/GetList('%2Fsites%2Fapps%2Flists%2FTenantWideExtensions')/items(4)`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: true }
-    ));
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: true }
+      ));
 
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        clientSideComponentId: clientSideComponentId
-      }
-    });
-    assert(postSpy.called);
-  });
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          clientSideComponentId: clientSideComponentId
+        }
+      });
+      assert(postSpy.called);
+    }
+  );
 
-  it('handles error when multiple application customizers with the specified title found', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('handles error when multiple application customizers with the specified title found',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `${spoUrl}/_api/SP_TenantSettings_Current`) {
-        return { CorporateCatalogUrl: appCatalogUrl };
-      }
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${spoUrl}/_api/SP_TenantSettings_Current`) {
+          return { CorporateCatalogUrl: appCatalogUrl };
+        }
 
-      if (opts.url === `https://contoso.sharepoint.com/sites/apps/_api/web/GetList('%2Fsites%2Fapps%2Flists%2FTenantWideExtensions')/items?$filter=TenantWideExtensionLocation eq 'ClientSideExtension.ApplicationCustomizer' and Title eq 'Some customizer'&$select=Id`) {
-        return {
-          value:
-            [
-              { Title: title, Id: id, TenantWideExtensionComponentId: '7096cded-b83d-4eab-96f0-df477ed7c0bc' },
-              { Title: title, Id: 5, TenantWideExtensionComponentId: '7096cded-b83d-4eab-96f0-df477ed7c0bd' }
-            ]
-        };
-      }
+        if (opts.url === `https://contoso.sharepoint.com/sites/apps/_api/web/GetList('%2Fsites%2Fapps%2Flists%2FTenantWideExtensions')/items?$filter=TenantWideExtensionLocation eq 'ClientSideExtension.ApplicationCustomizer' and Title eq 'Some customizer'&$select=Id`) {
+          return {
+            value:
+              [
+                { Title: title, Id: id, TenantWideExtensionComponentId: '7096cded-b83d-4eab-96f0-df477ed7c0bc' },
+                { Title: title, Id: 5, TenantWideExtensionComponentId: '7096cded-b83d-4eab-96f0-df477ed7c0bd' }
+              ]
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        title: title,
-        force: true
-      }
-    }), new CommandError("Multiple application customizers with Some customizer were found. Found: 4, 5."));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          title: title,
+          force: true
+        }
+      }), new CommandError("Multiple application customizers with Some customizer were found. Found: 4, 5."));
+    }
+  );
 
-  it('handles selecting single result when multiple application customizers with the specified name found and cli is set to prompt', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `${spoUrl}/_api/SP_TenantSettings_Current`) {
-        return { CorporateCatalogUrl: appCatalogUrl };
-      }
+  it('handles selecting single result when multiple application customizers with the specified name found and cli is set to prompt',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${spoUrl}/_api/SP_TenantSettings_Current`) {
+          return { CorporateCatalogUrl: appCatalogUrl };
+        }
 
-      if (opts.url === `https://contoso.sharepoint.com/sites/apps/_api/web/GetList('%2Fsites%2Fapps%2Flists%2FTenantWideExtensions')/items?$filter=TenantWideExtensionLocation eq 'ClientSideExtension.ApplicationCustomizer' and Title eq 'Some customizer'&$select=Id`) {
-        return {
-          value:
-            [
-              { Title: title, Id: id, TenantWideExtensionComponentId: '7096cded-b83d-4eab-96f0-df477ed7c0bc' },
-              { Title: title, Id: 5, TenantWideExtensionComponentId: '7096cded-b83d-4eab-96f0-df477ed7c0bd' }
-            ]
-        };
-      }
+        if (opts.url === `https://contoso.sharepoint.com/sites/apps/_api/web/GetList('%2Fsites%2Fapps%2Flists%2FTenantWideExtensions')/items?$filter=TenantWideExtensionLocation eq 'ClientSideExtension.ApplicationCustomizer' and Title eq 'Some customizer'&$select=Id`) {
+          return {
+            value:
+              [
+                { Title: title, Id: id, TenantWideExtensionComponentId: '7096cded-b83d-4eab-96f0-df477ed7c0bc' },
+                { Title: title, Id: 5, TenantWideExtensionComponentId: '7096cded-b83d-4eab-96f0-df477ed7c0bd' }
+              ]
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves(applicationCustomizerResponse.value[0]);
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves(applicationCustomizerResponse.value[0]);
 
-    const postSpy = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/sites/apps/_api/web/GetList('%2Fsites%2Fapps%2Flists%2FTenantWideExtensions')/items(4)`) {
-        return;
-      }
+      const postSpy = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/sites/apps/_api/web/GetList('%2Fsites%2Fapps%2Flists%2FTenantWideExtensions')/items(4)`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: true }
-    ));
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: true }
+      ));
 
-    await command.action(logger, {
-      options: {
-        title: title,
-        force: true
-      }
-    });
-    assert(postSpy.called);
-  });
+      await command.action(logger, {
+        options: {
+          title: title,
+          force: true
+        }
+      });
+      assert(postSpy.called);
+    }
+  );
 
-  it('handles error when multiple application customizers with the clientSideComponentId found', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('handles error when multiple application customizers with the clientSideComponentId found',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `${spoUrl}/_api/SP_TenantSettings_Current`) {
-        return { CorporateCatalogUrl: appCatalogUrl };
-      }
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${spoUrl}/_api/SP_TenantSettings_Current`) {
+          return { CorporateCatalogUrl: appCatalogUrl };
+        }
 
-      if (opts.url === `https://contoso.sharepoint.com/sites/apps/_api/web/GetList('%2Fsites%2Fapps%2Flists%2FTenantWideExtensions')/items?$filter=TenantWideExtensionLocation eq 'ClientSideExtension.ApplicationCustomizer' and TenantWideExtensionComponentId eq '7096cded-b83d-4eab-96f0-df477ed7c0bc'&$select=Id`) {
-        return {
-          value:
-            [
-              { Title: title, Id: id, TenantWideExtensionComponentId: clientSideComponentId },
-              { Title: 'Another customizer', Id: 5, TenantWideExtensionComponentId: clientSideComponentId }
-            ]
-        };
-      }
+        if (opts.url === `https://contoso.sharepoint.com/sites/apps/_api/web/GetList('%2Fsites%2Fapps%2Flists%2FTenantWideExtensions')/items?$filter=TenantWideExtensionLocation eq 'ClientSideExtension.ApplicationCustomizer' and TenantWideExtensionComponentId eq '7096cded-b83d-4eab-96f0-df477ed7c0bc'&$select=Id`) {
+          return {
+            value:
+              [
+                { Title: title, Id: id, TenantWideExtensionComponentId: clientSideComponentId },
+                { Title: 'Another customizer', Id: 5, TenantWideExtensionComponentId: clientSideComponentId }
+              ]
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        clientSideComponentId: clientSideComponentId,
-        force: true
-      }
-    }), new CommandError("Multiple application customizers with 7096cded-b83d-4eab-96f0-df477ed7c0bc were found. Found: 4, 5."));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          clientSideComponentId: clientSideComponentId,
+          force: true
+        }
+      }), new CommandError("Multiple application customizers with 7096cded-b83d-4eab-96f0-df477ed7c0bc were found. Found: 4, 5."));
+    }
+  );
 
-  it('handles error when specified application customizer not found', async () => {
-    const errorMessage = 'The specified application customizer was not found';
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `${spoUrl}/_api/SP_TenantSettings_Current`) {
-        return { CorporateCatalogUrl: appCatalogUrl };
-      }
+  it('handles error when specified application customizer not found',
+    async () => {
+      const errorMessage = 'The specified application customizer was not found';
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${spoUrl}/_api/SP_TenantSettings_Current`) {
+          return { CorporateCatalogUrl: appCatalogUrl };
+        }
 
-      if (opts.url === `https://contoso.sharepoint.com/sites/apps/_api/web/GetList('%2Fsites%2Fapps%2Flists%2FTenantWideExtensions')/items?$filter=TenantWideExtensionLocation eq 'ClientSideExtension.ApplicationCustomizer' and Title eq 'Some customizer'&$select=Id`) {
-        return { value: [] };
-      }
+        if (opts.url === `https://contoso.sharepoint.com/sites/apps/_api/web/GetList('%2Fsites%2Fapps%2Flists%2FTenantWideExtensions')/items?$filter=TenantWideExtensionLocation eq 'ClientSideExtension.ApplicationCustomizer' and Title eq 'Some customizer'&$select=Id`) {
+          return { value: [] };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        title: title,
-        force: true
-      }
-    }), new CommandError(errorMessage));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          title: title,
+          force: true
+        }
+      }), new CommandError(errorMessage));
+    }
+  );
 
   it('handles error when retrieving application customizer', async () => {
     const errorMessage = 'An error has occurred';
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${spoUrl}/_api/SP_TenantSettings_Current`) {
         return { CorporateCatalogUrl: appCatalogUrl };
       }

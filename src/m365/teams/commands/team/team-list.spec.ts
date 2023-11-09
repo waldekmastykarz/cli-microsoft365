@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Logger } from '../../../../cli/Logger.js';
 import { CommandError } from '../../../../Command.js';
@@ -7,7 +6,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
 import commands from '../../commands.js';
@@ -201,19 +200,19 @@ describe(commands.TEAM_LIST, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
-  let postStub: sinon.SinonStub;
+  let postStub: jest.Mock;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
     cli = Cli.getInstance();
-    sinon.stub(cli, 'getSettingWithDefaultValue').returnsArg(1);
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((...args: any[]) => args[1]);
   });
 
   beforeEach(() => {
@@ -229,10 +228,10 @@ describe(commands.TEAM_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
 
-    postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/$batch') {
         return batchResponse;
       }
@@ -242,15 +241,15 @@ describe(commands.TEAM_LIST, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -276,26 +275,30 @@ describe(commands.TEAM_LIST, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation userName is used without joined or associated option', async () => {
-    const actual = await command.validate({ options: { userName: userName } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation userName is used without joined or associated option',
+    async () => {
+      const actual = await command.validate({ options: { userName: userName } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation userId is used without joined or associated option', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation userId is used without joined or associated option',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { userId: userId } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { userId: userId } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if both userId and userName are used', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -307,28 +310,32 @@ describe(commands.TEAM_LIST, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if both joined and associated options are used', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both joined and associated options are used',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { joined: true, associated: true } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { joined: true, associated: true } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation if userId is used with joined option', async () => {
     const actual = await command.validate({ options: { joined: true, userId: userId } }, commandInfo);
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation if userName is used with associated option', async () => {
-    const actual = await command.validate({ options: { associated: true, userName: userName } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if userName is used with associated option',
+    async () => {
+      const actual = await command.validate({ options: { associated: true, userName: userName } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('passes validation if only joined option is used', async () => {
     const actual = await command.validate({ options: { joined: true } }, commandInfo);
@@ -341,7 +348,7 @@ describe(commands.TEAM_LIST, () => {
   });
 
   it('retrieves all teams in the tenant', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups?$select=id&$filter=resourceProvisioningOptions/Any(x:x eq 'Team')`) {
         return groupIdResponse;
       }
@@ -355,7 +362,7 @@ describe(commands.TEAM_LIST, () => {
       }
     });
 
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, {
+    assert.deepStrictEqual(postStub.mock.lastCall[0].data, {
       requests: groupIdResponse.value.map((obj, index) => ({
         id: index.toString(),
         method: 'GET',
@@ -369,7 +376,7 @@ describe(commands.TEAM_LIST, () => {
   });
 
   it('retrieves all joined teams for the current logged in user', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/me/joinedTeams?$select=id`) {
         return groupIdResponse;
       }
@@ -384,7 +391,7 @@ describe(commands.TEAM_LIST, () => {
       }
     });
 
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, {
+    assert.deepStrictEqual(postStub.mock.lastCall[0].data, {
       requests: groupIdResponse.value.map((obj, index) => ({
         id: index.toString(),
         method: 'GET',
@@ -398,7 +405,7 @@ describe(commands.TEAM_LIST, () => {
   });
 
   it('retrieves all joined teams for a specified user by UPN', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users/${formatting.encodeQueryParameter(userName)}/joinedTeams?$select=id`) {
         return groupIdResponse;
       }
@@ -414,7 +421,7 @@ describe(commands.TEAM_LIST, () => {
       }
     });
 
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, {
+    assert.deepStrictEqual(postStub.mock.lastCall[0].data, {
       requests: groupIdResponse.value.map((obj, index) => ({
         id: index.toString(),
         method: 'GET',
@@ -427,37 +434,39 @@ describe(commands.TEAM_LIST, () => {
     assert(loggerLogSpy.calledOnceWith(commandResponse));
   });
 
-  it('retrieves all associated teams for the current logged in user', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/me/teamwork/associatedTeams?$select=id`) {
-        return groupIdResponse;
-      }
+  it('retrieves all associated teams for the current logged in user',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/me/teamwork/associatedTeams?$select=id`) {
+          return groupIdResponse;
+        }
 
-      throw 'Invalid request: ' + opts.url;
-    });
+        throw 'Invalid request: ' + opts.url;
+      });
 
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        associated: true
-      }
-    });
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          associated: true
+        }
+      });
 
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, {
-      requests: groupIdResponse.value.map((obj, index) => ({
-        id: index.toString(),
-        method: 'GET',
-        headers: {
-          accept: 'application/json;odata.metadata=none'
-        },
-        url: `/teams/${obj.id}`
-      }))
-    });
-    assert(loggerLogSpy.calledOnceWith(commandResponse));
-  });
+      assert.deepStrictEqual(postStub.mock.lastCall[0].data, {
+        requests: groupIdResponse.value.map((obj, index) => ({
+          id: index.toString(),
+          method: 'GET',
+          headers: {
+            accept: 'application/json;odata.metadata=none'
+          },
+          url: `/teams/${obj.id}`
+        }))
+      });
+      assert(loggerLogSpy.calledOnceWith(commandResponse));
+    }
+  );
 
   it('retrieves all associated teams for a specified user by id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users/${userId}/teamwork/associatedTeams?$select=id`) {
         return groupIdResponse;
       }
@@ -473,7 +482,7 @@ describe(commands.TEAM_LIST, () => {
       }
     });
 
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, {
+    assert.deepStrictEqual(postStub.mock.lastCall[0].data, {
       requests: groupIdResponse.value.map((obj, index) => ({
         id: index.toString(),
         method: 'GET',
@@ -487,7 +496,7 @@ describe(commands.TEAM_LIST, () => {
   });
 
   it('handles API error correctly', async () => {
-    postStub.restore();
+    postStub.mockRestore();
 
     const failedResponse: any = { ...batchResponse };
     failedResponse.responses[1] = {
@@ -504,8 +513,8 @@ describe(commands.TEAM_LIST, () => {
       }
     };
 
-    sinon.stub(request, 'post').resolves(failedResponse);
-    sinon.stub(request, 'get').resolves(groupIdResponse);
+    jest.spyOn(request, 'post').mockClear().mockImplementation().resolves(failedResponse);
+    jest.spyOn(request, 'get').mockClear().mockImplementation().resolves(groupIdResponse);
 
     await assert.rejects(command.action(logger, { options: {} }), new CommandError('Resource not found.'));
   });

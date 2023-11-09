@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './site-apppermission-add.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -18,19 +17,19 @@ describe(commands.SITE_APPPERMISSION_ADD, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
   //#region mocks
   const applicationMock = { "value": [{ "appId": "89ea5c94-7736-4e25-95ad-3fa95f62b66e", "displayName": "Foo App" }] };
   //#endregion
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.spoUrl = 'https://contoso.sharepoint.com';
     commandInfo = Cli.getCommandInfo(command);
@@ -49,12 +48,12 @@ describe(commands.SITE_APPPERMISSION_ADD, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post,
       request.patch,
@@ -63,8 +62,8 @@ describe(commands.SITE_APPPERMISSION_ADD, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -99,23 +98,25 @@ describe(commands.SITE_APPPERMISSION_ADD, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if both appId and appDisplayName options are not specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both appId and appDisplayName options are not specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        siteUrl: "https://contoso.sharepoint.com/sites/sitecollection-name",
-        permission: "write"
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          siteUrl: "https://contoso.sharepoint.com/sites/sitecollection-name",
+          permission: "write"
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation with a correct URL', async () => {
     const actual = await command.validate({
@@ -128,16 +129,18 @@ describe(commands.SITE_APPPERMISSION_ADD, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('fails validation if invalid value specified for permission', async () => {
-    const actual = await command.validate({
-      options: {
-        siteUrl: 'https://contoso.sharepoint.com/sites/sitecollection-name',
-        permission: "Invalid",
-        appId: "89ea5c94-7736-4e25-95ad-3fa95f62b66e"
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if invalid value specified for permission',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          siteUrl: 'https://contoso.sharepoint.com/sites/sitecollection-name',
+          permission: "Invalid",
+          appId: "89ea5c94-7736-4e25-95ad-3fa95f62b66e"
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails when passing a site that does not exist', async () => {
     const siteError = {
@@ -151,7 +154,7 @@ describe(commands.SITE_APPPERMISSION_ADD, () => {
         }
       }
     };
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('non-existing') === -1) {
         return { value: [] };
       }
@@ -167,43 +170,45 @@ describe(commands.SITE_APPPERMISSION_ADD, () => {
     } as any), new CommandError('Requested site could not be found'));
   });
 
-  it('fails to get Azure AD app when Azure AD app does not exists', async () => {
-    const getRequestStub = sinon.stub(request, 'get');
-    getRequestStub.onCall(0)
-      .callsFake(async (opts) => {
-        if ((opts.url as string).indexOf('/v1.0/sites/') > -1) {
-          return {
-            "id": "contoso.sharepoint.com,00000000-0000-0000-0000-000000000000,00000000-0000-0000-0000-000000000000",
-            "displayName": "sitecollection-name",
-            "name": "sitecollection-name",
-            "createdDateTime": "2021-03-09T20:56:00Z",
-            "lastModifiedDateTime": "2021-03-09T20:56:01Z",
-            "webUrl": "https://contoso.sharepoint.com/sites/sitecollection-name"
-          };
-        }
-        throw 'Invalid request';
-      });
+  it('fails to get Azure AD app when Azure AD app does not exists',
+    async () => {
+      const getRequestStub = jest.spyOn(request, 'get').mockClear().mockImplementation();
+      getRequestStub.onCall(0)
+        .callsFake(async (opts) => {
+          if ((opts.url as string).indexOf('/v1.0/sites/') > -1) {
+            return {
+              "id": "contoso.sharepoint.com,00000000-0000-0000-0000-000000000000,00000000-0000-0000-0000-000000000000",
+              "displayName": "sitecollection-name",
+              "name": "sitecollection-name",
+              "createdDateTime": "2021-03-09T20:56:00Z",
+              "lastModifiedDateTime": "2021-03-09T20:56:01Z",
+              "webUrl": "https://contoso.sharepoint.com/sites/sitecollection-name"
+            };
+          }
+          throw 'Invalid request';
+        });
 
-    getRequestStub.onCall(1)
-      .callsFake(async (opts) => {
-        if ((opts.url as string).indexOf('/v1.0/myorganization/servicePrincipals?$select=appId,displayName&$filter=') > -1) {
-          return { value: [] };
-        }
-        throw 'The specified Azure AD app does not exist';
-      });
+      getRequestStub.onCall(1)
+        .callsFake(async (opts) => {
+          if ((opts.url as string).indexOf('/v1.0/myorganization/servicePrincipals?$select=appId,displayName&$filter=') > -1) {
+            return { value: [] };
+          }
+          throw 'The specified Azure AD app does not exist';
+        });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        debug: true,
-        siteUrl: 'https://contoso.sharepoint.com/sites/sitecollection-name',
-        permission: "write",
-        appId: "89ea5c94-7736-4e25-95ad-3fa95f62b66e"
-      }
-    } as any), new CommandError('The specified Azure AD app does not exist'));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          debug: true,
+          siteUrl: 'https://contoso.sharepoint.com/sites/sitecollection-name',
+          permission: "write",
+          appId: "89ea5c94-7736-4e25-95ad-3fa95f62b66e"
+        }
+      } as any), new CommandError('The specified Azure AD app does not exist'));
+    }
+  );
 
   it('fails when multiple Azure AD apps with same name exists', async () => {
-    const getRequestStub = sinon.stub(request, 'get');
+    const getRequestStub = jest.spyOn(request, 'get').mockClear().mockImplementation();
     getRequestStub.onCall(0)
       .callsFake(async (opts) => {
         if ((opts.url as string).indexOf('/v1.0/sites/') > -1) {
@@ -248,7 +253,7 @@ describe(commands.SITE_APPPERMISSION_ADD, () => {
   });
 
   it('adds an application permission to the site by appId', async () => {
-    const getRequestStub = sinon.stub(request, 'get');
+    const getRequestStub = jest.spyOn(request, 'get').mockClear().mockImplementation();
     getRequestStub.onCall(0)
       .callsFake(async (opts) => {
         if ((opts.url as string).indexOf('/v1.0/sites/') > -1) {
@@ -273,7 +278,7 @@ describe(commands.SITE_APPPERMISSION_ADD, () => {
         throw 'Invalid request';
       });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/permissions') > -1) {
         return {
           "id": "aTowaS50fG1zLnNwLmV4dHxjY2EwMDE2OS1kMzhiLTQ2MmYtYTNiNC1mMzU2NmIxNjJmMmRAZGUzNDhiYzctMWFlYi00NDA2LThjYjMtOTdkYjAyMWNhZGI0",
@@ -317,216 +322,222 @@ describe(commands.SITE_APPPERMISSION_ADD, () => {
     }));
   });
 
-  it('adds an application permission to the site by appDisplayName', async () => {
-    const getRequestStub = sinon.stub(request, 'get');
-    getRequestStub.onCall(0)
-      .callsFake(async (opts) => {
-        if ((opts.url as string).indexOf('/v1.0/sites/') > -1) {
+  it('adds an application permission to the site by appDisplayName',
+    async () => {
+      const getRequestStub = jest.spyOn(request, 'get').mockClear().mockImplementation();
+      getRequestStub.onCall(0)
+        .callsFake(async (opts) => {
+          if ((opts.url as string).indexOf('/v1.0/sites/') > -1) {
+            return {
+              "id": "contoso.sharepoint.com,00000000-0000-0000-0000-000000000000,00000000-0000-0000-0000-000000000000",
+              "displayName": "sitecollection-name",
+              "name": "sitecollection-name",
+              "createdDateTime": "2021-03-09T20:56:00Z",
+              "lastModifiedDateTime": "2021-03-09T20:56:01Z",
+              "webUrl": "https://contoso.sharepoint.com/sites/sitecollection-name"
+            };
+          }
+          throw 'Invalid request';
+        });
+
+      getRequestStub.onCall(1)
+        .callsFake(async (opts) => {
+          if ((opts.url as string).indexOf('/v1.0/myorganization/servicePrincipals?$select=appId,displayName&') > -1) {
+            return applicationMock;
+          }
+
+          throw 'Invalid request';
+        });
+
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/permissions') > -1) {
           return {
-            "id": "contoso.sharepoint.com,00000000-0000-0000-0000-000000000000,00000000-0000-0000-0000-000000000000",
-            "displayName": "sitecollection-name",
-            "name": "sitecollection-name",
-            "createdDateTime": "2021-03-09T20:56:00Z",
-            "lastModifiedDateTime": "2021-03-09T20:56:01Z",
-            "webUrl": "https://contoso.sharepoint.com/sites/sitecollection-name"
+            "id": "aTowaS50fG1zLnNwLmV4dHxjY2EwMDE2OS1kMzhiLTQ2MmYtYTNiNC1mMzU2NmIxNjJmMmRAZGUzNDhiYzctMWFlYi00NDA2LThjYjMtOTdkYjAyMWNhZGI0",
+            "roles": [
+              "write"
+            ],
+            "grantedToIdentities": [
+              {
+                "application": {
+                  "displayName": "Foo App",
+                  "id": "89ea5c94-7736-4e25-95ad-3fa95f62b66e"
+                }
+              }
+            ]
           };
         }
         throw 'Invalid request';
       });
 
-    getRequestStub.onCall(1)
-      .callsFake(async (opts) => {
-        if ((opts.url as string).indexOf('/v1.0/myorganization/servicePrincipals?$select=appId,displayName&') > -1) {
-          return applicationMock;
+      await command.action(logger, {
+        options: {
+          siteUrl: "https://contoso.sharepoint.com/sites/sitecollection-name",
+          permission: "write",
+          appDisplayName: "Foo App",
+          output: "json"
         }
-
-        throw 'Invalid request';
       });
-
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/permissions') > -1) {
-        return {
-          "id": "aTowaS50fG1zLnNwLmV4dHxjY2EwMDE2OS1kMzhiLTQ2MmYtYTNiNC1mMzU2NmIxNjJmMmRAZGUzNDhiYzctMWFlYi00NDA2LThjYjMtOTdkYjAyMWNhZGI0",
-          "roles": [
-            "write"
-          ],
-          "grantedToIdentities": [
-            {
-              "application": {
-                "displayName": "Foo App",
-                "id": "89ea5c94-7736-4e25-95ad-3fa95f62b66e"
-              }
+      assert(loggerLogSpy.calledWith({
+        "id": "aTowaS50fG1zLnNwLmV4dHxjY2EwMDE2OS1kMzhiLTQ2MmYtYTNiNC1mMzU2NmIxNjJmMmRAZGUzNDhiYzctMWFlYi00NDA2LThjYjMtOTdkYjAyMWNhZGI0",
+        "roles": [
+          "write"
+        ],
+        "grantedToIdentities": [
+          {
+            "application": {
+              "displayName": "Foo App",
+              "id": "89ea5c94-7736-4e25-95ad-3fa95f62b66e"
             }
-          ]
-        };
-      }
-      throw 'Invalid request';
-    });
-
-    await command.action(logger, {
-      options: {
-        siteUrl: "https://contoso.sharepoint.com/sites/sitecollection-name",
-        permission: "write",
-        appDisplayName: "Foo App",
-        output: "json"
-      }
-    });
-    assert(loggerLogSpy.calledWith({
-      "id": "aTowaS50fG1zLnNwLmV4dHxjY2EwMDE2OS1kMzhiLTQ2MmYtYTNiNC1mMzU2NmIxNjJmMmRAZGUzNDhiYzctMWFlYi00NDA2LThjYjMtOTdkYjAyMWNhZGI0",
-      "roles": [
-        "write"
-      ],
-      "grantedToIdentities": [
-        {
-          "application": {
-            "displayName": "Foo App",
-            "id": "89ea5c94-7736-4e25-95ad-3fa95f62b66e"
           }
-        }
-      ]
-    }));
-  });
+        ]
+      }));
+    }
+  );
 
-  it('adds an application permission to the site by appId and appDisplayName', async () => {
-    const getRequestStub = sinon.stub(request, 'get');
-    getRequestStub.onCall(0)
-      .callsFake(async (opts) => {
-        if ((opts.url as string).indexOf('/v1.0/sites/') > -1) {
+  it('adds an application permission to the site by appId and appDisplayName',
+    async () => {
+      const getRequestStub = jest.spyOn(request, 'get').mockClear().mockImplementation();
+      getRequestStub.onCall(0)
+        .callsFake(async (opts) => {
+          if ((opts.url as string).indexOf('/v1.0/sites/') > -1) {
+            return {
+              "id": "contoso.sharepoint.com,00000000-0000-0000-0000-000000000000,00000000-0000-0000-0000-000000000000",
+              "displayName": "sitecollection-name",
+              "name": "sitecollection-name",
+              "createdDateTime": "2021-03-09T20:56:00Z",
+              "lastModifiedDateTime": "2021-03-09T20:56:01Z",
+              "webUrl": "https://contoso.sharepoint.com/sites/sitecollection-name"
+            };
+          }
+          throw 'Invalid request';
+        });
+
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/permissions') > -1) {
           return {
-            "id": "contoso.sharepoint.com,00000000-0000-0000-0000-000000000000,00000000-0000-0000-0000-000000000000",
-            "displayName": "sitecollection-name",
-            "name": "sitecollection-name",
-            "createdDateTime": "2021-03-09T20:56:00Z",
-            "lastModifiedDateTime": "2021-03-09T20:56:01Z",
-            "webUrl": "https://contoso.sharepoint.com/sites/sitecollection-name"
+            "id": "aTowaS50fG1zLnNwLmV4dHxjY2EwMDE2OS1kMzhiLTQ2MmYtYTNiNC1mMzU2NmIxNjJmMmRAZGUzNDhiYzctMWFlYi00NDA2LThjYjMtOTdkYjAyMWNhZGI0",
+            "roles": [
+              "write"
+            ],
+            "grantedToIdentities": [
+              {
+                "application": {
+                  "displayName": "Foo App",
+                  "id": "89ea5c94-7736-4e25-95ad-3fa95f62b66e"
+                }
+              }
+            ]
           };
         }
         throw 'Invalid request';
       });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/permissions') > -1) {
-        return {
-          "id": "aTowaS50fG1zLnNwLmV4dHxjY2EwMDE2OS1kMzhiLTQ2MmYtYTNiNC1mMzU2NmIxNjJmMmRAZGUzNDhiYzctMWFlYi00NDA2LThjYjMtOTdkYjAyMWNhZGI0",
-          "roles": [
-            "write"
-          ],
-          "grantedToIdentities": [
-            {
-              "application": {
-                "displayName": "Foo App",
-                "id": "89ea5c94-7736-4e25-95ad-3fa95f62b66e"
-              }
-            }
-          ]
-        };
-      }
-      throw 'Invalid request';
-    });
-
-    await command.action(logger, {
-      options: {
-        siteUrl: "https://contoso.sharepoint.com/sites/sitecollection-name",
-        permission: "write",
-        appId: "89ea5c94-7736-4e25-95ad-3fa95f62b66e",
-        appDisplayName: "Foo App",
-        output: "json"
-      }
-    });
-    assert(loggerLogSpy.calledWith({
-      "id": "aTowaS50fG1zLnNwLmV4dHxjY2EwMDE2OS1kMzhiLTQ2MmYtYTNiNC1mMzU2NmIxNjJmMmRAZGUzNDhiYzctMWFlYi00NDA2LThjYjMtOTdkYjAyMWNhZGI0",
-      "roles": [
-        "write"
-      ],
-      "grantedToIdentities": [
-        {
-          "application": {
-            "displayName": "Foo App",
-            "id": "89ea5c94-7736-4e25-95ad-3fa95f62b66e"
-          }
+      await command.action(logger, {
+        options: {
+          siteUrl: "https://contoso.sharepoint.com/sites/sitecollection-name",
+          permission: "write",
+          appId: "89ea5c94-7736-4e25-95ad-3fa95f62b66e",
+          appDisplayName: "Foo App",
+          output: "json"
         }
-      ]
-    }));
-  });
+      });
+      assert(loggerLogSpy.calledWith({
+        "id": "aTowaS50fG1zLnNwLmV4dHxjY2EwMDE2OS1kMzhiLTQ2MmYtYTNiNC1mMzU2NmIxNjJmMmRAZGUzNDhiYzctMWFlYi00NDA2LThjYjMtOTdkYjAyMWNhZGI0",
+        "roles": [
+          "write"
+        ],
+        "grantedToIdentities": [
+          {
+            "application": {
+              "displayName": "Foo App",
+              "id": "89ea5c94-7736-4e25-95ad-3fa95f62b66e"
+            }
+          }
+        ]
+      }));
+    }
+  );
 
-  it('adds an application permission to the site and elevates it to manage', async () => {
-    const getRequestStub = sinon.stub(request, 'get');
-    getRequestStub.onCall(0)
-      .callsFake(async (opts) => {
-        if ((opts.url as string).indexOf('/v1.0/sites/') > -1) {
+  it('adds an application permission to the site and elevates it to manage',
+    async () => {
+      const getRequestStub = jest.spyOn(request, 'get').mockClear().mockImplementation();
+      getRequestStub.onCall(0)
+        .callsFake(async (opts) => {
+          if ((opts.url as string).indexOf('/v1.0/sites/') > -1) {
+            return {
+              "id": "contoso.sharepoint.com,00000000-0000-0000-0000-000000000000,00000000-0000-0000-0000-000000000000",
+              "displayName": "sitecollection-name",
+              "name": "sitecollection-name",
+              "createdDateTime": "2021-03-09T20:56:00Z",
+              "lastModifiedDateTime": "2021-03-09T20:56:01Z",
+              "webUrl": "https://contoso.sharepoint.com/sites/sitecollection-name"
+            };
+          }
+          throw 'Invalid request';
+        });
+
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/permissions') > -1) {
           return {
-            "id": "contoso.sharepoint.com,00000000-0000-0000-0000-000000000000,00000000-0000-0000-0000-000000000000",
-            "displayName": "sitecollection-name",
-            "name": "sitecollection-name",
-            "createdDateTime": "2021-03-09T20:56:00Z",
-            "lastModifiedDateTime": "2021-03-09T20:56:01Z",
-            "webUrl": "https://contoso.sharepoint.com/sites/sitecollection-name"
+            "id": "aTowaS50fG1zLnNwLmV4dHxjY2EwMDE2OS1kMzhiLTQ2MmYtYTNiNC1mMzU2NmIxNjJmMmRAZGUzNDhiYzctMWFlYi00NDA2LThjYjMtOTdkYjAyMWNhZGI0",
+            "roles": [
+              "write"
+            ],
+            "grantedToIdentities": [
+              {
+                "application": {
+                  "displayName": "Foo App",
+                  "id": "89ea5c94-7736-4e25-95ad-3fa95f62b66e"
+                }
+              }
+            ]
           };
         }
         throw 'Invalid request';
       });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/permissions') > -1) {
-        return {
-          "id": "aTowaS50fG1zLnNwLmV4dHxjY2EwMDE2OS1kMzhiLTQ2MmYtYTNiNC1mMzU2NmIxNjJmMmRAZGUzNDhiYzctMWFlYi00NDA2LThjYjMtOTdkYjAyMWNhZGI0",
-          "roles": [
-            "write"
-          ],
-          "grantedToIdentities": [
-            {
-              "application": {
-                "displayName": "Foo App",
-                "id": "89ea5c94-7736-4e25-95ad-3fa95f62b66e"
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/permissions/aTowaS5') > -1) {
+          return {
+            "id": "aTowaS50fG1zLnNwLmV4dHxjY2EwMDE2OS1kMzhiLTQ2MmYtYTNiNC1mMzU2NmIxNjJmMmRAZGUzNDhiYzctMWFlYi00NDA2LThjYjMtOTdkYjAyMWNhZGI0",
+            "roles": [
+              "write"
+            ],
+            "grantedToIdentities": [
+              {
+                "application": {
+                  "id": "89ea5c94-7736-4e25-95ad-3fa95f62b66e"
+                }
               }
-            }
-          ]
-        };
-      }
-      throw 'Invalid request';
-    });
-
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/permissions/aTowaS5') > -1) {
-        return {
-          "id": "aTowaS50fG1zLnNwLmV4dHxjY2EwMDE2OS1kMzhiLTQ2MmYtYTNiNC1mMzU2NmIxNjJmMmRAZGUzNDhiYzctMWFlYi00NDA2LThjYjMtOTdkYjAyMWNhZGI0",
-          "roles": [
-            "write"
-          ],
-          "grantedToIdentities": [
-            {
-              "application": {
-                "id": "89ea5c94-7736-4e25-95ad-3fa95f62b66e"
-              }
-            }
-          ]
-        };
-      }
-      throw 'Invalid request';
-    });
-
-    await command.action(logger, {
-      options: {
-        siteUrl: "https://contoso.sharepoint.com/sites/sitecollection-name",
-        permission: "manage",
-        appId: "89ea5c94-7736-4e25-95ad-3fa95f62b66e",
-        appDisplayName: "Foo App",
-        output: "json"
-      }
-    });
-
-    assert(loggerLogSpy.calledWith({
-      "id": "aTowaS50fG1zLnNwLmV4dHxjY2EwMDE2OS1kMzhiLTQ2MmYtYTNiNC1mMzU2NmIxNjJmMmRAZGUzNDhiYzctMWFlYi00NDA2LThjYjMtOTdkYjAyMWNhZGI0",
-      "roles": [
-        "write"
-      ],
-      "grantedToIdentities": [
-        {
-          "application": {
-            "id": "89ea5c94-7736-4e25-95ad-3fa95f62b66e"
-          }
+            ]
+          };
         }
-      ]
-    }));
-  });
+        throw 'Invalid request';
+      });
+
+      await command.action(logger, {
+        options: {
+          siteUrl: "https://contoso.sharepoint.com/sites/sitecollection-name",
+          permission: "manage",
+          appId: "89ea5c94-7736-4e25-95ad-3fa95f62b66e",
+          appDisplayName: "Foo App",
+          output: "json"
+        }
+      });
+
+      assert(loggerLogSpy.calledWith({
+        "id": "aTowaS50fG1zLnNwLmV4dHxjY2EwMDE2OS1kMzhiLTQ2MmYtYTNiNC1mMzU2NmIxNjJmMmRAZGUzNDhiYzctMWFlYi00NDA2LThjYjMtOTdkYjAyMWNhZGI0",
+        "roles": [
+          "write"
+        ],
+        "grantedToIdentities": [
+          {
+            "application": {
+              "id": "89ea5c94-7736-4e25-95ad-3fa95f62b66e"
+            }
+          }
+        ]
+      }));
+    }
+  );
 });

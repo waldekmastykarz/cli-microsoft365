@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './user-app-list.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -66,15 +65,15 @@ describe(commands.USER_APP_LIST, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -92,19 +91,19 @@ describe(commands.USER_APP_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -125,21 +124,23 @@ describe(commands.USER_APP_LIST, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if both userId and userName are not provided.', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both userId and userName are not provided.',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the userName is not a valid UPN.', async () => {
     const actual = await command.validate({
@@ -150,23 +151,25 @@ describe(commands.USER_APP_LIST, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if the both userId and userName are provided.', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if the both userId and userName are provided.',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        userId: userId,
-        userName: userName
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          userId: userId,
+          userName: userName
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation when the input is correct (userId)', async () => {
     const actual = await command.validate({
@@ -186,75 +189,79 @@ describe(commands.USER_APP_LIST, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('list apps from the catalog for the specified user using userId', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users/${userId}/teamwork/installedApps?$expand=teamsAppDefinition,teamsApp`) {
-        return appResponse;
-      }
+  it('list apps from the catalog for the specified user using userId',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users/${userId}/teamwork/installedApps?$expand=teamsAppDefinition,teamsApp`) {
+          return appResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        userId: userId,
-        output: 'text'
-      }
-    } as any);
-    assert(loggerLogSpy.calledWith([
-      {
-        "id": "NWM3MDUyODgtZWQ3Zi00NGZjLWFmMGEtYWMxNjQ0MTk5MDFjIyMwOTg5ZjNhNC0yNWY3LTQ2YWItYTNjMC1iY2MwZWNmY2E2ZWY=",
-        "appId": "0989f3a4-25f7-46ab-a3c0-bcc0ecfca6ef",
-        "displayName": "Whiteboard",
-        "version": "1.0.5"
-      },
-      {
-        "id": "NWM3MDUyODgtZWQ3Zi00NGZjLWFmMGEtYWMxNjQ0MTk5MDFjIyM5OTlhNTViOS00OTFlLTQ1NGEtODA4Yy1jNzVjNWM3NWZjMGE=",
-        "appId": "999a55b9-491e-454a-808c-c75c5c75fc0a",
-        "displayName": "Evernote",
-        "version": "1.0.1"
-      }
-    ]));
-  });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          userId: userId,
+          output: 'text'
+        }
+      } as any);
+      assert(loggerLogSpy.calledWith([
+        {
+          "id": "NWM3MDUyODgtZWQ3Zi00NGZjLWFmMGEtYWMxNjQ0MTk5MDFjIyMwOTg5ZjNhNC0yNWY3LTQ2YWItYTNjMC1iY2MwZWNmY2E2ZWY=",
+          "appId": "0989f3a4-25f7-46ab-a3c0-bcc0ecfca6ef",
+          "displayName": "Whiteboard",
+          "version": "1.0.5"
+        },
+        {
+          "id": "NWM3MDUyODgtZWQ3Zi00NGZjLWFmMGEtYWMxNjQ0MTk5MDFjIyM5OTlhNTViOS00OTFlLTQ1NGEtODA4Yy1jNzVjNWM3NWZjMGE=",
+          "appId": "999a55b9-491e-454a-808c-c75c5c75fc0a",
+          "displayName": "Evernote",
+          "version": "1.0.1"
+        }
+      ]));
+    }
+  );
 
-  it('list apps from the catalog for the specified user using userName', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users/${userId}/teamwork/installedApps?$expand=teamsAppDefinition,teamsApp`) {
-        return appResponse;
-      }
+  it('list apps from the catalog for the specified user using userName',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users/${userId}/teamwork/installedApps?$expand=teamsAppDefinition,teamsApp`) {
+          return appResponse;
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/users/${formatting.encodeQueryParameter(userName)}/id`) {
-        return { "value": userId };
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/users/${formatting.encodeQueryParameter(userName)}/id`) {
+          return { "value": userId };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        userName: userName,
-        output: 'text'
-      }
-    } as any);
-    assert(loggerLogSpy.calledWith([
-      {
-        "id": "NWM3MDUyODgtZWQ3Zi00NGZjLWFmMGEtYWMxNjQ0MTk5MDFjIyMwOTg5ZjNhNC0yNWY3LTQ2YWItYTNjMC1iY2MwZWNmY2E2ZWY=",
-        "appId": "0989f3a4-25f7-46ab-a3c0-bcc0ecfca6ef",
-        "displayName": "Whiteboard",
-        "version": "1.0.5"
-      },
-      {
-        "id": "NWM3MDUyODgtZWQ3Zi00NGZjLWFmMGEtYWMxNjQ0MTk5MDFjIyM5OTlhNTViOS00OTFlLTQ1NGEtODA4Yy1jNzVjNWM3NWZjMGE=",
-        "appId": "999a55b9-491e-454a-808c-c75c5c75fc0a",
-        "displayName": "Evernote",
-        "version": "1.0.1"
-      }
-    ]));
-  });
+      await command.action(logger, {
+        options: {
+          userName: userName,
+          output: 'text'
+        }
+      } as any);
+      assert(loggerLogSpy.calledWith([
+        {
+          "id": "NWM3MDUyODgtZWQ3Zi00NGZjLWFmMGEtYWMxNjQ0MTk5MDFjIyMwOTg5ZjNhNC0yNWY3LTQ2YWItYTNjMC1iY2MwZWNmY2E2ZWY=",
+          "appId": "0989f3a4-25f7-46ab-a3c0-bcc0ecfca6ef",
+          "displayName": "Whiteboard",
+          "version": "1.0.5"
+        },
+        {
+          "id": "NWM3MDUyODgtZWQ3Zi00NGZjLWFmMGEtYWMxNjQ0MTk5MDFjIyM5OTlhNTViOS00OTFlLTQ1NGEtODA4Yy1jNzVjNWM3NWZjMGE=",
+          "appId": "999a55b9-491e-454a-808c-c75c5c75fc0a",
+          "displayName": "Evernote",
+          "version": "1.0.1"
+        }
+      ]));
+    }
+  );
 
   it('list apps from the catalog for the specified user (json)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users/${userId}/teamwork/installedApps?$expand=teamsAppDefinition,teamsApp`) {
         return appResponse;
       }
@@ -284,7 +291,7 @@ describe(commands.USER_APP_LIST, () => {
       }
     };
 
-    sinon.stub(request, 'get').rejects(error);
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, { options: { userId: '5c705288-ed7f-44fc-af0a-ac164419901c' } } as any), new CommandError('An error has occurred'));
   });

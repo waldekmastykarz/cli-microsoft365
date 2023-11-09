@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Logger } from '../../../../cli/Logger.js';
 import { CommandError } from '../../../../Command.js';
@@ -7,7 +6,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './roster-get.js';
 
@@ -20,13 +19,13 @@ describe(commands.ROSTER_GET, () => {
 
   let log: any[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
   });
 
@@ -43,17 +42,17 @@ describe(commands.ROSTER_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -66,7 +65,7 @@ describe(commands.ROSTER_GET, () => {
   });
 
   it('retrieves Microsoft Planner Roster by specified id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/beta/planner/rosters/${id}`) {
         return rosterGetResponse;
       }
@@ -78,21 +77,23 @@ describe(commands.ROSTER_GET, () => {
     assert(loggerLogSpy.calledWith(rosterGetResponse));
   });
 
-  it('command correctly handles Microsoft Planner Roster get reject request', async () => {
-    const errorMessage = 'Error: The requested item is not found.';
-    sinon.stub(request, 'get').callsFake((opts) => {
-      if (opts.url === `https://graph.microsoft.com/beta/planner/rosters/${id}`) {
-        throw errorMessage;
-      }
+  it('command correctly handles Microsoft Planner Roster get reject request',
+    async () => {
+      const errorMessage = 'Error: The requested item is not found.';
+      jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
+        if (opts.url === `https://graph.microsoft.com/beta/planner/rosters/${id}`) {
+          throw errorMessage;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        debug: true,
-        id: id
-      }
-    }), new CommandError(errorMessage));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          debug: true,
+          id: id
+        }
+      }), new CommandError(errorMessage));
+    }
+  );
 });

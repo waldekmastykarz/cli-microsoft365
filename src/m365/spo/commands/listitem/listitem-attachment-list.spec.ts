@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { urlUtil } from '../../../../utils/urlUtil.js';
 import commands from '../../commands.js';
 import command from './listitem-attachment-list.js';
@@ -24,9 +23,9 @@ describe(commands.LISTITEM_ATTACHMENT_LIST, () => {
   let cli: Cli;
   let log: any[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogToStderrSpy: jest.SpyInstance;
 
   const attachmentsResponse = {
     AttachmentFiles: [
@@ -53,12 +52,12 @@ describe(commands.LISTITEM_ATTACHMENT_LIST, () => {
     throw 'Invalid request';
   };
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').callsFake(() => Promise.resolve());
-    sinon.stub(telemetry, 'trackEvent').callsFake(() => { });
-    sinon.stub(pid, 'getProcessName').callsFake(() => '');
-    sinon.stub(session, 'getId').callsFake(() => '');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation(() => Promise.resolve());
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockImplementation(() => { });
+    jest.spyOn(pid, 'getProcessName').mockClear().mockImplementation(() => '');
+    jest.spyOn(session, 'getId').mockClear().mockImplementation(() => '');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -76,19 +75,19 @@ describe(commands.LISTITEM_ATTACHMENT_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -111,41 +110,49 @@ describe(commands.LISTITEM_ATTACHMENT_LIST, () => {
     assert(containsTypeOption);
   });
 
-  it('fails validation if listTitle and listId option not specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if listTitle and listId option not specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listItemId: listItemId } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listItemId: listItemId } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if listTitle and listId are specified together', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if listTitle and listId are specified together',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF', listItemId: listItemId } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF', listItemId: listItemId } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', listTitle: 'Demo List', listItemId: listItemId } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', listTitle: 'Demo List', listItemId: listItemId } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the webUrl option is a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', listItemId: listItemId } }, commandInfo);
-    assert(actual);
-  });
+  it('passes validation if the webUrl option is a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', listItemId: listItemId } }, commandInfo);
+      assert(actual);
+    }
+  );
 
   it('fails validation if the listId option is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: 'foo', listItemId: listItemId } }, commandInfo);
@@ -157,17 +164,19 @@ describe(commands.LISTITEM_ATTACHMENT_LIST, () => {
     assert(actual);
   });
 
-  it('fails validation if the specified listItemId is not a number', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', listItemId: 'a' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the specified listItemId is not a number',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', listItemId: 'a' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('defines correct properties for the default output', () => {
     assert.deepStrictEqual(command.defaultProperties(), ['FileName', 'ServerRelativeUrl']);
   });
 
   it('returns attachments associated to a list item by listId', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
     const options: any = {
       debug: true,
@@ -180,22 +189,24 @@ describe(commands.LISTITEM_ATTACHMENT_LIST, () => {
     assert(loggerLogSpy.calledWith(attachmentsResponse.AttachmentFiles));
   });
 
-  it('returns attachments associated to a list item by listTitle', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+  it('returns attachments associated to a list item by listTitle',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
-    const options: any = {
-      debug: true,
-      webUrl: 'https://contoso.sharepoint.com/sites/project-x',
-      listTitle: 'Demo List',
-      listItemId: listItemId
-    };
+      const options: any = {
+        debug: true,
+        webUrl: 'https://contoso.sharepoint.com/sites/project-x',
+        listTitle: 'Demo List',
+        listItemId: listItemId
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(loggerLogSpy.calledWith(attachmentsResponse.AttachmentFiles));
-  });
+      await command.action(logger, { options: options } as any);
+      assert(loggerLogSpy.calledWith(attachmentsResponse.AttachmentFiles));
+    }
+  );
 
   it('returns attachments associated to a list item by listUrl', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
 
     const options: any = {
       verbose: true,
@@ -209,7 +220,7 @@ describe(commands.LISTITEM_ATTACHMENT_LIST, () => {
   });
 
   it('correctly handles random API error', async () => {
-    sinon.stub(request, 'get').callsFake(() => Promise.reject('An error has occurred'));
+    jest.spyOn(request, 'get').mockClear().mockImplementation(() => Promise.reject('An error has occurred'));
 
     const options: any = {
       webUrl: 'https://contoso.sharepoint.com/sites/project-x',
@@ -222,7 +233,7 @@ describe(commands.LISTITEM_ATTACHMENT_LIST, () => {
   });
 
   it('correctly handles No attachments found (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(() => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
       return Promise.resolve({ AttachmentFiles: [] });
     });
 

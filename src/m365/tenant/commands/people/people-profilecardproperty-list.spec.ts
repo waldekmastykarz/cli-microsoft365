@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Logger } from '../../../../cli/Logger.js';
 import { CommandError } from '../../../../Command.js';
@@ -7,7 +6,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './people-profilecardproperty-list.js';
 
@@ -74,14 +73,14 @@ describe(commands.PEOPLE_PROFILECARDPROPERTY_LIST, () => {
   //#endregion
 
   let log: any[];
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let logger: Logger;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
   });
 
@@ -98,17 +97,17 @@ describe(commands.PEOPLE_PROFILECARDPROPERTY_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -121,7 +120,7 @@ describe(commands.PEOPLE_PROFILECARDPROPERTY_LIST, () => {
   });
 
   it('lists profile card properties', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties`) {
         return response;
       }
@@ -133,44 +132,46 @@ describe(commands.PEOPLE_PROFILECARDPROPERTY_LIST, () => {
     assert(loggerLogSpy.calledOnceWith(response));
   });
 
-  it('lists profile card properties information for other than json output', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties`) {
-        return response;
-      }
+  it('lists profile card properties information for other than json output',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties`) {
+          return response;
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    const textOutput = [
-      {
-        directoryPropertyName: profileCardPropertyName1,
-        displayName: response.value[0].annotations[0].displayName,
-        ['displayName ' + response.value[0].annotations[0].localizations[0].languageTag]: response.value[0].annotations[0].localizations[0].displayName,
-        ['displayName ' + response.value[0].annotations[0].localizations[1].languageTag]: response.value[0].annotations[0].localizations[1].displayName
-      },
-      {
-        directoryPropertyName: profileCardPropertyName2,
-        displayName: response.value[2].annotations[0].displayName,
-        ['displayName ' + response.value[2].annotations[0].localizations[0].languageTag]: response.value[2].annotations[0].localizations[0].displayName
-      },
-      {
-        directoryPropertyName: profileCardPropertyName2,
-        displayName: response.value[3].annotations[0].displayName,
-        ['displayName ' + response.value[3].annotations[0].localizations[0].languageTag]: response.value[3].annotations[0].localizations[0].displayName
-      },
-      {
-        directoryPropertyName: "Alias"
-      }
-    ];
+      const textOutput = [
+        {
+          directoryPropertyName: profileCardPropertyName1,
+          displayName: response.value[0].annotations[0].displayName,
+          ['displayName ' + response.value[0].annotations[0].localizations[0].languageTag]: response.value[0].annotations[0].localizations[0].displayName,
+          ['displayName ' + response.value[0].annotations[0].localizations[1].languageTag]: response.value[0].annotations[0].localizations[1].displayName
+        },
+        {
+          directoryPropertyName: profileCardPropertyName2,
+          displayName: response.value[2].annotations[0].displayName,
+          ['displayName ' + response.value[2].annotations[0].localizations[0].languageTag]: response.value[2].annotations[0].localizations[0].displayName
+        },
+        {
+          directoryPropertyName: profileCardPropertyName2,
+          displayName: response.value[3].annotations[0].displayName,
+          ['displayName ' + response.value[3].annotations[0].localizations[0].languageTag]: response.value[3].annotations[0].localizations[0].displayName
+        },
+        {
+          directoryPropertyName: "Alias"
+        }
+      ];
 
-    await command.action(logger, { options: { output: 'text' } });
-    assert(loggerLogSpy.calledOnceWith(textOutput));
-  });
+      await command.action(logger, { options: { output: 'text' } });
+      assert(loggerLogSpy.calledOnceWith(textOutput));
+    }
+  );
 
   it('handles unexpected API error', async () => {
     const errorMessage = 'Something went wrong';
-    sinon.stub(request, 'get').rejects({
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects({
       error: {
         message: errorMessage
       }

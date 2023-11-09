@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -11,7 +10,7 @@ import { accessToken } from '../../../../utils/accessToken.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './chat-message-send.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -38,15 +37,15 @@ describe(commands.CHAT_MESSAGE_SEND, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     if (!auth.service.accessTokens[auth.defaultResource]) {
       auth.service.accessTokens[auth.defaultResource] = {
@@ -58,8 +57,8 @@ describe(commands.CHAT_MESSAGE_SEND, () => {
   });
 
   beforeEach(() => {
-    sinon.stub(accessToken, 'getUserNameFromAccessToken').returns('MeganB@M365x214355.onmicrosoft.com');
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(accessToken, 'getUserNameFromAccessToken').mockClear().mockReturnValue('MeganB@M365x214355.onmicrosoft.com');
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/chats/19:82fe7758-5bb3-4f0d-a43f-e555fd399c6f_8c0a1a67-50ce-4114-bb6c-da9c5dbcf6ca@unq.gbl.spaces/messages`
         || opts.url === `https://graph.microsoft.com/v1.0/chats/19:98a7bf5fe7884694b8078541c5eb6e56@thread.v2/messages`
         || opts.url === `https://graph.microsoft.com/v1.0/chats/19:c03b5a8f9a2e42788561a89d055e6de5@thread.v2/messages`) {
@@ -68,7 +67,7 @@ describe(commands.CHAT_MESSAGE_SEND, () => {
 
       throw 'Invalid request';
     });
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/chats?$filter=chatType eq 'group'&$expand=members&$select=id,topic,createdDateTime,members`
         || opts.url === `https://graph.microsoft.com/v1.0/chats?$filter=chatType eq 'oneOnOne'&$expand=members&$select=id,topic,createdDateTime,members`) {
         return findGroupChatsByMembersResponse;
@@ -100,11 +99,11 @@ describe(commands.CHAT_MESSAGE_SEND, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post,
       accessToken.getUserNameFromAccessToken,
@@ -113,8 +112,8 @@ describe(commands.CHAT_MESSAGE_SEND, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -126,22 +125,24 @@ describe(commands.CHAT_MESSAGE_SEND, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('fails validation if chatId and chatName and userEmails are not specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if chatId and chatName and userEmails are not specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        message: "Hello World"
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          message: "Hello World"
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the chatId is not valid', async () => {
     const actual = await command.validate({
@@ -153,25 +154,29 @@ describe(commands.CHAT_MESSAGE_SEND, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation for an incorrect chatId missing leading 19:.', async () => {
-    const actual = await command.validate({
-      options: {
-        chatId: '8b081ef6-4792-4def-b2c9-c363a1bf41d5_5031bb31-22c0-4f6f-9f73-91d34ab2b32d@unq.gbl.spaces',
-        message: "Hello World"
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation for an incorrect chatId missing leading 19:.',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          chatId: '8b081ef6-4792-4def-b2c9-c363a1bf41d5_5031bb31-22c0-4f6f-9f73-91d34ab2b32d@unq.gbl.spaces',
+          message: "Hello World"
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation for an incorrect chatId missing trailing @thread.v2 or @unq.gbl.spaces', async () => {
-    const actual = await command.validate({
-      options: {
-        chatId: '19:8b081ef6-4792-4def-b2c9-c363a1bf41d5_5031bb31-22c0-4f6f-9f73-91d34ab2b32d',
-        message: "Hello World"
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation for an incorrect chatId missing trailing @thread.v2 or @unq.gbl.spaces',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          chatId: '19:8b081ef6-4792-4def-b2c9-c363a1bf41d5_5031bb31-22c0-4f6f-9f73-91d34ab2b32d',
+          message: "Hello World"
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation for an invalid email address (single)', async () => {
     const actual = await command.validate({
@@ -193,85 +198,93 @@ describe(commands.CHAT_MESSAGE_SEND, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if chatId and chatName properties are both defined', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if chatId and chatName properties are both defined',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        chatId: '19:8b081ef6-4792-4def-b2c9-c363a1bf41d5_5031bb31-22c0-4f6f-9f73-91d34ab2b32d',
-        chatName: 'test',
-        message: "Hello World"
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          chatId: '19:8b081ef6-4792-4def-b2c9-c363a1bf41d5_5031bb31-22c0-4f6f-9f73-91d34ab2b32d',
+          chatName: 'test',
+          message: "Hello World"
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if chatId and userEmails properties are both defined', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if chatId and userEmails properties are both defined',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        chatId: '19:8b081ef6-4792-4def-b2c9-c363a1bf41d5_5031bb31-22c0-4f6f-9f73-91d34ab2b32d',
-        userEmails: 'alexw@contoso.com',
-        message: "Hello World"
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          chatId: '19:8b081ef6-4792-4def-b2c9-c363a1bf41d5_5031bb31-22c0-4f6f-9f73-91d34ab2b32d',
+          userEmails: 'alexw@contoso.com',
+          message: "Hello World"
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if chatName and userEmails properties are both defined', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if chatName and userEmails properties are both defined',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        chatName: 'test',
-        userEmails: 'alexw@contoso.com',
-        message: "Hello World"
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          chatName: 'test',
+          userEmails: 'alexw@contoso.com',
+          message: "Hello World"
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if all three mutually exclusive properties are defined', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if all three mutually exclusive properties are defined',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        chatId: '19:8b081ef6-4792-4def-b2c9-c363a1bf41d5_5031bb31-22c0-4f6f-9f73-91d34ab2b32d',
-        chatName: 'test',
-        userEmails: 'alexw@contoso.com',
-        message: "Hello World"
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          chatId: '19:8b081ef6-4792-4def-b2c9-c363a1bf41d5_5031bb31-22c0-4f6f-9f73-91d34ab2b32d',
+          chatName: 'test',
+          userEmails: 'alexw@contoso.com',
+          message: "Hello World"
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if message is not specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -348,8 +361,8 @@ describe(commands.CHAT_MESSAGE_SEND, () => {
   });
 
   it('sends chat message using userEmails (single)', async () => {
-    sinonUtil.restore(request.post);
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jestUtil.restore(request.post);
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/chats`) {
         return chatCreatedResponse;
       }
@@ -369,37 +382,41 @@ describe(commands.CHAT_MESSAGE_SEND, () => {
     assert(loggerLogSpy.notCalled);
   });
 
-  it('sends chat message to existing conversation using userEmails (multiple)', async () => {
-    await command.action(logger, {
-      options: {
-        userEmails: "AndrewK@M365x214355.onmicrosoft.com,DaveK@M365x214355.onmicrosoft.com",
-        message: "Hello World"
-      }
-    });
-    assert(loggerLogSpy.notCalled);
-  });
+  it('sends chat message to existing conversation using userEmails (multiple)',
+    async () => {
+      await command.action(logger, {
+        options: {
+          userEmails: "AndrewK@M365x214355.onmicrosoft.com,DaveK@M365x214355.onmicrosoft.com",
+          message: "Hello World"
+        }
+      });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
-  it('sends chat message to new conversation using userEmails (multiple)', async () => {
-    sinonUtil.restore(request.post);
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/chats`) {
-        return groupChatCreatedResponse;
-      }
-      else if (opts.url === `https://graph.microsoft.com/v1.0/chats/19:650081f4700a4414ac15cd7993129f80@thread.v2/messages`) {
-        return messageSentResponse;
-      }
+  it('sends chat message to new conversation using userEmails (multiple)',
+    async () => {
+      jestUtil.restore(request.post);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/chats`) {
+          return groupChatCreatedResponse;
+        }
+        else if (opts.url === `https://graph.microsoft.com/v1.0/chats/19:650081f4700a4414ac15cd7993129f80@thread.v2/messages`) {
+          return messageSentResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        userEmails: "AlexW@M365x214355.onmicrosoft.com,DaveK@M365x214355.onmicrosoft.com",
-        message: "Hello World"
-      }
-    });
-    assert(loggerLogSpy.notCalled);
-  });
+      await command.action(logger, {
+        options: {
+          userEmails: "AlexW@M365x214355.onmicrosoft.com,DaveK@M365x214355.onmicrosoft.com",
+          message: "Hello World"
+        }
+      });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
   it('fails sending message with nonexistent chatName', async () => {
     await assert.rejects(command.action(logger, {
@@ -410,122 +427,134 @@ describe(commands.CHAT_MESSAGE_SEND, () => {
     } as any), new CommandError('No chat conversation was found with this name.'));
   });
 
-  it('fails sending message with multiple found chat conversations by chatName', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails sending message with multiple found chat conversations by chatName',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        chatName: "Just a conversation with same name",
-        message: "Hello World"
-      }
-    } as any), new CommandError("Multiple chat conversations with this name found. Found: 19:309128478c1743b19bebd08efc390efb@thread.v2, 19:650081f4700a4414ac15cd7993129f80@thread.v2."));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          chatName: "Just a conversation with same name",
+          message: "Hello World"
+        }
+      } as any), new CommandError("Multiple chat conversations with this name found. Found: 19:309128478c1743b19bebd08efc390efb@thread.v2, 19:650081f4700a4414ac15cd7993129f80@thread.v2."));
+    }
+  );
 
-  it('handles selecting single result when multiple chats with the specified name found and cli is set to prompt', async () => {
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves(singleChatByNameResponse.value[0]);
+  it('handles selecting single result when multiple chats with the specified name found and cli is set to prompt',
+    async () => {
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves(singleChatByNameResponse.value[0]);
 
-    await command.action(logger, {
-      options: {
-        chatName: "Just a conversation with same name",
-        message: "Hello World"
-      }
-    });
-    assert(loggerLogSpy.notCalled);
-  });
+      await command.action(logger, {
+        options: {
+          chatName: "Just a conversation with same name",
+          message: "Hello World"
+        }
+      });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
-  it('fails sending message with multiple found chat conversations by userEmails', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails sending message with multiple found chat conversations by userEmails',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        userEmails: "AlexW@M365x214355.onmicrosoft.com,NateG@M365x214355.onmicrosoft.com",
-        message: "Hello World"
-      }
-    } as any), new CommandError("Multiple chat conversations with this name found. Found: 19:35bd5bc75e604da8a64e6cba7cfcf175@thread.v2, 19:5fb8d18dd38b40a4ae0209888adf5c38@thread.v2."));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          userEmails: "AlexW@M365x214355.onmicrosoft.com,NateG@M365x214355.onmicrosoft.com",
+          message: "Hello World"
+        }
+      } as any), new CommandError("Multiple chat conversations with this name found. Found: 19:35bd5bc75e604da8a64e6cba7cfcf175@thread.v2, 19:5fb8d18dd38b40a4ae0209888adf5c38@thread.v2."));
+    }
+  );
 
-  it('handles selecting single result when multiple chats by user email found and cli is set to prompt', async () => {
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves(chatCreatedResponse);
+  it('handles selecting single result when multiple chats by user email found and cli is set to prompt',
+    async () => {
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves(chatCreatedResponse);
 
-    sinonUtil.restore(request.post);
-    sinon.stub(request, 'post').callsFake((opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/chats`) {
-        return Promise.resolve(chatCreatedResponse);
-      }
-      else if (opts.url === `https://graph.microsoft.com/v1.0/chats/19:82fe7758-5bb3-4f0d-a43f-e555fd399c6f_8c0a1a67-50ce-4114-bb6c-da9c5dbcf6ca@unq.gbl.spaces/messages`) {
-        return Promise.resolve(messageSentResponse);
-      }
+      jestUtil.restore(request.post);
+      jest.spyOn(request, 'post').mockClear().mockImplementation((opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/chats`) {
+          return Promise.resolve(chatCreatedResponse);
+        }
+        else if (opts.url === `https://graph.microsoft.com/v1.0/chats/19:82fe7758-5bb3-4f0d-a43f-e555fd399c6f_8c0a1a67-50ce-4114-bb6c-da9c5dbcf6ca@unq.gbl.spaces/messages`) {
+          return Promise.resolve(messageSentResponse);
+        }
 
-      return Promise.reject('Invalid Request');
-    });
+        return Promise.reject('Invalid Request');
+      });
 
-    await command.action(logger, {
-      options: {
-        userEmails: "AlexW@M365x214355.onmicrosoft.com,NateG@M365x214355.onmicrosoft.com",
-        message: "Hello World"
-      }
-    });
-    assert(loggerLogSpy.notCalled);
-  });
+      await command.action(logger, {
+        options: {
+          userEmails: "AlexW@M365x214355.onmicrosoft.com,NateG@M365x214355.onmicrosoft.com",
+          message: "Hello World"
+        }
+      });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
   // The following test is used to test the retry mechanism in use because of an intermittent Graph issue.
-  it('sends chat message using userEmails with single retry because of 404 intermittent failure', async () => {
-    sinonUtil.restore(request.post);
-    let retries: number = 0;
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/chats`) {
-        if (retries === 0) {
-          retries++;
-          throw { message: "Request failed with status code 404" };
+  it('sends chat message using userEmails with single retry because of 404 intermittent failure',
+    async () => {
+      jestUtil.restore(request.post);
+      let retries: number = 0;
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/chats`) {
+          if (retries === 0) {
+            retries++;
+            throw { message: "Request failed with status code 404" };
+          }
+          else {
+            return chatCreatedResponse;
+          }
         }
-        else {
-          return chatCreatedResponse;
+        else if (opts.url === `https://graph.microsoft.com/v1.0/chats/19:82fe7758-5bb3-4f0d-a43f-e555fd399c6f_8c0a1a67-50ce-4114-bb6c-da9c5dbcf6ca@unq.gbl.spaces/messages`) {
+          return messageSentResponse;
         }
-      }
-      else if (opts.url === `https://graph.microsoft.com/v1.0/chats/19:82fe7758-5bb3-4f0d-a43f-e555fd399c6f_8c0a1a67-50ce-4114-bb6c-da9c5dbcf6ca@unq.gbl.spaces/messages`) {
-        return messageSentResponse;
-      }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        userEmails: "AlexW@M365x214355.onmicrosoft.com",
-        message: "Hello World"
-      }
-    });
-    assert(loggerLogSpy.notCalled);
-  });
+      await command.action(logger, {
+        options: {
+          userEmails: "AlexW@M365x214355.onmicrosoft.com",
+          message: "Hello World"
+        }
+      });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
   // The following test is used to test the retry mechanism in use because of an intermittent Graph issue.
-  it('fails sending chat message when maximum of 3 retries with 404 intermittent failure have occurred', async () => {
-    sinonUtil.restore(request.post);
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/chats`) {
-        throw 'Request failed with status code 404';
-      }
+  it('fails sending chat message when maximum of 3 retries with 404 intermittent failure have occurred',
+    async () => {
+      jestUtil.restore(request.post);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/chats`) {
+          throw 'Request failed with status code 404';
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        userEmails: "AlexW@M365x214355.onmicrosoft.com",
-        message: "Hello World"
-      }
-    } as any), new CommandError(`Request failed with status code 404`));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          userEmails: "AlexW@M365x214355.onmicrosoft.com",
+          message: "Hello World"
+        }
+      } as any), new CommandError(`Request failed with status code 404`));
+    }
+  );
 });

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,21 +8,21 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './network-list.js';
 
 describe(commands.NETWORK_LIST, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -41,18 +40,18 @@ describe(commands.NETWORK_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -69,7 +68,7 @@ describe(commands.NETWORK_LIST, () => {
   });
 
   it('calls the networking endpoint without parameter', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/networks/current.json') {
         return [
           {
@@ -94,11 +93,11 @@ describe(commands.NETWORK_LIST, () => {
       throw 'Invalid request';
     });
     await command.action(logger, { options: { debug: true } } as any);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0][0].id, 123);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0][0].id, 123);
   });
 
   it('correctly handles error', async () => {
-    sinon.stub(request, 'get').callsFake(() => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
       throw {
         "error": {
           "base": "An error has occurred."
@@ -110,7 +109,7 @@ describe(commands.NETWORK_LIST, () => {
   });
 
   it('calls the networking endpoint without parameter and json', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/networks/current.json') {
         return [
           {
@@ -134,11 +133,11 @@ describe(commands.NETWORK_LIST, () => {
       throw 'Invalid request';
     });
     await command.action(logger, { options: { debug: true, output: "json" } } as any);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0][0].id, 123);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0][0].id, 123);
   });
 
   it('calls the networking endpoint with parameter', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/networks/current.json') {
         return [
           {
@@ -163,7 +162,7 @@ describe(commands.NETWORK_LIST, () => {
       throw 'Invalid request';
     });
     await command.action(logger, { options: { debug: true, includeSuspended: true } } as any);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0][0].id, 123);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0][0].id, 123);
   });
 
   it('passes validation without parameters', async () => {

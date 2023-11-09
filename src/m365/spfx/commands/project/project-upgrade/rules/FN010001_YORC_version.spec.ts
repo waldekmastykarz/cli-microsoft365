@@ -33,14 +33,16 @@ describe('FN010001_YORC_version', () => {
     assert.strictEqual(findings.length, 0);
   });
 
-  it('returns notification if @microsoft/generator-sharepoint is not set', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      yoRcJson: {}
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 1);
-  });
+  it('returns notification if @microsoft/generator-sharepoint is not set',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        yoRcJson: {}
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 1);
+    }
+  );
 
   it('returns notification if version is not up-to-date', () => {
     const project: Project = {

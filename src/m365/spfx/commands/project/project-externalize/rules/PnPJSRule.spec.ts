@@ -1,7 +1,6 @@
 import assert from 'assert';
 import fs from 'fs';
-import sinon from 'sinon';
-import { sinonUtil } from '../../../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../../../utils/jestUtil.js';
 import { Project } from '../../project-model/index.js';
 import { PnPJsRule } from './PnPJsRule.js';
 
@@ -12,14 +11,16 @@ describe('PnPJsRule', () => {
     rule = new PnPJsRule();
   });
 
-  it(`doesn't return notification when project has no dependencies`, async () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      packageJson: {}
-    };
-    const findings = await rule.visit(project);
-    assert.strictEqual(findings.entries.length, 0);
-  });
+  it(`doesn't return notification when project has no dependencies`,
+    async () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        packageJson: {}
+      };
+      const findings = await rule.visit(project);
+      assert.strictEqual(findings.entries.length, 0);
+    }
+  );
 
   it('returns notification if dependency is here', async () => {
     const project: Project = {
@@ -47,29 +48,31 @@ describe('PnPJsRule', () => {
     assert.strictEqual(findings.entries.length, 0);
   });
 
-  it(`doesn't return a shadow require when the type of component is not recognized`, async () => {
-    const project: Project = {
-      path: 'src/m365/spfx/commands/project/test-projects/spfx-182-webpart-react',
-      packageJson: {
-        dependencies: {
-          '@pnp/pnpjs': '1.3.5'
+  it(`doesn't return a shadow require when the type of component is not recognized`,
+    async () => {
+      const project: Project = {
+        path: 'src/m365/spfx/commands/project/test-projects/spfx-182-webpart-react',
+        packageJson: {
+          dependencies: {
+            '@pnp/pnpjs': '1.3.5'
+          }
         }
-      }
-    };
-    const originalExistSync = fs.existsSync;
-    sinon.stub(fs, 'existsSync').callsFake((path) => {
-      if (path.toString().indexOf('WebPart') > -1) {
-        return false;
-      }
-      else {
-        return originalExistSync(path);
-      }
-    });
-    const findings = await rule.visit(project);
-    assert.strictEqual(findings.suggestions.length, 0);
-  });
+      };
+      const originalExistSync = fs.existsSync;
+      jest.spyOn(fs, 'existsSync').mockClear().mockImplementation((path) => {
+        if (path.toString().indexOf('WebPart') > -1) {
+          return false;
+        }
+        else {
+          return originalExistSync(path);
+        }
+      });
+      const findings = await rule.visit(project);
+      assert.strictEqual(findings.suggestions.length, 0);
+    }
+  );
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       fs.existsSync
     ]);
   });

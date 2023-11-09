@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -8,7 +7,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './applicationcustomizer-add.js';
 
@@ -47,13 +46,13 @@ describe(commands.APPLICATIONCUSTOMIZER_ADD, () => {
   let log: any[];
   let logger: Logger;
   let commandInfo: CommandInfo;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogToStderrSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -71,17 +70,17 @@ describe(commands.APPLICATIONCUSTOMIZER_ADD, () => {
         log.push(msg);
       }
     };
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -93,59 +92,69 @@ describe(commands.APPLICATIONCUSTOMIZER_ADD, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('adds the application customizer to a specific site without specifying clientSideComponentProperties', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === 'https://contoso.sharepoint.com/_api/Web/UserCustomActions'
-        && opts.data['Location'] === 'ClientSideExtension.ApplicationCustomizer'
-        && opts.data['ClientSideComponentId'] === clientSideComponentId
-        && opts.data['Name'] === title
-        && opts.data['ClientSideComponentProperties'] === undefined) {
-        return;
-      }
+  it('adds the application customizer to a specific site without specifying clientSideComponentProperties',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://contoso.sharepoint.com/_api/Web/UserCustomActions'
+          && opts.data['Location'] === 'ClientSideExtension.ApplicationCustomizer'
+          && opts.data['ClientSideComponentId'] === clientSideComponentId
+          && opts.data['Name'] === title
+          && opts.data['ClientSideComponentProperties'] === undefined) {
+          return;
+        }
 
-      throw customActionError;
-    });
+        throw customActionError;
+      });
 
-    await command.action(logger, { options: { webUrl: webUrl, title: title, clientSideComponentId: clientSideComponentId, scope: 'Web' } } as any);
-    assert(loggerLogToStderrSpy.notCalled);
-  });
+      await command.action(logger, { options: { webUrl: webUrl, title: title, clientSideComponentId: clientSideComponentId, scope: 'Web' } } as any);
+      assert(loggerLogToStderrSpy.notCalled);
+    }
+  );
 
-  it('adds the application customizer to a specific site while specifying clientSideComponentProperties', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === 'https://contoso.sharepoint.com/_api/Site/UserCustomActions'
-        && opts.data['Location'] === 'ClientSideExtension.ApplicationCustomizer'
-        && opts.data['ClientSideComponentId'] === clientSideComponentId
-        && opts.data['ClientSideComponentProperties'] === clientSideComponentProperties
-        && opts.data['Name'] === title) {
-        return customActionAddResponse;
-      }
+  it('adds the application customizer to a specific site while specifying clientSideComponentProperties',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://contoso.sharepoint.com/_api/Site/UserCustomActions'
+          && opts.data['Location'] === 'ClientSideExtension.ApplicationCustomizer'
+          && opts.data['ClientSideComponentId'] === clientSideComponentId
+          && opts.data['ClientSideComponentProperties'] === clientSideComponentProperties
+          && opts.data['Name'] === title) {
+          return customActionAddResponse;
+        }
 
-      throw customActionError;
-    });
+        throw customActionError;
+      });
 
-    await command.action(logger, { options: { webUrl: webUrl, title: title, clientSideComponentId: clientSideComponentId, clientSideComponentProperties: clientSideComponentProperties, verbose: true } } as any);
-    assert(loggerLogToStderrSpy.called);
-  });
+      await command.action(logger, { options: { webUrl: webUrl, title: title, clientSideComponentId: clientSideComponentId, clientSideComponentProperties: clientSideComponentProperties, verbose: true } } as any);
+      assert(loggerLogToStderrSpy.called);
+    }
+  );
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', title: title, clientSideComponentId: clientSideComponentId } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', title: title, clientSideComponentId: clientSideComponentId } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if the clientSideComponentId option is not a valid GUID', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, title: title, clientSideComponentId: 'invalid' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the clientSideComponentId option is not a valid GUID',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, title: title, clientSideComponentId: 'invalid' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the scope option is not a valid scope', async () => {
     const actual = await command.validate({ options: { webUrl: webUrl, title: title, clientSideComponentId: clientSideComponentId, scope: 'Invalid scope' } }, commandInfo);
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if the clientSideComponentProperties option is not a valid json string', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, title: title, clientSideComponentId: clientSideComponentId, clientSideComponentProperties: 'invalid json string' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the clientSideComponentProperties option is not a valid json string',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, title: title, clientSideComponentId: clientSideComponentId, clientSideComponentProperties: 'invalid json string' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation if all options are passed', async () => {
     const actual = await command.validate({ options: { webUrl: webUrl, title: title, clientSideComponentId: clientSideComponentId, clientSideComponentProperties: clientSideComponentProperties, scope: 'Site' } }, commandInfo);

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,21 +8,21 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './groupsetting-get.js';
 
 describe(commands.GROUPSETTING_GET, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -41,17 +40,17 @@ describe(commands.GROUPSETTING_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -64,7 +63,7 @@ describe(commands.GROUPSETTING_GET, () => {
   });
 
   it('retrieves information about the specified Group Setting', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groupSettings/1caf7dcd-7e83-4c3a-94f7-932a1299c844`) {
         return {
           "displayName": "Group Setting",
@@ -96,41 +95,43 @@ describe(commands.GROUPSETTING_GET, () => {
     }));
   });
 
-  it('retrieves information about the specified Group Setting (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groupSettings/1caf7dcd-7e83-4c3a-94f7-932a1299c844`) {
-        return {
-          "displayName": "Group Setting",
-          "id": "1caf7dcd-7e83-4c3a-94f7-932a1299c844",
-          "templateId": "bb4f86e1-a598-4101-affc-97c6b136a753",
-          "values": [
-            {
-              "name": "Name1",
-              "value": "Value1"
-            }
-          ]
-        };
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger, { options: { debug: true, id: '1caf7dcd-7e83-4c3a-94f7-932a1299c844' } });
-    assert(loggerLogSpy.calledWith({
-      "displayName": "Group Setting",
-      "id": "1caf7dcd-7e83-4c3a-94f7-932a1299c844",
-      "templateId": "bb4f86e1-a598-4101-affc-97c6b136a753",
-      "values": [
-        {
-          "name": "Name1",
-          "value": "Value1"
+  it('retrieves information about the specified Group Setting (debug)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groupSettings/1caf7dcd-7e83-4c3a-94f7-932a1299c844`) {
+          return {
+            "displayName": "Group Setting",
+            "id": "1caf7dcd-7e83-4c3a-94f7-932a1299c844",
+            "templateId": "bb4f86e1-a598-4101-affc-97c6b136a753",
+            "values": [
+              {
+                "name": "Name1",
+                "value": "Value1"
+              }
+            ]
+          };
         }
-      ]
-    }));
-  });
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger, { options: { debug: true, id: '1caf7dcd-7e83-4c3a-94f7-932a1299c844' } });
+      assert(loggerLogSpy.calledWith({
+        "displayName": "Group Setting",
+        "id": "1caf7dcd-7e83-4c3a-94f7-932a1299c844",
+        "templateId": "bb4f86e1-a598-4101-affc-97c6b136a753",
+        "values": [
+          {
+            "name": "Name1",
+            "value": "Value1"
+          }
+        ]
+      }));
+    }
+  );
 
   it('correctly handles no group setting found', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groupSettings/1caf7dcd-7e83-4c3a-94f7-932a1299c843`) {
         throw {
           error: {

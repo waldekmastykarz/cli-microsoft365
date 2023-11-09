@@ -1,6 +1,5 @@
 import assert from 'assert';
 import os from 'os';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -11,7 +10,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import { urlUtil } from '../../../../utils/urlUtil.js';
 import commands from '../../commands.js';
@@ -150,13 +149,13 @@ describe(commands.LISTITEM_SET, () => {
     throw 'Invalid request';
   };
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'ABC',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -182,15 +181,15 @@ describe(commands.LISTITEM_SET, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       request.get,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -218,41 +217,49 @@ describe(commands.LISTITEM_SET, () => {
     assert.notStrictEqual(command.types.string, 'undefined', 'command string types undefined');
   });
 
-  it('fails validation if listTitle, listId or listUrl option not specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if listTitle, listId or listUrl option not specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '1' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '1' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if listTitle, listId and listUrl are specified together', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if listTitle, listId and listUrl are specified together',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF', listUrl: listUrl, id: '1' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF', listUrl: listUrl, id: '1' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', listTitle: 'Demo List', id: '1' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', listTitle: 'Demo List', id: '1' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the webUrl option is a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', id: '1' } }, commandInfo);
-    assert(actual);
-  });
+  it('passes validation if the webUrl option is a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', id: '1' } }, commandInfo);
+      assert(actual);
+    }
+  );
 
   it('fails validation if the listId option is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: 'foo', id: '1' } }, commandInfo);
@@ -264,205 +271,227 @@ describe(commands.LISTITEM_SET, () => {
     assert(actual);
   });
 
-  it('fails to update a list item when \'fail me\' values are used', async () => {
-    actualId = 0;
+  it('fails to update a list item when \'fail me\' values are used',
+    async () => {
+      actualId = 0;
 
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    const options: any = {
-      listTitle: 'Demo List',
-      id: 47,
-      webUrl: 'https://contoso.sharepoint.com/sites/project-x',
-      Title: "fail updating me"
-    };
+      const options: any = {
+        listTitle: 'Demo List',
+        id: 47,
+        webUrl: 'https://contoso.sharepoint.com/sites/project-x',
+        Title: "fail updating me"
+      };
 
-    await assert.rejects(command.action(logger, { options: options } as any), new CommandError(`Updating the items has failed with the following errors: ${os.EOL}- Title - failed updating`));
-    assert.strictEqual(actualId, 0);
-  });
+      await assert.rejects(command.action(logger, { options: options } as any), new CommandError(`Updating the items has failed with the following errors: ${os.EOL}- Title - failed updating`));
+      assert.strictEqual(actualId, 0);
+    }
+  );
 
-  it('returns listItemInstance object when list item is updated with correct values', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+  it('returns listItemInstance object when list item is updated with correct values',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    command.allowUnknownOptions();
+      command.allowUnknownOptions();
 
-    const options: any = {
-      debug: true,
-      listTitle: 'Demo List',
-      id: 47,
-      webUrl: 'https://contoso.sharepoint.com/sites/project-x',
-      Title: expectedTitle
-    };
+      const options: any = {
+        debug: true,
+        listTitle: 'Demo List',
+        id: 47,
+        webUrl: 'https://contoso.sharepoint.com/sites/project-x',
+        Title: expectedTitle
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert.strictEqual(actualId, expectedId);
-  });
+      await command.action(logger, { options: options } as any);
+      assert.strictEqual(actualId, expectedId);
+    }
+  );
 
-  it('returns listItemInstance object when list item in list retrieved by URL is updated with correct values', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+  it('returns listItemInstance object when list item in list retrieved by URL is updated with correct values',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    command.allowUnknownOptions();
+      command.allowUnknownOptions();
 
-    const options: any = {
-      verbose: true,
-      listUrl: listUrl,
-      id: 147,
-      webUrl: webUrl,
-      contentType: 'Item',
-      Title: expectedTitle,
-      systemUpdate: true
-    };
+      const options: any = {
+        verbose: true,
+        listUrl: listUrl,
+        id: 147,
+        webUrl: webUrl,
+        contentType: 'Item',
+        Title: expectedTitle,
+        systemUpdate: true
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert.strictEqual(actualId, expectedId);
-  });
+      await command.action(logger, { options: options } as any);
+      assert.strictEqual(actualId, expectedId);
+    }
+  );
 
-  it('attempts to update the listitem with the contenttype of \'Item\' when content type option \'Item\' is specified', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+  it('attempts to update the listitem with the contenttype of \'Item\' when content type option \'Item\' is specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    const options: any = {
-      listTitle: 'Demo List',
-      id: 47,
-      webUrl: 'https://contoso.sharepoint.com/sites/project-y',
-      contentType: 'Item',
-      Title: expectedTitle
-    };
+      const options: any = {
+        listTitle: 'Demo List',
+        id: 47,
+        webUrl: 'https://contoso.sharepoint.com/sites/project-y',
+        contentType: 'Item',
+        Title: expectedTitle
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(expectedContentType === actualContentType);
-  });
+      await command.action(logger, { options: options } as any);
+      assert(expectedContentType === actualContentType);
+    }
+  );
 
-  it('attempts to update the listitem with the contenttype of \'Item\' when content type option 0x01 is specified', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+  it('attempts to update the listitem with the contenttype of \'Item\' when content type option 0x01 is specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    const options: any = {
-      debug: true,
-      listTitle: 'Demo List',
-      id: 47,
-      webUrl: 'https://contoso.sharepoint.com/sites/project-y',
-      contentType: expectedContentType,
-      Title: expectedTitle
-    };
+      const options: any = {
+        debug: true,
+        listTitle: 'Demo List',
+        id: 47,
+        webUrl: 'https://contoso.sharepoint.com/sites/project-y',
+        contentType: expectedContentType,
+        Title: expectedTitle
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(expectedContentType === actualContentType);
-  });
+      await command.action(logger, { options: options } as any);
+      assert(expectedContentType === actualContentType);
+    }
+  );
 
-  it('fails to update the listitem when the specified contentType doesn\'t exist in the target list', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+  it('fails to update the listitem when the specified contentType doesn\'t exist in the target list',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    const options: any = {
-      listTitle: 'Demo List',
-      id: 47,
-      webUrl: 'https://contoso.sharepoint.com/sites/project-y',
-      contentType: "Unexpected content type",
-      Title: expectedTitle
-    };
+      const options: any = {
+        listTitle: 'Demo List',
+        id: 47,
+        webUrl: 'https://contoso.sharepoint.com/sites/project-y',
+        contentType: "Unexpected content type",
+        Title: expectedTitle
+      };
 
-    await assert.rejects(command.action(logger, { options: options } as any), new CommandError("Specified content type 'Unexpected content type' doesn't exist on the target list"));
-  });
+      await assert.rejects(command.action(logger, { options: options } as any), new CommandError("Specified content type 'Unexpected content type' doesn't exist on the target list"));
+    }
+  );
 
-  it('successfully updates the listitem when the systemUpdate parameter is specified', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+  it('successfully updates the listitem when the systemUpdate parameter is specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    actualId = 0;
+      actualId = 0;
 
-    const options: any = {
-      debug: true,
-      listTitle: 'Demo List',
-      id: 147,
-      webUrl: 'https://contoso.sharepoint.com/sites/project-y',
-      Title: expectedTitle,
-      systemUpdate: true
-    };
+      const options: any = {
+        debug: true,
+        listTitle: 'Demo List',
+        id: 147,
+        webUrl: 'https://contoso.sharepoint.com/sites/project-y',
+        Title: expectedTitle,
+        systemUpdate: true
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert.strictEqual(actualId, expectedId);
-  });
+      await command.action(logger, { options: options } as any);
+      assert.strictEqual(actualId, expectedId);
+    }
+  );
 
-  it('fails to get _ObjecttIdentity_ when the systemUpdate parameter is specified', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+  it('fails to get _ObjecttIdentity_ when the systemUpdate parameter is specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    actualId = 0;
+      actualId = 0;
 
-    const options: any = {
-      debug: true,
-      listTitle: 'Demo List',
-      id: 147,
-      webUrl: 'https://rejectme.com/sites/project-y',
-      Title: expectedTitle,
-      systemUpdate: true
-    };
+      const options: any = {
+        debug: true,
+        listTitle: 'Demo List',
+        id: 147,
+        webUrl: 'https://rejectme.com/sites/project-y',
+        Title: expectedTitle,
+        systemUpdate: true
+      };
 
-    await assert.rejects(command.action(logger, { options: options } as any), new CommandError("Failed request"));
-  });
+      await assert.rejects(command.action(logger, { options: options } as any), new CommandError("Failed request"));
+    }
+  );
 
-  it('fails to get _ObjecttIdentity_ when objectidentity not found', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+  it('fails to get _ObjecttIdentity_ when objectidentity not found',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    actualId = 0;
+      actualId = 0;
 
-    const options: any = {
-      debug: true,
-      listTitle: 'Test List',
-      id: 147,
-      webUrl: 'https://objectidentityNotFound.sharepoint.com/sites/project-y',
-      Title: expectedTitle,
-      systemUpdate: true
-    };
+      const options: any = {
+        debug: true,
+        listTitle: 'Test List',
+        id: 147,
+        webUrl: 'https://objectidentityNotFound.sharepoint.com/sites/project-y',
+        Title: expectedTitle,
+        systemUpdate: true
+      };
 
-    await assert.rejects(command.action(logger, { options: options } as any), new CommandError("Cannot proceed. _ObjectIdentity_ not found"));
-  });
+      await assert.rejects(command.action(logger, { options: options } as any), new CommandError("Cannot proceed. _ObjectIdentity_ not found"));
+    }
+  );
 
-  it('fails to get _ObjecttIdentity_ when an error is returned by the _ObjectIdentity_ CSOM request and systemUpdate parameter is specified', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+  it('fails to get _ObjecttIdentity_ when an error is returned by the _ObjectIdentity_ CSOM request and systemUpdate parameter is specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    actualId = 0;
+      actualId = 0;
 
-    const options: any = {
-      listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF',
-      id: 147,
-      webUrl: 'https://returnerror.com/sites/project-y',
-      Title: expectedTitle,
-      systemUpdate: true
-    };
+      const options: any = {
+        listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF',
+        id: 147,
+        webUrl: 'https://returnerror.com/sites/project-y',
+        Title: expectedTitle,
+        systemUpdate: true
+      };
 
-    await assert.rejects(command.action(logger, { options: options } as any), new CommandError('ClientSvc unknown error'));
-    assert(actualId !== expectedId);
-  });
+      await assert.rejects(command.action(logger, { options: options } as any), new CommandError('ClientSvc unknown error'));
+      assert(actualId !== expectedId);
+    }
+  );
 
-  it('fails to update the list item when systemUpdate parameter is specified', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+  it('fails to update the list item when systemUpdate parameter is specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    actualId = 0;
+      actualId = 0;
 
-    const options: any = {
-      debug: true,
-      listTitle: 'Demo List',
-      id: 147,
-      webUrl: 'https://contoso.sharepoint.com/sites/project-y',
-      Title: "systemUpdate error",
-      contentType: "Item",
-      systemUpdate: true
-    };
+      const options: any = {
+        debug: true,
+        listTitle: 'Demo List',
+        id: 147,
+        webUrl: 'https://contoso.sharepoint.com/sites/project-y',
+        Title: "systemUpdate error",
+        contentType: "Item",
+        systemUpdate: true
+      };
 
-    await assert.rejects(command.action(logger, { options: options } as any), new CommandError('Error occurred in systemUpdate operation - ErrorMessage": "systemUpdate error"}'));
-    assert(actualId !== expectedId);
-  });
+      await assert.rejects(command.action(logger, { options: options } as any), new CommandError('Error occurred in systemUpdate operation - ErrorMessage": "systemUpdate error"}'));
+      assert(actualId !== expectedId);
+    }
+  );
 
   it('should ignore global options when creating request data', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    const postStubs = sinon.stub(request, 'post').callsFake(postFakes);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+    const postStubs = jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
     actualId = 0;
 
@@ -478,6 +507,6 @@ describe(commands.LISTITEM_SET, () => {
     };
 
     await command.action(logger, { options: options } as any);
-    assert.deepEqual(postStubs.firstCall.args[0].data, { formValues: [{ FieldName: 'Title', FieldValue: 'List Item 1' }] });
+    assert.deepEqual(postStubs.mock.calls[0][0].data, { formValues: [{ FieldName: 'Title', FieldValue: 'List Item 1' }] });
   });
 });

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import { autocomplete } from '../../../../autocomplete.js';
 import { Logger } from '../../../../cli/Logger.js';
 import { telemetry } from '../../../../telemetry.js';
@@ -11,13 +10,13 @@ import command from './completion-clink-update.js';
 describe(commands.COMPLETION_CLINK_UPDATE, () => {
   let log: string[];
   let logger: Logger;
-  let generateClinkCompletionStub: sinon.SinonStub;
+  let generateClinkCompletionStub: jest.Mock;
 
-  before(() => {
-    sinon.stub(telemetry, 'trackEvent').callsFake(() => { });
-    sinon.stub(pid, 'getProcessName').callsFake(() => '');
-    sinon.stub(session, 'getId').callsFake(() => '');
-    generateClinkCompletionStub = sinon.stub(autocomplete, 'getClinkCompletion').callsFake(() => '');
+  beforeAll(() => {
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockImplementation(() => { });
+    jest.spyOn(pid, 'getProcessName').mockClear().mockImplementation(() => '');
+    jest.spyOn(session, 'getId').mockClear().mockImplementation(() => '');
+    generateClinkCompletionStub = jest.spyOn(autocomplete, 'getClinkCompletion').mockClear().mockImplementation(() => '');
   });
 
   beforeEach(() => {
@@ -36,11 +35,11 @@ describe(commands.COMPLETION_CLINK_UPDATE, () => {
   });
 
   afterEach(() => {
-    generateClinkCompletionStub.reset();
+    generateClinkCompletionStub.mockReset();
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
   });
 
   it('has correct name', () => {

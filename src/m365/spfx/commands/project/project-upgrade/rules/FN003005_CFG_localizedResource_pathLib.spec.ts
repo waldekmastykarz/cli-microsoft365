@@ -33,37 +33,41 @@ describe('FN003005_CFG_localizedResource_pathLib', () => {
     assert.strictEqual(findings.length, 0);
   });
 
-  it('doesn\'t return notification if localized resource path starts with lib/', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      configJson: {
-        localizedResources: {
-          'HelloWorldWebPartStrings': 'lib/webparts/helloWorld/loc/{locale}.js'
+  it('doesn\'t return notification if localized resource path starts with lib/',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        configJson: {
+          localizedResources: {
+            'HelloWorldWebPartStrings': 'lib/webparts/helloWorld/loc/{locale}.js'
+          }
         }
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
-  it('returns notification if localized resource path doesn\'t start with lib/', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      configJson: {
-        localizedResources: {
-          'HelloWorldWebPartStrings': 'webparts/helloWorld/loc/{locale}.js'
-        },
-        source: JSON.stringify({
+  it('returns notification if localized resource path doesn\'t start with lib/',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        configJson: {
           localizedResources: {
             'HelloWorldWebPartStrings': 'webparts/helloWorld/loc/{locale}.js'
-          }
-        }, null, 2)
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 1, 'Incorrect number of findings');
-    assert.strictEqual(findings[0].occurrences[0].position?.line, 3, 'Incorrect line number');
-  });
+          },
+          source: JSON.stringify({
+            localizedResources: {
+              'HelloWorldWebPartStrings': 'webparts/helloWorld/loc/{locale}.js'
+            }
+          }, null, 2)
+        }
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 1, 'Incorrect number of findings');
+      assert.strictEqual(findings[0].occurrences[0].position?.line, 3, 'Incorrect line number');
+    }
+  );
 
   it('returned notification has correct resolution', () => {
     const project: Project = {

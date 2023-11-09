@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { urlUtil } from '../../../../utils/urlUtil.js';
 import commands from '../../commands.js';
 import spoGroupGetCommand from '../group/group-get.js';
@@ -31,11 +30,11 @@ describe(commands.FILE_ROLEASSIGNMENT_REMOVE, () => {
   let commandInfo: CommandInfo;
   let promptOptions: any;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -53,7 +52,7 @@ describe(commands.FILE_ROLEASSIGNMENT_REMOVE, () => {
         log.push(msg);
       }
     };
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
@@ -61,15 +60,15 @@ describe(commands.FILE_ROLEASSIGNMENT_REMOVE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       Cli.prompt,
       Cli.executeCommandWithOutput,
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -81,83 +80,93 @@ describe(commands.FILE_ROLEASSIGNMENT_REMOVE, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', fileId: fileId, principalId: principalId, force: true } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', fileId: fileId, principalId: principalId, force: true } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the fileId option is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: webUrl, fileId: 'foo', principalId: principalId, force: true } }, commandInfo);
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if the principalId option is not a number', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, fileId: fileId, principalId: 'Hi', force: true } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the principalId option is not a number',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, fileId: fileId, principalId: 'Hi', force: true } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation if webUrl and fileId are valid', async () => {
     const actual = await command.validate({ options: { webUrl: webUrl, fileId: '0cd891ef-afce-4e55-b836-fce03286cccf', principalId: principalId, force: true } }, commandInfo);
     assert.strictEqual(actual, true);
   });
 
-  it('prompts before removing role assignment from the file when confirm option not passed', async () => {
-    await command.action(logger, {
-      options: {
-        webUrl: webUrl,
-        fileId: fileId,
-        principalId: principalId
+  it('prompts before removing role assignment from the file when confirm option not passed',
+    async () => {
+      await command.action(logger, {
+        options: {
+          webUrl: webUrl,
+          fileId: fileId,
+          principalId: principalId
+        }
+      });
+
+      let promptIssued = false;
+
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
       }
-    });
 
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      assert(promptIssued);
     }
+  );
 
-    assert(promptIssued);
-  });
+  it('aborts removing role assignment from the file when confirm option is not passed and prompt not confirmed',
+    async () => {
+      const postSpy = jest.spyOn(request, 'post').mockClear();
 
-  it('aborts removing role assignment from the file when confirm option is not passed and prompt not confirmed', async () => {
-    const postSpy = sinon.spy(request, 'post');
+      await command.action(logger, {
+        options: {
+          webUrl: webUrl,
+          fileId: fileId,
+          principalId: principalId
+        }
+      });
 
-    await command.action(logger, {
-      options: {
-        webUrl: webUrl,
-        fileId: fileId,
-        principalId: principalId
-      }
-    });
+      assert(postSpy.notCalled);
+    }
+  );
 
-    assert(postSpy.notCalled);
-  });
+  it('remove role assignment from the file by relative URL and principal Id when prompt confirmed (debug)',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        const serverRelativeUrl: string = urlUtil.getServerRelativePath(webUrl, fileUrl);
+        if (opts.url === `${webUrl}/_api/web/GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(serverRelativeUrl)}')/ListItemAllFields/roleassignments/removeroleassignment(principalid='${principalId}')`) {
+          return;
+        }
 
-  it('remove role assignment from the file by relative URL and principal Id when prompt confirmed (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      const serverRelativeUrl: string = urlUtil.getServerRelativePath(webUrl, fileUrl);
-      if (opts.url === `${webUrl}/_api/web/GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(serverRelativeUrl)}')/ListItemAllFields/roleassignments/removeroleassignment(principalid='${principalId}')`) {
-        return;
-      }
+        throw 'Invalid request';
+      });
 
-      throw 'Invalid request';
-    });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
-
-    await command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: webUrl,
-        fileUrl: fileUrl,
-        principalId: principalId
-      }
-    });
-  });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: webUrl,
+          fileUrl: fileUrl,
+          principalId: principalId
+        }
+      });
+    }
+  );
 
   it('remove role assignment from the file by Id and upn', async () => {
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command): Promise<any> => {
+    jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command): Promise<any> => {
       if (command === spoFileGetCommand) {
         return {
           stdout: `{"LinkingUri": "https://contoso.sharepoint.com/sites/contoso-sales/documents/Test1.docx?d=wc39926a80d2c4067afa6cff9902eb866","Name": "Test1.docx","ServerRelativeUrl": "/sites/contoso-sales/documents/Test1.docx","UniqueId": "b2307a39-e878-458b-bc90-03bc578531d6"}`
@@ -173,7 +182,7 @@ describe(commands.FILE_ROLEASSIGNMENT_REMOVE, () => {
       throw new CommandError('Unknown case');
     });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       const serverRelativeUrl: string = urlUtil.getServerRelativePath(webUrl, fileUrl);
       if (opts.url === `${webUrl}/_api/web/GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(serverRelativeUrl)}')/ListItemAllFields/roleassignments/removeroleassignment(principalid='${principalId}')`) {
         return;
@@ -194,7 +203,7 @@ describe(commands.FILE_ROLEASSIGNMENT_REMOVE, () => {
   });
 
   it('remove role assignment from the file by Id and group name', async () => {
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command): Promise<any> => {
+    jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command): Promise<any> => {
       if (command === spoFileGetCommand) {
         return {
           stdout: `{"LinkingUri": "https://contoso.sharepoint.com/sites/contoso-sales/documents/Test1.docx?d=wc39926a80d2c4067afa6cff9902eb866","Name": "Test1.docx","ServerRelativeUrl": "/sites/contoso-sales/documents/Test1.docx","UniqueId": "b2307a39-e878-458b-bc90-03bc578531d6"}`
@@ -210,7 +219,7 @@ describe(commands.FILE_ROLEASSIGNMENT_REMOVE, () => {
       throw new CommandError('Unknown case');
     });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       const serverRelativeUrl: string = urlUtil.getServerRelativePath(webUrl, fileUrl);
       if (opts.url === `${webUrl}/_api/web/GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(serverRelativeUrl)}')/ListItemAllFields/roleassignments/removeroleassignment(principalid='${principalId}')`) {
         return;
@@ -230,18 +239,20 @@ describe(commands.FILE_ROLEASSIGNMENT_REMOVE, () => {
     });
   });
 
-  it('correctly handles error when removing file role assignment', async () => {
-    const errorMessage = 'request rejected';
-    sinon.stub(request, 'post').callsFake(async () => { throw errorMessage; });
+  it('correctly handles error when removing file role assignment',
+    async () => {
+      const errorMessage = 'request rejected';
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async () => { throw errorMessage; });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: webUrl,
-        fileUrl: fileUrl,
-        principalId: principalId,
-        force: true
-      }
-    }), new CommandError(errorMessage));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: webUrl,
+          fileUrl: fileUrl,
+          principalId: principalId,
+          force: true
+        }
+      }), new CommandError(errorMessage));
+    }
+  );
 });

@@ -1,7 +1,6 @@
 import assert from 'assert';
 import fs from 'fs';
-import sinon from 'sinon';
-import { sinonUtil } from '../../../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../../../utils/jestUtil.js';
 import { Project, TsFile } from '../../project-model/index.js';
 import { Finding } from '../../report-model/Finding.js';
 import { FN016002_TS_msgraphclient_instance } from './FN016002_TS_msgraphclient_instance.js';
@@ -11,7 +10,7 @@ describe('FN016002_TS_msgraphclient_instance', () => {
   let findings: Finding[];
   let rule: FN016002_TS_msgraphclient_instance;
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       fs.existsSync,
       fs.readFileSync,
       (TsRule as any).getParentOfType
@@ -24,7 +23,7 @@ describe('FN016002_TS_msgraphclient_instance', () => {
   });
 
   it('doesn\'t return notifications if no .ts files found', () => {
-    sinon.stub(fs, 'existsSync').callsFake(() => false);
+    jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(() => false);
     const project: Project = {
       path: '/usr/tmp'
     };
@@ -33,7 +32,7 @@ describe('FN016002_TS_msgraphclient_instance', () => {
   });
 
   it('doesn\'t return notifications if specified .ts file not found', () => {
-    sinon.stub(fs, 'existsSync').callsFake(() => false);
+    jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(() => false);
     const project: Project = {
       path: '/usr/tmp',
       tsFiles: [
@@ -44,22 +43,24 @@ describe('FN016002_TS_msgraphclient_instance', () => {
     assert.strictEqual(findings.length, 0);
   });
 
-  it('doesn\'t return notifications if couldn\'t retrieve the call expression', () => {
-    sinon.stub(fs, 'existsSync').callsFake(() => true);
-    sinon.stub(fs, 'readFileSync').callsFake(() => `this.serviceScope.consume;`);
-    const project: Project = {
-      path: '/usr/tmp',
-      tsFiles: [
-        new TsFile('foo')
-      ]
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it('doesn\'t return notifications if couldn\'t retrieve the call expression',
+    () => {
+      jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(() => true);
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(() => `this.serviceScope.consume;`);
+      const project: Project = {
+        path: '/usr/tmp',
+        tsFiles: [
+          new TsFile('foo')
+        ]
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
   it('doesn\'t return notifications if service key is a constant', () => {
-    sinon.stub(fs, 'existsSync').callsFake(() => true);
-    sinon.stub(fs, 'readFileSync').callsFake(() => `this.serviceScope.consume("abc");`);
+    jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(() => true);
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(() => `this.serviceScope.consume("abc");`);
     const project: Project = {
       path: '/usr/tmp',
       tsFiles: [
@@ -70,29 +71,33 @@ describe('FN016002_TS_msgraphclient_instance', () => {
     assert.strictEqual(findings.length, 0);
   });
 
-  it('doesn\'t return notifications if service key is not MSGraphClient', () => {
-    sinon.stub(fs, 'existsSync').callsFake(() => true);
-    sinon.stub(fs, 'readFileSync').callsFake(() => `this.serviceScope.consume(ContosoClient.serviceKey);`);
-    const project: Project = {
-      path: '/usr/tmp',
-      tsFiles: [
-        new TsFile('foo')
-      ]
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it('doesn\'t return notifications if service key is not MSGraphClient',
+    () => {
+      jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(() => true);
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(() => `this.serviceScope.consume(ContosoClient.serviceKey);`);
+      const project: Project = {
+        path: '/usr/tmp',
+        tsFiles: [
+          new TsFile('foo')
+        ]
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
-  it('doesn\'t return notifications if retrieved MSGraphClient is not assigned to a variable', () => {
-    sinon.stub(fs, 'existsSync').callsFake(() => true);
-    sinon.stub(fs, 'readFileSync').callsFake(() => `this.serviceScope.consume(MSGraphClient.serviceKey);`);
-    const project: Project = {
-      path: '/usr/tmp',
-      tsFiles: [
-        new TsFile('foo')
-      ]
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it('doesn\'t return notifications if retrieved MSGraphClient is not assigned to a variable',
+    () => {
+      jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(() => true);
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(() => `this.serviceScope.consume(MSGraphClient.serviceKey);`);
+      const project: Project = {
+        path: '/usr/tmp',
+        tsFiles: [
+          new TsFile('foo')
+        ]
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 });

@@ -12,18 +12,20 @@ describe('FN012015_TSC_strictNullChecks', () => {
     rule = new FN012015_TSC_strictNullChecks(false);
   });
 
-  it('doesn\'t return notification if strictNullChecks is already up-to-date', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      tsConfigJson: {
-        compilerOptions: {
-          strictNullChecks: false
+  it('doesn\'t return notification if strictNullChecks is already up-to-date',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        tsConfigJson: {
+          compilerOptions: {
+            strictNullChecks: false
+          }
         }
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
   it('doesn\'t return notification if object is missing', () => {
     const project: Project = {

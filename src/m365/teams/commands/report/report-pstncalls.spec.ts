@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './report-pstncalls.js';
 
@@ -48,11 +47,11 @@ describe(commands.REPORT_PSTNCALLS, () => {
     "@odata.nextLink": "https://graph.microsoft.com/v1.0/communications/callRecords/getPstnCalls(from=2019-11-01,to=2019-12-01)?$skip=1000"
   };
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -74,13 +73,13 @@ describe(commands.REPORT_PSTNCALLS, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -115,15 +114,17 @@ describe(commands.REPORT_PSTNCALLS, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation on number of days between fromDateTime and toDateTme exceeding 90', async () => {
-    const actual = await command.validate({
-      options: {
-        fromDateTime: '2020-08-01',
-        toDateTime: '2020-12-01'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation on number of days between fromDateTime and toDateTme exceeding 90',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          fromDateTime: '2020-08-01',
+          toDateTime: '2020-12-01'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation on valid fromDateTime', async () => {
     const validfromDateTime: any = new Date();
@@ -148,7 +149,7 @@ describe(commands.REPORT_PSTNCALLS, () => {
   });
 
   it('gets pstncalls in teams', async () => {
-    const requestStub: sinon.SinonStub = sinon.stub(request, 'get').callsFake(async (opts) => {
+    const requestStub: jest.Mock = jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/communications/callRecords/getPstnCalls(fromDateTime=2019-11-01,toDateTime=2019-12-01)`) {
         return jsonOutput;
       }
@@ -157,16 +158,16 @@ describe(commands.REPORT_PSTNCALLS, () => {
     });
 
     await command.action(logger, { options: { fromDateTime: '2019-11-01', toDateTime: '2019-12-01' } });
-    assert.strictEqual(requestStub.lastCall.args[0].url, "https://graph.microsoft.com/v1.0/communications/callRecords/getPstnCalls(fromDateTime=2019-11-01,toDateTime=2019-12-01)");
-    assert.strictEqual(requestStub.lastCall.args[0].headers["accept"], 'application/json;odata.metadata=none');
+    assert.strictEqual(requestStub.mock.lastCall[0].url, "https://graph.microsoft.com/v1.0/communications/callRecords/getPstnCalls(fromDateTime=2019-11-01,toDateTime=2019-12-01)");
+    assert.strictEqual(requestStub.mock.lastCall[0].headers["accept"], 'application/json;odata.metadata=none');
   });
 
   it('gets pstncalls in teams with no toDateTime specified', async () => {
     const now = new Date();
-    const fakeTimers = sinon.useFakeTimers(now);
+    jest.useFakeTimers().setSystemTime(now);
     const toDateTime: string = formatting.encodeQueryParameter(now.toISOString());
 
-    const requestStub: sinon.SinonStub = sinon.stub(request, 'get').callsFake(async (opts) => {
+    const requestStub: jest.Mock = jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/communications/callRecords/getPstnCalls(fromDateTime=2019-11-01,toDateTime=${toDateTime})`) {
         return jsonOutput;
       }
@@ -175,9 +176,9 @@ describe(commands.REPORT_PSTNCALLS, () => {
     });
 
     await command.action(logger, { options: { fromDateTime: '2019-11-01' } });
-    assert.strictEqual(requestStub.lastCall.args[0].url, `https://graph.microsoft.com/v1.0/communications/callRecords/getPstnCalls(fromDateTime=2019-11-01,toDateTime=${toDateTime})`);
-    assert.strictEqual(requestStub.lastCall.args[0].headers["accept"], 'application/json;odata.metadata=none');
-    fakeTimers.restore();
+    assert.strictEqual(requestStub.mock.lastCall[0].url, `https://graph.microsoft.com/v1.0/communications/callRecords/getPstnCalls(fromDateTime=2019-11-01,toDateTime=${toDateTime})`);
+    assert.strictEqual(requestStub.mock.lastCall[0].headers["accept"], 'application/json;odata.metadata=none');
+    fakeTimers.mockRestore();
   });
 
   it('correctly handles random API error', async () => {
@@ -194,7 +195,7 @@ describe(commands.REPORT_PSTNCALLS, () => {
       }
     };
 
-    sinon.stub(request, 'get').rejects(error);
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, { options: { fromDateTime: '2019-11-01', toDateTime: '2019-12-01' } } as any), new CommandError('An error has occurred'));
   });

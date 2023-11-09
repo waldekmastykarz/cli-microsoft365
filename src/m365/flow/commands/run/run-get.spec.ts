@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Logger } from '../../../../cli/Logger.js';
 import { CommandError } from '../../../../Command.js';
@@ -7,7 +6,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -30,14 +29,14 @@ describe(commands.RUN_GET, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -55,17 +54,17 @@ describe(commands.RUN_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -78,7 +77,7 @@ describe(commands.RUN_GET, () => {
   });
 
   it('retrieves information about the specified run', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://management.azure.com/providers/Microsoft.ProcessSimple/environments/${environmentName}/flows/${flowName}/runs/${runName}?api-version=2016-11-01`) {
         return flowResponse;
       }
@@ -90,38 +89,42 @@ describe(commands.RUN_GET, () => {
     assert(loggerLogSpy.calledWith(flowResponseFormatted));
   });
 
-  it('renders empty string for endTime, if the run specified is still running', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://management.azure.com/providers/Microsoft.ProcessSimple/environments/${environmentName}/flows/${flowName}/runs/${runName}?api-version=2016-11-01`) {
-        return flowResponseNoEndTime;
-      }
+  it('renders empty string for endTime, if the run specified is still running',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://management.azure.com/providers/Microsoft.ProcessSimple/environments/${environmentName}/flows/${flowName}/runs/${runName}?api-version=2016-11-01`) {
+          return flowResponseNoEndTime;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { flowName: flowName, environmentName: environmentName, name: runName } });
-    assert(loggerLogSpy.calledWith(flowResponseFormattedNoEndTime));
-  });
+      await command.action(logger, { options: { flowName: flowName, environmentName: environmentName, name: runName } });
+      assert(loggerLogSpy.calledWith(flowResponseFormattedNoEndTime));
+    }
+  );
 
-  it('retrieves information about the specified run including trigger information', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://management.azure.com/providers/Microsoft.ProcessSimple/environments/${environmentName}/flows/${flowName}/runs/${runName}?api-version=2016-11-01`) {
-        return flowResponse;
-      }
+  it('retrieves information about the specified run including trigger information',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://management.azure.com/providers/Microsoft.ProcessSimple/environments/${environmentName}/flows/${flowName}/runs/${runName}?api-version=2016-11-01`) {
+          return flowResponse;
+        }
 
-      if (opts.url === flowResponse.properties.trigger.outputsLink.uri) {
-        return triggerInformationResponse;
-      }
+        if (opts.url === flowResponse.properties.trigger.outputsLink.uri) {
+          return triggerInformationResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { flowName: flowName, environmentName: environmentName, name: runName, includeTriggerInformation: true, verbose: true } });
-    assert(loggerLogSpy.calledWith(flowResponseFormattedIncludingInformation));
-  });
+      await command.action(logger, { options: { flowName: flowName, environmentName: environmentName, name: runName, includeTriggerInformation: true, verbose: true } });
+      assert(loggerLogSpy.calledWith(flowResponseFormattedIncludingInformation));
+    }
+  );
 
   it('correctly handles Flow not found', async () => {
-    sinon.stub(request, 'get').rejects({
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects({
       'error': {
         'code': 'FlowNotFound',
         'message': `Could not find flow '${flowName}'.`

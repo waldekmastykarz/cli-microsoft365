@@ -20,27 +20,31 @@ describe('FN010002_YORC_isCreatingSolution', () => {
     assert.strictEqual(findings.length, 0);
   });
 
-  it('doesn\'t return notification if isCreatingSolution is already up-to-date', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      yoRcJson: {
-        "@microsoft/generator-sharepoint": {
-          isCreatingSolution: true
+  it('doesn\'t return notification if isCreatingSolution is already up-to-date',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        yoRcJson: {
+          "@microsoft/generator-sharepoint": {
+            isCreatingSolution: true
+          }
         }
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
-  it('returns notification if @microsoft/generator-sharepoint is not set', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      yoRcJson: {}
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 1);
-  });
+  it('returns notification if @microsoft/generator-sharepoint is not set',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        yoRcJson: {}
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 1);
+    }
+  );
 
   it('returns notification if isCreatingSolution is not up-to-date', () => {
     const project: Project = {

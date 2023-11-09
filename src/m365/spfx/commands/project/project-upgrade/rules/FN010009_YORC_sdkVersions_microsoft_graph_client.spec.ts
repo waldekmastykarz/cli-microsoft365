@@ -20,14 +20,16 @@ describe('FN010009_YORC_sdkVersions_microsoft_graph_client', () => {
     assert.strictEqual(findings.length, 0);
   });
 
-  it(`returns notification when @microsoft/generator-sharepoint is not set`, () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      yoRcJson: {}
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 1);
-  });
+  it(`returns notification when @microsoft/generator-sharepoint is not set`,
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        yoRcJson: {}
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 1);
+    }
+  );
 
   it(`returns notification when sdkVersions is not set`, () => {
     const project: Project = {
@@ -40,31 +42,35 @@ describe('FN010009_YORC_sdkVersions_microsoft_graph_client', () => {
     assert.strictEqual(findings.length, 1);
   });
 
-  it(`returns notification when @microsoft/microsoft-graph-client is not set`, () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      yoRcJson: {
-        "@microsoft/generator-sharepoint": {
-          sdkVersions: {}
-        }
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 1);
-  });
-
-  it(`returns notification when @microsoft/microsoft-graph-client version doesn't match the required version`, () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      yoRcJson: {
-        "@microsoft/generator-sharepoint": {
-          sdkVersions: {
-            "@microsoft/microsoft-graph-client": "3.0.1"
+  it(`returns notification when @microsoft/microsoft-graph-client is not set`,
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        yoRcJson: {
+          "@microsoft/generator-sharepoint": {
+            sdkVersions: {}
           }
         }
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 1);
-  });
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 1);
+    }
+  );
+
+  it(`returns notification when @microsoft/microsoft-graph-client version doesn't match the required version`,
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        yoRcJson: {
+          "@microsoft/generator-sharepoint": {
+            sdkVersions: {
+              "@microsoft/microsoft-graph-client": "3.0.1"
+            }
+          }
+        }
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 1);
+    }
+  );
 });

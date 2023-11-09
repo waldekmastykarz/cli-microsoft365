@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './group-user-remove.js';
 
@@ -19,11 +18,11 @@ describe(commands.GROUP_USER_REMOVE, () => {
   let requests: any[];
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -45,14 +44,14 @@ describe(commands.GROUP_USER_REMOVE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.delete,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -65,7 +64,7 @@ describe(commands.GROUP_USER_REMOVE, () => {
   });
 
   it('correctly handles error', async () => {
-    sinon.stub(request, 'delete').callsFake(async () => {
+    jest.spyOn(request, 'delete').mockClear().mockImplementation(async () => {
       throw {
         "error": {
           "base": "An error has occurred."
@@ -73,7 +72,7 @@ describe(commands.GROUP_USER_REMOVE, () => {
       };
     });
 
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: true }
     ));
 
@@ -95,65 +94,73 @@ describe(commands.GROUP_USER_REMOVE, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('calls the service if the current user is removed from the group', async () => {
-    const requestDeleteStub = sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === 'https://www.yammer.com/api/v1/group_memberships.json') {
-        return;
-      }
-      throw 'Invalid request';
-    });
+  it('calls the service if the current user is removed from the group',
+    async () => {
+      const requestDeleteStub = jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://www.yammer.com/api/v1/group_memberships.json') {
+          return;
+        }
+        throw 'Invalid request';
+      });
 
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: true }
-    ));
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: true }
+      ));
 
-    await command.action(logger, { options: { debug: true, groupId: 1231231 } });
+      await command.action(logger, { options: { debug: true, groupId: 1231231 } });
 
-    assert(requestDeleteStub.called);
-  });
+      assert(requestDeleteStub.called);
+    }
+  );
 
-  it('calls the service if the user 989998789 is removed from the group 1231231 with the confirm command', async () => {
-    const requestDeleteStub = sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === 'https://www.yammer.com/api/v1/group_memberships.json') {
-        return;
-      }
-      throw 'Invalid request';
-    });
+  it('calls the service if the user 989998789 is removed from the group 1231231 with the confirm command',
+    async () => {
+      const requestDeleteStub = jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://www.yammer.com/api/v1/group_memberships.json') {
+          return;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, groupId: 1231231, id: 989998789, force: true } });
+      await command.action(logger, { options: { debug: true, groupId: 1231231, id: 989998789, force: true } });
 
-    assert(requestDeleteStub.called);
-  });
+      assert(requestDeleteStub.called);
+    }
+  );
 
-  it('calls the service if the user 989998789 is removed from the group 1231231', async () => {
-    const requestDeleteStub = sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === 'https://www.yammer.com/api/v1/group_memberships.json') {
-        return;
-      }
-      throw 'Invalid request';
-    });
+  it('calls the service if the user 989998789 is removed from the group 1231231',
+    async () => {
+      const requestDeleteStub = jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://www.yammer.com/api/v1/group_memberships.json') {
+          return;
+        }
+        throw 'Invalid request';
+      });
 
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: true }
-    ));
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: true }
+      ));
 
-    await command.action(logger, { options: { debug: true, groupId: 1231231, id: 989998789 } });
+      await command.action(logger, { options: { debug: true, groupId: 1231231, id: 989998789 } });
 
-    assert(requestDeleteStub.called);
-  });
+      assert(requestDeleteStub.called);
+    }
+  );
 
-  it('prompts before removal when confirmation argument not passed', async () => {
-    const promptStub: sinon.SinonStub = sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: false }
-    ));
+  it('prompts before removal when confirmation argument not passed',
+    async () => {
+      const promptStub: jest.Mock = jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: false }
+      ));
 
-    await command.action(logger, { options: { groupId: 1231231, id: 989998789 } });
+      await command.action(logger, { options: { groupId: 1231231, id: 989998789 } });
 
-    assert(promptStub.called);
-  });
+      assert(promptStub.called);
+    }
+  );
 
   it('aborts execution when prompt not confirmed', async () => {
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: false }
     ));
 

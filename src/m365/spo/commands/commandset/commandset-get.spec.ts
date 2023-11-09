@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import { v4 } from 'uuid';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
@@ -11,7 +10,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { odata } from '../../../../utils/odata.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './commandset-get.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -27,15 +26,15 @@ describe(commands.COMMANDSET_GET, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -53,11 +52,11 @@ describe(commands.COMMANDSET_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       odata.getAllItems,
       request.get,
       cli.getSettingWithDefaultValue,
@@ -65,8 +64,8 @@ describe(commands.COMMANDSET_GET, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -78,49 +77,55 @@ describe(commands.COMMANDSET_GET, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('gets command set from specific site by id with scope "Web"', async () => {
-    const scope = 'Web';
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/${scope}/UserCustomActions(guid'${commandSetId}')`) {
-        return commandSetObject;
-      }
-      throw 'Invalid request';
-    });
+  it('gets command set from specific site by id with scope "Web"',
+    async () => {
+      const scope = 'Web';
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/${scope}/UserCustomActions(guid'${commandSetId}')`) {
+          return commandSetObject;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { webUrl: webUrl, id: commandSetId, scope: scope, verbose: true } });
-    assert(loggerLogSpy.calledWith(commandSetObject));
-  });
+      await command.action(logger, { options: { webUrl: webUrl, id: commandSetId, scope: scope, verbose: true } });
+      assert(loggerLogSpy.calledWith(commandSetObject));
+    }
+  );
 
-  it('gets command set from specific site by title with scope "Site"', async () => {
-    const scope = 'Site';
-    sinon.stub(odata, 'getAllItems').callsFake(async (url) => {
-      if (url === `${webUrl}/_api/${scope}/UserCustomActions?$filter=startswith(Location,'ClientSideExtension.ListViewCommandSet') and Title eq '${commandSetTitle}'`) {
-        return commandSetResponse;
-      }
-      throw 'Invalid request';
-    });
+  it('gets command set from specific site by title with scope "Site"',
+    async () => {
+      const scope = 'Site';
+      jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url) => {
+        if (url === `${webUrl}/_api/${scope}/UserCustomActions?$filter=startswith(Location,'ClientSideExtension.ListViewCommandSet') and Title eq '${commandSetTitle}'`) {
+          return commandSetResponse;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { webUrl: webUrl, title: commandSetTitle, scope: scope, verbose: true } });
-    assert(loggerLogSpy.calledWith(commandSetObject));
-  });
+      await command.action(logger, { options: { webUrl: webUrl, title: commandSetTitle, scope: scope, verbose: true } });
+      assert(loggerLogSpy.calledWith(commandSetObject));
+    }
+  );
 
-  it('gets command set from specific site by clientSideComponentId without specifying scope', async () => {
-    sinon.stub(odata, 'getAllItems').callsFake(async (url) => {
-      if (url === `${webUrl}/_api/Site/UserCustomActions?$filter=startswith(Location,'ClientSideExtension.ListViewCommandSet') and ClientSideComponentId eq guid'${clientSideComponentId}'`) {
-        return commandSetResponse;
-      }
-      if (url === `${webUrl}/_api/Web/UserCustomActions?$filter=startswith(Location,'ClientSideExtension.ListViewCommandSet') and ClientSideComponentId eq guid'${clientSideComponentId}'`) {
-        return [];
-      }
-      throw 'Invalid request';
-    });
+  it('gets command set from specific site by clientSideComponentId without specifying scope',
+    async () => {
+      jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url) => {
+        if (url === `${webUrl}/_api/Site/UserCustomActions?$filter=startswith(Location,'ClientSideExtension.ListViewCommandSet') and ClientSideComponentId eq guid'${clientSideComponentId}'`) {
+          return commandSetResponse;
+        }
+        if (url === `${webUrl}/_api/Web/UserCustomActions?$filter=startswith(Location,'ClientSideExtension.ListViewCommandSet') and ClientSideComponentId eq guid'${clientSideComponentId}'`) {
+          return [];
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { webUrl: webUrl, clientSideComponentId: clientSideComponentId, verbose: true } });
-    assert(loggerLogSpy.calledWith(commandSetObject));
-  });
+      await command.action(logger, { options: { webUrl: webUrl, clientSideComponentId: clientSideComponentId, verbose: true } });
+      assert(loggerLogSpy.calledWith(commandSetObject));
+    }
+  );
 
   it('throws error when command set not found by id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/Site/UserCustomActions(guid'${commandSetId}')`) {
         return { 'odata.null': true };
       }
@@ -136,42 +141,46 @@ describe(commands.COMMANDSET_GET, () => {
       , new CommandError(`Command set with id ${commandSetId} can't be found.`));
   });
 
-  it('throws error when command set is found by id but is not of type command set', async () => {
-    const commandSetObjectClone = { ...commandSetObject };
-    commandSetObjectClone.Location = 'ClientSideExtension.ApplicationCustomizer';
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/Site/UserCustomActions(guid'${commandSetId}')`) {
-        return commandSetObjectClone;
-      }
+  it('throws error when command set is found by id but is not of type command set',
+    async () => {
+      const commandSetObjectClone = { ...commandSetObject };
+      commandSetObjectClone.Location = 'ClientSideExtension.ApplicationCustomizer';
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/Site/UserCustomActions(guid'${commandSetId}')`) {
+          return commandSetObjectClone;
+        }
 
-      if (opts.url === `${webUrl}/_api/Web/UserCustomActions(guid'${commandSetId}')`) {
-        return { 'odata.null': true };
-      }
+        if (opts.url === `${webUrl}/_api/Web/UserCustomActions(guid'${commandSetId}')`) {
+          return { 'odata.null': true };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, { options: { webUrl: webUrl, id: commandSetId, verbose: true } })
-      , new CommandError(`Custom action with id ${commandSetId} is not a command set.`));
-  });
+      await assert.rejects(command.action(logger, { options: { webUrl: webUrl, id: commandSetId, verbose: true } })
+        , new CommandError(`Custom action with id ${commandSetId} is not a command set.`));
+    }
+  );
 
-  it('throws error when command set is not found by clientSideComponentId', async () => {
-    const scope = 'Site';
-    sinon.stub(odata, 'getAllItems').callsFake(async (url) => {
-      if (url === `${webUrl}/_api/${scope}/UserCustomActions?$filter=startswith(Location,'ClientSideExtension.ListViewCommandSet') and ClientSideComponentId eq guid'${clientSideComponentId}'`) {
-        return [];
-      }
+  it('throws error when command set is not found by clientSideComponentId',
+    async () => {
+      const scope = 'Site';
+      jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url) => {
+        if (url === `${webUrl}/_api/${scope}/UserCustomActions?$filter=startswith(Location,'ClientSideExtension.ListViewCommandSet') and ClientSideComponentId eq guid'${clientSideComponentId}'`) {
+          return [];
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, { options: { webUrl: webUrl, clientSideComponentId: clientSideComponentId, scope: scope, verbose: true } })
-      , new CommandError(`No command set with clientSideComponentId '${clientSideComponentId}' found.`));
-  });
+      await assert.rejects(command.action(logger, { options: { webUrl: webUrl, clientSideComponentId: clientSideComponentId, scope: scope, verbose: true } })
+        , new CommandError(`No command set with clientSideComponentId '${clientSideComponentId}' found.`));
+    }
+  );
 
   it('throws error when command set is not found by title', async () => {
     const scope = 'Web';
-    sinon.stub(odata, 'getAllItems').callsFake(async (url) => {
+    jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url) => {
       if (url === `${webUrl}/_api/${scope}/UserCustomActions?$filter=startswith(Location,'ClientSideExtension.ListViewCommandSet') and Title eq '${commandSetTitle}'`) {
         return [];
       }
@@ -183,86 +192,102 @@ describe(commands.COMMANDSET_GET, () => {
       , new CommandError(`No command set with title '${commandSetTitle}' found.`));
   });
 
-  it('throws error when multiple command sets are found by title', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('throws error when multiple command sets are found by title',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const commandSetResponseClone = [...commandSetResponse];
-    const commandSetObjectClone = { ...commandSetObject };
-    const commandSetCloneId = v4();
-    commandSetObjectClone.Id = commandSetCloneId;
-    commandSetResponseClone.push(commandSetObjectClone);
-    const scope = 'Web';
-    sinon.stub(odata, 'getAllItems').callsFake(async (url) => {
-      if (url === `${webUrl}/_api/${scope}/UserCustomActions?$filter=startswith(Location,'ClientSideExtension.ListViewCommandSet') and Title eq '${commandSetTitle}'`) {
-        return commandSetResponseClone;
-      }
+      const commandSetResponseClone = [...commandSetResponse];
+      const commandSetObjectClone = { ...commandSetObject };
+      const commandSetCloneId = v4();
+      commandSetObjectClone.Id = commandSetCloneId;
+      commandSetResponseClone.push(commandSetObjectClone);
+      const scope = 'Web';
+      jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url) => {
+        if (url === `${webUrl}/_api/${scope}/UserCustomActions?$filter=startswith(Location,'ClientSideExtension.ListViewCommandSet') and Title eq '${commandSetTitle}'`) {
+          return commandSetResponseClone;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
 
-    await assert.rejects(command.action(logger, { options: { webUrl: webUrl, title: commandSetTitle, scope: scope, verbose: true } })
-      , new CommandError(`Multiple command sets with title 'Alerts' found. Found: 0a8e82b5-651f-400b-b537-9a739f92d6b4, ${commandSetCloneId}.`));
-  });
+      await assert.rejects(command.action(logger, { options: { webUrl: webUrl, title: commandSetTitle, scope: scope, verbose: true } })
+        , new CommandError(`Multiple command sets with title 'Alerts' found. Found: 0a8e82b5-651f-400b-b537-9a739f92d6b4, ${commandSetCloneId}.`));
+    }
+  );
 
-  it('handles selecting single result when multiple command sets with the specified name found and cli is set to prompt', async () => {
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves(commandSetObject);
+  it('handles selecting single result when multiple command sets with the specified name found and cli is set to prompt',
+    async () => {
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves(commandSetObject);
 
-    const commandSetResponseClone = [...commandSetResponse];
-    const commandSetObjectClone = { ...commandSetObject };
-    const commandSetCloneId = v4();
-    commandSetObjectClone.Id = commandSetCloneId;
-    commandSetResponseClone.push(commandSetObjectClone);
-    const scope = 'Site';
-    sinon.stub(odata, 'getAllItems').callsFake(async (url) => {
-      if (url === `${webUrl}/_api/${scope}/UserCustomActions?$filter=startswith(Location,'ClientSideExtension.ListViewCommandSet') and Title eq '${commandSetTitle}'`) {
-        return commandSetResponseClone;
-      }
-      throw 'Invalid request';
-    });
+      const commandSetResponseClone = [...commandSetResponse];
+      const commandSetObjectClone = { ...commandSetObject };
+      const commandSetCloneId = v4();
+      commandSetObjectClone.Id = commandSetCloneId;
+      commandSetResponseClone.push(commandSetObjectClone);
+      const scope = 'Site';
+      jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url) => {
+        if (url === `${webUrl}/_api/${scope}/UserCustomActions?$filter=startswith(Location,'ClientSideExtension.ListViewCommandSet') and Title eq '${commandSetTitle}'`) {
+          return commandSetResponseClone;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { webUrl: webUrl, title: commandSetTitle, scope: scope, verbose: true } });
-    assert(loggerLogSpy.calledWith(commandSetObject));
-  });
+      await command.action(logger, { options: { webUrl: webUrl, title: commandSetTitle, scope: scope, verbose: true } });
+      assert(loggerLogSpy.calledWith(commandSetObject));
+    }
+  );
 
-  it('fails validation if the url option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'invalid', id: commandSetId } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the url option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'invalid', id: commandSetId } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the id option is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: webUrl, id: 'invalid' } }, commandInfo);
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if the clientSideComponentId option is not a valid GUID', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, clientSideComponentId: 'invalid' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the clientSideComponentId option is not a valid GUID',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, clientSideComponentId: 'invalid' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if the scope option is not a valid scope option', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, id: clientSideComponentId, scope: 'invalid' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the scope option is not a valid scope option',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, id: clientSideComponentId, scope: 'invalid' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if options are specified properly with id', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, id: clientSideComponentId, scope: 'All' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if options are specified properly with id',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, id: clientSideComponentId, scope: 'All' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if options are specified properly with title', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, title: commandSetTitle, scope: 'Web' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if options are specified properly with title',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, title: commandSetTitle, scope: 'Web' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if options are specified properly with clientSideComponentId', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, clientSideComponentId: clientSideComponentId, scope: 'Site' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if options are specified properly with clientSideComponentId',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, clientSideComponentId: clientSideComponentId, scope: 'Site' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './commandset-set.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -115,12 +114,12 @@ describe(commands.COMMANDSET_SET, () => {
   };
   //#endregion
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -141,7 +140,7 @@ describe(commands.COMMANDSET_SET, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post,
       cli.getSettingWithDefaultValue,
@@ -149,8 +148,8 @@ describe(commands.COMMANDSET_SET, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -162,10 +161,12 @@ describe(commands.COMMANDSET_SET, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('fails validation if no other fields specified than url, id, scope', async () => {
-    const actual = await command.validate({ options: { id: validId, webUrl: validUrl } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if no other fields specified than url, id, scope',
+    async () => {
+      const actual = await command.validate({ options: { id: validId, webUrl: validUrl } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation when all options specified', async () => {
     const actual = await command.validate({
@@ -181,18 +182,20 @@ describe(commands.COMMANDSET_SET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if id, title and clientSideComponentId are provided', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if id, title and clientSideComponentId are provided',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { id: validId, title: validTitle, clientSideComponentId: validClientSideComponentProperties, webUrl: validUrl, newTitle: validNewTitle } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { id: validId, title: validTitle, clientSideComponentId: validClientSideComponentProperties, webUrl: validUrl, newTitle: validNewTitle } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if invalid id', async () => {
     const actual = await command.validate({ options: { id: '1', webUrl: validUrl, newTitle: validNewTitle } }, commandInfo);
@@ -225,7 +228,7 @@ describe(commands.COMMANDSET_SET, () => {
   });
 
   it('throws error when no commandset found with option id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url?.startsWith('https://contoso.sharepoint.com/_api/') && opts.url?.endsWith(`/UserCustomActions(guid'${validId}')`)) {
         return { "odata.null": true };
       }
@@ -241,7 +244,7 @@ describe(commands.COMMANDSET_SET, () => {
   });
 
   it('throws error when no commandset found with option title', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url?.startsWith('https://contoso.sharepoint.com/_api/') && opts.url?.endsWith(`/UserCustomActions?$filter=(Title eq '${formatting.encodeQueryParameter(validTitle)}') and (startswith(Location,'ClientSideExtension.ListViewCommandSet'))`)) {
         return { value: [] };
       }
@@ -256,107 +259,115 @@ describe(commands.COMMANDSET_SET, () => {
     }), new CommandError(`No user commandsets with title '${validTitle}' found`));
   });
 
-  it('throws error when multiple commandsets found with option title', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('throws error when multiple commandsets found with option title',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/_api/Web/UserCustomActions?$filter=(Title eq '${formatting.encodeQueryParameter(validTitle)}') and (startswith(Location,'ClientSideExtension.ListViewCommandSet'))`) {
-        return commandsetMultiResponse;
-      }
-      if (opts.url === `https://contoso.sharepoint.com/_api/Site/UserCustomActions?$filter=(Title eq '${formatting.encodeQueryParameter(validTitle)}') and (startswith(Location,'ClientSideExtension.ListViewCommandSet'))`) {
-        return { value: [] };
-      }
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/_api/Web/UserCustomActions?$filter=(Title eq '${formatting.encodeQueryParameter(validTitle)}') and (startswith(Location,'ClientSideExtension.ListViewCommandSet'))`) {
+          return commandsetMultiResponse;
+        }
+        if (opts.url === `https://contoso.sharepoint.com/_api/Site/UserCustomActions?$filter=(Title eq '${formatting.encodeQueryParameter(validTitle)}') and (startswith(Location,'ClientSideExtension.ListViewCommandSet'))`) {
+          return { value: [] };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        webUrl: validUrl, title: validTitle, newTitle: validNewTitle
-      }
-    }), new CommandError("Multiple user commandsets with title 'Commandset title' found. Found: e7000aef-f756-4997-9420-01cc84f9ac9c, 1783725b-d5b5-4be8-973d-c6d8348e66f0."));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          webUrl: validUrl, title: validTitle, newTitle: validNewTitle
+        }
+      }), new CommandError("Multiple user commandsets with title 'Commandset title' found. Found: e7000aef-f756-4997-9420-01cc84f9ac9c, 1783725b-d5b5-4be8-973d-c6d8348e66f0."));
+    }
+  );
 
-  it('throws error when no commandset found with option clientSideComponentId', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url?.startsWith('https://contoso.sharepoint.com/_api/') && opts.url?.endsWith(`/UserCustomActions?$filter=(ClientSideComponentId eq guid'${formatting.encodeQueryParameter(validClientSideComponentId)}') and (startswith(Location,'ClientSideExtension.ListViewCommandSet'))`)) {
-        return { value: [] };
-      }
+  it('throws error when no commandset found with option clientSideComponentId',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url?.startsWith('https://contoso.sharepoint.com/_api/') && opts.url?.endsWith(`/UserCustomActions?$filter=(ClientSideComponentId eq guid'${formatting.encodeQueryParameter(validClientSideComponentId)}') and (startswith(Location,'ClientSideExtension.ListViewCommandSet'))`)) {
+          return { value: [] };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        webUrl: validUrl, clientSideComponentId: validClientSideComponentId, newTitle: validNewTitle
-      }
-    }), new CommandError(`No user commandsets with ClientSideComponentId '${validClientSideComponentId}' found`));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          webUrl: validUrl, clientSideComponentId: validClientSideComponentId, newTitle: validNewTitle
+        }
+      }), new CommandError(`No user commandsets with ClientSideComponentId '${validClientSideComponentId}' found`));
+    }
+  );
 
-  it('throws error when multiple commandsets found with option clientSideComponentId', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('throws error when multiple commandsets found with option clientSideComponentId',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/_api/Web/UserCustomActions?$filter=(ClientSideComponentId eq guid'${formatting.encodeQueryParameter(validClientSideComponentId)}') and (startswith(Location,'ClientSideExtension.ListViewCommandSet'))`) {
-        return commandsetMultiResponse;
-      }
-      if (opts.url === `https://contoso.sharepoint.com/_api/Site/UserCustomActions?$filter=(ClientSideComponentId eq guid'${formatting.encodeQueryParameter(validClientSideComponentId)}') and (startswith(Location,'ClientSideExtension.ListViewCommandSet'))`) {
-        return { value: [] };
-      }
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/_api/Web/UserCustomActions?$filter=(ClientSideComponentId eq guid'${formatting.encodeQueryParameter(validClientSideComponentId)}') and (startswith(Location,'ClientSideExtension.ListViewCommandSet'))`) {
+          return commandsetMultiResponse;
+        }
+        if (opts.url === `https://contoso.sharepoint.com/_api/Site/UserCustomActions?$filter=(ClientSideComponentId eq guid'${formatting.encodeQueryParameter(validClientSideComponentId)}') and (startswith(Location,'ClientSideExtension.ListViewCommandSet'))`) {
+          return { value: [] };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        webUrl: validUrl, clientSideComponentId: validClientSideComponentId, newTitle: validNewTitle
-      }
-    }), new CommandError("Multiple user commandsets with ClientSideComponentId 'b206e130-1a5b-4ae7-86a7-4f91c9924d0a' found. Found: e7000aef-f756-4997-9420-01cc84f9ac9c, 1783725b-d5b5-4be8-973d-c6d8348e66f0."));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          webUrl: validUrl, clientSideComponentId: validClientSideComponentId, newTitle: validNewTitle
+        }
+      }), new CommandError("Multiple user commandsets with ClientSideComponentId 'b206e130-1a5b-4ae7-86a7-4f91c9924d0a' found. Found: e7000aef-f756-4997-9420-01cc84f9ac9c, 1783725b-d5b5-4be8-973d-c6d8348e66f0."));
+    }
+  );
 
-  it('handles selecting single result when multiple command sets with the specified name found and cli is set to prompt', async () => {
-    let updateRequestIssued = false;
+  it('handles selecting single result when multiple command sets with the specified name found and cli is set to prompt',
+    async () => {
+      let updateRequestIssued = false;
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/_api/Web/UserCustomActions?$filter=(Title eq '${formatting.encodeQueryParameter(validTitle)}') and (startswith(Location,'ClientSideExtension.ListViewCommandSet'))`) {
-        return commandsetMultiResponse;
-      }
-      else if (opts.url === `https://contoso.sharepoint.com/_api/Site/UserCustomActions?$filter=(Title eq '${formatting.encodeQueryParameter(validTitle)}') and (startswith(Location,'ClientSideExtension.ListViewCommandSet'))`) {
-        return { value: [] };
-      }
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/_api/Web/UserCustomActions?$filter=(Title eq '${formatting.encodeQueryParameter(validTitle)}') and (startswith(Location,'ClientSideExtension.ListViewCommandSet'))`) {
+          return commandsetMultiResponse;
+        }
+        else if (opts.url === `https://contoso.sharepoint.com/_api/Site/UserCustomActions?$filter=(Title eq '${formatting.encodeQueryParameter(validTitle)}') and (startswith(Location,'ClientSideExtension.ListViewCommandSet'))`) {
+          return { value: [] };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(request, 'post').callsFake(async opts => {
-      if (opts.url?.startsWith('https://contoso.sharepoint.com/_api/') && opts.url?.endsWith(`/UserCustomActions('${validId}')`)) {
-        updateRequestIssued = true;
-        return;
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
+        if (opts.url?.startsWith('https://contoso.sharepoint.com/_api/') && opts.url?.endsWith(`/UserCustomActions('${validId}')`)) {
+          updateRequestIssued = true;
+          return;
+        }
 
-      throw `Invalid request`;
-    });
+        throw `Invalid request`;
+      });
 
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves(commandsetSingleResponse.value[0]);
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves(commandsetSingleResponse.value[0]);
 
-    await command.action(logger, { options: { verbose: true, webUrl: validUrl, title: validTitle, newTitle: validNewTitle, listType: 'Library', location: 'Both' } });
-    assert(updateRequestIssued);
-  });
+      await command.action(logger, { options: { verbose: true, webUrl: validUrl, title: validTitle, newTitle: validNewTitle, listType: 'Library', location: 'Both' } });
+      assert(updateRequestIssued);
+    }
+  );
 
   it('updates a commandset with the id parameter', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url?.startsWith('https://contoso.sharepoint.com/_api/') && opts.url?.endsWith(`/UserCustomActions(guid'${validId}')`)) {
         return commandsetSingleResponse.value[0];
       }
@@ -364,7 +375,7 @@ describe(commands.COMMANDSET_SET, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(request, 'post').callsFake(async opts => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if ((opts.url === `https://contoso.sharepoint.com/_api/Web/UserCustomActions('${validId}')`)) {
         return;
       }
@@ -380,7 +391,7 @@ describe(commands.COMMANDSET_SET, () => {
   });
 
   it('updates the Client Side Component Id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/_api/Site/UserCustomActions?$filter=(ClientSideComponentId eq guid'${formatting.encodeQueryParameter(validClientSideComponentId)}') and (startswith(Location,'ClientSideExtension.ListViewCommandSet'))`) {
         return commandsetSingleResponse;
       }
@@ -390,7 +401,7 @@ describe(commands.COMMANDSET_SET, () => {
 
       throw 'Invalid request';
     });
-    sinon.stub(request, 'post').callsFake(async opts => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if ((opts.url === `https://contoso.sharepoint.com/_api/Web/UserCustomActions('${validId}')`)) {
         return;
       }
@@ -405,34 +416,36 @@ describe(commands.COMMANDSET_SET, () => {
     }));
   });
 
-  it('updates a commandset with the id parameter with scope Site', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/_api/Site/UserCustomActions(guid'${validId}')`) {
-        const response = commandsetSingleResponse.value[0];
-        response.Scope = 2;
-        return response;
-      }
+  it('updates a commandset with the id parameter with scope Site',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/_api/Site/UserCustomActions(guid'${validId}')`) {
+          const response = commandsetSingleResponse.value[0];
+          response.Scope = 2;
+          return response;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(request, 'post').callsFake(async opts => {
-      if ((opts.url === `https://contoso.sharepoint.com/_api/Site/UserCustomActions('${validId}')`)) {
-        return;
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
+        if ((opts.url === `https://contoso.sharepoint.com/_api/Site/UserCustomActions('${validId}')`)) {
+          return;
+        }
 
-      throw `Invalid request`;
-    });
+        throw `Invalid request`;
+      });
 
-    await assert.doesNotReject(command.action(logger, {
-      options: {
-        verbose: true, webUrl: validUrl, id: validId, newTitle: validNewTitle, listType: validListType, clientSideComponentProperties: validClientSideComponentProperties, location: validLocation, scope: 'Site'
-      }
-    }));
-  });
+      await assert.doesNotReject(command.action(logger, {
+        options: {
+          verbose: true, webUrl: validUrl, id: validId, newTitle: validNewTitle, listType: validListType, clientSideComponentProperties: validClientSideComponentProperties, location: validLocation, scope: 'Site'
+        }
+      }));
+    }
+  );
 
   it('updates a commandset with the title parameter', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/_api/Web/UserCustomActions?$filter=(Title eq '${formatting.encodeQueryParameter(validTitle)}') and (startswith(Location,'ClientSideExtension.ListViewCommandSet'))`) {
         return commandsetSingleResponse;
       }
@@ -443,7 +456,7 @@ describe(commands.COMMANDSET_SET, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(request, 'post').callsFake(async opts => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if (opts.url?.startsWith('https://contoso.sharepoint.com/_api/') && opts.url?.endsWith(`/UserCustomActions('${validId}')`)) {
         return;
       }
@@ -455,28 +468,30 @@ describe(commands.COMMANDSET_SET, () => {
 
   });
 
-  it('updates a commandset with the clientSideComponentId parameter', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/_api/Web/UserCustomActions?$filter=(ClientSideComponentId eq guid'${formatting.encodeQueryParameter(validClientSideComponentId)}') and (startswith(Location,'ClientSideExtension.ListViewCommandSet'))`) {
-        return commandsetSingleResponse;
-      }
-      else if (opts.url === `https://contoso.sharepoint.com/_api/Site/UserCustomActions?$filter=(ClientSideComponentId eq guid'${formatting.encodeQueryParameter(validClientSideComponentId)}') and (startswith(Location,'ClientSideExtension.ListViewCommandSet'))`) {
-        return { value: [] };
-      }
+  it('updates a commandset with the clientSideComponentId parameter',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/_api/Web/UserCustomActions?$filter=(ClientSideComponentId eq guid'${formatting.encodeQueryParameter(validClientSideComponentId)}') and (startswith(Location,'ClientSideExtension.ListViewCommandSet'))`) {
+          return commandsetSingleResponse;
+        }
+        else if (opts.url === `https://contoso.sharepoint.com/_api/Site/UserCustomActions?$filter=(ClientSideComponentId eq guid'${formatting.encodeQueryParameter(validClientSideComponentId)}') and (startswith(Location,'ClientSideExtension.ListViewCommandSet'))`) {
+          return { value: [] };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(request, 'post').callsFake(async opts => {
-      if (opts.url?.startsWith('https://contoso.sharepoint.com/_api/') && opts.url?.endsWith(`/UserCustomActions('${validId}')`)) {
-        return;
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
+        if (opts.url?.startsWith('https://contoso.sharepoint.com/_api/') && opts.url?.endsWith(`/UserCustomActions('${validId}')`)) {
+          return;
+        }
 
-      throw `Invalid request`;
-    });
+        throw `Invalid request`;
+      });
 
-    await command.action(logger, { options: { verbose: true, webUrl: validUrl, clientSideComponentId: validClientSideComponentId, newTitle: validNewTitle, listType: 'SitePages' } });
-  });
+      await command.action(logger, { options: { verbose: true, webUrl: validUrl, clientSideComponentId: validClientSideComponentId, newTitle: validNewTitle, listType: 'SitePages' } });
+    }
+  );
 
   it('correctly handles API OData error', async () => {
     const error = {
@@ -485,7 +500,7 @@ describe(commands.COMMANDSET_SET, () => {
       }
     };
 
-    sinon.stub(request, 'get').rejects(error);
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, { options: { webUrl: validUrl, id: validId, newTitle: validNewTitle } } as any),
       new CommandError(`Something went wrong updating the commandset`));

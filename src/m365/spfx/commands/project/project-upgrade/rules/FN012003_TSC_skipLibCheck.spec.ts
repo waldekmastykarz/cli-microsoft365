@@ -12,18 +12,20 @@ describe('FN012003_TSC_skipLibCheck', () => {
     rule = new FN012003_TSC_skipLibCheck(true);
   });
 
-  it('doesn\'t return notification if skipLibCheck is already up-to-date', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      tsConfigJson: {
-        compilerOptions: {
-          skipLibCheck: true
+  it('doesn\'t return notification if skipLibCheck is already up-to-date',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        tsConfigJson: {
+          compilerOptions: {
+            skipLibCheck: true
+          }
         }
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
   it('returns notification if skipLibCheck is not up-to-date', () => {
     const project: Project = {

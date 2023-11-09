@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './tab-get.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -18,15 +17,15 @@ describe(commands.TAB_GET, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -44,19 +43,19 @@ describe(commands.TAB_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -68,102 +67,112 @@ describe(commands.TAB_GET, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('fails validation if both teamId and teamName options are not passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both teamId and teamName options are not passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        channelId: '19:00000000000000000000000000000000@thread.skype',
-        id: '00000000-0000-0000-0000-000000000000'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          channelId: '19:00000000000000000000000000000000@thread.skype',
+          id: '00000000-0000-0000-0000-000000000000'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if both teamId and teamName options are passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both teamId and teamName options are passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        teamId: '26b48cd6-3da7-493d-8010-1b246ef552d6',
-        teamName: 'Team Name',
-        channelId: '19:00000000000000000000000000000000@thread.skype',
-        id: '00000000-0000-0000-0000-000000000000'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          teamId: '26b48cd6-3da7-493d-8010-1b246ef552d6',
+          teamName: 'Team Name',
+          channelId: '19:00000000000000000000000000000000@thread.skype',
+          id: '00000000-0000-0000-0000-000000000000'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if both channelId and channelName options are not passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both channelId and channelName options are not passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        teamId: '26b48cd6-3da7-493d-8010-1b246ef552d6',
-        id: '00000000-0000-0000-0000-000000000000'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          teamId: '26b48cd6-3da7-493d-8010-1b246ef552d6',
+          id: '00000000-0000-0000-0000-000000000000'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if both channelId and channelName options are passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both channelId and channelName options are passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        teamId: '26b48cd6-3da7-493d-8010-1b246ef552d6',
-        channelId: '19:00000000000000000000000000000000@thread.skype',
-        channelName: 'Channel Name',
-        id: '00000000-0000-0000-0000-000000000000'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          teamId: '26b48cd6-3da7-493d-8010-1b246ef552d6',
+          channelId: '19:00000000000000000000000000000000@thread.skype',
+          channelName: 'Channel Name',
+          id: '00000000-0000-0000-0000-000000000000'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if both id and name options are not passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both id and name options are not passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        teamId: '26b48cd6-3da7-493d-8010-1b246ef552d6',
-        channelId: '19:00000000000000000000000000000000@thread.skype'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          teamId: '26b48cd6-3da7-493d-8010-1b246ef552d6',
+          channelId: '19:00000000000000000000000000000000@thread.skype'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if both id and name options are passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -194,7 +203,7 @@ describe(commands.TAB_GET, () => {
   });
 
   it('fails validation if the teamId is not provided.', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -212,7 +221,7 @@ describe(commands.TAB_GET, () => {
   });
 
   it('fails validation if the channelId is not provided.', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -228,27 +237,31 @@ describe(commands.TAB_GET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validates for a incorrect channelId missing leading 19:.', async () => {
-    const actual = await command.validate({
-      options: {
-        teamId: '00000000-0000-0000-0000-000000000000',
-        channelId: '00000000000000000000000000000000@thread.skype',
-        name: 'Tab'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validates for a incorrect channelId missing leading 19:.',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          teamId: '00000000-0000-0000-0000-000000000000',
+          channelId: '00000000000000000000000000000000@thread.skype',
+          name: 'Tab'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validates for a incorrect channelId missing trailing @thread.skype.', async () => {
-    const actual = await command.validate({
-      options: {
-        teamId: '00000000-0000-0000-0000-000000000000',
-        channelId: '19:552b7125655c46d5b5b86db02ee7bfdf@thread',
-        name: 'Tab'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validates for a incorrect channelId missing trailing @thread.skype.',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          teamId: '00000000-0000-0000-0000-000000000000',
+          channelId: '19:552b7125655c46d5b5b86db02ee7bfdf@thread',
+          name: 'Tab'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the id is not a valid guid.', async () => {
     const actual = await command.validate({
@@ -262,7 +275,7 @@ describe(commands.TAB_GET, () => {
   });
 
   it('fails validation if the id is not provided.', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -290,34 +303,36 @@ describe(commands.TAB_GET, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('correctly handles teams tabs request failure due to wrong channel id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === 'https://graph.microsoft.com/v1.0/teams/00000000-0000-0000-0000-000000000000/channels/29%3A00000000000000000000000000000000%40thread.skype/tabs/00000000-0000-0000-0000-000000000000') {
-        throw {
-          "error": {
-            "code": "Invalid request",
-            "message": "Channel id is not in a valid format: 29:00000000000000000000000000000000@thread.skype",
-            "innerError": {
-              "request-id": "75c4e0f1-035e-47e3-917b-0c8823a02a96",
-              "date": "2020-07-19T11:08:32"
+  it('correctly handles teams tabs request failure due to wrong channel id',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://graph.microsoft.com/v1.0/teams/00000000-0000-0000-0000-000000000000/channels/29%3A00000000000000000000000000000000%40thread.skype/tabs/00000000-0000-0000-0000-000000000000') {
+          throw {
+            "error": {
+              "code": "Invalid request",
+              "message": "Channel id is not in a valid format: 29:00000000000000000000000000000000@thread.skype",
+              "innerError": {
+                "request-id": "75c4e0f1-035e-47e3-917b-0c8823a02a96",
+                "date": "2020-07-19T11:08:32"
+              }
             }
-          }
-        };
-      }
-      throw 'Invalid request';
-    });
+          };
+        }
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        teamId: '00000000-0000-0000-0000-000000000000',
-        channelId: '29:00000000000000000000000000000000@thread.skype',
-        id: '00000000-0000-0000-0000-000000000000'
-      }
-    } as any), new CommandError('Channel id is not in a valid format: 29:00000000000000000000000000000000@thread.skype'));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          teamId: '00000000-0000-0000-0000-000000000000',
+          channelId: '29:00000000000000000000000000000000@thread.skype',
+          id: '00000000-0000-0000-0000-000000000000'
+        }
+      } as any), new CommandError('Channel id is not in a valid format: 29:00000000000000000000000000000000@thread.skype'));
+    }
+  );
 
   it('should get a Microsoft Teams Tab by id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/teams/00000000-0000-0000-0000-000000000000/channels/19%3A00000000000000000000000000000000%40thread.skype/tabs/00000000-0000-0000-0000-000000000000`) {
         return {
           "id": "00000000-0000-0000-0000-000000000000",
@@ -358,7 +373,7 @@ describe(commands.TAB_GET, () => {
   });
 
   it('fails when team name does not exist', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/v1.0/groups?$filter=displayName eq '`) > -1) {
         return {
           "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#teams",
@@ -400,7 +415,7 @@ describe(commands.TAB_GET, () => {
   });
 
   it('should get a Microsoft Teams Tab by Team name', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/v1.0/groups?$filter=displayName eq '`) > -1) {
         return {
           "value": [
@@ -502,7 +517,7 @@ describe(commands.TAB_GET, () => {
   });
 
   it('should get a Microsoft Teams Tab by Channel name', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/channels?$filter=displayName eq '`) > -1) {
         return {
           "value": [
@@ -578,7 +593,7 @@ describe(commands.TAB_GET, () => {
   });
 
   it('fails to get channel when channel does not exists', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/channels?$filter=displayName eq '`) > -1) {
         return { value: [] };
       }
@@ -596,7 +611,7 @@ describe(commands.TAB_GET, () => {
   });
 
   it('fails to get tab when tab does not exists', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/tabs?$filter=displayName eq '`) > -1) {
         return { value: [] };
       }

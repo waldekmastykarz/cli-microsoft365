@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
 import { Logger } from '../../../../cli/Logger.js';
@@ -7,21 +6,21 @@ import { settingsNames } from '../../../../settingsNames.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './config-get.js';
 
 describe(commands.CONFIG_GET, () => {
   let log: any[];
   let logger: Logger;
-  let loggerSpy: sinon.SinonSpy;
+  let loggerSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     commandInfo = Cli.getCommandInfo(command);
-    sinon.stub(telemetry, 'trackEvent').callsFake(() => { });
-    sinon.stub(pid, 'getProcessName').callsFake(() => '');
-    sinon.stub(session, 'getId').callsFake(() => '');
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockImplementation(() => { });
+    jest.spyOn(pid, 'getProcessName').mockClear().mockImplementation(() => '');
+    jest.spyOn(session, 'getId').mockClear().mockImplementation(() => '');
   });
 
   beforeEach(() => {
@@ -37,15 +36,15 @@ describe(commands.CONFIG_GET, () => {
         log.push(msg);
       }
     };
-    loggerSpy = sinon.spy(logger, 'log');
+    loggerSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore(Cli.getInstance().config.get);
+    jestUtil.restore(Cli.getInstance().config.get);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
   });
 
   it('has correct name', () => {
@@ -58,17 +57,19 @@ describe(commands.CONFIG_GET, () => {
 
   it(`gets value of the specified property`, async () => {
     const config = Cli.getInstance().config;
-    sinon.stub(config, 'get').callsFake(_ => 'json');
+    jest.spyOn(config, 'get').mockClear().mockImplementation(_ => 'json');
     await command.action(logger, { options: { key: settingsNames.output } });
     assert(loggerSpy.calledWith('json'));
   });
 
-  it(`returns undefined if the specified setting is not configured`, async () => {
-    const config = Cli.getInstance().config;
-    sinon.stub(config, 'get').callsFake(_ => undefined);
-    await command.action(logger, { options: { key: settingsNames.output } });
-    assert(loggerSpy.calledWith(undefined));
-  });
+  it(`returns undefined if the specified setting is not configured`,
+    async () => {
+      const config = Cli.getInstance().config;
+      jest.spyOn(config, 'get').mockClear().mockImplementation(_ => undefined);
+      await command.action(logger, { options: { key: settingsNames.output } });
+      assert(loggerSpy.calledWith(undefined));
+    }
+  );
 
   it('supports specifying key', () => {
     const options = command.options;
@@ -86,8 +87,10 @@ describe(commands.CONFIG_GET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it(`passes validation if setting is set to ${settingsNames.showHelpOnFailure}`, async () => {
-    const actual = await command.validate({ options: { key: settingsNames.showHelpOnFailure } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it(`passes validation if setting is set to ${settingsNames.showHelpOnFailure}`,
+    async () => {
+      const actual = await command.validate({ options: { key: settingsNames.showHelpOnFailure } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './team-clone.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -20,12 +19,12 @@ describe(commands.TEAM_CLONE, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -47,14 +46,14 @@ describe(commands.TEAM_CLONE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -78,7 +77,7 @@ describe(commands.TEAM_CLONE, () => {
   });
 
   it('fails validation on invalid visibility', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -121,30 +120,34 @@ describe(commands.TEAM_CLONE, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation when the input is correct with mandatory parameters', async () => {
-    const actual = await command.validate({
-      options: {
-        id: '15d7a78e-fd77-4599-97a5-dbb6372846c5',
-        name: 'My new cloned team',
-        partsToClone: "apps,tabs,settings,channels,members"
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when the input is correct with mandatory parameters',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          id: '15d7a78e-fd77-4599-97a5-dbb6372846c5',
+          name: 'My new cloned team',
+          partsToClone: "apps,tabs,settings,channels,members"
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when the input is correct with mandatory and optional parameters', async () => {
-    const actual = await command.validate({
-      options: {
-        id: '15d7a78e-fd77-4599-97a5-dbb6372846c5',
-        name: 'My new cloned team',
-        partsToClone: "apps,tabs,settings,channels,members",
-        description: "Self help community for library",
-        visibility: "public",
-        classification: "public"
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when the input is correct with mandatory and optional parameters',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          id: '15d7a78e-fd77-4599-97a5-dbb6372846c5',
+          name: 'My new cloned team',
+          partsToClone: "apps,tabs,settings,channels,members",
+          description: "Self help community for library",
+          visibility: "public",
+          classification: "public"
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('fails validation if visibility is set to private', async () => {
     const actual = await command.validate({
@@ -181,56 +184,60 @@ describe(commands.TEAM_CLONE, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('creates a clone of a Microsoft Teams team with mandatory parameters', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/teams/15d7a78e-fd77-4599-97a5-dbb6372846c5/clone`) {
-        return {
-          "location": "/teams('f9526e6a-1d0d-4421-8882-88a70975a00c')/operations('6cf64f96-08c3-4173-9919-eaf7684aae9a')"
-        };
-      }
+  it('creates a clone of a Microsoft Teams team with mandatory parameters',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/teams/15d7a78e-fd77-4599-97a5-dbb6372846c5/clone`) {
+          return {
+            "location": "/teams('f9526e6a-1d0d-4421-8882-88a70975a00c')/operations('6cf64f96-08c3-4173-9919-eaf7684aae9a')"
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        id: '15d7a78e-fd77-4599-97a5-dbb6372846c5',
-        name: "Library Assist",
-        partsToClone: "apps,tabs,settings,channels,members"
-      }
-    } as any);
-  });
+      await command.action(logger, {
+        options: {
+          id: '15d7a78e-fd77-4599-97a5-dbb6372846c5',
+          name: "Library Assist",
+          partsToClone: "apps,tabs,settings,channels,members"
+        }
+      } as any);
+    }
+  );
 
-  it('creates a clone of a Microsoft Teams team with optional parameters (debug)', async () => {
-    const sinonStub: sinon.SinonStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/teams/15d7a78e-fd77-4599-97a5-dbb6372846c5/clone`) {
-        return {
-          "location": "/teams('f9526e6a-1d0d-4421-8882-88a70975a00c')/operations('6cf64f96-08c3-4173-9919-eaf7684aae9a')"
-        };
-      }
+  it('creates a clone of a Microsoft Teams team with optional parameters (debug)',
+    async () => {
+      const sinonStub: jest.Mock = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/teams/15d7a78e-fd77-4599-97a5-dbb6372846c5/clone`) {
+          return {
+            "location": "/teams('f9526e6a-1d0d-4421-8882-88a70975a00c')/operations('6cf64f96-08c3-4173-9919-eaf7684aae9a')"
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        id: '15d7a78e-fd77-4599-97a5-dbb6372846c5',
-        name: 'Library Assist',
-        partsToClone: 'apps,tabs,settings,channels,members',
-        description: 'abc',
-        visibility: 'public',
-        classification: 'label'
-      }
-    } as any);
-    assert.strictEqual(sinonStub.lastCall.args[0].url, 'https://graph.microsoft.com/v1.0/teams/15d7a78e-fd77-4599-97a5-dbb6372846c5/clone');
-    assert.strictEqual(sinonStub.lastCall.args[0].data.displayName, 'Library Assist');
-    assert.strictEqual(sinonStub.lastCall.args[0].data.partsToClone, 'apps,tabs,settings,channels,members');
-    assert.strictEqual(sinonStub.lastCall.args[0].data.description, 'abc');
-    assert.strictEqual(sinonStub.lastCall.args[0].data.visibility, 'public');
-    assert.strictEqual(sinonStub.lastCall.args[0].data.classification, 'label');
-    assert.notStrictEqual(sinonStub.lastCall.args[0].data.mailNickname.length, 0);
-  });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          id: '15d7a78e-fd77-4599-97a5-dbb6372846c5',
+          name: 'Library Assist',
+          partsToClone: 'apps,tabs,settings,channels,members',
+          description: 'abc',
+          visibility: 'public',
+          classification: 'label'
+        }
+      } as any);
+      assert.strictEqual(sinonStub.mock.lastCall[0].url, 'https://graph.microsoft.com/v1.0/teams/15d7a78e-fd77-4599-97a5-dbb6372846c5/clone');
+      assert.strictEqual(sinonStub.mock.lastCall[0].data.displayName, 'Library Assist');
+      assert.strictEqual(sinonStub.mock.lastCall[0].data.partsToClone, 'apps,tabs,settings,channels,members');
+      assert.strictEqual(sinonStub.mock.lastCall[0].data.description, 'abc');
+      assert.strictEqual(sinonStub.mock.lastCall[0].data.visibility, 'public');
+      assert.strictEqual(sinonStub.mock.lastCall[0].data.classification, 'label');
+      assert.notStrictEqual(sinonStub.mock.lastCall[0].data.mailNickname.length, 0);
+    }
+  );
 
   it('correctly handles random API error', async () => {
     const error = {
@@ -244,7 +251,7 @@ describe(commands.TEAM_CLONE, () => {
         }
       }
     };
-    sinon.stub(request, 'post').rejects(error);
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, {
       options: {

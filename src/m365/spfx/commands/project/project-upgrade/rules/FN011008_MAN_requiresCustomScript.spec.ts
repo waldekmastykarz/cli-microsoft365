@@ -24,37 +24,41 @@ describe('FN011008_MAN_requiresCustomScript', () => {
     assert.strictEqual(findings.length, 0);
   });
 
-  it('doesn\'t return notifications if safeWithCustomScriptDisabled not defined', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      manifests: [{
-        path: '/usr/tmp/manifest.json',
-        $schema: 'test-schema',
-        componentType: 'WebPart'
-      }]
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it('doesn\'t return notifications if safeWithCustomScriptDisabled not defined',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        manifests: [{
+          path: '/usr/tmp/manifest.json',
+          $schema: 'test-schema',
+          componentType: 'WebPart'
+        }]
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
-  it('returns notifications if safeWithCustomScriptDisabled is defined', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      manifests: [{
-        path: '/usr/tmp/manifest.json',
-        $schema: 'test-schema',
-        componentType: 'WebPart',
-        safeWithCustomScriptDisabled: true,
-        source: JSON.stringify({
+  it('returns notifications if safeWithCustomScriptDisabled is defined',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        manifests: [{
           path: '/usr/tmp/manifest.json',
           $schema: 'test-schema',
           componentType: 'WebPart',
-          safeWithCustomScriptDisabled: true
-        }, null, 2)
-      }]
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 1, 'Incorrect number of findings');
-    assert.strictEqual(findings[0].occurrences[0].position?.line, 5, 'Incorrect line number');
-  });
+          safeWithCustomScriptDisabled: true,
+          source: JSON.stringify({
+            path: '/usr/tmp/manifest.json',
+            $schema: 'test-schema',
+            componentType: 'WebPart',
+            safeWithCustomScriptDisabled: true
+          }, null, 2)
+        }]
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 1, 'Incorrect number of findings');
+      assert.strictEqual(findings[0].occurrences[0].position?.line, 5, 'Incorrect line number');
+    }
+  );
 });

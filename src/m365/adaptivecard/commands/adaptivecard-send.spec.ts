@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../Auth.js';
 import { Cli } from '../../../cli/Cli.js';
 import { CommandInfo } from '../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../request.js';
 import { telemetry } from '../../../telemetry.js';
 import { pid } from '../../../utils/pid.js';
 import { session } from '../../../utils/session.js';
-import { sinonUtil } from '../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../utils/jestUtil.js';
 import commands from '../commands.js';
 import command from './adaptivecard-send.js';
 // required to avoid tests from timing out due to dynamic imports
@@ -22,12 +21,12 @@ describe(commands.SEND, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     commandInfo = Cli.getCommandInfo(command);
   });
 
@@ -47,14 +46,14 @@ describe(commands.SEND, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
   });
 
   it('has correct name', () => {
@@ -67,7 +66,7 @@ describe(commands.SEND, () => {
 
   describe('send card to Teams', () => {
     it('sends card with just title', async () => {
-      sinon.stub(request, 'post').callsFake(async opts => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
         if (JSON.stringify(opts.data) === JSON.stringify({
           "type": "message",
           "attachments": [
@@ -104,7 +103,7 @@ describe(commands.SEND, () => {
     });
 
     it('sends card with just title (debug)', async () => {
-      sinon.stub(request, 'post').callsFake(async opts => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
         if (JSON.stringify(opts.data) === JSON.stringify({
           "type": "message",
           "attachments": [
@@ -142,7 +141,7 @@ describe(commands.SEND, () => {
     });
 
     it('sends card with just description', async () => {
-      sinon.stub(request, 'post').callsFake(async opts => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
         if (JSON.stringify(opts.data) === JSON.stringify({
           "type": "message",
           "attachments": [
@@ -178,7 +177,7 @@ describe(commands.SEND, () => {
     });
 
     it('sends card with title and description', async () => {
-      sinon.stub(request, 'post').callsFake(async opts => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
         if (JSON.stringify(opts.data) === JSON.stringify({
           "type": "message",
           "attachments": [
@@ -220,7 +219,7 @@ describe(commands.SEND, () => {
     });
 
     it('sends card with title, description and image', async () => {
-      sinon.stub(request, 'post').callsFake(async opts => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
         if (JSON.stringify(opts.data) === JSON.stringify({
           "type": "message",
           "attachments": [
@@ -268,7 +267,7 @@ describe(commands.SEND, () => {
     });
 
     it('sends card with title, description and action', async () => {
-      sinon.stub(request, 'post').callsFake(async opts => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
         if (JSON.stringify(opts.data) === JSON.stringify({
           "type": "message",
           "attachments": [
@@ -318,7 +317,7 @@ describe(commands.SEND, () => {
     });
 
     it('sends card with title, description, image and action', async () => {
-      sinon.stub(request, 'post').callsFake(async opts => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
         if (JSON.stringify(opts.data) === JSON.stringify({
           "type": "message",
           "attachments": [
@@ -373,73 +372,75 @@ describe(commands.SEND, () => {
       });
     });
 
-    it('sends card with title, description, action and unknown options', async () => {
-      sinon.stub(request, 'post').callsFake(async opts => {
-        if (JSON.stringify(opts.data) === JSON.stringify({
-          "type": "message",
-          "attachments": [
-            {
-              "contentType": "application/vnd.microsoft.card.adaptive",
-              "content": {
-                "type": "AdaptiveCard",
-                "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-                "version": "1.2",
-                "body": [
-                  {
-                    "type": "TextBlock",
-                    "size": "Medium",
-                    "weight": "Bolder",
-                    "text": "CLI for Microsoft 365 v3.4"
-                  },
-                  {
-                    "type": "TextBlock",
-                    "text": "New release of CLI for Microsoft 365",
-                    "wrap": true
-                  },
-                  {
-                    "type": "FactSet",
-                    "facts": [
-                      {
-                        "title": "Version:",
-                        "value": "v3.4.0"
-                      },
-                      {
-                        "title": "ReleaseNotes:",
-                        "value": "https://pnp.github.io/cli-microsoft365/about/release-notes/#v340"
-                      }
-                    ]
-                  }
-                ],
-                "actions": [
-                  {
-                    "type": "Action.OpenUrl",
-                    "title": "View",
-                    "url": "https://aka.ms/cli-m365"
-                  }
-                ]
+    it('sends card with title, description, action and unknown options',
+      async () => {
+        jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
+          if (JSON.stringify(opts.data) === JSON.stringify({
+            "type": "message",
+            "attachments": [
+              {
+                "contentType": "application/vnd.microsoft.card.adaptive",
+                "content": {
+                  "type": "AdaptiveCard",
+                  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                  "version": "1.2",
+                  "body": [
+                    {
+                      "type": "TextBlock",
+                      "size": "Medium",
+                      "weight": "Bolder",
+                      "text": "CLI for Microsoft 365 v3.4"
+                    },
+                    {
+                      "type": "TextBlock",
+                      "text": "New release of CLI for Microsoft 365",
+                      "wrap": true
+                    },
+                    {
+                      "type": "FactSet",
+                      "facts": [
+                        {
+                          "title": "Version:",
+                          "value": "v3.4.0"
+                        },
+                        {
+                          "title": "ReleaseNotes:",
+                          "value": "https://pnp.github.io/cli-microsoft365/about/release-notes/#v340"
+                        }
+                      ]
+                    }
+                  ],
+                  "actions": [
+                    {
+                      "type": "Action.OpenUrl",
+                      "title": "View",
+                      "url": "https://aka.ms/cli-m365"
+                    }
+                  ]
+                }
               }
-            }
-          ]
-        })) {
-          return '1';
-        }
+            ]
+          })) {
+            return '1';
+          }
 
-        throw `Invalid data: ${JSON.stringify(opts.data)}`;
-      });
-      await command.action(logger, {
-        options: {
-          url: 'https://contoso.webhook.office.com/webhookb2/892e8ed3-997c-4b6e-8f8a-7f32728a8a87@f7322380-f203-42ff-93e8-66e266f6d2e4/IncomingWebhook/fcc6565ec7a944928bd43d6fc193b258/4f0482d4-b147-4f67-8a61-11f0a5019547',
-          title: 'CLI for Microsoft 365 v3.4',
-          description: 'New release of CLI for Microsoft 365',
-          actionUrl: 'https://aka.ms/cli-m365',
-          Version: 'v3.4.0',
-          ReleaseNotes: 'https://pnp.github.io/cli-microsoft365/about/release-notes/#v340'
-        }
-      });
-    });
+          throw `Invalid data: ${JSON.stringify(opts.data)}`;
+        });
+        await command.action(logger, {
+          options: {
+            url: 'https://contoso.webhook.office.com/webhookb2/892e8ed3-997c-4b6e-8f8a-7f32728a8a87@f7322380-f203-42ff-93e8-66e266f6d2e4/IncomingWebhook/fcc6565ec7a944928bd43d6fc193b258/4f0482d4-b147-4f67-8a61-11f0a5019547',
+            title: 'CLI for Microsoft 365 v3.4',
+            description: 'New release of CLI for Microsoft 365',
+            actionUrl: 'https://aka.ms/cli-m365',
+            Version: 'v3.4.0',
+            ReleaseNotes: 'https://pnp.github.io/cli-microsoft365/about/release-notes/#v340'
+          }
+        });
+      }
+    );
 
     it('sends custom card without any data', async () => {
-      sinon.stub(request, 'post').callsFake(async opts => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
         if (JSON.stringify(opts.data) === JSON.stringify({
           "type": "message",
           "attachments": [
@@ -497,7 +498,7 @@ describe(commands.SEND, () => {
     });
 
     it('sends custom card with just title merged', async () => {
-      sinon.stub(request, 'post').callsFake(async opts => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
         if (JSON.stringify(opts.data) === JSON.stringify({
           "type": "message",
           "attachments": [
@@ -555,7 +556,7 @@ describe(commands.SEND, () => {
     });
 
     it('sends custom card with all known options merged', async () => {
-      sinon.stub(request, 'post').callsFake(async opts => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
         if (JSON.stringify(opts.data) === JSON.stringify({
           "type": "message",
           "attachments": [
@@ -616,7 +617,7 @@ describe(commands.SEND, () => {
     });
 
     it('sends custom card with unknown option merged', async () => {
-      sinon.stub(request, 'post').callsFake(async opts => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
         if (JSON.stringify(opts.data) === JSON.stringify({
           "type": "message",
           "attachments": [
@@ -674,7 +675,7 @@ describe(commands.SEND, () => {
     });
 
     it('sends custom card with cardData', async () => {
-      sinon.stub(request, 'post').callsFake(async opts => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
         if (JSON.stringify(opts.data) === JSON.stringify({
           "type": "message",
           "attachments": [
@@ -744,7 +745,7 @@ describe(commands.SEND, () => {
     });
 
     it('correctly handles error when sending card to Teams', async () => {
-      sinon.stub(request, 'post').resolves('Webhook message delivery failed with error: Microsoft Teams endpoint returned HTTP error 400 with ContextId MS-CV=Qn6afVIGzEq');
+      jest.spyOn(request, 'post').mockClear().mockImplementation().resolves('Webhook message delivery failed with error: Microsoft Teams endpoint returned HTTP error 400 with ContextId MS-CV=Qn6afVIGzEq');
       await assert.rejects(command.action(logger, {
         options: {
           url: 'https://contoso.webhook.office.com/webhookb2/892e8ed3-997c-4b6e-8f8a-7f32728a8a87@f7322380-f203-42ff-93e8-66e266f6d2e4/IncomingWebhook/fcc6565ec7a944928bd43d6fc193b258/4f0482d4-b147-4f67-8a61-11f0a5019547',
@@ -756,7 +757,7 @@ describe(commands.SEND, () => {
 
   describe('send card to a URL', () => {
     it('sends card with just title', async () => {
-      sinon.stub(request, 'post').callsFake(async opts => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
         if (JSON.stringify(opts.data) === JSON.stringify({
           "type": "message",
           "attachments": [
@@ -797,18 +798,22 @@ describe(commands.SEND, () => {
     assert.strictEqual(actual, true);
   });
 
-  it(`fails validation if the specified card is not a valid JSON string`, async () => {
-    const actual = await command.validate({ options: { url: 'https://contoso.webhook.office.com/webhookb2/892e8ed3-997c-4b6e-8f8a-7f32728a8a87@f7322380-f203-42ff-93e8-66e266f6d2e4/IncomingWebhook/fcc6565ec7a944928bd43d6fc193b258/4f0482d4-b147-4f67-8a61-11f0a5019547', card: 'abc' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it(`fails validation if the specified card is not a valid JSON string`,
+    async () => {
+      const actual = await command.validate({ options: { url: 'https://contoso.webhook.office.com/webhookb2/892e8ed3-997c-4b6e-8f8a-7f32728a8a87@f7322380-f203-42ff-93e8-66e266f6d2e4/IncomingWebhook/fcc6565ec7a944928bd43d6fc193b258/4f0482d4-b147-4f67-8a61-11f0a5019547', card: 'abc' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it(`passes validation if the specified card is a valid JSON string`, async () => {
-    const actual = await command.validate({ options: { url: 'https://contoso.webhook.office.com/webhookb2/892e8ed3-997c-4b6e-8f8a-7f32728a8a87@f7322380-f203-42ff-93e8-66e266f6d2e4/IncomingWebhook/fcc6565ec7a944928bd43d6fc193b258/4f0482d4-b147-4f67-8a61-11f0a5019547', card: '{}' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it(`passes validation if the specified card is a valid JSON string`,
+    async () => {
+      const actual = await command.validate({ options: { url: 'https://contoso.webhook.office.com/webhookb2/892e8ed3-997c-4b6e-8f8a-7f32728a8a87@f7322380-f203-42ff-93e8-66e266f6d2e4/IncomingWebhook/fcc6565ec7a944928bd43d6fc193b258/4f0482d4-b147-4f67-8a61-11f0a5019547', card: '{}' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it(`fails validation if specified cardData without card`, async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -820,15 +825,19 @@ describe(commands.SEND, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it(`fails validation if specified cardData is not a valid JSON string`, async () => {
-    const actual = await command.validate({ options: { url: 'https://contoso.webhook.office.com/webhookb2/892e8ed3-997c-4b6e-8f8a-7f32728a8a87@f7322380-f203-42ff-93e8-66e266f6d2e4/IncomingWebhook/fcc6565ec7a944928bd43d6fc193b258/4f0482d4-b147-4f67-8a61-11f0a5019547', card: '{}', cardData: 'abc' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it(`fails validation if specified cardData is not a valid JSON string`,
+    async () => {
+      const actual = await command.validate({ options: { url: 'https://contoso.webhook.office.com/webhookb2/892e8ed3-997c-4b6e-8f8a-7f32728a8a87@f7322380-f203-42ff-93e8-66e266f6d2e4/IncomingWebhook/fcc6565ec7a944928bd43d6fc193b258/4f0482d4-b147-4f67-8a61-11f0a5019547', card: '{}', cardData: 'abc' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it(`passes validation if the specified cardData is a valid JSON string`, async () => {
-    const actual = await command.validate({ options: { url: 'https://contoso.webhook.office.com/webhookb2/892e8ed3-997c-4b6e-8f8a-7f32728a8a87@f7322380-f203-42ff-93e8-66e266f6d2e4/IncomingWebhook/fcc6565ec7a944928bd43d6fc193b258/4f0482d4-b147-4f67-8a61-11f0a5019547', card: '{}', cardData: '{}' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it(`passes validation if the specified cardData is a valid JSON string`,
+    async () => {
+      const actual = await command.validate({ options: { url: 'https://contoso.webhook.office.com/webhookb2/892e8ed3-997c-4b6e-8f8a-7f32728a8a87@f7322380-f203-42ff-93e8-66e266f6d2e4/IncomingWebhook/fcc6565ec7a944928bd43d6fc193b258/4f0482d4-b147-4f67-8a61-11f0a5019547', card: '{}', cardData: '{}' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('supports specifying unknown options', () => {
     assert.strictEqual(command.allowUnknownOptions(), true);

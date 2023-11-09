@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
 import { powerPlatform } from '../../../../utils/powerPlatform.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './card-get.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -78,14 +77,14 @@ describe(commands.CARD_GET, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -103,19 +102,19 @@ describe(commands.CARD_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       powerPlatform.getDynamicsInstanceApiUrl,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -152,9 +151,9 @@ describe(commands.CARD_GET, () => {
   });
 
   it('throws error when no card found', async () => {
-    sinon.stub(powerPlatform, 'getDynamicsInstanceApiUrl').callsFake(async () => envUrl);
+    jest.spyOn(powerPlatform, 'getDynamicsInstanceApiUrl').mockClear().mockImplementation(async () => envUrl);
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.1/cards?$filter=name eq '${validName}'`)) {
         if ((opts.headers?.accept as string)?.indexOf('application/json') === 0) {
           return ({ "value": [] });
@@ -172,45 +171,47 @@ describe(commands.CARD_GET, () => {
     }), new CommandError(`The specified card '${validName}' does not exist.`));
   });
 
-  it('throws error when multiple cards with same name were found', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
-
-      return defaultValue;
-    });
-
-    sinon.stub(powerPlatform, 'getDynamicsInstanceApiUrl').callsFake(async () => envUrl);
-
-    const multipleCardsResponse = {
-      value: [
-        { cardid: '69703efe-4149-ed11-bba2-000d3adf7537' },
-        { cardid: '3a081d91-5ea8-40a7-8ac9-abbaa3fcb893' }
-      ]
-    };
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.1/cards?$filter=name eq '${validName}'`)) {
-        if ((opts.headers?.accept as string)?.indexOf('application/json') === 0) {
-          return multipleCardsResponse;
+  it('throws error when multiple cards with same name were found',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
         }
-      }
 
-      throw 'Invalid request';
-    });
+        return defaultValue;
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        environmentName: validEnvironment,
-        name: validName
-      }
-    }), new CommandError("Multiple cards with name 'CLI 365 Card' found Found: 69703efe-4149-ed11-bba2-000d3adf7537, 3a081d91-5ea8-40a7-8ac9-abbaa3fcb893."));
-  });
+      jest.spyOn(powerPlatform, 'getDynamicsInstanceApiUrl').mockClear().mockImplementation(async () => envUrl);
+
+      const multipleCardsResponse = {
+        value: [
+          { cardid: '69703efe-4149-ed11-bba2-000d3adf7537' },
+          { cardid: '3a081d91-5ea8-40a7-8ac9-abbaa3fcb893' }
+        ]
+      };
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.1/cards?$filter=name eq '${validName}'`)) {
+          if ((opts.headers?.accept as string)?.indexOf('application/json') === 0) {
+            return multipleCardsResponse;
+          }
+        }
+
+        throw 'Invalid request';
+      });
+
+      await assert.rejects(command.action(logger, {
+        options: {
+          environmentName: validEnvironment,
+          name: validName
+        }
+      }), new CommandError("Multiple cards with name 'CLI 365 Card' found Found: 69703efe-4149-ed11-bba2-000d3adf7537, 3a081d91-5ea8-40a7-8ac9-abbaa3fcb893."));
+    }
+  );
 
   it('retrieves a specific card with the name parameter', async () => {
-    sinon.stub(powerPlatform, 'getDynamicsInstanceApiUrl').callsFake(async () => envUrl);
+    jest.spyOn(powerPlatform, 'getDynamicsInstanceApiUrl').mockClear().mockImplementation(async () => envUrl);
 
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if ((opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.1/cards?$filter=name eq '${validName}'`)) {
         if ((opts.headers?.accept as string)?.indexOf('application/json') === 0) {
           return cardResponse;
@@ -225,9 +226,9 @@ describe(commands.CARD_GET, () => {
   });
 
   it('retrieves a specific card with the id parameter', async () => {
-    sinon.stub(powerPlatform, 'getDynamicsInstanceApiUrl').callsFake(async () => envUrl);
+    jest.spyOn(powerPlatform, 'getDynamicsInstanceApiUrl').mockClear().mockImplementation(async () => envUrl);
 
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if ((opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.1/cards(${validId})`)) {
         if ((opts.headers?.accept as string)?.indexOf('application/json') === 0) {
           return cardResponse.value[0];
@@ -242,9 +243,9 @@ describe(commands.CARD_GET, () => {
   });
 
   it('correctly handles API OData error', async () => {
-    sinon.stub(powerPlatform, 'getDynamicsInstanceApiUrl').callsFake(async () => envUrl);
+    jest.spyOn(powerPlatform, 'getDynamicsInstanceApiUrl').mockClear().mockImplementation(async () => envUrl);
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.1/cards?$filter=name eq '${validName}'`)) {
         if ((opts.headers?.accept as string)?.indexOf('application/json') === 0) {
           throw {

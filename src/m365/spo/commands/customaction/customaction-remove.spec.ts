@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './customaction-remove.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -18,13 +17,13 @@ describe(commands.CUSTOMACTION_REMOVE, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogToStderrSpy: jest.SpyInstance;
   let promptOptions: any;
 
-  const defaultPostCallsStub = (): sinon.SinonStub => {
-    return sinon.stub(request, 'post').callsFake(async (opts) => {
+  const defaultPostCallsStub = (): jest.Mock => {
+    return jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       // fakes remove custom action success (site)
       if ((opts.url as string).indexOf('/_api/Web/UserCustomActions(') > -1) {
         return undefined;
@@ -39,12 +38,12 @@ describe(commands.CUSTOMACTION_REMOVE, () => {
     });
   };
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -63,10 +62,10 @@ describe(commands.CUSTOMACTION_REMOVE, () => {
       }
     };
 
-    loggerLogSpy = sinon.spy(logger, 'log');
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
 
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
@@ -75,7 +74,7 @@ describe(commands.CUSTOMACTION_REMOVE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post,
       Cli.prompt,
@@ -84,8 +83,8 @@ describe(commands.CUSTOMACTION_REMOVE, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -97,419 +96,438 @@ describe(commands.CUSTOMACTION_REMOVE, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('handles error when multiple user custom actions with the specified title found', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('handles error when multiple user custom actions with the specified title found',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/UserCustomActions?$filter=Title eq ') > -1) {
-        return {
-          value: [
-            {
-              ClientSideComponentId: 'b41916e7-e69d-467f-b37f-ff8ecf8f99f2',
-              ClientSideComponentProperties: "'{testMessage:Test message}'",
-              CommandUIExtension: null,
-              Description: null,
-              Group: null,
-              HostProperties: '',
-              Id: 'a70d8013-3b9f-4601-93a5-0e453ab9a1f3',
-              ImageUrl: null,
-              Location: 'ClientSideExtension.ApplicationCustomizer',
-              Name: 'YourName',
-              RegistrationId: null,
-              RegistrationType: 0,
-              Rights: [Object],
-              Scope: 3,
-              ScriptBlock: null,
-              ScriptSrc: null,
-              Sequence: 0,
-              Title: 'YourAppCustomizer',
-              Url: null,
-              VersionOfUserCustomAction: '16.0.1.0'
-            },
-            {
-              ClientSideComponentId: 'b41916e7-e69d-467f-b37f-ff8ecf8f99f2',
-              ClientSideComponentProperties: "'{testMessage:Test message}'",
-              CommandUIExtension: null,
-              Description: null,
-              Group: null,
-              HostProperties: '',
-              Id: '63aa745f-b4dd-4055-a4d7-d9032a0cfc59',
-              ImageUrl: null,
-              Location: 'ClientSideExtension.ApplicationCustomizer',
-              Name: 'YourName',
-              RegistrationId: null,
-              RegistrationType: 0,
-              Rights: [Object],
-              Scope: 3,
-              ScriptBlock: null,
-              ScriptSrc: null,
-              Sequence: 0,
-              Title: 'YourAppCustomizer',
-              Url: null,
-              VersionOfUserCustomAction: '16.0.1.0'
-            }
-          ]
-        };
-      }
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/UserCustomActions?$filter=Title eq ') > -1) {
+          return {
+            value: [
+              {
+                ClientSideComponentId: 'b41916e7-e69d-467f-b37f-ff8ecf8f99f2',
+                ClientSideComponentProperties: "'{testMessage:Test message}'",
+                CommandUIExtension: null,
+                Description: null,
+                Group: null,
+                HostProperties: '',
+                Id: 'a70d8013-3b9f-4601-93a5-0e453ab9a1f3',
+                ImageUrl: null,
+                Location: 'ClientSideExtension.ApplicationCustomizer',
+                Name: 'YourName',
+                RegistrationId: null,
+                RegistrationType: 0,
+                Rights: [Object],
+                Scope: 3,
+                ScriptBlock: null,
+                ScriptSrc: null,
+                Sequence: 0,
+                Title: 'YourAppCustomizer',
+                Url: null,
+                VersionOfUserCustomAction: '16.0.1.0'
+              },
+              {
+                ClientSideComponentId: 'b41916e7-e69d-467f-b37f-ff8ecf8f99f2',
+                ClientSideComponentProperties: "'{testMessage:Test message}'",
+                CommandUIExtension: null,
+                Description: null,
+                Group: null,
+                HostProperties: '',
+                Id: '63aa745f-b4dd-4055-a4d7-d9032a0cfc59',
+                ImageUrl: null,
+                Location: 'ClientSideExtension.ApplicationCustomizer',
+                Name: 'YourName',
+                RegistrationId: null,
+                RegistrationType: 0,
+                Rights: [Object],
+                Scope: 3,
+                ScriptBlock: null,
+                ScriptSrc: null,
+                Sequence: 0,
+                Title: 'YourAppCustomizer',
+                Url: null,
+                VersionOfUserCustomAction: '16.0.1.0'
+              }
+            ]
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        title: 'YourAppCustomizer',
-        webUrl: 'https://contoso.sharepoint.com',
-        force: true
-      }
-    }), new CommandError("Multiple user custom actions with title 'YourAppCustomizer' found. Found: a70d8013-3b9f-4601-93a5-0e453ab9a1f3, 63aa745f-b4dd-4055-a4d7-d9032a0cfc59."));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          title: 'YourAppCustomizer',
+          webUrl: 'https://contoso.sharepoint.com',
+          force: true
+        }
+      }), new CommandError("Multiple user custom actions with title 'YourAppCustomizer' found. Found: a70d8013-3b9f-4601-93a5-0e453ab9a1f3, 63aa745f-b4dd-4055-a4d7-d9032a0cfc59."));
+    }
+  );
 
-  it('handles selecting single result when multiple custom actions sets with the specified name found and cli is set to prompt', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === "https://contoso.sharepoint.com/_api/Web/UserCustomActions?$filter=Title eq 'Places'") {
-        return {
-          value: [
-            {
-              ClientSideComponentId: 'b41916e7-e69d-467f-b37f-ff8ecf8f99f2',
-              ClientSideComponentProperties: "'{testMessage:Test message}'",
-              CommandUIExtension: null,
-              Description: null,
-              Group: null,
-              HostProperties: '',
-              Id: 'a70d8013-3b9f-4601-93a5-0e453ab9a1f3',
-              ImageUrl: null,
-              Location: 'ClientSideExtension.ApplicationCustomizer',
-              Name: 'Places',
-              RegistrationId: null,
-              RegistrationType: 0,
-              Rights: [Object],
-              Scope: 3,
-              ScriptBlock: null,
-              ScriptSrc: null,
-              Sequence: 0,
-              Title: 'Places',
-              Url: null,
-              VersionOfUserCustomAction: '16.0.1.0'
-            },
-            {
-              ClientSideComponentId: 'b41916e7-e69d-467f-b37f-ff8ecf8f99f2',
-              ClientSideComponentProperties: "'{testMessage:Test message}'",
-              CommandUIExtension: null,
-              Description: null,
-              Group: null,
-              HostProperties: '',
-              Id: '63aa745f-b4dd-4055-a4d7-d9032a0cfc59',
-              ImageUrl: null,
-              Location: 'ClientSideExtension.ApplicationCustomizer',
-              Name: 'Places',
-              RegistrationId: null,
-              RegistrationType: 0,
-              Rights: [Object],
-              Scope: 3,
-              ScriptBlock: null,
-              ScriptSrc: null,
-              Sequence: 0,
-              Title: 'Places',
-              Url: null,
-              VersionOfUserCustomAction: '16.0.1.0'
-            }
-          ]
-        };
-      }
+  it('handles selecting single result when multiple custom actions sets with the specified name found and cli is set to prompt',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === "https://contoso.sharepoint.com/_api/Web/UserCustomActions?$filter=Title eq 'Places'") {
+          return {
+            value: [
+              {
+                ClientSideComponentId: 'b41916e7-e69d-467f-b37f-ff8ecf8f99f2',
+                ClientSideComponentProperties: "'{testMessage:Test message}'",
+                CommandUIExtension: null,
+                Description: null,
+                Group: null,
+                HostProperties: '',
+                Id: 'a70d8013-3b9f-4601-93a5-0e453ab9a1f3',
+                ImageUrl: null,
+                Location: 'ClientSideExtension.ApplicationCustomizer',
+                Name: 'Places',
+                RegistrationId: null,
+                RegistrationType: 0,
+                Rights: [Object],
+                Scope: 3,
+                ScriptBlock: null,
+                ScriptSrc: null,
+                Sequence: 0,
+                Title: 'Places',
+                Url: null,
+                VersionOfUserCustomAction: '16.0.1.0'
+              },
+              {
+                ClientSideComponentId: 'b41916e7-e69d-467f-b37f-ff8ecf8f99f2',
+                ClientSideComponentProperties: "'{testMessage:Test message}'",
+                CommandUIExtension: null,
+                Description: null,
+                Group: null,
+                HostProperties: '',
+                Id: '63aa745f-b4dd-4055-a4d7-d9032a0cfc59',
+                ImageUrl: null,
+                Location: 'ClientSideExtension.ApplicationCustomizer',
+                Name: 'Places',
+                RegistrationId: null,
+                RegistrationType: 0,
+                Rights: [Object],
+                Scope: 3,
+                ScriptBlock: null,
+                ScriptSrc: null,
+                Sequence: 0,
+                Title: 'Places',
+                Url: null,
+                VersionOfUserCustomAction: '16.0.1.0'
+              }
+            ]
+          };
+        }
 
-      throw `Invalid request`;
-    });
+        throw `Invalid request`;
+      });
 
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves({
-      ClientSideComponentId: '015e0fcf-fe9d-4037-95af-0a4776cdfbb4',
-      ClientSideComponentProperties: '{"testMessage":"Test message"}',
-      CommandUIExtension: null,
-      Description: null,
-      Group: null,
-      Id: 'd26af83a-6421-4bb3-9f5c-8174ba645c80',
-      ImageUrl: null,
-      Location: 'ClientSideExtension.ApplicationCustomizer',
-      Name: '{d26af83a-6421-4bb3-9f5c-8174ba645c80}',
-      RegistrationId: null,
-      RegistrationType: 0,
-      Rights: '{"High":0,"Low":0}',
-      Scope: '1',
-      ScriptBlock: null,
-      ScriptSrc: null,
-      Sequence: 65536,
-      Title: 'Places',
-      Url: null,
-      VersionOfUserCustomAction: '1.0.1.0'
-    });
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves({
+        ClientSideComponentId: '015e0fcf-fe9d-4037-95af-0a4776cdfbb4',
+        ClientSideComponentProperties: '{"testMessage":"Test message"}',
+        CommandUIExtension: null,
+        Description: null,
+        Group: null,
+        Id: 'd26af83a-6421-4bb3-9f5c-8174ba645c80',
+        ImageUrl: null,
+        Location: 'ClientSideExtension.ApplicationCustomizer',
+        Name: '{d26af83a-6421-4bb3-9f5c-8174ba645c80}',
+        RegistrationId: null,
+        RegistrationType: 0,
+        Rights: '{"High":0,"Low":0}',
+        Scope: '1',
+        ScriptBlock: null,
+        ScriptSrc: null,
+        Sequence: 65536,
+        Title: 'Places',
+        Url: null,
+        VersionOfUserCustomAction: '1.0.1.0'
+      });
 
-    const postCallsSpy: sinon.SinonStub = defaultPostCallsStub();
-    const removeScopedCustomActionSpy = sinon.spy((command as any), 'removeScopedCustomAction');
+      const postCallsSpy: jest.Mock = defaultPostCallsStub();
+      const removeScopedCustomActionSpy = jest.spyOn((command as any), 'removeScopedCustomAction').mockClear();
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: true }
-    ));
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: true }
+      ));
 
-    try {
-      await command.action(logger, { options: { title: 'Places', webUrl: 'https://contoso.sharepoint.com' } } as any);
-      assert(postCallsSpy.calledOnce);
-      assert(removeScopedCustomActionSpy.calledWith(sinon.match(
-        {
+      try {
+        await command.action(logger, { options: { title: 'Places', webUrl: 'https://contoso.sharepoint.com' } } as any);
+        assert(postCallsSpy.calledOnce);
+        assert(removeScopedCustomActionSpy.calledWith(expect.objectContaining({
           title: 'Places',
           webUrl: 'https://contoso.sharepoint.com'
         })));
+      }
+      finally {
+        jestUtil.restore((command as any)['removeScopedCustomAction']);
+      }
     }
-    finally {
-      sinonUtil.restore((command as any)['removeScopedCustomAction']);
-    }
-  });
+  );
 
-  it('handles error when no user custom actions with the specified title found', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/UserCustomActions?$filter=Title eq ') > -1) {
-        return { value: [] };
+  it('handles error when no user custom actions with the specified title found',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/UserCustomActions?$filter=Title eq ') > -1) {
+          return { value: [] };
+        }
+
+        throw 'Invalid request';
+      });
+
+      await assert.rejects(command.action(logger, {
+        options: {
+          title: 'YourAppCustomizer',
+          webUrl: 'https://contoso.sharepoint.com',
+          force: true
+        }
+      }), new CommandError(`No user custom action with title 'YourAppCustomizer' found`));
+    }
+  );
+
+  it('should user custom action removed successfully without prompting with confirmation argument',
+    async () => {
+      defaultPostCallsStub();
+
+      await command.action(logger, {
+        options: {
+          verbose: false,
+          id: 'b2307a39-e878-458b-bc90-03bc578531d6',
+          webUrl: 'https://contoso.sharepoint.com',
+          force: true
+        }
+      });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
+
+  it('should prompt before removing custom action when confirmation argument not passed',
+    async () => {
+      await command.action(logger, { options: { id: 'b2307a39-e878-458b-bc90-03bc578531d6', webUrl: 'https://contoso.sharepoint.com' } });
+      let promptIssued = false;
+
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
       }
 
-      throw 'Invalid request';
-    });
-
-    await assert.rejects(command.action(logger, {
-      options: {
-        title: 'YourAppCustomizer',
-        webUrl: 'https://contoso.sharepoint.com',
-        force: true
-      }
-    }), new CommandError(`No user custom action with title 'YourAppCustomizer' found`));
-  });
-
-  it('should user custom action removed successfully without prompting with confirmation argument', async () => {
-    defaultPostCallsStub();
-
-    await command.action(logger, {
-      options: {
-        verbose: false,
-        id: 'b2307a39-e878-458b-bc90-03bc578531d6',
-        webUrl: 'https://contoso.sharepoint.com',
-        force: true
-      }
-    });
-    assert(loggerLogSpy.notCalled);
-  });
-
-  it('should prompt before removing custom action when confirmation argument not passed', async () => {
-    await command.action(logger, { options: { id: 'b2307a39-e878-458b-bc90-03bc578531d6', webUrl: 'https://contoso.sharepoint.com' } });
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      assert(promptIssued);
     }
+  );
 
-    assert(promptIssued);
-  });
+  it('should abort custom action remove when prompt not confirmed',
+    async () => {
+      const postCallsSpy: jest.Mock = defaultPostCallsStub();
 
-  it('should abort custom action remove when prompt not confirmed', async () => {
-    const postCallsSpy: sinon.SinonStub = defaultPostCallsStub();
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: false });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: false });
-
-    await command.action(logger, { options: { id: 'b2307a39-e878-458b-bc90-03bc578531d6', webUrl: 'https://contoso.sharepoint.com' } } as any);
-    assert(postCallsSpy.notCalled);
-  });
+      await command.action(logger, { options: { id: 'b2307a39-e878-458b-bc90-03bc578531d6', webUrl: 'https://contoso.sharepoint.com' } } as any);
+      assert(postCallsSpy.notCalled);
+    }
+  );
 
   it('should remove custom action by id when prompt confirmed', async () => {
-    const postCallsSpy: sinon.SinonStub = defaultPostCallsStub();
-    const removeScopedCustomActionSpy = sinon.spy((command as any), 'removeScopedCustomAction');
+    const postCallsSpy: jest.Mock = defaultPostCallsStub();
+    const removeScopedCustomActionSpy = jest.spyOn((command as any), 'removeScopedCustomAction').mockClear();
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
     try {
       await command.action(logger, { options: { id: 'b2307a39-e878-458b-bc90-03bc578531d6', webUrl: 'https://contoso.sharepoint.com' } } as any);
       assert(postCallsSpy.calledOnce);
-      assert(removeScopedCustomActionSpy.calledWith(sinon.match(
-        {
-          id: 'b2307a39-e878-458b-bc90-03bc578531d6',
-          webUrl: 'https://contoso.sharepoint.com'
-        })));
+      assert(removeScopedCustomActionSpy.calledWith(expect.objectContaining({
+        id: 'b2307a39-e878-458b-bc90-03bc578531d6',
+        webUrl: 'https://contoso.sharepoint.com'
+      })));
     }
     finally {
-      sinonUtil.restore((command as any)['removeScopedCustomAction']);
+      jestUtil.restore((command as any)['removeScopedCustomAction']);
     }
   });
 
-  it('should remove custom action by title when prompt confirmed', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/UserCustomActions?$filter=Title eq ') > -1) {
-        return {
-          value: [
-            {
-              "ClientSideComponentId": "015e0fcf-fe9d-4037-95af-0a4776cdfbb4",
-              "ClientSideComponentProperties": "{\"testMessage\":\"Test message\"}",
-              "CommandUIExtension": null,
-              "Description": null,
-              "Group": null,
-              "Id": "b2307a39-e878-458b-bc90-03bc578531d6",
-              "ImageUrl": null,
-              "Location": "ClientSideExtension.ApplicationCustomizer",
-              "Name": "{b2307a39-e878-458b-bc90-03bc578531d6}",
-              "RegistrationId": null,
-              "RegistrationType": 0,
-              "Rights": { "High": 0, "Low": 0 },
-              "Scope": "1",
-              "ScriptBlock": null,
-              "ScriptSrc": null,
-              "Sequence": 65536,
-              "Title": "Places",
-              "Url": null,
-              "VersionOfUserCustomAction": "1.0.1.0"
-            }
-          ]
-        };
-      }
-      throw 'Invalid request';
-    });
+  it('should remove custom action by title when prompt confirmed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/UserCustomActions?$filter=Title eq ') > -1) {
+          return {
+            value: [
+              {
+                "ClientSideComponentId": "015e0fcf-fe9d-4037-95af-0a4776cdfbb4",
+                "ClientSideComponentProperties": "{\"testMessage\":\"Test message\"}",
+                "CommandUIExtension": null,
+                "Description": null,
+                "Group": null,
+                "Id": "b2307a39-e878-458b-bc90-03bc578531d6",
+                "ImageUrl": null,
+                "Location": "ClientSideExtension.ApplicationCustomizer",
+                "Name": "{b2307a39-e878-458b-bc90-03bc578531d6}",
+                "RegistrationId": null,
+                "RegistrationType": 0,
+                "Rights": { "High": 0, "Low": 0 },
+                "Scope": "1",
+                "ScriptBlock": null,
+                "ScriptSrc": null,
+                "Sequence": 65536,
+                "Title": "Places",
+                "Url": null,
+                "VersionOfUserCustomAction": "1.0.1.0"
+              }
+            ]
+          };
+        }
+        throw 'Invalid request';
+      });
 
-    const postCallsSpy: sinon.SinonStub = defaultPostCallsStub();
-    const removeScopedCustomActionSpy = sinon.spy((command as any), 'removeScopedCustomAction');
+      const postCallsSpy: jest.Mock = defaultPostCallsStub();
+      const removeScopedCustomActionSpy = jest.spyOn((command as any), 'removeScopedCustomAction').mockClear();
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    try {
-      await command.action(logger, { options: { title: 'Places', webUrl: 'https://contoso.sharepoint.com' } } as any);
-      assert(postCallsSpy.calledOnce);
-      assert(removeScopedCustomActionSpy.calledWith(sinon.match(
-        {
+      try {
+        await command.action(logger, { options: { title: 'Places', webUrl: 'https://contoso.sharepoint.com' } } as any);
+        assert(postCallsSpy.calledOnce);
+        assert(removeScopedCustomActionSpy.calledWith(expect.objectContaining({
           title: 'Places',
           webUrl: 'https://contoso.sharepoint.com'
         })));
+      }
+      finally {
+        jestUtil.restore((command as any)['removeScopedCustomAction']);
+      }
     }
-    finally {
-      sinonUtil.restore((command as any)['removeScopedCustomAction']);
-    }
-  });
+  );
 
-  it('should removeScopedCustomAction be called once when scope is Web', async () => {
-    const postCallsSpy: sinon.SinonStub = defaultPostCallsStub();
+  it('should removeScopedCustomAction be called once when scope is Web',
+    async () => {
+      const postCallsSpy: jest.Mock = defaultPostCallsStub();
 
-    const removeScopedCustomActionSpy = sinon.spy((command as any), 'removeScopedCustomAction');
-    const options = {
-      id: 'b2307a39-e878-458b-bc90-03bc578531d6',
-      webUrl: 'https://contoso.sharepoint.com',
-      scope: 'Web',
-      force: true
-    };
-
-    try {
-      await command.action(logger, { options: options } as any);
-      assert(postCallsSpy.calledOnce);
-      assert(removeScopedCustomActionSpy.calledWith({
+      const removeScopedCustomActionSpy = jest.spyOn((command as any), 'removeScopedCustomAction').mockClear();
+      const options = {
         id: 'b2307a39-e878-458b-bc90-03bc578531d6',
         webUrl: 'https://contoso.sharepoint.com',
         scope: 'Web',
         force: true
-      }), 'removeScopedCustomActionSpy data error');
-      assert(removeScopedCustomActionSpy.calledOnce, 'removeScopedCustomActionSpy calledOnce error');
-    }
-    finally {
-      sinonUtil.restore((command as any)['removeScopedCustomAction']);
-    }
-  });
+      };
 
-  it('should removeScopedCustomAction be called once when scope is Site', async () => {
-    const postCallsSpy: sinon.SinonStub = defaultPostCallsStub();
-
-    const removeScopedCustomActionSpy = sinon.spy((command as any), 'removeScopedCustomAction');
-    const options = {
-      id: 'b2307a39-e878-458b-bc90-03bc578531d6',
-      webUrl: 'https://contoso.sharepoint.com',
-      scope: 'Site',
-      force: true
-    };
-
-    try {
-      await command.action(logger, { options: options } as any);
-      assert(postCallsSpy.calledOnce);
-      assert(removeScopedCustomActionSpy.calledWith(
-        {
+      try {
+        await command.action(logger, { options: options } as any);
+        assert(postCallsSpy.calledOnce);
+        assert(removeScopedCustomActionSpy.calledWith({
           id: 'b2307a39-e878-458b-bc90-03bc578531d6',
           webUrl: 'https://contoso.sharepoint.com',
-          scope: 'Site',
+          scope: 'Web',
           force: true
         }), 'removeScopedCustomActionSpy data error');
-      assert(removeScopedCustomActionSpy.calledOnce, 'removeScopedCustomActionSpy calledOnce error');
-    }
-    finally {
-      sinonUtil.restore((command as any)['removeScopedCustomAction']);
-    }
-  });
-
-  it('should removeScopedCustomAction be called once when scope is All, but item found on web level', async () => {
-    const postCallsSpy: sinon.SinonStub = defaultPostCallsStub();
-
-    const removeScopedCustomActionSpy = sinon.spy((command as any), 'removeScopedCustomAction');
-
-    try {
-      await command.action(logger, {
-        options: {
-          force: true,
-          id: 'b2307a39-e878-458b-bc90-03bc578531d6',
-          webUrl: 'https://contoso.sharepoint.com',
-          scope: 'All'
-        }
-      });
-      assert(postCallsSpy.calledOnce);
-      assert(removeScopedCustomActionSpy.calledOnce);
-    }
-    finally {
-      sinonUtil.restore((command as any)['removeScopedCustomAction']);
-    }
-  });
-
-  it('should removeScopedCustomAction be called twice when scope is All, but item not found on web level', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      // fakes remove custom action success (site)
-      if ((opts.url as string).indexOf('/_api/Web/UserCustomActions(') > -1) {
-        return { "odata.null": true };
+        assert(removeScopedCustomActionSpy.calledOnce, 'removeScopedCustomActionSpy calledOnce error');
       }
-
-      // fakes remove custom action success (site collection)
-      if ((opts.url as string).indexOf('/_api/Site/UserCustomActions(') > -1) {
-        return undefined;
+      finally {
+        jestUtil.restore((command as any)['removeScopedCustomAction']);
       }
+    }
+  );
 
-      throw 'Invalid request';
-    });
+  it('should removeScopedCustomAction be called once when scope is Site',
+    async () => {
+      const postCallsSpy: jest.Mock = defaultPostCallsStub();
 
-    const removeScopedCustomActionSpy = sinon.spy((command as any), 'removeScopedCustomAction');
+      const removeScopedCustomActionSpy = jest.spyOn((command as any), 'removeScopedCustomAction').mockClear();
+      const options = {
+        id: 'b2307a39-e878-458b-bc90-03bc578531d6',
+        webUrl: 'https://contoso.sharepoint.com',
+        scope: 'Site',
+        force: true
+      };
 
-    try {
-      await command.action(logger, {
-        options: {
-          debug: true,
-          id: 'b2307a39-e878-458b-bc90-03bc578531d6',
-          webUrl: 'https://contoso.sharepoint.com',
-          force: true
+      try {
+        await command.action(logger, { options: options } as any);
+        assert(postCallsSpy.calledOnce);
+        assert(removeScopedCustomActionSpy.calledWith(
+          {
+            id: 'b2307a39-e878-458b-bc90-03bc578531d6',
+            webUrl: 'https://contoso.sharepoint.com',
+            scope: 'Site',
+            force: true
+          }), 'removeScopedCustomActionSpy data error');
+        assert(removeScopedCustomActionSpy.calledOnce, 'removeScopedCustomActionSpy calledOnce error');
+      }
+      finally {
+        jestUtil.restore((command as any)['removeScopedCustomAction']);
+      }
+    }
+  );
+
+  it('should removeScopedCustomAction be called once when scope is All, but item found on web level',
+    async () => {
+      const postCallsSpy: jest.Mock = defaultPostCallsStub();
+
+      const removeScopedCustomActionSpy = jest.spyOn((command as any), 'removeScopedCustomAction').mockClear();
+
+      try {
+        await command.action(logger, {
+          options: {
+            force: true,
+            id: 'b2307a39-e878-458b-bc90-03bc578531d6',
+            webUrl: 'https://contoso.sharepoint.com',
+            scope: 'All'
+          }
+        });
+        assert(postCallsSpy.calledOnce);
+        assert(removeScopedCustomActionSpy.calledOnce);
+      }
+      finally {
+        jestUtil.restore((command as any)['removeScopedCustomAction']);
+      }
+    }
+  );
+
+  it('should removeScopedCustomAction be called twice when scope is All, but item not found on web level',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        // fakes remove custom action success (site)
+        if ((opts.url as string).indexOf('/_api/Web/UserCustomActions(') > -1) {
+          return { "odata.null": true };
         }
+
+        // fakes remove custom action success (site collection)
+        if ((opts.url as string).indexOf('/_api/Site/UserCustomActions(') > -1) {
+          return undefined;
+        }
+
+        throw 'Invalid request';
       });
-      assert(removeScopedCustomActionSpy.calledTwice);
+
+      const removeScopedCustomActionSpy = jest.spyOn((command as any), 'removeScopedCustomAction').mockClear();
+
+      try {
+        await command.action(logger, {
+          options: {
+            debug: true,
+            id: 'b2307a39-e878-458b-bc90-03bc578531d6',
+            webUrl: 'https://contoso.sharepoint.com',
+            force: true
+          }
+        });
+        assert(removeScopedCustomActionSpy.calledTwice);
+      }
+      finally {
+        jestUtil.restore((command as any)['removeScopedCustomAction']);
+      }
     }
-    finally {
-      sinonUtil.restore((command as any)['removeScopedCustomAction']);
-    }
-  });
+  );
 
   it('should searchAllScopes be called when scope is All', async () => {
     defaultPostCallsStub();
 
-    const searchAllScopesSpy = sinon.spy((command as any), 'searchAllScopes');
+    const searchAllScopesSpy = jest.spyOn((command as any), 'searchAllScopes').mockClear();
     const options = {
       id: 'b2307a39-e878-458b-bc90-03bc578531d6',
       webUrl: 'https://contoso.sharepoint.com',
@@ -518,128 +536,135 @@ describe(commands.CUSTOMACTION_REMOVE, () => {
 
     try {
       await command.action(logger, { options: options } as any);
-      assert(searchAllScopesSpy.calledWith(sinon.match(
-        {
-          id: 'b2307a39-e878-458b-bc90-03bc578531d6',
-          webUrl: 'https://contoso.sharepoint.com',
-          force: true
-        })), 'searchAllScopesSpy.calledWith');
+      assert(searchAllScopesSpy.calledWith(expect.objectContaining({
+        id: 'b2307a39-e878-458b-bc90-03bc578531d6',
+        webUrl: 'https://contoso.sharepoint.com',
+        force: true
+      })), 'searchAllScopesSpy.calledWith');
       assert(searchAllScopesSpy.calledOnce, 'searchAllScopesSpy.calledOnce');
     }
     finally {
-      sinonUtil.restore((command as any)['searchAllScopes']);
+      jestUtil.restore((command as any)['searchAllScopes']);
     }
   });
 
-  it('should searchAllScopes correctly handles custom action odata.null when All scope specified', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      // fakes remove custom action success (site)
-      if ((opts.url as string).indexOf('/_api/Web/UserCustomActions(') > -1) {
-        return { "odata.null": true };
-      }
+  it('should searchAllScopes correctly handles custom action odata.null when All scope specified',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        // fakes remove custom action success (site)
+        if ((opts.url as string).indexOf('/_api/Web/UserCustomActions(') > -1) {
+          return { "odata.null": true };
+        }
 
-      // fakes remove custom action success (site collection)
-      if ((opts.url as string).indexOf('/_api/Site/UserCustomActions(') > -1) {
-        return { "odata.null": true };
-      }
+        // fakes remove custom action success (site collection)
+        if ((opts.url as string).indexOf('/_api/Site/UserCustomActions(') > -1) {
+          return { "odata.null": true };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    const actionId: string = 'b2307a39-e878-458b-bc90-03bc578531d6';
+      const actionId: string = 'b2307a39-e878-458b-bc90-03bc578531d6';
 
-    await command.action(logger, {
-      options: {
-        verbose: false,
-        id: actionId,
-        webUrl: 'https://contoso.sharepoint.com',
-        scope: 'All',
-        force: true
-      }
-    });
-    assert(loggerLogSpy.notCalled);
-  });
+      await command.action(logger, {
+        options: {
+          verbose: false,
+          id: actionId,
+          webUrl: 'https://contoso.sharepoint.com',
+          scope: 'All',
+          force: true
+        }
+      });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
-  it('should searchAllScopes correctly handles custom action odata.null when All scope specified (verbose)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      // fakes remove custom action success (site)
-      if ((opts.url as string).indexOf('/_api/Web/UserCustomActions(') > -1) {
-        return { "odata.null": true };
-      }
+  it('should searchAllScopes correctly handles custom action odata.null when All scope specified (verbose)',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        // fakes remove custom action success (site)
+        if ((opts.url as string).indexOf('/_api/Web/UserCustomActions(') > -1) {
+          return { "odata.null": true };
+        }
 
-      // fakes remove custom action success (site collection)
-      if ((opts.url as string).indexOf('/_api/Site/UserCustomActions(') > -1) {
-        return { "odata.null": true };
-      }
+        // fakes remove custom action success (site collection)
+        if ((opts.url as string).indexOf('/_api/Site/UserCustomActions(') > -1) {
+          return { "odata.null": true };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    const actionId: string = 'b2307a39-e878-458b-bc90-03bc578531d6';
+      const actionId: string = 'b2307a39-e878-458b-bc90-03bc578531d6';
 
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        id: actionId,
-        webUrl: 'https://contoso.sharepoint.com',
-        scope: 'All',
-        force: true
-      }
-    });
-    assert(loggerLogToStderrSpy.calledWith(`Custom action with id ${actionId} not found`));
-  });
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          id: actionId,
+          webUrl: 'https://contoso.sharepoint.com',
+          scope: 'All',
+          force: true
+        }
+      });
+      assert(loggerLogToStderrSpy.calledWith(`Custom action with id ${actionId} not found`));
+    }
+  );
 
-  it('should correctly handle custom action reject request (web)', async () => {
-    const err = 'abc error';
+  it('should correctly handle custom action reject request (web)',
+    async () => {
+      const err = 'abc error';
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      // fakes remove custom action success (site)
-      if ((opts.url as string).indexOf('/_api/Web/UserCustomActions(') > -1) {
-        throw err;
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        // fakes remove custom action success (site)
+        if ((opts.url as string).indexOf('/_api/Web/UserCustomActions(') > -1) {
+          throw err;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    const actionId: string = 'b2307a39-e878-458b-bc90-03bc578531d6';
+      const actionId: string = 'b2307a39-e878-458b-bc90-03bc578531d6';
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        id: actionId,
-        webUrl: 'https://contoso.sharepoint.com',
-        scope: 'All',
-        force: true
-      }
-    }), new CommandError(err));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          id: actionId,
+          webUrl: 'https://contoso.sharepoint.com',
+          scope: 'All',
+          force: true
+        }
+      }), new CommandError(err));
+    }
+  );
 
-  it('should correctly handle custom action reject request (site)', async () => {
-    const err = 'abc error';
+  it('should correctly handle custom action reject request (site)',
+    async () => {
+      const err = 'abc error';
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      // should return null to proceed with site when scope is All
-      if ((opts.url as string).indexOf('/_api/Web/UserCustomActions(') > -1) {
-        return { "odata.null": true };
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        // should return null to proceed with site when scope is All
+        if ((opts.url as string).indexOf('/_api/Web/UserCustomActions(') > -1) {
+          return { "odata.null": true };
+        }
 
-      if ((opts.url as string).indexOf('/_api/Site/UserCustomActions(') > -1) {
-        throw err;
-      }
+        if ((opts.url as string).indexOf('/_api/Site/UserCustomActions(') > -1) {
+          throw err;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    const actionId: string = 'b2307a39-e878-458b-bc90-03bc578531d6';
+      const actionId: string = 'b2307a39-e878-458b-bc90-03bc578531d6';
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        id: actionId,
-        webUrl: 'https://contoso.sharepoint.com',
-        scope: 'All',
-        force: true
-      }
-    }), new CommandError(err));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          id: actionId,
+          webUrl: 'https://contoso.sharepoint.com',
+          scope: 'All',
+          force: true
+        }
+      }), new CommandError(err));
+    }
+  );
 
   it('supports specifying scope', () => {
     const options = command.options;
@@ -653,7 +678,7 @@ describe(commands.CUSTOMACTION_REMOVE, () => {
   });
 
   it('should fail validation if the id option not specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -666,7 +691,7 @@ describe(commands.CUSTOMACTION_REMOVE, () => {
   });
 
   it('should fail validation if the url option not specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -678,61 +703,71 @@ describe(commands.CUSTOMACTION_REMOVE, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('should fail validation if the url option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({
-      options:
-      {
-        id: "BC448D63-484F-49C5-AB8C-96B14AA68D50",
-        webUrl: 'foo'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('should fail validation if the url option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({
+        options:
+        {
+          id: "BC448D63-484F-49C5-AB8C-96B14AA68D50",
+          webUrl: 'foo'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('should fail validation if the id option is not a valid guid', async () => {
-    const actual = await command.validate({
-      options:
-      {
-        id: "foo",
-        webUrl: 'https://contoso.sharepoint.com'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('should fail validation if the id option is not a valid guid',
+    async () => {
+      const actual = await command.validate({
+        options:
+        {
+          id: "foo",
+          webUrl: 'https://contoso.sharepoint.com'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('should pass validation when the id and url options specified', async () => {
-    const actual = await command.validate({
-      options:
-      {
-        id: "BC448D63-484F-49C5-AB8C-96B14AA68D50",
-        webUrl: "https://contoso.sharepoint.com"
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('should pass validation when the id and url options specified',
+    async () => {
+      const actual = await command.validate({
+        options:
+        {
+          id: "BC448D63-484F-49C5-AB8C-96B14AA68D50",
+          webUrl: "https://contoso.sharepoint.com"
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('should pass validation when the id, url and scope options specified', async () => {
-    const actual = await command.validate({
-      options:
-      {
-        id: "BC448D63-484F-49C5-AB8C-96B14AA68D50",
-        webUrl: "https://contoso.sharepoint.com",
-        scope: "Site"
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('should pass validation when the id, url and scope options specified',
+    async () => {
+      const actual = await command.validate({
+        options:
+        {
+          id: "BC448D63-484F-49C5-AB8C-96B14AA68D50",
+          webUrl: "https://contoso.sharepoint.com",
+          scope: "Site"
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('should pass validation when the id and url option specified', async () => {
-    const actual = await command.validate({
-      options:
-      {
-        id: "BC448D63-484F-49C5-AB8C-96B14AA68D50",
-        webUrl: "https://contoso.sharepoint.com"
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('should pass validation when the id and url option specified',
+    async () => {
+      const actual = await command.validate({
+        options:
+        {
+          id: "BC448D63-484F-49C5-AB8C-96B14AA68D50",
+          webUrl: "https://contoso.sharepoint.com"
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('should accept scope to be All', async () => {
     const actual = await command.validate({
@@ -794,15 +829,17 @@ describe(commands.CUSTOMACTION_REMOVE, () => {
     assert.strictEqual(actual, `${scope} is not a valid custom action scope. Allowed values are Site|Web|All`);
   });
 
-  it('doesn\'t fail validation if the optional scope option not specified', async () => {
-    const actual = await command.validate(
-      {
-        options:
+  it('doesn\'t fail validation if the optional scope option not specified',
+    async () => {
+      const actual = await command.validate(
         {
-          id: "BC448D63-484F-49C5-AB8C-96B14AA68D50",
-          webUrl: "https://contoso.sharepoint.com"
-        }
-      }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+          options:
+          {
+            id: "BC448D63-484F-49C5-AB8C-96B14AA68D50",
+            webUrl: "https://contoso.sharepoint.com"
+          }
+        }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

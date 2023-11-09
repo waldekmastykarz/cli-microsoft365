@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './page-template-list.js';
 import { templatesMock } from './page-template-list.mock.js';
@@ -17,14 +16,14 @@ import { templatesMock } from './page-template-list.mock.js';
 describe(commands.PAGE_TEMPLATE_LIST, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -42,17 +41,17 @@ describe(commands.PAGE_TEMPLATE_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -69,7 +68,7 @@ describe(commands.PAGE_TEMPLATE_LIST, () => {
   });
 
   it('list all page templates', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/templates`) > -1) {
         return templatesMock;
       }
@@ -82,7 +81,7 @@ describe(commands.PAGE_TEMPLATE_LIST, () => {
   });
 
   it('list all page templates (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/templates`) > -1) {
         return templatesMock;
       }
@@ -95,7 +94,7 @@ describe(commands.PAGE_TEMPLATE_LIST, () => {
   });
 
   it('correctly handles no page templates', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/sitepages/pages/templates`) > -1) {
         return { value: [] };
       }
@@ -107,31 +106,39 @@ describe(commands.PAGE_TEMPLATE_LIST, () => {
     assert(loggerLogSpy.notCalled);
   });
 
-  it('correctly handles OData error when retrieving page templates', async () => {
-    sinon.stub(request, 'get').callsFake(() => {
-      throw { error: { 'odata.error': { message: { value: 'An error has occurred' } } } };
-    });
+  it('correctly handles OData error when retrieving page templates',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
+        throw { error: { 'odata.error': { message: { value: 'An error has occurred' } } } };
+      });
 
-    await assert.rejects(command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a' } } as any),
-      new CommandError('An error has occurred'));
-  });
+      await assert.rejects(command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a' } } as any),
+        new CommandError('An error has occurred'));
+    }
+  );
 
-  it('correctly handles error when retrieving page templates on a site which does not have any', async () => {
-    sinon.stub(request, 'get').callsFake(() => {
-      throw { response: { status: 404 } };
-    });
+  it('correctly handles error when retrieving page templates on a site which does not have any',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
+        throw { response: { status: 404 } };
+      });
 
-    await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a' } } as any);
-    assert(loggerLogSpy.calledWith([]));
-  });
+      await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a' } } as any);
+      assert(loggerLogSpy.calledWith([]));
+    }
+  );
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when the webUrl is a valid SharePoint URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when the webUrl is a valid SharePoint URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

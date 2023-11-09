@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Logger } from '../../../../cli/Logger.js';
 import { CommandError } from '../../../../Command.js';
@@ -8,7 +7,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './serviceprincipal-grant-add.js';
@@ -16,14 +15,14 @@ import command from './serviceprincipal-grant-add.js';
 describe(commands.SERVICEPRINCIPAL_GRANT_ADD, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'ABC',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -46,17 +45,17 @@ describe(commands.SERVICEPRINCIPAL_GRANT_ADD, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -70,7 +69,7 @@ describe(commands.SERVICEPRINCIPAL_GRANT_ADD, () => {
   });
 
   it('grants the specified API permission (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_vti_bin/client.svc/ProcessQuery') > -1 &&
         opts.headers &&
         opts.headers['X-RequestDigest'] &&
@@ -99,7 +98,7 @@ describe(commands.SERVICEPRINCIPAL_GRANT_ADD, () => {
   });
 
   it('grants the specified API permission', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_vti_bin/client.svc/ProcessQuery') > -1 &&
         opts.headers &&
         opts.headers['X-RequestDigest'] &&
@@ -127,50 +126,56 @@ describe(commands.SERVICEPRINCIPAL_GRANT_ADD, () => {
     }));
   });
 
-  it('correctly handles error when the specified resource doesn\'t exist', async () => {
-    sinon.stub(request, 'post').callsFake(async () => {
-      return JSON.stringify([
-        {
-          "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.8224.1210", "ErrorInfo": {
-            "ErrorMessage": "A service principal with the name Microsoft Graph1 could not be found.\r\nParameter name: resourceName", "ErrorValue": null, "TraceCorrelationId": "5fdf9d9e-00e9-0000-37ae-14e6d75290f3", "ErrorCode": -2147024809, "ErrorTypeName": "System.ArgumentException"
-          }, "TraceCorrelationId": "5fdf9d9e-00e9-0000-37ae-14e6d75290f3"
-        }
-      ]);
-    });
-    await assert.rejects(command.action(logger, { options: { resource: 'Microsoft Graph1', scope: 'Mail.Read' } } as any),
-      new CommandError('A service principal with the name Microsoft Graph1 could not be found.\r\nParameter name: resourceName'));
-  });
+  it('correctly handles error when the specified resource doesn\'t exist',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async () => {
+        return JSON.stringify([
+          {
+            "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.8224.1210", "ErrorInfo": {
+              "ErrorMessage": "A service principal with the name Microsoft Graph1 could not be found.\r\nParameter name: resourceName", "ErrorValue": null, "TraceCorrelationId": "5fdf9d9e-00e9-0000-37ae-14e6d75290f3", "ErrorCode": -2147024809, "ErrorTypeName": "System.ArgumentException"
+            }, "TraceCorrelationId": "5fdf9d9e-00e9-0000-37ae-14e6d75290f3"
+          }
+        ]);
+      });
+      await assert.rejects(command.action(logger, { options: { resource: 'Microsoft Graph1', scope: 'Mail.Read' } } as any),
+        new CommandError('A service principal with the name Microsoft Graph1 could not be found.\r\nParameter name: resourceName'));
+    }
+  );
 
-  it('correctly handles error when the specified scope doesn\'t exist', async () => {
-    sinon.stub(request, 'post').callsFake(async () => {
-      return JSON.stringify([
-        {
-          "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.8224.1210", "ErrorInfo": {
-            "ErrorMessage": "An OAuth permission with the scope Calendar.Read could not be found.\r\nParameter name: permissionRequest", "ErrorValue": null, "TraceCorrelationId": "51df9d9e-d075-0000-37ae-1d4e6902cc2e", "ErrorCode": -2147024809, "ErrorTypeName": "System.ArgumentException"
-          }, "TraceCorrelationId": "51df9d9e-d075-0000-37ae-1d4e6902cc2e"
-        }
-      ]);
-    });
-    await assert.rejects(command.action(logger, { options: { resource: 'Microsoft Graph', scope: 'Calendar.Read' } } as any),
-      new CommandError('An OAuth permission with the scope Calendar.Read could not be found.\r\nParameter name: permissionRequest'));
-  });
+  it('correctly handles error when the specified scope doesn\'t exist',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async () => {
+        return JSON.stringify([
+          {
+            "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.8224.1210", "ErrorInfo": {
+              "ErrorMessage": "An OAuth permission with the scope Calendar.Read could not be found.\r\nParameter name: permissionRequest", "ErrorValue": null, "TraceCorrelationId": "51df9d9e-d075-0000-37ae-1d4e6902cc2e", "ErrorCode": -2147024809, "ErrorTypeName": "System.ArgumentException"
+            }, "TraceCorrelationId": "51df9d9e-d075-0000-37ae-1d4e6902cc2e"
+          }
+        ]);
+      });
+      await assert.rejects(command.action(logger, { options: { resource: 'Microsoft Graph', scope: 'Calendar.Read' } } as any),
+        new CommandError('An OAuth permission with the scope Calendar.Read could not be found.\r\nParameter name: permissionRequest'));
+    }
+  );
 
-  it('correctly handles error when the specified permission has already been granted', async () => {
-    sinon.stub(request, 'post').callsFake(async () => {
-      return JSON.stringify([
-        {
-          "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.8224.1210", "ErrorInfo": {
-            "ErrorMessage": "An OAuth permission with the resource Microsoft Graph and scope Mail.Read already exists.\r\nParameter name: permissionRequest", "ErrorValue": null, "TraceCorrelationId": "1bdf9d9e-1088-0000-38d6-3b6395428c90", "ErrorCode": -2147024809, "ErrorTypeName": "System.ArgumentException"
-          }, "TraceCorrelationId": "1bdf9d9e-1088-0000-38d6-3b6395428c90"
-        }
-      ]);
-    });
-    await assert.rejects(command.action(logger, { options: { resource: 'Microsoft Graph', scope: 'Mail.Read' } } as any),
-      new CommandError('An OAuth permission with the resource Microsoft Graph and scope Mail.Read already exists.\r\nParameter name: permissionRequest'));
-  });
+  it('correctly handles error when the specified permission has already been granted',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async () => {
+        return JSON.stringify([
+          {
+            "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.8224.1210", "ErrorInfo": {
+              "ErrorMessage": "An OAuth permission with the resource Microsoft Graph and scope Mail.Read already exists.\r\nParameter name: permissionRequest", "ErrorValue": null, "TraceCorrelationId": "1bdf9d9e-1088-0000-38d6-3b6395428c90", "ErrorCode": -2147024809, "ErrorTypeName": "System.ArgumentException"
+            }, "TraceCorrelationId": "1bdf9d9e-1088-0000-38d6-3b6395428c90"
+          }
+        ]);
+      });
+      await assert.rejects(command.action(logger, { options: { resource: 'Microsoft Graph', scope: 'Mail.Read' } } as any),
+        new CommandError('An OAuth permission with the resource Microsoft Graph and scope Mail.Read already exists.\r\nParameter name: permissionRequest'));
+    }
+  );
 
   it('correctly handles random API error', async () => {
-    sinon.stub(request, 'post').callsFake(() => { throw 'An error has occurred'; });
+    jest.spyOn(request, 'post').mockClear().mockImplementation(() => { throw 'An error has occurred'; });
     await assert.rejects(command.action(logger, { options: { resource: 'Microsoft Graph', scope: 'Mail.Read' } } as any),
       new CommandError('An error has occurred'));
   });

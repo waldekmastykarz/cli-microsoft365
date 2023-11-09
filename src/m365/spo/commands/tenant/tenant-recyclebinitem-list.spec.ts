@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Logger } from '../../../../cli/Logger.js';
 import { CommandError } from '../../../../Command.js';
@@ -7,7 +6,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './tenant-recyclebinitem-list.js';
@@ -15,14 +14,14 @@ import command from './tenant-recyclebinitem-list.js';
 describe(commands.TENANT_RECYCLEBINITEM_LIST, () => {
   let log: any[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'ABC',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -45,17 +44,17 @@ describe(commands.TENANT_RECYCLEBINITEM_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -73,7 +72,7 @@ describe(commands.TENANT_RECYCLEBINITEM_LIST, () => {
   });
 
   it('handles client.svc promise error', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('_vti_bin/client.svc/ProcessQuery') > -1) {
         throw 'An error has occurred';
       }
@@ -84,7 +83,7 @@ describe(commands.TENANT_RECYCLEBINITEM_LIST, () => {
   });
 
   it('handles error while getting tenant recycle bin', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('_vti_bin/client.svc/ProcessQuery') > -1) {
         return JSON.stringify([
           {
@@ -100,7 +99,7 @@ describe(commands.TENANT_RECYCLEBINITEM_LIST, () => {
     await assert.rejects(command.action(logger, { options: {} } as any), new CommandError('An error has occurred'));
   });
   it('includes all properties for json output', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_vti_bin/client.svc/ProcessQuery`) > -1) {
         return JSON.stringify([
           {
@@ -136,7 +135,7 @@ describe(commands.TENANT_RECYCLEBINITEM_LIST, () => {
 
   it('lists the tenant recyclebin items (debug)', async () => {
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('_vti_bin/client.svc/ProcessQuery') > -1) {
         return JSON.stringify([
           {
@@ -160,16 +159,16 @@ describe(commands.TENANT_RECYCLEBINITEM_LIST, () => {
     });
 
     await command.action(logger, { options: { debug: true } });
-    assert.strictEqual(loggerLogSpy.lastCall.args[0][0]["DaysRemaining"], 92);
-    assert.deepEqual(loggerLogSpy.lastCall.args[0][0]["DeletionTime"], new Date(2020, 0, 15, 11, 4, 3, 893));
-    assert.strictEqual(loggerLogSpy.lastCall.args[0][0]["Url"], 'https://contoso.sharepoint.com/sites/ClassicThrowaway');
-    assert.strictEqual(loggerLogSpy.lastCall.args[0][1].DaysRemaining, 92);
-    assert.deepEqual(loggerLogSpy.lastCall.args[0][1].DeletionTime, new Date(2020, 0, 15, 11, 40, 58, 90));
-    assert.strictEqual(loggerLogSpy.lastCall.args[0][1].Url, 'https://contoso.sharepoint.com/sites/ModernThrowaway');
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0][0]["DaysRemaining"], 92);
+    assert.deepEqual(loggerLogSpy.mock.lastCall[0][0]["DeletionTime"], new Date(2020, 0, 15, 11, 4, 3, 893));
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0][0]["Url"], 'https://contoso.sharepoint.com/sites/ClassicThrowaway');
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0][1].DaysRemaining, 92);
+    assert.deepEqual(loggerLogSpy.mock.lastCall[0][1].DeletionTime, new Date(2020, 0, 15, 11, 40, 58, 90));
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0][1].Url, 'https://contoso.sharepoint.com/sites/ModernThrowaway');
   });
 
   it('handles tenant recyclebin timeout', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('_vti_bin/client.svc/ProcessQuery') > -1) {
         return JSON.stringify([
           {

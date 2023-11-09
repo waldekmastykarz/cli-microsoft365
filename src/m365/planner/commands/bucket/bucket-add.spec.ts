@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './bucket-add.js';
 
@@ -120,15 +119,15 @@ describe(commands.BUCKET_ADD, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.accessTokens[(command as any).resource] = {
       accessToken: 'abc',
@@ -138,7 +137,7 @@ describe(commands.BUCKET_ADD, () => {
   });
 
   beforeEach(() => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/buckets` &&
         JSON.stringify(opts.data) === JSON.stringify({
           "name": "My Planner Bucket",
@@ -148,7 +147,7 @@ describe(commands.BUCKET_ADD, () => {
       }
       throw 'Invalid request';
     });
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/beta/planner/rosters/RuY-PSpdw02drevnYDTCJpgAEfoI/plans`) {
         return planResponse;
       }
@@ -172,21 +171,21 @@ describe(commands.BUCKET_ADD, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake(((settingName, defaultValue) => defaultValue));
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation(((settingName, defaultValue) => defaultValue));
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.accessTokens = {};
   });
@@ -213,29 +212,33 @@ describe(commands.BUCKET_ADD, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation when valid name, planTitle, and ownerGroupId are specified', async () => {
-    const actual = await command.validate({
-      options: {
-        name: 'My Planner Bucket',
-        planTitle: 'My Planner Plan',
-        ownerGroupId: '0d0402ee-970f-4951-90b5-2f24519d2e40',
-        orderHint: ' a!'
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when valid name, planTitle, and ownerGroupId are specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          name: 'My Planner Bucket',
+          planTitle: 'My Planner Plan',
+          ownerGroupId: '0d0402ee-970f-4951-90b5-2f24519d2e40',
+          orderHint: ' a!'
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when valid name, planTitle, and ownerGroupName are specified', async () => {
-    const actual = await command.validate({
-      options: {
-        name: 'My Planner Bucket',
-        planTitle: 'My Planner Plan',
-        ownerGroupName: 'My Planner Group',
-        orderHint: ' a!'
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when valid name, planTitle, and ownerGroupName are specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          name: 'My Planner Bucket',
+          planTitle: 'My Planner Plan',
+          ownerGroupName: 'My Planner Group',
+          orderHint: ' a!'
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the ownerGroupId is not a valid guid.', async () => {
     const actual = await command.validate({
@@ -258,28 +261,32 @@ describe(commands.BUCKET_ADD, () => {
     assert(loggerLogSpy.calledWith(bucketAddResponse));
   });
 
-  it('correctly adds planner bucket with name, planTitle, and ownerGroupName', async () => {
-    const options: any = {
-      name: 'My Planner Bucket',
-      planTitle: 'My Planner Plan',
-      ownerGroupName: 'My Planner Group'
-    };
+  it('correctly adds planner bucket with name, planTitle, and ownerGroupName',
+    async () => {
+      const options: any = {
+        name: 'My Planner Bucket',
+        planTitle: 'My Planner Plan',
+        ownerGroupName: 'My Planner Group'
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(loggerLogSpy.calledWith(bucketAddResponse));
-  });
+      await command.action(logger, { options: options } as any);
+      assert(loggerLogSpy.calledWith(bucketAddResponse));
+    }
+  );
 
-  it('correctly adds planner bucket with name, planTitle, and ownerGroupId', async () => {
-    const options: any = {
-      name: 'My Planner Bucket',
-      planTitle: 'My Planner Plan',
-      ownerGroupId: '0d0402ee-970f-4951-90b5-2f24519d2e40',
-      verbose: true
-    };
+  it('correctly adds planner bucket with name, planTitle, and ownerGroupId',
+    async () => {
+      const options: any = {
+        name: 'My Planner Bucket',
+        planTitle: 'My Planner Plan',
+        ownerGroupId: '0d0402ee-970f-4951-90b5-2f24519d2e40',
+        verbose: true
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(loggerLogSpy.calledWith(bucketAddResponse));
-  });
+      await command.action(logger, { options: options } as any);
+      assert(loggerLogSpy.calledWith(bucketAddResponse));
+    }
+  );
 
   it('correctly adds planner bucket with name and rosterId', async () => {
     const options: any = {
@@ -293,8 +300,8 @@ describe(commands.BUCKET_ADD, () => {
   });
 
   it('fails validation when ownerGroupName not found', async () => {
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jestUtil.restore(request.get);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/groups?$filter=displayName') > -1) {
         return { value: [] };
       }
@@ -311,8 +318,8 @@ describe(commands.BUCKET_ADD, () => {
   });
 
   it('correctly handles API OData error', async () => {
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').rejects(new Error("An error has occurred."));
+    jestUtil.restore(request.get);
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error("An error has occurred."));
 
     await assert.rejects(command.action(logger, { options: {} }), new CommandError("An error has occurred."));
   });

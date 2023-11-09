@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Logger } from '../../../../cli/Logger.js';
 import { CommandError } from '../../../../Command.js';
@@ -7,7 +6,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './userprofile-set.js';
@@ -17,12 +16,12 @@ describe(commands.USERPROFILE_SET, () => {
   let logger: Logger;
   const spoUrl = 'https://contoso.sharepoint.com';
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'ABC',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -48,13 +47,13 @@ describe(commands.USERPROFILE_SET, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -68,7 +67,7 @@ describe(commands.USERPROFILE_SET, () => {
   });
 
   it('updates single valued profile property', async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`${spoUrl}/_api/SP.UserProfiles.PeopleManager/SetSingleValueProfileProperty`) > -1) {
         return {
           "odata.null": true
@@ -91,12 +90,12 @@ describe(commands.USERPROFILE_SET, () => {
         debug: true
       }
     });
-    const lastCall = postStub.lastCall.args[0];
+    const lastCall = postStub.mock.lastCall[0];
     assert.strictEqual(JSON.stringify(lastCall.data), JSON.stringify(data));
   });
 
   it('updates multi valued profile property', async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`${spoUrl}/_api/SP.UserProfiles.PeopleManager/SetMultiValuedProfileProperty`) > -1) {
         return {
           "odata.null": true
@@ -118,12 +117,12 @@ describe(commands.USERPROFILE_SET, () => {
         propertyValue: 'CSS, HTML'
       }
     });
-    const lastCall = postStub.lastCall.args[0];
+    const lastCall = postStub.mock.lastCall[0];
     assert.strictEqual(JSON.stringify(lastCall.data), JSON.stringify(data));
   });
 
   it('correctly handles error while updating profile property', async () => {
-    sinon.stub(request, 'post').rejects(new Error('An error has occurred'));
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
     await assert.rejects(command.action(logger, {
       options: {

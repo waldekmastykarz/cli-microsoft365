@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './channel-add.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -18,15 +17,15 @@ describe(commands.CHANNEL_ADD, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -44,12 +43,12 @@ describe(commands.CHANNEL_ADD, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post,
       cli.getSettingWithDefaultValue,
@@ -57,8 +56,8 @@ describe(commands.CHANNEL_ADD, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -70,43 +69,47 @@ describe(commands.CHANNEL_ADD, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('fails validation if both teamId and teamName options are passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both teamId and teamName options are passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        teamId: '00000000-0000-0000-0000-000000000000',
-        teamName: 'Team Name',
-        name: 'Architecture Discussion',
-        description: 'Architecture'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          teamId: '00000000-0000-0000-0000-000000000000',
+          teamName: 'Team Name',
+          name: 'Architecture Discussion',
+          description: 'Architecture'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if both channelId and channelName options are not passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both channelId and channelName options are not passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        name: 'Architecture Discussion',
-        description: 'Architecture'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          name: 'Architecture Discussion',
+          description: 'Architecture'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the teamId is not a valid guid.', async () => {
     const actual = await command.validate({
@@ -130,49 +133,57 @@ describe(commands.CHANNEL_ADD, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if owner is not specified when creating private channel.', async () => {
-    const actual = await command.validate({
-      options: {
-        teamId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402',
-        name: 'Architecture Discussion',
-        type: 'private'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if owner is not specified when creating private channel.',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          teamId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402',
+          name: 'Architecture Discussion',
+          type: 'private'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if owner is specified when not creating private channel.', async () => {
-    const actual = await command.validate({
-      options: {
-        teamId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402',
-        name: 'Architecture Discussion',
-        owner: 'John.Doe@contoso.com'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if owner is specified when not creating private channel.',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          teamId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402',
+          name: 'Architecture Discussion',
+          owner: 'John.Doe@contoso.com'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if owner is not specified when creating shared channel.', async () => {
-    const actual = await command.validate({
-      options: {
-        teamId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402',
-        name: 'Architecture Discussion',
-        type: 'shared'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if owner is not specified when creating shared channel.',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          teamId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402',
+          name: 'Architecture Discussion',
+          type: 'shared'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if owner is specified when not creating a private or shared channel.', async () => {
-    const actual = await command.validate({
-      options: {
-        teamId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402',
-        name: 'Architecture Discussion',
-        owner: 'John.Doe@contoso.com'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if owner is specified when not creating a private or shared channel.',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          teamId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402',
+          name: 'Architecture Discussion',
+          owner: 'John.Doe@contoso.com'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('validates for a correct general channel input.', async () => {
     const actual = await command.validate({
@@ -212,7 +223,7 @@ describe(commands.CHANNEL_ADD, () => {
   });
 
   it('fails to get team when team does not exists', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/me/joinedTeams') {
         return { value: [] };
       }
@@ -231,7 +242,7 @@ describe(commands.CHANNEL_ADD, () => {
   });
 
   it('fails when multiple teams with same name exists', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -239,7 +250,7 @@ describe(commands.CHANNEL_ADD, () => {
       return defaultValue;
     });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/me/joinedTeams') {
         return {
           "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#teams",
@@ -298,271 +309,283 @@ describe(commands.CHANNEL_ADD, () => {
     } as any), new CommandError('Multiple Microsoft Teams teams with name Team Name found. Found: 00000000-0000-0000-0000-000000000000.'));
   });
 
-  it('handles selecting single result when multiple teams with the specified name found and cli is set to prompt', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === 'https://graph.microsoft.com/v1.0/me/joinedTeams') {
-        return {
-          "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#teams",
-          "@odata.count": 2,
-          "value": [
-            {
-              "id": "00000000-0000-0000-0000-000000000000",
-              "createdDateTime": null,
-              "displayName": "Team Name",
-              "description": "Team Description",
-              "internalId": null,
-              "classification": null,
-              "specialization": null,
-              "visibility": null,
-              "webUrl": null,
-              "isArchived": false,
-              "isMembershipLimitedToOwners": null,
-              "memberSettings": null,
-              "guestSettings": null,
-              "messagingSettings": null,
-              "funSettings": null,
-              "discoverySettings": null
-            },
-            {
-              "id": "00000000-0000-0000-0000-000000000000",
-              "createdDateTime": null,
-              "displayName": "Team Name",
-              "description": "Team Description",
-              "internalId": null,
-              "classification": null,
-              "specialization": null,
-              "visibility": null,
-              "webUrl": null,
-              "isArchived": false,
-              "isMembershipLimitedToOwners": null,
-              "memberSettings": null,
-              "guestSettings": null,
-              "messagingSettings": null,
-              "funSettings": null,
-              "discoverySettings": null
-            }
-          ]
-        };
-      }
+  it('handles selecting single result when multiple teams with the specified name found and cli is set to prompt',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://graph.microsoft.com/v1.0/me/joinedTeams') {
+          return {
+            "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#teams",
+            "@odata.count": 2,
+            "value": [
+              {
+                "id": "00000000-0000-0000-0000-000000000000",
+                "createdDateTime": null,
+                "displayName": "Team Name",
+                "description": "Team Description",
+                "internalId": null,
+                "classification": null,
+                "specialization": null,
+                "visibility": null,
+                "webUrl": null,
+                "isArchived": false,
+                "isMembershipLimitedToOwners": null,
+                "memberSettings": null,
+                "guestSettings": null,
+                "messagingSettings": null,
+                "funSettings": null,
+                "discoverySettings": null
+              },
+              {
+                "id": "00000000-0000-0000-0000-000000000000",
+                "createdDateTime": null,
+                "displayName": "Team Name",
+                "description": "Team Description",
+                "internalId": null,
+                "classification": null,
+                "specialization": null,
+                "visibility": null,
+                "webUrl": null,
+                "isArchived": false,
+                "isMembershipLimitedToOwners": null,
+                "memberSettings": null,
+                "guestSettings": null,
+                "messagingSettings": null,
+                "funSettings": null,
+                "discoverySettings": null
+              }
+            ]
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves({
-      "id": "00000000-0000-0000-0000-000000000000",
-      "createdDateTime": null,
-      "displayName": "Team Name",
-      "description": "Team Description",
-      "internalId": null,
-      "classification": null,
-      "specialization": null,
-      "visibility": null,
-      "webUrl": null,
-      "isArchived": false,
-      "isMembershipLimitedToOwners": null,
-      "memberSettings": null,
-      "guestSettings": null,
-      "messagingSettings": null,
-      "funSettings": null,
-      "discoverySettings": null
-    });
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves({
+        "id": "00000000-0000-0000-0000-000000000000",
+        "createdDateTime": null,
+        "displayName": "Team Name",
+        "description": "Team Description",
+        "internalId": null,
+        "classification": null,
+        "specialization": null,
+        "visibility": null,
+        "webUrl": null,
+        "isArchived": false,
+        "isMembershipLimitedToOwners": null,
+        "memberSettings": null,
+        "guestSettings": null,
+        "messagingSettings": null,
+        "funSettings": null,
+        "discoverySettings": null
+      });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/channels`) > -1) {
-        return {
-          "id": "19:d9c63a6d6a2644af960d74ea927bdfb0@thread.skype",
-          "displayName": "Architecture Discussion",
-          "description": null
-        };
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/channels`) > -1) {
+          return {
+            "id": "19:d9c63a6d6a2644af960d74ea927bdfb0@thread.skype",
+            "displayName": "Architecture Discussion",
+            "description": null
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        teamName: 'Team Name',
-        name: 'Architecture Discussion'
-      }
-    });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          teamName: 'Team Name',
+          name: 'Architecture Discussion'
+        }
+      });
 
-    assert(loggerLogSpy.calledWith({
-      "id": "19:d9c63a6d6a2644af960d74ea927bdfb0@thread.skype",
-      "displayName": "Architecture Discussion",
-      "description": null
-    }));
-  });
+      assert(loggerLogSpy.calledWith({
+        "id": "19:d9c63a6d6a2644af960d74ea927bdfb0@thread.skype",
+        "displayName": "Architecture Discussion",
+        "description": null
+      }));
+    }
+  );
 
-  it('creates channel within the Microsoft Teams team in the tenant with description by team id', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/teams/6703ac8a-c49b-4fd4-8223-28f0ac3a6402/channels`) {
-        return {
-          "id": "19:d9c63a6d6a2644af960d74ea927bdfb0@thread.skype",
-          "displayName": "Architecture Discussion",
-          "description": "Architecture"
-        };
-      }
-      throw 'Invalid request';
-    });
+  it('creates channel within the Microsoft Teams team in the tenant with description by team id',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/teams/6703ac8a-c49b-4fd4-8223-28f0ac3a6402/channels`) {
+          return {
+            "id": "19:d9c63a6d6a2644af960d74ea927bdfb0@thread.skype",
+            "displayName": "Architecture Discussion",
+            "description": "Architecture"
+          };
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        teamId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402',
-        name: 'Architecture Discussion',
-        description: 'Architecture'
-      }
-    });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          teamId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402',
+          name: 'Architecture Discussion',
+          description: 'Architecture'
+        }
+      });
 
-    assert(loggerLogSpy.calledWith({
-      "id": "19:d9c63a6d6a2644af960d74ea927bdfb0@thread.skype",
-      "displayName": "Architecture Discussion",
-      "description": "Architecture"
-    }));
-  });
+      assert(loggerLogSpy.calledWith({
+        "id": "19:d9c63a6d6a2644af960d74ea927bdfb0@thread.skype",
+        "displayName": "Architecture Discussion",
+        "description": "Architecture"
+      }));
+    }
+  );
 
-  it('creates channel within the Microsoft Teams team in the tenant without description by team id', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/teams/6703ac8a-c49b-4fd4-8223-28f0ac3a6402/channels`) {
-        return {
-          "id": "19:d9c63a6d6a2644af960d74ea927bdfb0@thread.skype",
-          "displayName": "Architecture Discussion",
-          "description": null
-        };
-      }
+  it('creates channel within the Microsoft Teams team in the tenant without description by team id',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/teams/6703ac8a-c49b-4fd4-8223-28f0ac3a6402/channels`) {
+          return {
+            "id": "19:d9c63a6d6a2644af960d74ea927bdfb0@thread.skype",
+            "displayName": "Architecture Discussion",
+            "description": null
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        teamId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402',
-        name: 'Architecture Discussion'
-      }
-    });
+      await command.action(logger, {
+        options: {
+          teamId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402',
+          name: 'Architecture Discussion'
+        }
+      });
 
-    assert(loggerLogSpy.calledWith({
-      "id": "19:d9c63a6d6a2644af960d74ea927bdfb0@thread.skype",
-      "displayName": "Architecture Discussion",
-      "description": null
-    }));
-  });
+      assert(loggerLogSpy.calledWith({
+        "id": "19:d9c63a6d6a2644af960d74ea927bdfb0@thread.skype",
+        "displayName": "Architecture Discussion",
+        "description": null
+      }));
+    }
+  );
 
-  it('creates private channel within the Microsoft Teams team by team id', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/teams/6703ac8a-c49b-4fd4-8223-28f0ac3a6402/channels`) {
-        return {
-          "id": "19:d9c63a6d6a2644af960d74ea927bdfb0@thread.skype",
-          "displayName": "Architecture Discussion",
-          "membershipType": "private"
-        };
-      }
+  it('creates private channel within the Microsoft Teams team by team id',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/teams/6703ac8a-c49b-4fd4-8223-28f0ac3a6402/channels`) {
+          return {
+            "id": "19:d9c63a6d6a2644af960d74ea927bdfb0@thread.skype",
+            "displayName": "Architecture Discussion",
+            "membershipType": "private"
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        teamId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402',
-        name: 'Architecture Discussion',
-        type: 'private',
-        owner: 'john.doe@contoso.com'
-      }
-    });
+      await command.action(logger, {
+        options: {
+          teamId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402',
+          name: 'Architecture Discussion',
+          type: 'private',
+          owner: 'john.doe@contoso.com'
+        }
+      });
 
-    assert(loggerLogSpy.calledWith({
-      "id": "19:d9c63a6d6a2644af960d74ea927bdfb0@thread.skype",
-      "displayName": "Architecture Discussion",
-      "membershipType": "private"
-    }));
-  });
+      assert(loggerLogSpy.calledWith({
+        "id": "19:d9c63a6d6a2644af960d74ea927bdfb0@thread.skype",
+        "displayName": "Architecture Discussion",
+        "membershipType": "private"
+      }));
+    }
+  );
 
-  it('creates shared channel within the Microsoft Teams team by team id', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/teams/6703ac8a-c49b-4fd4-8223-28f0ac3a6402/channels`) {
-        return {
-          "id": "19:d9c63a6d6a2644af960d74ea927bdfb0@thread.skype",
-          "displayName": "Architecture Discussion",
-          "membershipType": "shared"
-        };
-      }
+  it('creates shared channel within the Microsoft Teams team by team id',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/teams/6703ac8a-c49b-4fd4-8223-28f0ac3a6402/channels`) {
+          return {
+            "id": "19:d9c63a6d6a2644af960d74ea927bdfb0@thread.skype",
+            "displayName": "Architecture Discussion",
+            "membershipType": "shared"
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        teamId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402',
-        name: 'Architecture Discussion',
-        type: 'shared',
-        owner: 'john.doe@contoso.com'
-      }
-    });
+      await command.action(logger, {
+        options: {
+          teamId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402',
+          name: 'Architecture Discussion',
+          type: 'shared',
+          owner: 'john.doe@contoso.com'
+        }
+      });
 
-    assert(loggerLogSpy.calledWith({
-      "id": "19:d9c63a6d6a2644af960d74ea927bdfb0@thread.skype",
-      "displayName": "Architecture Discussion",
-      "membershipType": "shared"
-    }));
-  });
+      assert(loggerLogSpy.calledWith({
+        "id": "19:d9c63a6d6a2644af960d74ea927bdfb0@thread.skype",
+        "displayName": "Architecture Discussion",
+        "membershipType": "shared"
+      }));
+    }
+  );
 
-  it('creates channel within the Microsoft Teams team in the tenant by team name', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === 'https://graph.microsoft.com/v1.0/me/joinedTeams') {
-        return {
-          "value": [
-            {
-              "id": "00000000-0000-0000-0000-000000000000",
-              "createdDateTime": null,
-              "displayName": "Team Name",
-              "description": "Team Description",
-              "internalId": null,
-              "classification": null,
-              "specialization": null,
-              "visibility": null,
-              "webUrl": null,
-              "isArchived": false,
-              "isMembershipLimitedToOwners": null,
-              "memberSettings": null,
-              "guestSettings": null,
-              "messagingSettings": null,
-              "funSettings": null,
-              "discoverySettings": null
-            }
-          ]
-        };
-      }
+  it('creates channel within the Microsoft Teams team in the tenant by team name',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://graph.microsoft.com/v1.0/me/joinedTeams') {
+          return {
+            "value": [
+              {
+                "id": "00000000-0000-0000-0000-000000000000",
+                "createdDateTime": null,
+                "displayName": "Team Name",
+                "description": "Team Description",
+                "internalId": null,
+                "classification": null,
+                "specialization": null,
+                "visibility": null,
+                "webUrl": null,
+                "isArchived": false,
+                "isMembershipLimitedToOwners": null,
+                "memberSettings": null,
+                "guestSettings": null,
+                "messagingSettings": null,
+                "funSettings": null,
+                "discoverySettings": null
+              }
+            ]
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/channels`) > -1) {
-        return {
-          "id": "19:d9c63a6d6a2644af960d74ea927bdfb0@thread.skype",
-          "displayName": "Architecture Discussion",
-          "description": null
-        };
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/channels`) > -1) {
+          return {
+            "id": "19:d9c63a6d6a2644af960d74ea927bdfb0@thread.skype",
+            "displayName": "Architecture Discussion",
+            "description": null
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        teamName: 'Team Name',
-        name: 'Architecture Discussion'
-      }
-    });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          teamName: 'Team Name',
+          name: 'Architecture Discussion'
+        }
+      });
 
-    assert(loggerLogSpy.calledWith({
-      "id": "19:d9c63a6d6a2644af960d74ea927bdfb0@thread.skype",
-      "displayName": "Architecture Discussion",
-      "description": null
-    }));
-  });
+      assert(loggerLogSpy.calledWith({
+        "id": "19:d9c63a6d6a2644af960d74ea927bdfb0@thread.skype",
+        "displayName": "Architecture Discussion",
+        "description": null
+      }));
+    }
+  );
 
   it('correctly handles error when adding a channel', async () => {
     const error = {
@@ -576,7 +599,7 @@ describe(commands.CHANNEL_ADD, () => {
         }
       }
     };
-    sinon.stub(request, 'post').rejects(error);
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, {
       options: {

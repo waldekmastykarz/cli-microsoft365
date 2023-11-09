@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './channel-member-add.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -182,28 +181,28 @@ describe(commands.CHANNEL_MEMBER_ADD, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
 
   beforeEach(() => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/teams/${formatting.encodeQueryParameter('47d6625d-a540-4b59-a4ab-19b787e40593')}/channels/${formatting.encodeQueryParameter('19:586a8b9e36c4479bbbd378e439a96df2@thread.skype')}/members`) {
         return conversationMembersOwnerResponse;
       }
 
       throw 'Invalid request';
     });
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/teams/${formatting.encodeQueryParameter('47d6625d-a540-4b59-a4ab-19b787e40593')}/channels/${formatting.encodeQueryParameter('19:586a8b9e36c4479bbbd378e439a96df2@thread.skype')}`) {
         return channelIdResponse;
       }
@@ -234,11 +233,11 @@ describe(commands.CHANNEL_MEMBER_ADD, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogSpy = jest.spyOn(logger, 'logToStderr').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post,
       cli.getSettingWithDefaultValue,
@@ -246,8 +245,8 @@ describe(commands.CHANNEL_MEMBER_ADD, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -270,203 +269,233 @@ describe(commands.CHANNEL_MEMBER_ADD, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation for a incorrect channelId missing leading 19:.', async () => {
-    const actual = await command.validate({
-      options: {
-        teamId: '00000000-0000-0000-0000-000000000000',
-        channelId: '586a8b9e36c4479bbbd378e439a96df2@thread.skype',
-        userIds: "f410f714-29e3-43f7-874d-d7d35c33eaf1"
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation for a incorrect channelId missing leading 19:.',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          teamId: '00000000-0000-0000-0000-000000000000',
+          channelId: '586a8b9e36c4479bbbd378e439a96df2@thread.skype',
+          userIds: "f410f714-29e3-43f7-874d-d7d35c33eaf1"
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation for a incorrect channelId missing trailing @thread.skype.', async () => {
-    const actual = await command.validate({
-      options: {
-        teamId: '00000000-0000-0000-0000-000000000000',
-        channelId: '19:586a8b9e36c4479bbbd378e439a96df2',
-        userIds: "f410f714-29e3-43f7-874d-d7d35c33eaf1"
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation for a incorrect channelId missing trailing @thread.skype.',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          teamId: '00000000-0000-0000-0000-000000000000',
+          channelId: '19:586a8b9e36c4479bbbd378e439a96df2',
+          userIds: "f410f714-29e3-43f7-874d-d7d35c33eaf1"
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('validates for a correct teamId, channelId, and userIds input', async () => {
-    const actual = await command.validate({
-      options: {
-        teamId: "fce9e580-8bba-4638-ab5c-ab40016651e3",
-        channelId: "19:586a8b9e36c4479bbbd378e439a96df2@thread.skype",
-        userIds: "f410f714-29e3-43f7-874d-d7d35c33eaf1"
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('validates for a correct teamId, channelId, and userIds input',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          teamId: "fce9e580-8bba-4638-ab5c-ab40016651e3",
+          channelId: "19:586a8b9e36c4479bbbd378e439a96df2@thread.skype",
+          userIds: "f410f714-29e3-43f7-874d-d7d35c33eaf1"
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('validates for a correct teamId, channelName, and userIds input', async () => {
-    const actual = await command.validate({
-      options: {
-        teamId: "fce9e580-8bba-4638-ab5c-ab40016651e3",
-        channelName: "Private Channel",
-        userIds: "f410f714-29e3-43f7-874d-d7d35c33eaf1"
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('validates for a correct teamId, channelName, and userIds input',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          teamId: "fce9e580-8bba-4638-ab5c-ab40016651e3",
+          channelName: "Private Channel",
+          userIds: "f410f714-29e3-43f7-874d-d7d35c33eaf1"
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('validates for a correct teamName, channelName, and userIds input', async () => {
-    const actual = await command.validate({
-      options: {
-        teamName: "Human Resources",
-        channelName: "Private Channel",
-        userIds: "f410f714-29e3-43f7-874d-d7d35c33eaf1"
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('validates for a correct teamName, channelName, and userIds input',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          teamName: "Human Resources",
+          channelName: "Private Channel",
+          userIds: "f410f714-29e3-43f7-874d-d7d35c33eaf1"
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('validates for a correct teamId, channelId, and userDisplayNames input', async () => {
-    const actual = await command.validate({
-      options: {
-        teamId: "fce9e580-8bba-4638-ab5c-ab40016651e3",
-        channelId: "19:586a8b9e36c4479bbbd378e439a96df2@thread.skype",
-        userDisplayNames: "admin.contoso.com"
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('validates for a correct teamId, channelId, and userDisplayNames input',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          teamId: "fce9e580-8bba-4638-ab5c-ab40016651e3",
+          channelId: "19:586a8b9e36c4479bbbd378e439a96df2@thread.skype",
+          userDisplayNames: "admin.contoso.com"
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('validates for a correct teamId, channelName, and userDisplayNames input', async () => {
-    const actual = await command.validate({
-      options: {
-        teamId: "fce9e580-8bba-4638-ab5c-ab40016651e3",
-        channelName: "Private Channel",
-        userDisplayNames: "admin.contoso.com"
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('validates for a correct teamId, channelName, and userDisplayNames input',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          teamId: "fce9e580-8bba-4638-ab5c-ab40016651e3",
+          channelName: "Private Channel",
+          userDisplayNames: "admin.contoso.com"
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('validates for a correct teamName, channelName, and userDisplayNames input', async () => {
-    const actual = await command.validate({
-      options: {
-        teamName: "Human Resources",
-        channelName: "Private Channel",
-        userDisplayNames: "admin.contoso.com"
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('validates for a correct teamName, channelName, and userDisplayNames input',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          teamName: "Human Resources",
+          channelName: "Private Channel",
+          userDisplayNames: "admin.contoso.com"
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('adds conversation members using teamName, channelId, and userIds', async () => {
-    await command.action(logger, {
-      options: {
-        teamName: "Human Resources",
-        channelId: "19:586a8b9e36c4479bbbd378e439a96df2@thread.skype",
-        userIds: "admin@contoso.com",
-        owner: true
-      }
-    });
-    assert(loggerLogSpy.notCalled);
-  });
+  it('adds conversation members using teamName, channelId, and userIds',
+    async () => {
+      await command.action(logger, {
+        options: {
+          teamName: "Human Resources",
+          channelId: "19:586a8b9e36c4479bbbd378e439a96df2@thread.skype",
+          userIds: "admin@contoso.com",
+          owner: true
+        }
+      });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
-  it('adds conversation members using teamId, channelName, and userIds', async () => {
-    await command.action(logger, {
-      options: {
-        teamId: "47d6625d-a540-4b59-a4ab-19b787e40593",
-        channelName: "Private Channel",
-        userIds: "admin@contoso.com",
-        owner: true
-      }
-    });
-    assert(loggerLogSpy.notCalled);
-  });
+  it('adds conversation members using teamId, channelName, and userIds',
+    async () => {
+      await command.action(logger, {
+        options: {
+          teamId: "47d6625d-a540-4b59-a4ab-19b787e40593",
+          channelName: "Private Channel",
+          userIds: "admin@contoso.com",
+          owner: true
+        }
+      });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
-  it('adds conversation members using teamName, channelName, and userIds', async () => {
-    await command.action(logger, {
-      options: {
-        teamName: "Human Resources",
-        channelName: "Private Channel",
-        userIds: "admin@contoso.com",
-        owner: true
-      }
-    });
-    assert(loggerLogSpy.notCalled);
-  });
+  it('adds conversation members using teamName, channelName, and userIds',
+    async () => {
+      await command.action(logger, {
+        options: {
+          teamName: "Human Resources",
+          channelName: "Private Channel",
+          userIds: "admin@contoso.com",
+          owner: true
+        }
+      });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
-  it('adds conversation members using teamName, channelId, and userDisplayNames', async () => {
-    await command.action(logger, {
-      options: {
-        teamName: "Human Resources",
-        channelId: "19:586a8b9e36c4479bbbd378e439a96df2@thread.skype",
-        userDisplayNames: "Admin",
-        owner: true
-      }
-    });
-    assert(loggerLogSpy.notCalled);
-  });
+  it('adds conversation members using teamName, channelId, and userDisplayNames',
+    async () => {
+      await command.action(logger, {
+        options: {
+          teamName: "Human Resources",
+          channelId: "19:586a8b9e36c4479bbbd378e439a96df2@thread.skype",
+          userDisplayNames: "Admin",
+          owner: true
+        }
+      });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
-  it('adds conversation members using teamId, channelName, and userDisplayNames', async () => {
-    await command.action(logger, {
-      options: {
-        teamId: "47d6625d-a540-4b59-a4ab-19b787e40593",
-        channelName: "Private Channel",
-        userDisplayNames: "Admin",
-        owner: true
-      }
-    });
-    assert(loggerLogSpy.notCalled);
-  });
+  it('adds conversation members using teamId, channelName, and userDisplayNames',
+    async () => {
+      await command.action(logger, {
+        options: {
+          teamId: "47d6625d-a540-4b59-a4ab-19b787e40593",
+          channelName: "Private Channel",
+          userDisplayNames: "Admin",
+          owner: true
+        }
+      });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
-  it('adds conversation members using teamName, channelName, and userDisplayNames', async () => {
-    sinonUtil.restore(request.post);
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/teams/${formatting.encodeQueryParameter('47d6625d-a540-4b59-a4ab-19b787e40593')}/channels/${formatting.encodeQueryParameter('19:586a8b9e36c4479bbbd378e439a96df2@thread.skype')}/members`) {
-        return conversationMembersResponse;
-      }
+  it('adds conversation members using teamName, channelName, and userDisplayNames',
+    async () => {
+      jestUtil.restore(request.post);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/teams/${formatting.encodeQueryParameter('47d6625d-a540-4b59-a4ab-19b787e40593')}/channels/${formatting.encodeQueryParameter('19:586a8b9e36c4479bbbd378e439a96df2@thread.skype')}/members`) {
+          return conversationMembersResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        teamName: "Human Resources",
-        channelName: "Private Channel",
-        userDisplayNames: "Admin"
-      }
-    });
-    assert(loggerLogSpy.notCalled);
-  });
+      await command.action(logger, {
+        options: {
+          teamName: "Human Resources",
+          channelName: "Private Channel",
+          userDisplayNames: "Admin"
+        }
+      });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
-  it('fails adding conversation members with invalid channelName', async () => {
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter('Human Resources')}'`) {
-        return singleTeamResponse;
-      }
+  it('fails adding conversation members with invalid channelName',
+    async () => {
+      jestUtil.restore(request.get);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter('Human Resources')}'`) {
+          return singleTeamResponse;
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/teams/${formatting.encodeQueryParameter('47d6625d-a540-4b59-a4ab-19b787e40593')}/channels?$filter=displayName eq '${formatting.encodeQueryParameter('Other Private Channel')}'`) {
-        return {
-          "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#teams('47d6625d-a540-4b59-a4ab-19b787e40593')/channels",
-          "@odata.count": 0,
-          "value": []
-        };
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/teams/${formatting.encodeQueryParameter('47d6625d-a540-4b59-a4ab-19b787e40593')}/channels?$filter=displayName eq '${formatting.encodeQueryParameter('Other Private Channel')}'`) {
+          return {
+            "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#teams('47d6625d-a540-4b59-a4ab-19b787e40593')/channels",
+            "@odata.count": 0,
+            "value": []
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        teamId: "47d6625d-a540-4b59-a4ab-19b787e40593",
-        channelName: "Other Private Channel"
-      }
-    } as any), new CommandError(`The specified channel 'Other Private Channel' does not exist in the Microsoft Teams team with ID '47d6625d-a540-4b59-a4ab-19b787e40593'`));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          teamId: "47d6625d-a540-4b59-a4ab-19b787e40593",
+          channelName: "Other Private Channel"
+        }
+      } as any), new CommandError(`The specified channel 'Other Private Channel' does not exist in the Microsoft Teams team with ID '47d6625d-a540-4b59-a4ab-19b787e40593'`));
+    }
+  );
 
   it('fails to get channel when channel does is not private', async () => {
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jestUtil.restore(request.get);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter('Human Resources')}'`) {
         return singleTeamResponse;
       }
@@ -494,8 +523,8 @@ describe(commands.CHANNEL_MEMBER_ADD, () => {
   });
 
   it('fails when group has no team', async () => {
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jestUtil.restore(request.get);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/v1.0/groups?$filter=displayName eq '`) > -1) {
         return {
           "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#teams",
@@ -520,67 +549,71 @@ describe(commands.CHANNEL_MEMBER_ADD, () => {
     } as any), new CommandError('The specified team does not exist in the Microsoft Teams'));
   });
 
-  it('fails adding conversation members with multiple userDisplayNames', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails adding conversation members with multiple userDisplayNames',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=displayName eq '${formatting.encodeQueryParameter('Admin')}'`) {
-        return multipleUserResponse;
-      }
+      jestUtil.restore(request.get);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=displayName eq '${formatting.encodeQueryParameter('Admin')}'`) {
+          return multipleUserResponse;
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/teams/${formatting.encodeQueryParameter('47d6625d-a540-4b59-a4ab-19b787e40593')}/channels/${formatting.encodeQueryParameter('19:586a8b9e36c4479bbbd378e439a96df2@thread.skype')}`) {
-        return channelIdResponse;
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/teams/${formatting.encodeQueryParameter('47d6625d-a540-4b59-a4ab-19b787e40593')}/channels/${formatting.encodeQueryParameter('19:586a8b9e36c4479bbbd378e439a96df2@thread.skype')}`) {
+          return channelIdResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        teamId: "47d6625d-a540-4b59-a4ab-19b787e40593",
-        channelId: "19:586a8b9e36c4479bbbd378e439a96df2@thread.skype",
-        userDisplayNames: "Admin"
-      }
-    } as any), new CommandError("Multiple users with display name 'Admin' found. Found: 4cb2b035-ad76-406c-bdc4-6c72ad403a22, 662c9a98-1e96-44d2-b5ef-4933004200f8."));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          teamId: "47d6625d-a540-4b59-a4ab-19b787e40593",
+          channelId: "19:586a8b9e36c4479bbbd378e439a96df2@thread.skype",
+          userDisplayNames: "Admin"
+        }
+      } as any), new CommandError("Multiple users with display name 'Admin' found. Found: 4cb2b035-ad76-406c-bdc4-6c72ad403a22, 662c9a98-1e96-44d2-b5ef-4933004200f8."));
+    }
+  );
 
-  it('handles selecting single result when multiple userDisplayNames with the specified name found and cli is set to prompt', async () => {
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=displayName eq '${formatting.encodeQueryParameter('Admin')}'`) {
-        return multipleUserResponse;
-      }
+  it('handles selecting single result when multiple userDisplayNames with the specified name found and cli is set to prompt',
+    async () => {
+      jestUtil.restore(request.get);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=displayName eq '${formatting.encodeQueryParameter('Admin')}'`) {
+          return multipleUserResponse;
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/teams/${formatting.encodeQueryParameter('47d6625d-a540-4b59-a4ab-19b787e40593')}/channels/${formatting.encodeQueryParameter('19:586a8b9e36c4479bbbd378e439a96df2@thread.skype')}`) {
-        return channelIdResponse;
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/teams/${formatting.encodeQueryParameter('47d6625d-a540-4b59-a4ab-19b787e40593')}/channels/${formatting.encodeQueryParameter('19:586a8b9e36c4479bbbd378e439a96df2@thread.skype')}`) {
+          return channelIdResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves(singleUserResponse);
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves(singleUserResponse);
 
-    await command.action(logger, {
-      options: {
-        teamId: "47d6625d-a540-4b59-a4ab-19b787e40593",
-        channelId: "19:586a8b9e36c4479bbbd378e439a96df2@thread.skype",
-        userDisplayNames: "Admin",
-        owner: true
-      }
-    });
-    assert(loggerLogSpy.notCalled);
-  });
+      await command.action(logger, {
+        options: {
+          teamId: "47d6625d-a540-4b59-a4ab-19b787e40593",
+          channelId: "19:586a8b9e36c4479bbbd378e439a96df2@thread.skype",
+          userDisplayNames: "Admin",
+          owner: true
+        }
+      });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
   it('fails adding conversation members when no users are found', async () => {
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jestUtil.restore(request.get);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=displayName eq '${formatting.encodeQueryParameter('Admin')}'`) {
         return noUserResponse;
       }
@@ -602,7 +635,7 @@ describe(commands.CHANNEL_MEMBER_ADD, () => {
   });
 
   it('correctly handles error when adding conversation members', async () => {
-    sinonUtil.restore(request.get);
+    jestUtil.restore(request.get);
     const error = {
       "error": {
         "code": "UnknownError",
@@ -614,7 +647,7 @@ describe(commands.CHANNEL_MEMBER_ADD, () => {
         }
       }
     };
-    sinon.stub(request, 'get').rejects(error);
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, {
       options: {

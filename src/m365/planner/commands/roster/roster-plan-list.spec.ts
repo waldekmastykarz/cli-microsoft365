@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { accessToken } from '../../../../utils/accessToken.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './roster-plan-list.js';
 
@@ -48,14 +47,14 @@ describe(commands.ROSTER_PLAN_LIST, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.accessTokens[(command as any).resource] = {
       accessToken: 'abc',
@@ -77,19 +76,19 @@ describe(commands.ROSTER_PLAN_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       accessToken.isAppOnlyAccessToken,
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.accessTokens = {};
   });
@@ -126,72 +125,84 @@ describe(commands.ROSTER_PLAN_LIST, () => {
     assert.deepStrictEqual(command.defaultProperties(), ['id', 'title', 'createdDateTime', 'owner']);
   });
 
-  it('retrieves all planner plans contained in roster where current logged in user is member of', async () => {
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(false);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/beta/me/planner/rosterPlans`) {
-        return rosterUserPlanListResponse;
-      }
+  it('retrieves all planner plans contained in roster where current logged in user is member of',
+    async () => {
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(false);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/beta/me/planner/rosterPlans`) {
+          return rosterUserPlanListResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { verbose: true } });
-    assert(loggerLogSpy.calledWith(rosterUserPlanListResponse.value));
-  });
+      await command.action(logger, { options: { verbose: true } });
+      assert(loggerLogSpy.calledWith(rosterUserPlanListResponse.value));
+    }
+  );
 
-  it('retrieves all planner plans contained in roster where specific user is member of by its UPN', async () => {
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/beta/users/${userName}/planner/rosterPlans`) {
-        return rosterUserPlanListResponse;
-      }
+  it('retrieves all planner plans contained in roster where specific user is member of by its UPN',
+    async () => {
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/beta/users/${userName}/planner/rosterPlans`) {
+          return rosterUserPlanListResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { verbose: true, userName: userName } });
-    assert(loggerLogSpy.calledWith(rosterUserPlanListResponse.value));
-  });
+      await command.action(logger, { options: { verbose: true, userName: userName } });
+      assert(loggerLogSpy.calledWith(rosterUserPlanListResponse.value));
+    }
+  );
 
-  it('retrieves all planner plans contained in roster where specific user is member of by its Id', async () => {
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/beta/users/${userId}/planner/rosterPlans`) {
-        return rosterUserPlanListResponse;
-      }
+  it('retrieves all planner plans contained in roster where specific user is member of by its Id',
+    async () => {
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/beta/users/${userId}/planner/rosterPlans`) {
+          return rosterUserPlanListResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { verbose: true, userId: userId } });
-    assert(loggerLogSpy.calledWith(rosterUserPlanListResponse.value));
-  });
+      await command.action(logger, { options: { verbose: true, userId: userId } });
+      assert(loggerLogSpy.calledWith(rosterUserPlanListResponse.value));
+    }
+  );
 
-  it('throws an error when using application permissions and no option is specified', async () => {
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
+  it('throws an error when using application permissions and no option is specified',
+    async () => {
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
 
-    await assert.rejects(command.action(logger, {
-      options: {}
-    }), new CommandError(`Specify at least 'userId' or 'userName' when using application permissions.`));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {}
+      }), new CommandError(`Specify at least 'userId' or 'userName' when using application permissions.`));
+    }
+  );
 
-  it('throws an error when passing userId using delegated permissions', async () => {
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(false);
-    await assert.rejects(command.action(logger, {
-      options: { userId: userId }
-    }), new CommandError(`The options 'userId' or 'userName' cannot be used when obtaining Microsoft Planner Roster plans using delegated permissions.`));
-  });
+  it('throws an error when passing userId using delegated permissions',
+    async () => {
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(false);
+      await assert.rejects(command.action(logger, {
+        options: { userId: userId }
+      }), new CommandError(`The options 'userId' or 'userName' cannot be used when obtaining Microsoft Planner Roster plans using delegated permissions.`));
+    }
+  );
 
-  it('handles error when retrieving all planner plans contained in roster', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/beta/me/planner/rosterPlans`) {
-        throw { error: { error: { message: 'An error has occurred' } } };
-      }
+  it('handles error when retrieving all planner plans contained in roster',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/beta/me/planner/rosterPlans`) {
+          throw { error: { error: { message: 'An error has occurred' } } };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, { options: {} }), new CommandError('An error has occurred'));
-  });
+      await assert.rejects(command.action(logger, { options: {} }), new CommandError('An error has occurred'));
+    }
+  );
 });

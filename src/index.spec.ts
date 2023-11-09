@@ -23,77 +23,79 @@ import * as yammerCommands from './m365/yammer/commands.js';
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
 describe('Lazy loading commands', () => {
-  it('has all commands stored in correct paths that allow lazy loading', () => {
-    const commandCollections: any[] = [
-      globalCommands.default,
-      aadCommands.default,
-      cliCommands.default,
-      flowCommands.default,
-      graphCommands.default,
-      oneDriveCommands.default,
-      outlookCommands.default,
-      paCommands.default,
-      ppCommands.default,
-      plannerCommands.default,
-      searchCommands.default,
-      spfxCommands.default,
-      spoCommands.default,
-      teamsCommands.default,
-      tenantCommands.default,
-      utilCommands.default,
-      yammerCommands.default
-    ];
-    const aliases: string[] = [
-      'consent',
-      'flow connector export',
-      'flow connector list',
-      'spo page template remove',
-      'spo sp grant add',
-      'spo sp grant list',
-      'spo sp grant revoke',
-      'spo sp permissionrequest approve',
-      'spo sp permissionrequest deny',
-      'spo sp permissionrequest list',
-      'spo sp set',
-      'teams user add',
-      'teams user list',
-      'teams user remove',
-      'teams user set'
-    ];
-    const allCommandNames: string[] = [];
+  it('has all commands stored in correct paths that allow lazy loading',
+    () => {
+      const commandCollections: any[] = [
+        globalCommands.default,
+        aadCommands.default,
+        cliCommands.default,
+        flowCommands.default,
+        graphCommands.default,
+        oneDriveCommands.default,
+        outlookCommands.default,
+        paCommands.default,
+        ppCommands.default,
+        plannerCommands.default,
+        searchCommands.default,
+        spfxCommands.default,
+        spoCommands.default,
+        teamsCommands.default,
+        tenantCommands.default,
+        utilCommands.default,
+        yammerCommands.default
+      ];
+      const aliases: string[] = [
+        'consent',
+        'flow connector export',
+        'flow connector list',
+        'spo page template remove',
+        'spo sp grant add',
+        'spo sp grant list',
+        'spo sp grant revoke',
+        'spo sp permissionrequest approve',
+        'spo sp permissionrequest deny',
+        'spo sp permissionrequest list',
+        'spo sp set',
+        'teams user add',
+        'teams user list',
+        'teams user remove',
+        'teams user set'
+      ];
+      const allCommandNames: string[] = [];
 
-    commandCollections.forEach(commandsCollection => {
-      for (const commandName in commandsCollection) {
-        allCommandNames.push(commandsCollection[commandName]);
-      }
-    });
+      commandCollections.forEach(commandsCollection => {
+        for (const commandName in commandsCollection) {
+          allCommandNames.push(commandsCollection[commandName]);
+        }
+      });
 
-    const incorrectFilePaths: string[] = [];
-    allCommandNames.forEach(commandName => {
-      if (aliases.indexOf(commandName) > -1) {
-        // aliases can't be resolved to file names
-        return;
-      }
+      const incorrectFilePaths: string[] = [];
+      allCommandNames.forEach(commandName => {
+        if (aliases.indexOf(commandName) > -1) {
+          // aliases can't be resolved to file names
+          return;
+        }
 
-      const words: string[] = commandName.split(' ');
-      let commandFilePath: string = '';
-      if (words.length === 1) {
-        commandFilePath = path.join('m365', 'commands', `${commandName}.js`);
-      }
-      else {
-        if (words.length === 2) {
-          commandFilePath = path.join('m365', words[0], 'commands', `${words.join('-')}.js`);
+        const words: string[] = commandName.split(' ');
+        let commandFilePath: string = '';
+        if (words.length === 1) {
+          commandFilePath = path.join('m365', 'commands', `${commandName}.js`);
         }
         else {
-          commandFilePath = path.join('m365', words[0], 'commands', words[1], words.slice(1).join('-') + '.js');
+          if (words.length === 2) {
+            commandFilePath = path.join('m365', words[0], 'commands', `${words.join('-')}.js`);
+          }
+          else {
+            commandFilePath = path.join('m365', words[0], 'commands', words[1], words.slice(1).join('-') + '.js');
+          }
         }
-      }
 
-      if (!fs.existsSync(path.join(__dirname, commandFilePath))) {
-        incorrectFilePaths.push(commandFilePath);
-      }
-    });
+        if (!fs.existsSync(path.join(__dirname, commandFilePath))) {
+          incorrectFilePaths.push(commandFilePath);
+        }
+      });
 
-    assert.deepStrictEqual(incorrectFilePaths, []);
-  });
+      assert.deepStrictEqual(incorrectFilePaths, []);
+    }
+  );
 });

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './m365group-conversation-post-list.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -19,7 +18,7 @@ describe(commands.M365GROUP_CONVERSATION_POST_LIST, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
   const jsonOutput = {
@@ -76,13 +75,13 @@ describe(commands.M365GROUP_CONVERSATION_POST_LIST, () => {
       }
     ]
   };
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(aadGroup, 'isUnifiedGroup').resolves(true);
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(aadGroup, 'isUnifiedGroup').mockClear().mockImplementation().resolves(true);
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -100,18 +99,18 @@ describe(commands.M365GROUP_CONVERSATION_POST_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -126,30 +125,34 @@ describe(commands.M365GROUP_CONVERSATION_POST_LIST, () => {
   it('defines correct properties for the default output', () => {
     assert.deepStrictEqual(command.defaultProperties(), ['receivedDateTime', 'id']);
   });
-  it('fails validation if groupId and groupDisplayName specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if groupId and groupDisplayName specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { groupId: '1caf7dcd-7e83-4c3a-94f7-932a1299c844', groupDisplayName: 'MyGroup', threadId: '123' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
-  it('fails validation if neither groupId nor groupDisplayName specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+      const actual = await command.validate({ options: { groupId: '1caf7dcd-7e83-4c3a-94f7-932a1299c844', groupDisplayName: 'MyGroup', threadId: '123' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
+  it('fails validation if neither groupId nor groupDisplayName specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { threadId: '123' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { threadId: '123' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
   it('fails validation if the groupId is not a valid GUID', async () => {
     const actual = await command.validate({ options: { groupId: 'not-c49b-4fd4-8223-28f0ac3a6402', threadId: '123' } }, commandInfo);
     assert.notStrictEqual(actual, true);
@@ -159,57 +162,61 @@ describe(commands.M365GROUP_CONVERSATION_POST_LIST, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('Retrieve posts for the specified conversation threadId of m365 group groupId in the tenant (verbose)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups/00000000-0000-0000-0000-000000000000/threads/AAQkADkwN2Q2NDg1LWQ3ZGYtNDViZi1iNGRiLTVhYjJmN2Q5NDkxZQAQAOnRAfDf71lIvrdK85FAn5E=/posts`) {
-        return jsonOutput;
-      }
-      throw 'Invalid request';
-    });
+  it('Retrieve posts for the specified conversation threadId of m365 group groupId in the tenant (verbose)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups/00000000-0000-0000-0000-000000000000/threads/AAQkADkwN2Q2NDg1LWQ3ZGYtNDViZi1iNGRiLTVhYjJmN2Q5NDkxZQAQAOnRAfDf71lIvrdK85FAn5E=/posts`) {
+          return jsonOutput;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        groupId: "00000000-0000-0000-0000-000000000000",
-        threadId: "AAQkADkwN2Q2NDg1LWQ3ZGYtNDViZi1iNGRiLTVhYjJmN2Q5NDkxZQAQAOnRAfDf71lIvrdK85FAn5E="
-      }
-    });
-    assert(loggerLogSpy.calledWith(
-      jsonOutput.value
-    ));
-  });
-  it('Retrieve posts for the specified conversation threadId of m365 group groupDisplayName in the tenant (verbose)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/groups?$filter=displayName') > -1) {
-        return {
-          "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#groups",
-          "value": [
-            {
-              "id": "233e43d0-dc6a-482e-9b4e-0de7a7bce9b4"
-            }
-          ]
-        };
-      }
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups/233e43d0-dc6a-482e-9b4e-0de7a7bce9b4/threads/AAQkADkwN2Q2NDg1LWQ3ZGYtNDViZi1iNGRiLTVhYjJmN2Q5NDkxZQAQAOnRAfDf71lIvrdK85FAn5E=/posts`) {
-        return jsonOutput;
-      }
-      throw 'Invalid request';
-    });
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          groupId: "00000000-0000-0000-0000-000000000000",
+          threadId: "AAQkADkwN2Q2NDg1LWQ3ZGYtNDViZi1iNGRiLTVhYjJmN2Q5NDkxZQAQAOnRAfDf71lIvrdK85FAn5E="
+        }
+      });
+      assert(loggerLogSpy.calledWith(
+        jsonOutput.value
+      ));
+    }
+  );
+  it('Retrieve posts for the specified conversation threadId of m365 group groupDisplayName in the tenant (verbose)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/groups?$filter=displayName') > -1) {
+          return {
+            "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#groups",
+            "value": [
+              {
+                "id": "233e43d0-dc6a-482e-9b4e-0de7a7bce9b4"
+              }
+            ]
+          };
+        }
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups/233e43d0-dc6a-482e-9b4e-0de7a7bce9b4/threads/AAQkADkwN2Q2NDg1LWQ3ZGYtNDViZi1iNGRiLTVhYjJmN2Q5NDkxZQAQAOnRAfDf71lIvrdK85FAn5E=/posts`) {
+          return jsonOutput;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        groupDisplayName: "MyGroup",
-        threadId: "AAQkADkwN2Q2NDg1LWQ3ZGYtNDViZi1iNGRiLTVhYjJmN2Q5NDkxZQAQAOnRAfDf71lIvrdK85FAn5E="
-      }
-    });
-    assert(loggerLogSpy.calledWith(
-      jsonOutput.value
-    ));
-  });
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          groupDisplayName: "MyGroup",
+          threadId: "AAQkADkwN2Q2NDg1LWQ3ZGYtNDViZi1iNGRiLTVhYjJmN2Q5NDkxZQAQAOnRAfDf71lIvrdK85FAn5E="
+        }
+      });
+      assert(loggerLogSpy.calledWith(
+        jsonOutput.value
+      ));
+    }
+  );
 
   it('correctly handles error when listing posts', async () => {
-    sinon.stub(request, 'get').rejects(new Error('An error has occurred'));
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
     await assert.rejects(command.action(logger, {
       options: {
@@ -222,8 +229,8 @@ describe(commands.M365GROUP_CONVERSATION_POST_LIST, () => {
   it('shows error when the group is not a unified group', async () => {
     const groupId = '3f04e370-cbc6-4091-80fe-1d038be2ad06';
 
-    sinonUtil.restore(aadGroup.isUnifiedGroup);
-    sinon.stub(aadGroup, 'isUnifiedGroup').resolves(false);
+    jestUtil.restore(aadGroup.isUnifiedGroup);
+    jest.spyOn(aadGroup, 'isUnifiedGroup').mockClear().mockImplementation().resolves(false);
 
     await assert.rejects(command.action(logger, { options: { groupId: groupId, threadId: 'AAQkADkwN2Q2NDg1LWQ3ZGYtNDViZi1iNGRiLTVhYjJmN2Q5NDkxZQAQAOnRAfDf71lIvrdK85FAn5E=' } } as any),
       new CommandError(`Specified group with id '${groupId}' is not a Microsoft 365 group.`));

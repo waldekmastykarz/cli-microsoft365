@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { accessToken } from '../../../../utils/accessToken.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './user-license-list.js';
 
@@ -49,14 +48,14 @@ describe(commands.USER_LICENSE_LIST, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.accessTokens[auth.defaultResource] = {
       expiresOn: 'abc',
       accessToken: 'abc'
@@ -78,19 +77,19 @@ describe(commands.USER_LICENSE_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(false);
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(false);
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       accessToken.isAppOnlyAccessToken
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -126,17 +125,19 @@ describe(commands.USER_LICENSE_LIST, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('throws an error when using application permissions and no option is specified', async () => {
-    sinonUtil.restore(accessToken.isAppOnlyAccessToken);
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
+  it('throws an error when using application permissions and no option is specified',
+    async () => {
+      jestUtil.restore(accessToken.isAppOnlyAccessToken);
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
 
-    await assert.rejects(command.action(logger, {
-      options: {}
-    }), new CommandError(`Specify at least 'userId' or 'userName' when using application permissions.`));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {}
+      }), new CommandError(`Specify at least 'userId' or 'userName' when using application permissions.`));
+    }
+  );
 
   it('retrieves license details of the current logged in user', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/me/licenseDetails') {
         return licenseResponse;
       }
@@ -149,7 +150,7 @@ describe(commands.USER_LICENSE_LIST, () => {
   });
 
   it('retrieves license details of a specific user by its ID', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users/${userId}/licenseDetails`) {
         return licenseResponse;
       }
@@ -162,7 +163,7 @@ describe(commands.USER_LICENSE_LIST, () => {
   });
 
   it('retrieves license details of a specific user by its UPN', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users/${userName}/licenseDetails`) {
         return licenseResponse;
       }
@@ -180,7 +181,7 @@ describe(commands.USER_LICENSE_LIST, () => {
         message: `Resource '' does not exist or one of its queried reference-property objects are not present.`
       }
     };
-    sinon.stub(request, 'get').rejects(error);
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, {
       options: { userName: userName }

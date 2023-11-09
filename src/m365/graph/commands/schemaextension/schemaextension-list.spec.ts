@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,21 +8,21 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './schemaextension-list.js';
 
 describe(commands.SCHEMAEXTENSION_LIST, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -41,18 +40,18 @@ describe(commands.SCHEMAEXTENSION_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -66,7 +65,7 @@ describe(commands.SCHEMAEXTENSION_LIST, () => {
   });
 
   it('lists schema extensions', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`schemaExtensions`) > -1) {
         return {
           "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#schemaExtensions(*)",
@@ -123,11 +122,11 @@ describe(commands.SCHEMAEXTENSION_LIST, () => {
       ));
     }
     finally {
-      sinonUtil.restore(request.get);
+      jestUtil.restore(request.get);
     }
   });
   it('lists two schema extensions', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`schemaExtensions`) > -1) {
         return {
           "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#schemaExtensions(*)",
@@ -181,14 +180,14 @@ describe(commands.SCHEMAEXTENSION_LIST, () => {
       options: {}
     });
     try {
-      assert(loggerLogSpy.lastCall.args[0][1].id === 'adatumisv_exo3');
+      assert(loggerLogSpy.mock.lastCall[0][1].id === 'adatumisv_exo3');
     }
     finally {
-      sinonUtil.restore(request.get);
+      jestUtil.restore(request.get);
     }
   });
   it('lists schema extensions with filter options', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`$filter`) > -1) {
         return {
           "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#schemaExtensions(*)",
@@ -259,86 +258,88 @@ describe(commands.SCHEMAEXTENSION_LIST, () => {
       ));
     }
     finally {
-      sinonUtil.restore(request.get);
+      jestUtil.restore(request.get);
     }
   });
-  it('lists schema extensions on the second page no page size given', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`$top`) > -1) {
-        return {
-          "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#schemaExtensions(*)",
-          "@odata.nextLink": "https://graph.microsoft.com/v1.0/schemaExtensions?$select=*&$top=1&$skiptoken=%7B%22token%22%3a%22%2bRID%3a~F7weALI27DgGAAAAAAAAAA%3d%3d%23RT%3a2%23TRC%3a2%23ISV%3a2%23IEO%3a65551%23QCF%3a1%23FPC%3aAgEAAADKAAaAIcAg2BDELgAUgQAKAgRAAIDAAAYEAEWCgACY4BEAKwSQBegLBqhBAKAACEACCAAQAAAIsAGCMQQCAgAMAgiAJaACwAQfgGqADMAFIIAAJgYAoB4AYAAAACAxBwAAAEA4EAAyACEAIABGAGAAELBAiAkIBPGAADEAABEpAAKAAAgABDKAACBMJBAgARCIIBIACQgIwBiAD8AwAAEUgQgAAAhkfAADAAAAgBCAAg0ABQCgYQAMeAIiAACgXQARAECAEIAGgAuAOYA%3d%22%2c%22range%22%3a%7B%22min%22%3a%22%22%2c%22max%22%3a%2205C1DFFFFFFFFC%22%7D%7D",
-          "value": [
-            {
-              "id": "adatumisv_courses",
-              "description": "Extension description",
-              "targetTypes": [
-                "User",
-                "Group"
-              ],
-              "status": "Available",
-              "owner": "07d21ad2-c8f9-4316-a14a-347db702bd3c",
-              "properties": [
-                {
-                  "name": "id",
-                  "type": "Integer"
-                },
-                {
-                  "name": "name",
-                  "type": "String"
-                },
-                {
-                  "name": "type",
-                  "type": "String"
-                }
-              ]
-            }
-          ]
-        };
-      }
-
-      throw 'Invalid request';
-    });
-    await command.action(logger, {
-      options: {
-        pageNumber: 1
-      }
-    });
-    try {
-      assert(loggerLogSpy.calledWith([
-        {
-          "id": "adatumisv_courses",
-          "description": "Extension description",
-          "targetTypes": [
-            "User",
-            "Group"
-          ],
-          "status": "Available",
-          "owner": "07d21ad2-c8f9-4316-a14a-347db702bd3c",
-          "properties": [
-            {
-              "name": "id",
-              "type": "Integer"
-            },
-            {
-              "name": "name",
-              "type": "String"
-            },
-            {
-              "name": "type",
-              "type": "String"
-            }
-          ]
+  it('lists schema extensions on the second page no page size given',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`$top`) > -1) {
+          return {
+            "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#schemaExtensions(*)",
+            "@odata.nextLink": "https://graph.microsoft.com/v1.0/schemaExtensions?$select=*&$top=1&$skiptoken=%7B%22token%22%3a%22%2bRID%3a~F7weALI27DgGAAAAAAAAAA%3d%3d%23RT%3a2%23TRC%3a2%23ISV%3a2%23IEO%3a65551%23QCF%3a1%23FPC%3aAgEAAADKAAaAIcAg2BDELgAUgQAKAgRAAIDAAAYEAEWCgACY4BEAKwSQBegLBqhBAKAACEACCAAQAAAIsAGCMQQCAgAMAgiAJaACwAQfgGqADMAFIIAAJgYAoB4AYAAAACAxBwAAAEA4EAAyACEAIABGAGAAELBAiAkIBPGAADEAABEpAAKAAAgABDKAACBMJBAgARCIIBIACQgIwBiAD8AwAAEUgQgAAAhkfAADAAAAgBCAAg0ABQCgYQAMeAIiAACgXQARAECAEIAGgAuAOYA%3d%22%2c%22range%22%3a%7B%22min%22%3a%22%22%2c%22max%22%3a%2205C1DFFFFFFFFC%22%7D%7D",
+            "value": [
+              {
+                "id": "adatumisv_courses",
+                "description": "Extension description",
+                "targetTypes": [
+                  "User",
+                  "Group"
+                ],
+                "status": "Available",
+                "owner": "07d21ad2-c8f9-4316-a14a-347db702bd3c",
+                "properties": [
+                  {
+                    "name": "id",
+                    "type": "Integer"
+                  },
+                  {
+                    "name": "name",
+                    "type": "String"
+                  },
+                  {
+                    "name": "type",
+                    "type": "String"
+                  }
+                ]
+              }
+            ]
+          };
         }
-      ]
-      ));
+
+        throw 'Invalid request';
+      });
+      await command.action(logger, {
+        options: {
+          pageNumber: 1
+        }
+      });
+      try {
+        assert(loggerLogSpy.calledWith([
+          {
+            "id": "adatumisv_courses",
+            "description": "Extension description",
+            "targetTypes": [
+              "User",
+              "Group"
+            ],
+            "status": "Available",
+            "owner": "07d21ad2-c8f9-4316-a14a-347db702bd3c",
+            "properties": [
+              {
+                "name": "id",
+                "type": "Integer"
+              },
+              {
+                "name": "name",
+                "type": "String"
+              },
+              {
+                "name": "type",
+                "type": "String"
+              }
+            ]
+          }
+        ]
+        ));
+      }
+      finally {
+        jestUtil.restore(request.get);
+      }
     }
-    finally {
-      sinonUtil.restore(request.get);
-    }
-  });
+  );
   it('lists schema extensions on the page size 1 second page', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`$top`) > -1) {
         return {
           "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#schemaExtensions(*)",
@@ -410,11 +411,11 @@ describe(commands.SCHEMAEXTENSION_LIST, () => {
       ));
     }
     finally {
-      sinonUtil.restore(request.get);
+      jestUtil.restore(request.get);
     }
   });
   it('lists schema extensions(debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`schemaExtensions`) > -1) {
         return {
           "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#schemaExtensions(*)",
@@ -476,7 +477,7 @@ describe(commands.SCHEMAEXTENSION_LIST, () => {
 
   it('handles random API error', async () => {
     const errorMessage = 'Something went wrong';
-    sinon.stub(request, 'get').callsFake(async () => { throw errorMessage; });
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async () => { throw errorMessage; });
 
     await assert.rejects(command.action(logger, { options: {} }), new CommandError(errorMessage));
   });

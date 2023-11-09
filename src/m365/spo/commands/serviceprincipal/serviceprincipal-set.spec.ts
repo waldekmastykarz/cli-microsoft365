@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './serviceprincipal-set.js';
@@ -18,16 +17,16 @@ import command from './serviceprincipal-set.js';
 describe(commands.SERVICEPRINCIPAL_SET, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
   let promptOptions: any;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').callsFake(() => Promise.resolve());
-    sinon.stub(telemetry, 'trackEvent').callsFake(() => { });
-    sinon.stub(pid, 'getProcessName').callsFake(() => '');
-    sinon.stub(session, 'getId').callsFake(() => '');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation(() => Promise.resolve());
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockImplementation(() => { });
+    jest.spyOn(pid, 'getProcessName').mockClear().mockImplementation(() => '');
+    jest.spyOn(session, 'getId').mockClear().mockImplementation(() => '');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'ABC',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -51,8 +50,8 @@ describe(commands.SERVICEPRINCIPAL_SET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
@@ -60,14 +59,14 @@ describe(commands.SERVICEPRINCIPAL_SET, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -81,7 +80,7 @@ describe(commands.SERVICEPRINCIPAL_SET, () => {
   });
 
   it('enables the service principal (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_vti_bin/client.svc/ProcessQuery') > -1 &&
         opts.headers &&
         opts.headers['X-RequestDigest'] &&
@@ -112,7 +111,7 @@ describe(commands.SERVICEPRINCIPAL_SET, () => {
   });
 
   it('enables the service principal', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_vti_bin/client.svc/ProcessQuery') > -1 &&
         opts.headers &&
         opts.headers['X-RequestDigest'] &&
@@ -143,7 +142,7 @@ describe(commands.SERVICEPRINCIPAL_SET, () => {
   });
 
   it('disables the service principal (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_vti_bin/client.svc/ProcessQuery') > -1 &&
         opts.headers &&
         opts.headers['X-RequestDigest'] &&
@@ -174,7 +173,7 @@ describe(commands.SERVICEPRINCIPAL_SET, () => {
   });
 
   it('correctly handles error when approving permission request', async () => {
-    sinon.stub(request, 'post').callsFake(async () => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async () => {
       return JSON.stringify([
         {
           "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.7018.1204", "ErrorInfo": {
@@ -187,40 +186,46 @@ describe(commands.SERVICEPRINCIPAL_SET, () => {
       new CommandError('An error has occurred'));
   });
 
-  it('prompts before enabling service principal when confirmation argument not passed', async () => {
-    await command.action(logger, { options: { enabled: true } });
-    let promptIssued = false;
+  it('prompts before enabling service principal when confirmation argument not passed',
+    async () => {
+      await command.action(logger, { options: { enabled: true } });
+      let promptIssued = false;
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+
+      assert(promptIssued);
     }
+  );
 
-    assert(promptIssued);
-  });
+  it('prompts before disabling service principal when confirmation argument not passed',
+    async () => {
+      await command.action(logger, { options: { enabled: false } });
+      let promptIssued = false;
 
-  it('prompts before disabling service principal when confirmation argument not passed', async () => {
-    await command.action(logger, { options: { enabled: false } });
-    let promptIssued = false;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      assert(promptIssued);
     }
+  );
 
-    assert(promptIssued);
-  });
-
-  it('aborts enabling service principal when prompt not confirmed', async () => {
-    const requestPostSpy = sinon.spy(request, 'post');
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: false }
-    ));
-    await command.action(logger, { options: { enabled: true } });
-    assert(requestPostSpy.notCalled);
-  });
+  it('aborts enabling service principal when prompt not confirmed',
+    async () => {
+      const requestPostSpy = jest.spyOn(request, 'post').mockClear();
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: false }
+      ));
+      await command.action(logger, { options: { enabled: true } });
+      assert(requestPostSpy.notCalled);
+    }
+  );
 
   it('enables the service principal when prompt confirmed', async () => {
-    sinon.stub(request, 'post').resolves(JSON.stringify([
+    jest.spyOn(request, 'post').mockClear().mockImplementation().resolves(JSON.stringify([
       {
         "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.7213.1200", "ErrorInfo": null, "TraceCorrelationId": "87b53a9e-90b1-4000-c0ac-27fb4ee21f41"
       }, 18, {
@@ -232,8 +237,8 @@ describe(commands.SERVICEPRINCIPAL_SET, () => {
       }
     ]));
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: true }
     ));
     await command.action(logger, { options: { enabled: true } });
@@ -247,7 +252,7 @@ describe(commands.SERVICEPRINCIPAL_SET, () => {
   });
 
   it('correctly handles random API error', async () => {
-    sinon.stub(request, 'post').rejects(new Error('An error has occurred'));
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
     await assert.rejects(command.action(logger, { options: { enabled: true, force: true } } as any),
       new CommandError('An error has occurred'));
   });

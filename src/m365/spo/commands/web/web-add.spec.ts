@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './web-add.js';
@@ -19,16 +18,16 @@ describe(commands.WEB_ADD, () => {
   let cli: Cli;
   let log: any[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'ABC',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -51,19 +50,19 @@ describe(commands.WEB_ADD, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -82,7 +81,7 @@ describe(commands.WEB_ADD, () => {
   it('creates web without inheriting the navigation', async () => {
     let configuredNavigation: boolean = false;
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://contoso.sharepoint.com/_api/web/webinfos/add') {
         return {
           Configuration: 0,
@@ -132,136 +131,140 @@ describe(commands.WEB_ADD, () => {
     assert.strictEqual(configuredNavigation, false, 'Configured inheriting navigation while not expected');
   });
 
-  it('creates web and does not set the inherit navigation (Noscript enabled)', async () => {
-    let configuredNavigation: boolean = false;
+  it('creates web and does not set the inherit navigation (Noscript enabled)',
+    async () => {
+      let configuredNavigation: boolean = false;
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === 'https://contoso.sharepoint.com/_api/web/webinfos/add') {
-        return {
-          Configuration: 0,
-          Created: "2018-01-24T18:24:20",
-          Description: "subsite",
-          Id: "08385b9a-8d5f-4ee9-ac98-bf6984c1856b",
-          Language: 1033,
-          LastItemModifiedDate: "2018-01-24T18:24:27Z",
-          LastItemUserModifiedDate: "2018-01-24T18:24:27Z",
-          ServerRelativeUrl: "/subsite",
-          Title: "subsite",
-          WebTemplate: "STS",
-          WebTemplateId: 0
-        };
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://contoso.sharepoint.com/_api/web/webinfos/add') {
+          return {
+            Configuration: 0,
+            Created: "2018-01-24T18:24:20",
+            Description: "subsite",
+            Id: "08385b9a-8d5f-4ee9-ac98-bf6984c1856b",
+            Language: 1033,
+            LastItemModifiedDate: "2018-01-24T18:24:27Z",
+            LastItemUserModifiedDate: "2018-01-24T18:24:27Z",
+            ServerRelativeUrl: "/subsite",
+            Title: "subsite",
+            WebTemplate: "STS",
+            WebTemplateId: 0
+          };
+        }
 
-      if ((opts.url as string).indexOf('/_vti_bin/client.svc/ProcessQuery') > -1) {
-        configuredNavigation = true;
-      }
+        if ((opts.url as string).indexOf('/_vti_bin/client.svc/ProcessQuery') > -1) {
+          configuredNavigation = true;
+        }
 
-      throw 'Invalid request';
-    });
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('_api/web/effectivebasepermissions') > -1) {
-        // PermissionKind.ManageLists, PermissionKind.AddListItems, PermissionKind.DeleteListItems
-        return {
-          High: 2058,
-          Low: 0
-        };
-      }
+        throw 'Invalid request';
+      });
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('_api/web/effectivebasepermissions') > -1) {
+          // PermissionKind.ManageLists, PermissionKind.AddListItems, PermissionKind.DeleteListItems
+          return {
+            High: 2058,
+            Low: 0
+          };
+        }
 
-      throw 'Invalid request';
-    });
-    await command.action(logger, {
-      options: {
-        title: "subsite",
-        url: "subsite",
-        parentWebUrl: "https://contoso.sharepoint.com",
-        inheritNavigation: true,
-        locale: 1033
-      }
-    });
-    assert(loggerLogSpy.calledWith({
-      Configuration: 0,
-      Created: "2018-01-24T18:24:20",
-      Description: "subsite",
-      Id: "08385b9a-8d5f-4ee9-ac98-bf6984c1856b",
-      Language: 1033,
-      LastItemModifiedDate: "2018-01-24T18:24:27Z",
-      LastItemUserModifiedDate: "2018-01-24T18:24:27Z",
-      ServerRelativeUrl: "/subsite",
-      Title: "subsite",
-      WebTemplate: "STS",
-      WebTemplateId: 0
-    }), 'Incorrect web info');
-    assert.strictEqual(configuredNavigation, false, 'Configured inheriting navigation while not expected');
-  });
+        throw 'Invalid request';
+      });
+      await command.action(logger, {
+        options: {
+          title: "subsite",
+          url: "subsite",
+          parentWebUrl: "https://contoso.sharepoint.com",
+          inheritNavigation: true,
+          locale: 1033
+        }
+      });
+      assert(loggerLogSpy.calledWith({
+        Configuration: 0,
+        Created: "2018-01-24T18:24:20",
+        Description: "subsite",
+        Id: "08385b9a-8d5f-4ee9-ac98-bf6984c1856b",
+        Language: 1033,
+        LastItemModifiedDate: "2018-01-24T18:24:27Z",
+        LastItemUserModifiedDate: "2018-01-24T18:24:27Z",
+        ServerRelativeUrl: "/subsite",
+        Title: "subsite",
+        WebTemplate: "STS",
+        WebTemplateId: 0
+      }), 'Incorrect web info');
+      assert.strictEqual(configuredNavigation, false, 'Configured inheriting navigation while not expected');
+    }
+  );
 
-  it('creates web and does not set the inherit navigation (Noscript enabled; debug)', async () => {
-    let configuredNavigation: boolean = false;
+  it('creates web and does not set the inherit navigation (Noscript enabled; debug)',
+    async () => {
+      let configuredNavigation: boolean = false;
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('_api/web/webinfos/add') > -1) {
-        return {
-          Configuration: 0,
-          Created: "2018-01-24T18:24:20",
-          Description: "subsite",
-          Id: "08385b9a-8d5f-4ee9-ac98-bf6984c1856b",
-          Language: 1033,
-          LastItemModifiedDate: "2018-01-24T18:24:27Z",
-          LastItemUserModifiedDate: "2018-01-24T18:24:27Z",
-          ServerRelativeUrl: "/subsite",
-          Title: "subsite",
-          WebTemplate: "STS",
-          WebTemplateId: 0
-        };
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('_api/web/webinfos/add') > -1) {
+          return {
+            Configuration: 0,
+            Created: "2018-01-24T18:24:20",
+            Description: "subsite",
+            Id: "08385b9a-8d5f-4ee9-ac98-bf6984c1856b",
+            Language: 1033,
+            LastItemModifiedDate: "2018-01-24T18:24:27Z",
+            LastItemUserModifiedDate: "2018-01-24T18:24:27Z",
+            ServerRelativeUrl: "/subsite",
+            Title: "subsite",
+            WebTemplate: "STS",
+            WebTemplateId: 0
+          };
+        }
 
-      if ((opts.url as string).indexOf('/_vti_bin/client.svc/ProcessQuery') > -1) {
-        configuredNavigation = true;
-      }
+        if ((opts.url as string).indexOf('/_vti_bin/client.svc/ProcessQuery') > -1) {
+          configuredNavigation = true;
+        }
 
-      throw 'Invalid request';
-    });
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('_api/web/effectivebasepermissions') > -1) {
-        // PermissionKind.ManageLists, PermissionKind.AddListItems, PermissionKind.DeleteListItems
-        return {
-          High: 2058,
-          Low: 0
-        };
-      }
+        throw 'Invalid request';
+      });
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('_api/web/effectivebasepermissions') > -1) {
+          // PermissionKind.ManageLists, PermissionKind.AddListItems, PermissionKind.DeleteListItems
+          return {
+            High: 2058,
+            Low: 0
+          };
+        }
 
-      throw 'Invalid request';
-    });
-    await command.action(logger, {
-      options: {
-        title: "subsite",
-        url: "subsite",
-        parentWebUrl: "https://contoso.sharepoint.com",
-        inheritNavigation: true,
-        locale: 1033,
-        debug: true
-      }
-    });
-    assert(loggerLogSpy.calledWith({
-      Configuration: 0,
-      Created: "2018-01-24T18:24:20",
-      Description: "subsite",
-      Id: "08385b9a-8d5f-4ee9-ac98-bf6984c1856b",
-      Language: 1033,
-      LastItemModifiedDate: "2018-01-24T18:24:27Z",
-      LastItemUserModifiedDate: "2018-01-24T18:24:27Z",
-      ServerRelativeUrl: "/subsite",
-      Title: "subsite",
-      WebTemplate: "STS",
-      WebTemplateId: 0
-    }), 'Incorrect web info');
-    assert.strictEqual(configuredNavigation, false, 'Configured inheriting navigation while not expected');
-  });
+        throw 'Invalid request';
+      });
+      await command.action(logger, {
+        options: {
+          title: "subsite",
+          url: "subsite",
+          parentWebUrl: "https://contoso.sharepoint.com",
+          inheritNavigation: true,
+          locale: 1033,
+          debug: true
+        }
+      });
+      assert(loggerLogSpy.calledWith({
+        Configuration: 0,
+        Created: "2018-01-24T18:24:20",
+        Description: "subsite",
+        Id: "08385b9a-8d5f-4ee9-ac98-bf6984c1856b",
+        Language: 1033,
+        LastItemModifiedDate: "2018-01-24T18:24:27Z",
+        LastItemUserModifiedDate: "2018-01-24T18:24:27Z",
+        ServerRelativeUrl: "/subsite",
+        Title: "subsite",
+        WebTemplate: "STS",
+        WebTemplateId: 0
+      }), 'Incorrect web info');
+      assert.strictEqual(configuredNavigation, false, 'Configured inheriting navigation while not expected');
+    }
+  );
 
   it('creates web and inherits the navigation (debug)', async () => {
     let configuredNavigation: boolean = false;
 
     // Create web
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('_api/web/webinfos/add') > -1) {
         return {
           Configuration: 0,
@@ -300,7 +303,7 @@ describe(commands.WEB_ADD, () => {
       throw 'Invalid request';
     });
     // Full permission.
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('_api/web/effectivebasepermissions') > -1) {
         return {
           High: 2147483647,
@@ -328,7 +331,7 @@ describe(commands.WEB_ADD, () => {
     let configuredNavigation: boolean = false;
 
     // Create web
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('_api/web/webinfos/add') > -1) {
         return {
           Configuration: 0,
@@ -367,7 +370,7 @@ describe(commands.WEB_ADD, () => {
       throw 'Invalid request';
     });
     // Full permission.
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('_api/web/effectivebasepermissions') > -1) {
         return {
           High: 2147483647,
@@ -391,7 +394,7 @@ describe(commands.WEB_ADD, () => {
   });
 
   it('correctly handles the set inheritNavigation error', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       // Create web
       if ((opts.url as string).indexOf('_api/web/webinfos/add') > -1) {
         return {
@@ -423,7 +426,7 @@ describe(commands.WEB_ADD, () => {
       throw 'Invalid request';
     });
     // Full permission.
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('_api/web/effectivebasepermissions') > -1) {
         return {
           High: 2147483647,
@@ -447,7 +450,7 @@ describe(commands.WEB_ADD, () => {
   });
 
   it('correctly handles the createweb call error', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('_api/web/webinfos/add') > -1) {
         throw {
           error: {
@@ -477,59 +480,61 @@ describe(commands.WEB_ADD, () => {
     } as any), new CommandError("The Web site address \"/sites/test/subsite\" is already in use."));
   });
 
-  it('creates web and handles the effectivebasepermission call error', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('_api/web/webinfos/add') > -1) {
-        return {
-          Configuration: 0,
-          Created: "2018-01-24T18:24:20",
-          Description: "subsite",
-          Id: "08385b9a-8d5f-4ee9-ac98-bf6984c1856b",
-          Language: 1033,
-          LastItemModifiedDate: "2018-01-24T18:24:27Z",
-          LastItemUserModifiedDate: "2018-01-24T18:24:27Z",
-          ServerRelativeUrl: "/subsite",
-          Title: "subsite",
-          WebTemplate: "STS",
-          WebTemplateId: 0
-        };
-      }
+  it('creates web and handles the effectivebasepermission call error',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('_api/web/webinfos/add') > -1) {
+          return {
+            Configuration: 0,
+            Created: "2018-01-24T18:24:20",
+            Description: "subsite",
+            Id: "08385b9a-8d5f-4ee9-ac98-bf6984c1856b",
+            Language: 1033,
+            LastItemModifiedDate: "2018-01-24T18:24:27Z",
+            LastItemUserModifiedDate: "2018-01-24T18:24:27Z",
+            ServerRelativeUrl: "/subsite",
+            Title: "subsite",
+            WebTemplate: "STS",
+            WebTemplateId: 0
+          };
+        }
 
-      throw 'Invalid request';
-    });
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('_api/web/effectivebasepermissions') > -1) {
-        throw {
-          error: {
-            "odata.error": {
-              "code": "-2147024713, Microsoft.SharePoint.SPException",
-              "message": {
-                "lang": "en-US",
-                "value": "An error has occurred."
+        throw 'Invalid request';
+      });
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('_api/web/effectivebasepermissions') > -1) {
+          throw {
+            error: {
+              "odata.error": {
+                "code": "-2147024713, Microsoft.SharePoint.SPException",
+                "message": {
+                  "lang": "en-US",
+                  "value": "An error has occurred."
+                }
               }
             }
-          }
-        };
-      }
+          };
+        }
 
-      return 'abc';
-    });
+        return 'abc';
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        title: "subsite",
-        url: "subsite",
-        parentWebUrl: "https://contoso.sharepoint.com",
-        inheritNavigation: true,
-        local: 1033,
-        debug: true
-      }
-    } as any), new CommandError('An error has occurred.'));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          title: "subsite",
+          url: "subsite",
+          parentWebUrl: "https://contoso.sharepoint.com",
+          inheritNavigation: true,
+          local: 1033,
+          debug: true
+        }
+      } as any), new CommandError('An error has occurred.'));
+    }
+  );
 
   it('correctly handles the parentweb contextinfo call error', async () => {
-    sinonUtil.restore(spo.getRequestDigest);
-    sinon.stub(spo, 'getRequestDigest').rejects({ error: { 'odata.error': { message: { value: 'An error has occurred' } } } });
+    jestUtil.restore(spo.getRequestDigest);
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().rejects({ error: { 'odata.error': { message: { value: 'An error has occurred' } } } });
 
     await assert.rejects(command.action(logger, {
       options: {
@@ -544,8 +549,8 @@ describe(commands.WEB_ADD, () => {
   });
 
   it('correctly handles generic API error', async () => {
-    sinonUtil.restore(spo.getRequestDigest);
-    sinon.stub(spo, 'getRequestDigest').rejects(new Error('An error has occurred'));
+    jestUtil.restore(spo.getRequestDigest);
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
     await assert.rejects(command.action(logger, {
       options: {
@@ -569,18 +574,20 @@ describe(commands.WEB_ADD, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation if all required options and valid locale are specified', async () => {
-    const actual = await command.validate({
-      options: {
-        title: "subsite", url: "subsite",
-        parentWebUrl: "https://contoso.sharepoint.com", webTemplate: "STS#0", locale: 1033
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if all required options and valid locale are specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          title: "subsite", url: "subsite",
+          parentWebUrl: "https://contoso.sharepoint.com", webTemplate: "STS#0", locale: 1033
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the parentWebUrl option not specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -597,16 +604,18 @@ describe(commands.WEB_ADD, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if the parentWebUrl option is not a valid SharePoint URL', async () => {
-    const actual = await command.validate({
-      options: {
-        title: "subsite",
-        url: "subsite", webTemplate: "STS#0", locale: 1033,
-        parentWebUrl: 'foo'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the parentWebUrl option is not a valid SharePoint URL',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          title: "subsite",
+          url: "subsite", webTemplate: "STS#0", locale: 1033,
+          parentWebUrl: 'foo'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the specified locale is not a number', async () => {
     const actual = await command.validate({

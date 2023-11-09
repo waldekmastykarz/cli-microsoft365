@@ -648,7 +648,7 @@ class SpfxDoctorCommand extends BaseProjectCommand {
     const fixes: string[] = [];
 
     try {
-      spfxVersion = args.options.spfxVersion ?? await this.getSharePointFrameworkVersion(logger);
+      spfxVersion = args.options.spfxVersion ?? (await this.getSharePointFrameworkVersion(logger));
 
       if (!spfxVersion) {
         await logger.log(formatting.getStatus(CheckStatus.Failure, `SharePoint Framework`));

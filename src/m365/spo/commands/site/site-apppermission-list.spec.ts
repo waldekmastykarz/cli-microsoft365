@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,21 +8,21 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './site-apppermission-list.js';
 
 describe(commands.SITE_APPPERMISSION_LIST, () => {
   let log: any[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -41,18 +40,18 @@ describe(commands.SITE_APPPERMISSION_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       global.setTimeout
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -64,16 +63,18 @@ describe(commands.SITE_APPPERMISSION_LIST, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('fails validation if both appId and appDisplayName options are passed', async () => {
-    const actual = await command.validate({
-      options: {
-        siteUrl: 'https;//contoso,sharepoint:com/sites/sitecollection-name',
-        appId: '00000000-0000-0000-0000-000000000000',
-        appDisplayName: 'App Name'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if both appId and appDisplayName options are passed',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          siteUrl: 'https;//contoso,sharepoint:com/sites/sitecollection-name',
+          appId: '00000000-0000-0000-0000-000000000000',
+          appDisplayName: 'App Name'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation with an incorrect URL', async () => {
     const actual = await command.validate({
@@ -185,7 +186,7 @@ describe(commands.SITE_APPPERMISSION_LIST, () => {
       }
     ];
 
-    const getRequestStub = sinon.stub(request, 'get');
+    const getRequestStub = jest.spyOn(request, 'get').mockClear().mockImplementation();
     getRequestStub.onCall(0)
       .callsFake(async (opts) => {
         if ((opts.url as string).indexOf(":/sites/sitecollection-name") > - 1) {
@@ -293,7 +294,7 @@ describe(commands.SITE_APPPERMISSION_LIST, () => {
       ]
     };
 
-    const getRequestStub = sinon.stub(request, 'get');
+    const getRequestStub = jest.spyOn(request, 'get').mockClear().mockImplementation();
     getRequestStub.onCall(0)
       .callsFake(async (opts) => {
         if ((opts.url as string).indexOf(":/sites/sitecollection-name") > - 1) {
@@ -371,7 +372,7 @@ describe(commands.SITE_APPPERMISSION_LIST, () => {
       }
     };
 
-    const getRequestStub = sinon.stub(request, 'get');
+    const getRequestStub = jest.spyOn(request, 'get').mockClear().mockImplementation();
     getRequestStub.onCall(0)
       .callsFake(async (opts) => {
         if ((opts.url as string).indexOf(":/sites/sitecollection-name") > - 1) {
@@ -403,7 +404,7 @@ describe(commands.SITE_APPPERMISSION_LIST, () => {
         }
       }
     };
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('non-existing') === -1) {
         return { value: [] };
       }
@@ -454,7 +455,7 @@ describe(commands.SITE_APPPERMISSION_LIST, () => {
       ]
     };
 
-    const getRequestStub = sinon.stub(request, 'get');
+    const getRequestStub = jest.spyOn(request, 'get').mockClear().mockImplementation();
     getRequestStub.onCall(0)
       .callsFake(async (opts) => {
         if ((opts.url as string).indexOf(":/sites/sitecollection-name") > - 1) {
@@ -535,7 +536,7 @@ describe(commands.SITE_APPPERMISSION_LIST, () => {
       ]
     };
 
-    const getRequestStub = sinon.stub(request, 'get');
+    const getRequestStub = jest.spyOn(request, 'get').mockClear().mockImplementation();
     getRequestStub.onCall(0)
       .callsFake(async (opts) => {
         if ((opts.url as string).indexOf(":/sites/sitecollection-name") > - 1) {
@@ -575,74 +576,76 @@ describe(commands.SITE_APPPERMISSION_LIST, () => {
     }]));
   });
 
-  it('correctly handles error when fails to get permission details', async () => {
-    const site = {
-      "id": "contoso.sharepoint.com,00000000-0000-0000-0000-000000000000,00000000-0000-0000-0000-000000000000",
-      "displayName": "OneDrive Team Site",
-      "name": "1drvteam",
-      "createdDateTime": "2017-05-09T20:56:00Z",
-      "lastModifiedDateTime": "2017-05-09T20:56:01Z",
-      "webUrl": "https://contoso.sharepoint.com/teams/1drvteam"
-    };
+  it('correctly handles error when fails to get permission details',
+    async () => {
+      const site = {
+        "id": "contoso.sharepoint.com,00000000-0000-0000-0000-000000000000,00000000-0000-0000-0000-000000000000",
+        "displayName": "OneDrive Team Site",
+        "name": "1drvteam",
+        "createdDateTime": "2017-05-09T20:56:00Z",
+        "lastModifiedDateTime": "2017-05-09T20:56:01Z",
+        "webUrl": "https://contoso.sharepoint.com/teams/1drvteam"
+      };
 
-    const response = {
-      "value": [
-        {
-          "id": "aTowaS50fG1zLnNwLmV4dHxmYzE1MzRlNy0yNTlkLTQ4MmEtODY4OC1kNmEzM2Q5YTBhMmNAZWUyYjdjMGMtZDI1My00YjI3LTk0NmItMDYzZGM4OWNlOGMy",
-          "grantedToIdentities": [
-            {
-              "application": {
-                "displayName": "Selected",
-                "id": "fc1534e7-259d-482a-8688-d6a33d9a0a2c"
+      const response = {
+        "value": [
+          {
+            "id": "aTowaS50fG1zLnNwLmV4dHxmYzE1MzRlNy0yNTlkLTQ4MmEtODY4OC1kNmEzM2Q5YTBhMmNAZWUyYjdjMGMtZDI1My00YjI3LTk0NmItMDYzZGM4OWNlOGMy",
+            "grantedToIdentities": [
+              {
+                "application": {
+                  "displayName": "Selected",
+                  "id": "fc1534e7-259d-482a-8688-d6a33d9a0a2c"
+                }
               }
-            }
-          ]
-        }
-      ]
-    };
+            ]
+          }
+        ]
+      };
 
-    const getRequestStub = sinon.stub(request, 'get');
-    getRequestStub.onCall(0)
-      .callsFake(async (opts) => {
-        if ((opts.url as string).indexOf(":/sites/sitecollection-name") > - 1) {
-          return site;
-        }
-        throw 'Invalid request';
-      });
+      const getRequestStub = jest.spyOn(request, 'get').mockClear().mockImplementation();
+      getRequestStub.onCall(0)
+        .callsFake(async (opts) => {
+          if ((opts.url as string).indexOf(":/sites/sitecollection-name") > - 1) {
+            return site;
+          }
+          throw 'Invalid request';
+        });
 
-    getRequestStub.onCall(1)
-      .callsFake(async (opts) => {
-        if ((opts.url as string).indexOf("contoso.sharepoint.com,00000000-0000-0000-0000-000000000000,00000000-0000-0000-0000-000000000000/permissions") > - 1) {
-          return response;
-        }
-        throw 'Invalid request';
-      });
+      getRequestStub.onCall(1)
+        .callsFake(async (opts) => {
+          if ((opts.url as string).indexOf("contoso.sharepoint.com,00000000-0000-0000-0000-000000000000,00000000-0000-0000-0000-000000000000/permissions") > - 1) {
+            return response;
+          }
+          throw 'Invalid request';
+        });
 
-    getRequestStub.onCall(2)
-      .callsFake(async (opts) => {
-        if ((opts.url as string).indexOf("contoso.sharepoint.com,00000000-0000-0000-0000-000000000000,00000000-0000-0000-0000-000000000000/permissions") > - 1) {
-          throw {
-            "error": {
-              "code": "itemNotFound",
-              "message": "Item not found",
-              "innerError": {
-                "date": "2021-05-06T17:28:44",
-                "request-id": "c4c9ef62-930c-4564-af0d-571399b1849c",
-                "client-request-id": "861a6ecb-0268-260e-2821-4dc570bf3ea9"
+      getRequestStub.onCall(2)
+        .callsFake(async (opts) => {
+          if ((opts.url as string).indexOf("contoso.sharepoint.com,00000000-0000-0000-0000-000000000000,00000000-0000-0000-0000-000000000000/permissions") > - 1) {
+            throw {
+              "error": {
+                "code": "itemNotFound",
+                "message": "Item not found",
+                "innerError": {
+                  "date": "2021-05-06T17:28:44",
+                  "request-id": "c4c9ef62-930c-4564-af0d-571399b1849c",
+                  "client-request-id": "861a6ecb-0268-260e-2821-4dc570bf3ea9"
+                }
               }
-            }
-          };
+            };
+          }
+
+          throw 'Invalid request';
+        });
+
+      await assert.rejects(command.action(logger, {
+        options: {
+          siteUrl: 'https://contoso.sharepoint.com/sites/sitecollection-name',
+          output: 'json',
+          appId: 'fc1534e7-259d-482a-8688-d6a33d9a0a2c'
         }
-
-        throw 'Invalid request';
-      });
-
-    await assert.rejects(command.action(logger, {
-      options: {
-        siteUrl: 'https://contoso.sharepoint.com/sites/sitecollection-name',
-        output: 'json',
-        appId: 'fc1534e7-259d-482a-8688-d6a33d9a0a2c'
-      }
-    } as any), new CommandError('Item not found'));
-  });
+      } as any), new CommandError('Item not found'));
+    }
+  );
 });

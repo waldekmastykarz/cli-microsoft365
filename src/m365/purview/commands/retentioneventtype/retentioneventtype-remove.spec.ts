@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './retentioneventtype-remove.js';
 
@@ -21,11 +20,11 @@ describe(commands.RETENTIONEVENTTYPE_REMOVE, () => {
   let promptOptions: any;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.accessTokens[(command as any).resource] = {
       accessToken: 'abc',
@@ -48,21 +47,21 @@ describe(commands.RETENTIONEVENTTYPE_REMOVE, () => {
       }
     };
     promptOptions = undefined;
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       Cli.prompt,
       request.delete
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.accessTokens = {};
   });
@@ -85,26 +84,30 @@ describe(commands.RETENTIONEVENTTYPE_REMOVE, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('prompts before removing the specified retention event type when confirm option not passed', async () => {
-    await command.action(logger, { options: { id: validId } });
+  it('prompts before removing the specified retention event type when confirm option not passed',
+    async () => {
+      await command.action(logger, { options: { id: validId } });
 
-    let promptIssued = false;
+      let promptIssued = false;
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+
+      assert(promptIssued);
     }
+  );
 
-    assert(promptIssued);
-  });
-
-  it('aborts removing the specified retention event type when confirm option not passed and prompt not confirmed', async () => {
-    const deleteSpy = sinon.spy(request, 'delete');
-    await command.action(logger, { options: { id: validId } });
-    assert(deleteSpy.notCalled);
-  });
+  it('aborts removing the specified retention event type when confirm option not passed and prompt not confirmed',
+    async () => {
+      const deleteSpy = jest.spyOn(request, 'delete').mockClear();
+      await command.action(logger, { options: { id: validId } });
+      assert(deleteSpy.notCalled);
+    }
+  );
 
   it('correctly deletes retention event type by id', async () => {
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
+    jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/security/triggerTypes/retentionEventTypes/${validId}`) {
         return;
       }
@@ -112,26 +115,28 @@ describe(commands.RETENTIONEVENTTYPE_REMOVE, () => {
       throw 'Invalid Request';
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
     await command.action(logger, { options: { id: validId } });
   });
 
-  it('correctly deletes retention event type by id when prompt confirmed', async () => {
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/security/triggerTypes/retentionEventTypes/${validId}`) {
-        return;
-      }
+  it('correctly deletes retention event type by id when prompt confirmed',
+    async () => {
+      jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/security/triggerTypes/retentionEventTypes/${validId}`) {
+          return;
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    await command.action(logger, { options: { id: validId, force: true } });
-  });
+      await command.action(logger, { options: { id: validId, force: true } });
+    }
+  );
 
   it('handles error when retention event type does not exist', async () => {
-    sinon.stub(request, 'delete').callsFake(async () => {
+    jest.spyOn(request, 'delete').mockClear().mockImplementation(async () => {
       throw {
         'error': {
           'code': 'UnknownError',

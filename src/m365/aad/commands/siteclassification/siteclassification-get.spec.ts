@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Logger } from '../../../../cli/Logger.js';
 import { CommandError } from '../../../../Command.js';
@@ -7,20 +6,20 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './siteclassification-get.js';
 
 describe(commands.SITECLASSIFICATION_GET, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
   });
 
@@ -37,17 +36,17 @@ describe(commands.SITECLASSIFICATION_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -59,340 +58,350 @@ describe(commands.SITECLASSIFICATION_GET, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('handles Microsoft 365 Tenant siteclassification is not enabled', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groupSettings`) {
-        return {
-          value: [
-          ]
-        };
-      }
+  it('handles Microsoft 365 Tenant siteclassification is not enabled',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groupSettings`) {
+          return {
+            value: [
+            ]
+          };
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    await assert.rejects(command.action(logger, { options: {} } as any),
-      new CommandError('Site classification is not enabled.'));
-  });
+      await assert.rejects(command.action(logger, { options: {} } as any),
+        new CommandError('Site classification is not enabled.'));
+    }
+  );
 
-  it('handles Microsoft 365 Tenant siteclassification missing DirectorySettingTemplate', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groupSettings`) {
-        return {
-          value: [
-            {
-              "id": "d20c475c-6f96-449a-aee8-08146be187d3",
-              "displayName": "Group.Unified_not_exist",
-              "templateId": "62375ab9-6b52-47ed-826b-58e47e0e304b",
-              "values": [
-                {
-                  "name": "CustomBlockedWordsList",
-                  "value": ""
-                },
-                {
-                  "name": "EnableMSStandardBlockedWords",
-                  "value": "false"
-                },
-                {
-                  "name": "ClassificationDescriptions",
-                  "value": ""
-                },
-                {
-                  "name": "DefaultClassification",
-                  "value": "TopSecret"
-                },
-                {
-                  "name": "PrefixSuffixNamingRequirement",
-                  "value": ""
-                },
-                {
-                  "name": "AllowGuestsToBeGroupOwner",
-                  "value": "false"
-                },
-                {
-                  "name": "AllowGuestsToAccessGroups",
-                  "value": "true"
-                },
-                {
-                  "name": "GuestUsageGuidelinesUrl",
-                  "value": ""
-                },
-                {
-                  "name": "GroupCreationAllowedGroupId",
-                  "value": ""
-                },
-                {
-                  "name": "AllowToAddGuests",
-                  "value": "true"
-                },
-                {
-                  "name": "UsageGuidelinesUrl",
-                  "value": "https://test"
-                },
-                {
-                  "name": "ClassificationList",
-                  "value": "TopSecret"
-                },
-                {
-                  "name": "EnableGroupCreation",
-                  "value": "true"
-                }
-              ]
-            }
-          ]
-        };
-      }
+  it('handles Microsoft 365 Tenant siteclassification missing DirectorySettingTemplate',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groupSettings`) {
+          return {
+            value: [
+              {
+                "id": "d20c475c-6f96-449a-aee8-08146be187d3",
+                "displayName": "Group.Unified_not_exist",
+                "templateId": "62375ab9-6b52-47ed-826b-58e47e0e304b",
+                "values": [
+                  {
+                    "name": "CustomBlockedWordsList",
+                    "value": ""
+                  },
+                  {
+                    "name": "EnableMSStandardBlockedWords",
+                    "value": "false"
+                  },
+                  {
+                    "name": "ClassificationDescriptions",
+                    "value": ""
+                  },
+                  {
+                    "name": "DefaultClassification",
+                    "value": "TopSecret"
+                  },
+                  {
+                    "name": "PrefixSuffixNamingRequirement",
+                    "value": ""
+                  },
+                  {
+                    "name": "AllowGuestsToBeGroupOwner",
+                    "value": "false"
+                  },
+                  {
+                    "name": "AllowGuestsToAccessGroups",
+                    "value": "true"
+                  },
+                  {
+                    "name": "GuestUsageGuidelinesUrl",
+                    "value": ""
+                  },
+                  {
+                    "name": "GroupCreationAllowedGroupId",
+                    "value": ""
+                  },
+                  {
+                    "name": "AllowToAddGuests",
+                    "value": "true"
+                  },
+                  {
+                    "name": "UsageGuidelinesUrl",
+                    "value": "https://test"
+                  },
+                  {
+                    "name": "ClassificationList",
+                    "value": "TopSecret"
+                  },
+                  {
+                    "name": "EnableGroupCreation",
+                    "value": "true"
+                  }
+                ]
+              }
+            ]
+          };
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    await assert.rejects(command.action(logger, { options: {} } as any),
-      new CommandError("Missing DirectorySettingTemplate for \"Group.Unified\""));
-  });
+      await assert.rejects(command.action(logger, { options: {} } as any),
+        new CommandError("Missing DirectorySettingTemplate for \"Group.Unified\""));
+    }
+  );
 
 
-  it('retrieves information about the Microsoft 365 Tenant siteclassification (single siteclassification)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groupSettings`) {
-        return {
-          value: [
-            {
-              "id": "d20c475c-6f96-449a-aee8-08146be187d3",
-              "displayName": "Group.Unified",
-              "templateId": "62375ab9-6b52-47ed-826b-58e47e0e304b",
-              "values": [
-                {
-                  "name": "CustomBlockedWordsList",
-                  "value": ""
-                },
-                {
-                  "name": "EnableMSStandardBlockedWords",
-                  "value": "false"
-                },
-                {
-                  "name": "ClassificationDescriptions",
-                  "value": ""
-                },
-                {
-                  "name": "DefaultClassification",
-                  "value": "TopSecret"
-                },
-                {
-                  "name": "PrefixSuffixNamingRequirement",
-                  "value": ""
-                },
-                {
-                  "name": "AllowGuestsToBeGroupOwner",
-                  "value": "false"
-                },
-                {
-                  "name": "AllowGuestsToAccessGroups",
-                  "value": "true"
-                },
-                {
-                  "name": "GuestUsageGuidelinesUrl",
-                  "value": "https://test"
-                },
-                {
-                  "name": "GroupCreationAllowedGroupId",
-                  "value": ""
-                },
-                {
-                  "name": "AllowToAddGuests",
-                  "value": "true"
-                },
-                {
-                  "name": "UsageGuidelinesUrl",
-                  "value": "https://test"
-                },
-                {
-                  "name": "ClassificationList",
-                  "value": "TopSecret"
-                },
-                {
-                  "name": "EnableGroupCreation",
-                  "value": "true"
-                }
-              ]
-            }
-          ]
-        };
-      }
+  it('retrieves information about the Microsoft 365 Tenant siteclassification (single siteclassification)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groupSettings`) {
+          return {
+            value: [
+              {
+                "id": "d20c475c-6f96-449a-aee8-08146be187d3",
+                "displayName": "Group.Unified",
+                "templateId": "62375ab9-6b52-47ed-826b-58e47e0e304b",
+                "values": [
+                  {
+                    "name": "CustomBlockedWordsList",
+                    "value": ""
+                  },
+                  {
+                    "name": "EnableMSStandardBlockedWords",
+                    "value": "false"
+                  },
+                  {
+                    "name": "ClassificationDescriptions",
+                    "value": ""
+                  },
+                  {
+                    "name": "DefaultClassification",
+                    "value": "TopSecret"
+                  },
+                  {
+                    "name": "PrefixSuffixNamingRequirement",
+                    "value": ""
+                  },
+                  {
+                    "name": "AllowGuestsToBeGroupOwner",
+                    "value": "false"
+                  },
+                  {
+                    "name": "AllowGuestsToAccessGroups",
+                    "value": "true"
+                  },
+                  {
+                    "name": "GuestUsageGuidelinesUrl",
+                    "value": "https://test"
+                  },
+                  {
+                    "name": "GroupCreationAllowedGroupId",
+                    "value": ""
+                  },
+                  {
+                    "name": "AllowToAddGuests",
+                    "value": "true"
+                  },
+                  {
+                    "name": "UsageGuidelinesUrl",
+                    "value": "https://test"
+                  },
+                  {
+                    "name": "ClassificationList",
+                    "value": "TopSecret"
+                  },
+                  {
+                    "name": "EnableGroupCreation",
+                    "value": "true"
+                  }
+                ]
+              }
+            ]
+          };
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    await command.action(logger, { options: { debug: true } });
-    assert(loggerLogSpy.calledWith({
-      "Classifications": ["TopSecret"],
-      "DefaultClassification": "TopSecret",
-      "UsageGuidelinesUrl": "https://test",
-      "GuestUsageGuidelinesUrl": "https://test"
-    }));
-  });
+      await command.action(logger, { options: { debug: true } });
+      assert(loggerLogSpy.calledWith({
+        "Classifications": ["TopSecret"],
+        "DefaultClassification": "TopSecret",
+        "UsageGuidelinesUrl": "https://test",
+        "GuestUsageGuidelinesUrl": "https://test"
+      }));
+    }
+  );
 
-  it('retrieves information about the Microsoft 365 Tenant siteclassification (multi siteclassification)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groupSettings`) {
-        return {
-          value: [
-            {
-              "id": "d20c475c-6f96-449a-aee8-08146be187d3",
-              "displayName": "Group.Unified",
-              "templateId": "62375ab9-6b52-47ed-826b-58e47e0e304b",
-              "values": [
-                {
-                  "name": "CustomBlockedWordsList",
-                  "value": ""
-                },
-                {
-                  "name": "EnableMSStandardBlockedWords",
-                  "value": "false"
-                },
-                {
-                  "name": "ClassificationDescriptions",
-                  "value": ""
-                },
-                {
-                  "name": "DefaultClassification",
-                  "value": "TopSecret"
-                },
-                {
-                  "name": "PrefixSuffixNamingRequirement",
-                  "value": ""
-                },
-                {
-                  "name": "AllowGuestsToBeGroupOwner",
-                  "value": "false"
-                },
-                {
-                  "name": "AllowGuestsToAccessGroups",
-                  "value": "true"
-                },
-                {
-                  "name": "GuestUsageGuidelinesUrl",
-                  "value": ""
-                },
-                {
-                  "name": "GroupCreationAllowedGroupId",
-                  "value": ""
-                },
-                {
-                  "name": "AllowToAddGuests",
-                  "value": "true"
-                },
-                {
-                  "name": "UsageGuidelinesUrl",
-                  "value": "https://test"
-                },
-                {
-                  "name": "ClassificationList",
-                  "value": "TopSecret,HBI"
-                },
-                {
-                  "name": "EnableGroupCreation",
-                  "value": "true"
-                }
-              ]
-            }
-          ]
-        };
-      }
+  it('retrieves information about the Microsoft 365 Tenant siteclassification (multi siteclassification)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groupSettings`) {
+          return {
+            value: [
+              {
+                "id": "d20c475c-6f96-449a-aee8-08146be187d3",
+                "displayName": "Group.Unified",
+                "templateId": "62375ab9-6b52-47ed-826b-58e47e0e304b",
+                "values": [
+                  {
+                    "name": "CustomBlockedWordsList",
+                    "value": ""
+                  },
+                  {
+                    "name": "EnableMSStandardBlockedWords",
+                    "value": "false"
+                  },
+                  {
+                    "name": "ClassificationDescriptions",
+                    "value": ""
+                  },
+                  {
+                    "name": "DefaultClassification",
+                    "value": "TopSecret"
+                  },
+                  {
+                    "name": "PrefixSuffixNamingRequirement",
+                    "value": ""
+                  },
+                  {
+                    "name": "AllowGuestsToBeGroupOwner",
+                    "value": "false"
+                  },
+                  {
+                    "name": "AllowGuestsToAccessGroups",
+                    "value": "true"
+                  },
+                  {
+                    "name": "GuestUsageGuidelinesUrl",
+                    "value": ""
+                  },
+                  {
+                    "name": "GroupCreationAllowedGroupId",
+                    "value": ""
+                  },
+                  {
+                    "name": "AllowToAddGuests",
+                    "value": "true"
+                  },
+                  {
+                    "name": "UsageGuidelinesUrl",
+                    "value": "https://test"
+                  },
+                  {
+                    "name": "ClassificationList",
+                    "value": "TopSecret,HBI"
+                  },
+                  {
+                    "name": "EnableGroupCreation",
+                    "value": "true"
+                  }
+                ]
+              }
+            ]
+          };
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    await command.action(logger, { options: { debug: true } });
-    assert(loggerLogSpy.calledWith({
-      "Classifications": ["TopSecret", "HBI"],
-      "DefaultClassification": "TopSecret",
-      "UsageGuidelinesUrl": "https://test",
-      "GuestUsageGuidelinesUrl": ""
-    }));
-  });
+      await command.action(logger, { options: { debug: true } });
+      assert(loggerLogSpy.calledWith({
+        "Classifications": ["TopSecret", "HBI"],
+        "DefaultClassification": "TopSecret",
+        "UsageGuidelinesUrl": "https://test",
+        "GuestUsageGuidelinesUrl": ""
+      }));
+    }
+  );
 
-  it('Handles Microsoft 365 Tenant siteclassification DirectorySettings Key does not exist', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groupSettings`) {
-        return {
-          value: [
-            {
-              "id": "d20c475c-6f96-449a-aee8-08146be187d3",
-              "displayName": "Group.Unified",
-              "templateId": "62375ab9-6b52-47ed-826b-58e47e0e304b",
-              "values": [
-                {
-                  "name": "CustomBlockedWordsList",
-                  "value": ""
-                },
-                {
-                  "name": "EnableMSStandardBlockedWords",
-                  "value": "false"
-                },
-                {
-                  "name": "ClassificationDescriptions",
-                  "value": ""
-                },
-                {
-                  "name": "DefaultClassification_not_exist",
-                  "value": "TopSecret"
-                },
-                {
-                  "name": "PrefixSuffixNamingRequirement",
-                  "value": ""
-                },
-                {
-                  "name": "AllowGuestsToBeGroupOwner",
-                  "value": "false"
-                },
-                {
-                  "name": "AllowGuestsToAccessGroups",
-                  "value": "true"
-                },
-                {
-                  "name": "GuestUsageGuidelinesUrl_not_exist",
-                  "value": ""
-                },
-                {
-                  "name": "GroupCreationAllowedGroupId",
-                  "value": ""
-                },
-                {
-                  "name": "AllowToAddGuests",
-                  "value": "true"
-                },
-                {
-                  "name": "UsageGuidelinesUrl_not_exist",
-                  "value": "https://test"
-                },
-                {
-                  "name": "ClassificationList_not_exist",
-                  "value": "TopSecret,HBI"
-                },
-                {
-                  "name": "EnableGroupCreation",
-                  "value": "true"
-                }
-              ]
-            }
-          ]
-        };
-      }
+  it('Handles Microsoft 365 Tenant siteclassification DirectorySettings Key does not exist',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groupSettings`) {
+          return {
+            value: [
+              {
+                "id": "d20c475c-6f96-449a-aee8-08146be187d3",
+                "displayName": "Group.Unified",
+                "templateId": "62375ab9-6b52-47ed-826b-58e47e0e304b",
+                "values": [
+                  {
+                    "name": "CustomBlockedWordsList",
+                    "value": ""
+                  },
+                  {
+                    "name": "EnableMSStandardBlockedWords",
+                    "value": "false"
+                  },
+                  {
+                    "name": "ClassificationDescriptions",
+                    "value": ""
+                  },
+                  {
+                    "name": "DefaultClassification_not_exist",
+                    "value": "TopSecret"
+                  },
+                  {
+                    "name": "PrefixSuffixNamingRequirement",
+                    "value": ""
+                  },
+                  {
+                    "name": "AllowGuestsToBeGroupOwner",
+                    "value": "false"
+                  },
+                  {
+                    "name": "AllowGuestsToAccessGroups",
+                    "value": "true"
+                  },
+                  {
+                    "name": "GuestUsageGuidelinesUrl_not_exist",
+                    "value": ""
+                  },
+                  {
+                    "name": "GroupCreationAllowedGroupId",
+                    "value": ""
+                  },
+                  {
+                    "name": "AllowToAddGuests",
+                    "value": "true"
+                  },
+                  {
+                    "name": "UsageGuidelinesUrl_not_exist",
+                    "value": "https://test"
+                  },
+                  {
+                    "name": "ClassificationList_not_exist",
+                    "value": "TopSecret,HBI"
+                  },
+                  {
+                    "name": "EnableGroupCreation",
+                    "value": "true"
+                  }
+                ]
+              }
+            ]
+          };
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    await command.action(logger, { options: { debug: true } });
-    assert(loggerLogSpy.calledWith({
-      "Classifications": [],
-      "DefaultClassification": "",
-      "UsageGuidelinesUrl": "",
-      "GuestUsageGuidelinesUrl": ""
-    }));
-  });
+      await command.action(logger, { options: { debug: true } });
+      assert(loggerLogSpy.calledWith({
+        "Classifications": [],
+        "DefaultClassification": "",
+        "UsageGuidelinesUrl": "",
+        "GuestUsageGuidelinesUrl": ""
+      }));
+    }
+  );
 
   it('handles error correctly', async () => {
-    sinon.stub(request, 'get').rejects(new Error('An error has occurred'));
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
     await assert.rejects(command.action(logger, { options: { debug: true } } as any), new CommandError('An error has occurred'));
   });

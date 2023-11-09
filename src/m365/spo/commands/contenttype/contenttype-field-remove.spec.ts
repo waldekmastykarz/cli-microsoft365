@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 
@@ -29,7 +28,7 @@ describe(commands.CONTENTTYPE_FIELD_REMOVE, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
   let promptOptions: any;
 
@@ -134,13 +133,13 @@ describe(commands.CONTENTTYPE_FIELD_REMOVE, () => {
     throw 'Invalid request';
   };
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'ABC',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -164,11 +163,11 @@ describe(commands.CONTENTTYPE_FIELD_REMOVE, () => {
         log.push(msg);
       }
     };
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).requestDigest = '';
     (command as any).webId = '';
     (command as any).siteId = '';
@@ -178,7 +177,7 @@ describe(commands.CONTENTTYPE_FIELD_REMOVE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post,
       Cli.prompt,
@@ -186,8 +185,8 @@ describe(commands.CONTENTTYPE_FIELD_REMOVE, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -214,8 +213,8 @@ describe(commands.CONTENTTYPE_FIELD_REMOVE, () => {
 
   // WEB CT
   it('removes the field link from web content type', async () => {
-    sinon.stub(request, 'get').callsFake(getStubCalls);
-    const postCallbackStub = sinon.stub(request, 'post').callsFake(postStubSuccCalls);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getStubCalls);
+    const postCallbackStub = jest.spyOn(request, 'post').mockClear().mockImplementation(postStubSuccCalls);
 
     await command.action(logger, {
       options: {
@@ -227,8 +226,8 @@ describe(commands.CONTENTTYPE_FIELD_REMOVE, () => {
     assert(postCallbackStub.called);
   });
   it('removes the field link from web content type - prompt', async () => {
-    sinon.stub(request, 'get').callsFake(getStubCalls);
-    sinon.stub(request, 'post').callsFake(postStubSuccCalls);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getStubCalls);
+    jest.spyOn(request, 'post').mockClear().mockImplementation(postStubSuccCalls);
 
     await command.action(logger, {
       options: {
@@ -245,430 +244,482 @@ describe(commands.CONTENTTYPE_FIELD_REMOVE, () => {
 
     assert(promptIssued);
   });
-  it('removes the field link from web content type - prompt: confirmed', async () => {
-    sinon.stub(request, 'get').callsFake(getStubCalls);
-    const postCallbackStub = sinon.stub(request, 'post').callsFake(postStubSuccCalls);
+  it('removes the field link from web content type - prompt: confirmed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getStubCalls);
+      const postCallbackStub = jest.spyOn(request, 'post').mockClear().mockImplementation(postStubSuccCalls);
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
-    await command.action(logger, {
-      options: {
-        webUrl: WEB_URL, contentTypeId: CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
-        updateChildContentTypes: false
-      }
-    } as any);
-    assert(postCallbackStub.called);
-  });
-  it('doesnt remove the field link from web content type - prompt: declined', async () => {
-    sinon.stub(request, 'get').callsFake(getStubCalls);
-    const postCallbackStub = sinon.stub(request, 'post').callsFake(postStubSuccCalls);
-
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: false });
-
-    await command.action(logger, {
-      options: {
-        webUrl: WEB_URL, contentTypeId: CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
-        updateChildContentTypes: true
-      }
-    } as any);
-    assert(postCallbackStub.notCalled);
-  });
-
-  it('removes the field link from web content type with debug - prompt', async () => {
-    sinon.stub(request, 'get').callsFake(getStubCalls);
-    sinon.stub(request, 'post').callsFake(postStubSuccCalls);
-
-    await command.action(logger, {
-      options: {
-        webUrl: WEB_URL, contentTypeId: CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
-        updateChildContentTypes: false,
-        force: false,
-        debug: true
-      }
-    } as any);
-    let promptIssued = false;
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
+      await command.action(logger, {
+        options: {
+          webUrl: WEB_URL, contentTypeId: CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
+          updateChildContentTypes: false
+        }
+      } as any);
+      assert(postCallbackStub.called);
     }
-    assert(promptIssued);
-  });
+  );
+  it('doesnt remove the field link from web content type - prompt: declined',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getStubCalls);
+      const postCallbackStub = jest.spyOn(request, 'post').mockClear().mockImplementation(postStubSuccCalls);
 
-  it(`doesn't remove the field link from web content type with debug - prompt: declined`, async () => {
-    sinon.stub(request, 'get').callsFake(getStubCalls);
-    const postCallbackStub = sinon.stub(request, 'post').callsFake(postStubSuccCalls);
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: false });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: false });
+      await command.action(logger, {
+        options: {
+          webUrl: WEB_URL, contentTypeId: CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
+          updateChildContentTypes: true
+        }
+      } as any);
+      assert(postCallbackStub.notCalled);
+    }
+  );
 
-    await command.action(logger, {
-      options: {
-        webUrl: WEB_URL, contentTypeId: CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
-        updateChildContentTypes: true,
-        debug: true
+  it('removes the field link from web content type with debug - prompt',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getStubCalls);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postStubSuccCalls);
+
+      await command.action(logger, {
+        options: {
+          webUrl: WEB_URL, contentTypeId: CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
+          updateChildContentTypes: false,
+          force: false,
+          debug: true
+        }
+      } as any);
+      let promptIssued = false;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
       }
-    } as any);
-    assert(postCallbackStub.notCalled);
-  });
+      assert(promptIssued);
+    }
+  );
+
+  it(`doesn't remove the field link from web content type with debug - prompt: declined`,
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getStubCalls);
+      const postCallbackStub = jest.spyOn(request, 'post').mockClear().mockImplementation(postStubSuccCalls);
+
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: false });
+
+      await command.action(logger, {
+        options: {
+          webUrl: WEB_URL, contentTypeId: CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
+          updateChildContentTypes: true,
+          debug: true
+        }
+      } as any);
+      assert(postCallbackStub.notCalled);
+    }
+  );
 
   // WEB CT: with update child content types
-  it('removes the field link from web content type with update child content types', async () => {
-    sinon.stub(request, 'get').callsFake(getStubCalls);
-    sinon.stub(request, 'post').callsFake(postStubSuccCalls);
+  it('removes the field link from web content type with update child content types',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getStubCalls);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postStubSuccCalls);
 
-    await command.action(logger, {
-      options: {
-        webUrl: WEB_URL, contentTypeId: CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
-        updateChildContentTypes: true,
-        force: true
-      }
-    } as any);
-    assert(loggerLogSpy.notCalled);
-  });
-  it('removes the field link from web content type with update child content types - prompt', async () => {
-    sinon.stub(request, 'get').callsFake(getStubCalls);
-    sinon.stub(request, 'post').callsFake(postStubSuccCalls);
-
-    await command.action(logger, {
-      options: {
-        webUrl: WEB_URL, contentTypeId: CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
-        updateChildContentTypes: true
-      }
-    } as any);
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      await command.action(logger, {
+        options: {
+          webUrl: WEB_URL, contentTypeId: CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
+          updateChildContentTypes: true,
+          force: true
+        }
+      } as any);
+      assert(loggerLogSpy.notCalled);
     }
-    assert(promptIssued);
-  });
-  it('removes the field link from web content type with update child content types - prompt: confirmed', async () => {
-    sinon.stub(request, 'get').callsFake(getStubCalls);
-    const postCallbackStub = sinon.stub(request, 'post').callsFake(postStubSuccCalls);
+  );
+  it('removes the field link from web content type with update child content types - prompt',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getStubCalls);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postStubSuccCalls);
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+      await command.action(logger, {
+        options: {
+          webUrl: WEB_URL, contentTypeId: CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
+          updateChildContentTypes: true
+        }
+      } as any);
+      let promptIssued = false;
 
-    await command.action(logger, {
-      options: {
-        webUrl: WEB_URL, contentTypeId: CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
-        updateChildContentTypes: true,
-        force: false
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
       }
-    } as any);
-    assert(postCallbackStub.called);
-  });
-  it('doesnt remove the field link from web content type with update child content types - prompt: declined', async () => {
-    sinon.stub(request, 'get').callsFake(getStubCalls);
-    const postCallbackStub = sinon.stub(request, 'post').callsFake(postStubSuccCalls);
-
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: false });
-
-    await command.action(logger, {
-      options: {
-        webUrl: WEB_URL, contentTypeId: CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
-        updateChildContentTypes: true,
-        force: false
-      }
-    } as any);
-    assert(postCallbackStub.notCalled);
-  });
-
-  it('removes the field link from web content type with update child content types with debug - prompt', async () => {
-    sinon.stub(request, 'get').callsFake(getStubCalls);
-    sinon.stub(request, 'post').callsFake(postStubSuccCalls);
-
-    await command.action(logger, {
-      options: {
-        webUrl: WEB_URL, contentTypeId: CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
-        updateChildContentTypes: true,
-        force: false,
-        debug: true
-      }
-    } as any);
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      assert(promptIssued);
     }
-    assert(promptIssued);
-  });
+  );
+  it('removes the field link from web content type with update child content types - prompt: confirmed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getStubCalls);
+      const postCallbackStub = jest.spyOn(request, 'post').mockClear().mockImplementation(postStubSuccCalls);
 
-  it('doesnt remove the field link from web content type with update child content types with debug - prompt: confirmed', async () => {
-    sinon.stub(request, 'get').callsFake(getStubCalls);
-    const postCallbackStub = sinon.stub(request, 'post').callsFake(postStubSuccCalls);
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+      await command.action(logger, {
+        options: {
+          webUrl: WEB_URL, contentTypeId: CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
+          updateChildContentTypes: true,
+          force: false
+        }
+      } as any);
+      assert(postCallbackStub.called);
+    }
+  );
+  it('doesnt remove the field link from web content type with update child content types - prompt: declined',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getStubCalls);
+      const postCallbackStub = jest.spyOn(request, 'post').mockClear().mockImplementation(postStubSuccCalls);
 
-    await command.action(logger, {
-      options: {
-        webUrl: WEB_URL, contentTypeId: CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
-        updateChildContentTypes: true,
-        force: false,
-        debug: true
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: false });
+
+      await command.action(logger, {
+        options: {
+          webUrl: WEB_URL, contentTypeId: CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
+          updateChildContentTypes: true,
+          force: false
+        }
+      } as any);
+      assert(postCallbackStub.notCalled);
+    }
+  );
+
+  it('removes the field link from web content type with update child content types with debug - prompt',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getStubCalls);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postStubSuccCalls);
+
+      await command.action(logger, {
+        options: {
+          webUrl: WEB_URL, contentTypeId: CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
+          updateChildContentTypes: true,
+          force: false,
+          debug: true
+        }
+      } as any);
+      let promptIssued = false;
+
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
       }
-    } as any);
-    assert(postCallbackStub.called);
-  });
+      assert(promptIssued);
+    }
+  );
 
-  it('doesnt remove the field link from web content type with update child content types with debug - prompt: declined', async () => {
-    sinon.stub(request, 'get').callsFake(getStubCalls);
-    const postCallbackStub = sinon.stub(request, 'post').callsFake(postStubSuccCalls);
+  it('doesnt remove the field link from web content type with update child content types with debug - prompt: confirmed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getStubCalls);
+      const postCallbackStub = jest.spyOn(request, 'post').mockClear().mockImplementation(postStubSuccCalls);
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: false });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    await command.action(logger, {
-      options: {
-        webUrl: WEB_URL, contentTypeId: CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
-        updateChildContentTypes: true,
-        force: false,
-        debug: true
-      }
-    } as any);
-    assert(postCallbackStub.notCalled);
-  });
+      await command.action(logger, {
+        options: {
+          webUrl: WEB_URL, contentTypeId: CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
+          updateChildContentTypes: true,
+          force: false,
+          debug: true
+        }
+      } as any);
+      assert(postCallbackStub.called);
+    }
+  );
+
+  it('doesnt remove the field link from web content type with update child content types with debug - prompt: declined',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getStubCalls);
+      const postCallbackStub = jest.spyOn(request, 'post').mockClear().mockImplementation(postStubSuccCalls);
+
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: false });
+
+      await command.action(logger, {
+        options: {
+          webUrl: WEB_URL, contentTypeId: CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
+          updateChildContentTypes: true,
+          force: false,
+          debug: true
+        }
+      } as any);
+      assert(postCallbackStub.notCalled);
+    }
+  );
 
   // LIST CT
-  it('removes the field link from list (retrieved by title) content type', async () => {
-    sinon.stub(request, 'get').callsFake(getStubCalls);
-    const postCallbackStub = sinon.stub(request, 'post').callsFake(postStubSuccCalls);
+  it('removes the field link from list (retrieved by title) content type',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getStubCalls);
+      const postCallbackStub = jest.spyOn(request, 'post').mockClear().mockImplementation(postStubSuccCalls);
 
-    await command.action(logger, {
-      options: {
-        webUrl: WEB_URL, listTitle: LIST_TITLE, contentTypeId: LIST_CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
-        force: true
-      }
-    } as any);
-    assert(postCallbackStub.called);
-    assert(loggerLogSpy.notCalled);
-  });
-
-  it('removes the field link from list (retrieved by id) content type', async () => {
-    sinon.stub(request, 'get').callsFake(getStubCalls);
-    const postCallbackStub = sinon.stub(request, 'post').callsFake(postStubSuccCalls);
-
-    await command.action(logger, {
-      options: {
-        webUrl: WEB_URL, listId: LIST_ID, contentTypeId: LIST_CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
-        force: true
-      }
-    } as any);
-    assert(postCallbackStub.called);
-    assert(loggerLogSpy.notCalled);
-  });
-
-  it('removes the field link from list (retrieved by url) content type', async () => {
-    sinon.stub(request, 'get').callsFake(getStubCalls);
-    const postCallbackStub = sinon.stub(request, 'post').callsFake(postStubSuccCalls);
-
-    await command.action(logger, {
-      options: {
-        webUrl: WEB_URL, listUrl: LIST_URL, contentTypeId: LIST_CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
-        force: true
-      }
-    } as any);
-    assert(postCallbackStub.called);
-    assert(loggerLogSpy.notCalled);
-  });
-
-  it('removes the field link from list (retrieved by title) content type - prompt', async () => {
-    sinon.stub(request, 'get').callsFake(getStubCalls);
-    sinon.stub(request, 'post').callsFake(postStubSuccCalls);
-
-    await command.action(logger, {
-      options: {
-        webUrl: WEB_URL, listTitle: LIST_TITLE, contentTypeId: LIST_CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID
-      }
-    } as any);
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      await command.action(logger, {
+        options: {
+          webUrl: WEB_URL, listTitle: LIST_TITLE, contentTypeId: LIST_CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
+          force: true
+        }
+      } as any);
+      assert(postCallbackStub.called);
+      assert(loggerLogSpy.notCalled);
     }
+  );
 
-    assert(promptIssued);
-  });
+  it('removes the field link from list (retrieved by id) content type',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getStubCalls);
+      const postCallbackStub = jest.spyOn(request, 'post').mockClear().mockImplementation(postStubSuccCalls);
 
-  it('removes the field link from list (retrieved by title) content type - prompt: confirmed', async () => {
-    sinon.stub(request, 'get').callsFake(getStubCalls);
-    const postCallbackStub = sinon.stub(request, 'post').callsFake(postStubSuccCalls);
+      await command.action(logger, {
+        options: {
+          webUrl: WEB_URL, listId: LIST_ID, contentTypeId: LIST_CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
+          force: true
+        }
+      } as any);
+      assert(postCallbackStub.called);
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+  it('removes the field link from list (retrieved by url) content type',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getStubCalls);
+      const postCallbackStub = jest.spyOn(request, 'post').mockClear().mockImplementation(postStubSuccCalls);
 
-    await command.action(logger, {
-      options: {
-        webUrl: WEB_URL, listTitle: LIST_TITLE, contentTypeId: LIST_CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
-        updateChildContentTypes: false,
-        force: true
+      await command.action(logger, {
+        options: {
+          webUrl: WEB_URL, listUrl: LIST_URL, contentTypeId: LIST_CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
+          force: true
+        }
+      } as any);
+      assert(postCallbackStub.called);
+      assert(loggerLogSpy.notCalled);
+    }
+  );
+
+  it('removes the field link from list (retrieved by title) content type - prompt',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getStubCalls);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postStubSuccCalls);
+
+      await command.action(logger, {
+        options: {
+          webUrl: WEB_URL, listTitle: LIST_TITLE, contentTypeId: LIST_CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID
+        }
+      } as any);
+      let promptIssued = false;
+
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
       }
-    } as any);
-    assert(postCallbackStub.called);
-    assert(loggerLogSpy.notCalled);
-  });
 
-  it('removes the field link from list (retrieved by title) content type - prompt: declined', async () => {
-    sinon.stub(request, 'get').callsFake(getStubCalls);
-    const postCallbackStub = sinon.stub(request, 'post').callsFake(postStubSuccCalls);
+      assert(promptIssued);
+    }
+  );
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: false });
+  it('removes the field link from list (retrieved by title) content type - prompt: confirmed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getStubCalls);
+      const postCallbackStub = jest.spyOn(request, 'post').mockClear().mockImplementation(postStubSuccCalls);
 
-    command.action(logger, {
-      options: {
-        webUrl: WEB_URL, listTitle: LIST_TITLE, contentTypeId: LIST_CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
-        updateChildContentTypes: false,
-        force: false
-      }
-    } as any);
-    assert(postCallbackStub.notCalled);
-    assert(loggerLogSpy.notCalled);
-  });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
+
+      await command.action(logger, {
+        options: {
+          webUrl: WEB_URL, listTitle: LIST_TITLE, contentTypeId: LIST_CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
+          updateChildContentTypes: false,
+          force: true
+        }
+      } as any);
+      assert(postCallbackStub.called);
+      assert(loggerLogSpy.notCalled);
+    }
+  );
+
+  it('removes the field link from list (retrieved by title) content type - prompt: declined',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getStubCalls);
+      const postCallbackStub = jest.spyOn(request, 'post').mockClear().mockImplementation(postStubSuccCalls);
+
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: false });
+
+      command.action(logger, {
+        options: {
+          webUrl: WEB_URL, listTitle: LIST_TITLE, contentTypeId: LIST_CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
+          updateChildContentTypes: false,
+          force: false
+        }
+      } as any);
+      assert(postCallbackStub.notCalled);
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
   // LIST CT with debug
-  it('removes the field link from list (retrieved by title) content type with debug', async () => {
-    sinon.stub(request, 'get').callsFake(getStubCalls);
-    const postCallbackStub = sinon.stub(request, 'post').callsFake(postStubSuccCalls);
+  it('removes the field link from list (retrieved by title) content type with debug',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getStubCalls);
+      const postCallbackStub = jest.spyOn(request, 'post').mockClear().mockImplementation(postStubSuccCalls);
 
-    await command.action(logger, {
-      options: {
-        webUrl: WEB_URL, listTitle: LIST_TITLE, contentTypeId: LIST_CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
-        updateChildContentTypes: false,
-        force: true,
-        debug: true
-      }
-    } as any);
-    assert(postCallbackStub.called);
-  });
-  it('removes the field link from list (retrieved by title) content type with debug - prompt', async () => {
-    sinon.stub(request, 'get').callsFake(getStubCalls);
-    sinon.stub(request, 'post').callsFake(postStubSuccCalls);
-
-    await command.action(logger, {
-      options: {
-        webUrl: WEB_URL, listTitle: LIST_TITLE, contentTypeId: LIST_CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
-        debug: true
-      }
-    } as any);
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      await command.action(logger, {
+        options: {
+          webUrl: WEB_URL, listTitle: LIST_TITLE, contentTypeId: LIST_CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
+          updateChildContentTypes: false,
+          force: true,
+          debug: true
+        }
+      } as any);
+      assert(postCallbackStub.called);
     }
+  );
+  it('removes the field link from list (retrieved by title) content type with debug - prompt',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getStubCalls);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postStubSuccCalls);
 
-    assert(promptIssued);
-  });
-  it('removes the field link from list (retrieved by title) content type with debug - prompt: confirmed', async () => {
-    sinon.stub(request, 'get').callsFake(getStubCalls);
-    const postCallbackStub = sinon.stub(request, 'post').callsFake(postStubSuccCalls);
+      await command.action(logger, {
+        options: {
+          webUrl: WEB_URL, listTitle: LIST_TITLE, contentTypeId: LIST_CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
+          debug: true
+        }
+      } as any);
+      let promptIssued = false;
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
-
-    await command.action(logger, {
-      options: {
-        webUrl: WEB_URL, listTitle: LIST_TITLE, contentTypeId: LIST_CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
-        updateChildContentTypes: false,
-        debug: true
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
       }
-    } as any);
-    assert(postCallbackStub.called);
-  });
 
-  it('removes the field link from list (retrieved by id) content type with debug - prompt: confirmed', async () => {
-    sinon.stub(request, 'get').callsFake(getStubCalls);
-    const postCallbackStub = sinon.stub(request, 'post').callsFake(postStubSuccCalls);
+      assert(promptIssued);
+    }
+  );
+  it('removes the field link from list (retrieved by title) content type with debug - prompt: confirmed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getStubCalls);
+      const postCallbackStub = jest.spyOn(request, 'post').mockClear().mockImplementation(postStubSuccCalls);
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    await command.action(logger, {
-      options: {
-        webUrl: WEB_URL, listId: LIST_ID, contentTypeId: LIST_CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
-        updateChildContentTypes: false,
-        debug: true
-      }
-    } as any);
-    assert(postCallbackStub.called);
-  });
+      await command.action(logger, {
+        options: {
+          webUrl: WEB_URL, listTitle: LIST_TITLE, contentTypeId: LIST_CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
+          updateChildContentTypes: false,
+          debug: true
+        }
+      } as any);
+      assert(postCallbackStub.called);
+    }
+  );
 
-  it('removes the field link from list (retrieved by url) content type with debug - prompt: confirmed', async () => {
-    sinon.stub(request, 'get').callsFake(getStubCalls);
-    const postCallbackStub = sinon.stub(request, 'post').callsFake(postStubSuccCalls);
+  it('removes the field link from list (retrieved by id) content type with debug - prompt: confirmed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getStubCalls);
+      const postCallbackStub = jest.spyOn(request, 'post').mockClear().mockImplementation(postStubSuccCalls);
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    await command.action(logger, {
-      options: {
-        webUrl: WEB_URL, listUrl: LIST_URL, contentTypeId: LIST_CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
-        updateChildContentTypes: false,
-        debug: true
-      }
-    } as any);
-    assert(postCallbackStub.called);
-  });
-  it('removes the field link from list (retrieved by title) content type with debug - prompt: declined', async () => {
-    sinon.stub(request, 'get').callsFake(getStubCalls);
-    const postCallbackStub = sinon.stub(request, 'post').callsFake(postStubSuccCalls);
+      await command.action(logger, {
+        options: {
+          webUrl: WEB_URL, listId: LIST_ID, contentTypeId: LIST_CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
+          updateChildContentTypes: false,
+          debug: true
+        }
+      } as any);
+      assert(postCallbackStub.called);
+    }
+  );
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: false });
+  it('removes the field link from list (retrieved by url) content type with debug - prompt: confirmed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getStubCalls);
+      const postCallbackStub = jest.spyOn(request, 'post').mockClear().mockImplementation(postStubSuccCalls);
 
-    command.action(logger, {
-      options: {
-        webUrl: WEB_URL, listTitle: LIST_TITLE, contentTypeId: LIST_CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
-        updateChildContentTypes: false,
-        debug: true
-      }
-    } as any);
-    assert(postCallbackStub.notCalled);
-  });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
+
+      await command.action(logger, {
+        options: {
+          webUrl: WEB_URL, listUrl: LIST_URL, contentTypeId: LIST_CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
+          updateChildContentTypes: false,
+          debug: true
+        }
+      } as any);
+      assert(postCallbackStub.called);
+    }
+  );
+  it('removes the field link from list (retrieved by title) content type with debug - prompt: declined',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getStubCalls);
+      const postCallbackStub = jest.spyOn(request, 'post').mockClear().mockImplementation(postStubSuccCalls);
+
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: false });
+
+      command.action(logger, {
+        options: {
+          webUrl: WEB_URL, listTitle: LIST_TITLE, contentTypeId: LIST_CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
+          updateChildContentTypes: false,
+          debug: true
+        }
+      } as any);
+      assert(postCallbackStub.notCalled);
+    }
+  );
 
   // Handles error
-  it('handles error when remove the field link from web content type with update child content types', async () => {
-    sinon.stub(request, 'get').callsFake(getStubCalls);
-    sinon.stub(request, 'post').callsFake(postStubFailedCalls);
+  it('handles error when remove the field link from web content type with update child content types',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getStubCalls);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postStubFailedCalls);
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        webUrl: WEB_URL, contentTypeId: CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
-        updateChildContentTypes: true,
-        force: true
-      }
-    } as any), new CommandError('Unknown Error'));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          webUrl: WEB_URL, contentTypeId: CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
+          updateChildContentTypes: true,
+          force: true
+        }
+      } as any), new CommandError('Unknown Error'));
+    }
+  );
 
-  it('handles error when remove the field link from web content type with update child content types (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(getStubCalls);
-    sinon.stub(request, 'post').callsFake(postStubFailedCalls);
+  it('handles error when remove the field link from web content type with update child content types (debug)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getStubCalls);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postStubFailedCalls);
 
-    await assert.rejects(command.action(logger, { options: { debug: true, webUrl: WEB_URL, contentTypeId: CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID, updateChildContentTypes: true, force: true } } as any),
-      new CommandError('Unknown Error'));
-  });
+      await assert.rejects(command.action(logger, { options: { debug: true, webUrl: WEB_URL, contentTypeId: CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID, updateChildContentTypes: true, force: true } } as any),
+        new CommandError('Unknown Error'));
+    }
+  );
 
-  it('handles error when remove the field link from web content type with update child content types with prompt', async () => {
-    sinon.stub(request, 'get').callsFake(getStubCalls);
-    sinon.stub(request, 'post').callsFake(postStubFailedCalls);
+  it('handles error when remove the field link from web content type with update child content types with prompt',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getStubCalls);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postStubFailedCalls);
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        webUrl: WEB_URL, contentTypeId: CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
-        updateChildContentTypes: true,
-        force: false
-      }
-    } as any), new CommandError('Unknown Error'));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          webUrl: WEB_URL, contentTypeId: CONTENT_TYPE_ID, fieldLinkId: FIELD_LINK_ID,
+          updateChildContentTypes: true,
+          force: false
+        }
+      } as any), new CommandError('Unknown Error'));
+    }
+  );
 
   it('correctly handles a random API error', async () => {
-    sinon.stub(request, 'get').callsFake(() => Promise.reject('An error has occurred'));
-    sinon.stub(request, 'post').callsFake(() => Promise.reject('An error has occurred'));
+    jest.spyOn(request, 'get').mockClear().mockImplementation(() => Promise.reject('An error has occurred'));
+    jest.spyOn(request, 'post').mockClear().mockImplementation(() => Promise.reject('An error has occurred'));
 
     await assert.rejects(command.action(logger, {
       options: {
@@ -681,7 +732,7 @@ describe(commands.CONTENTTYPE_FIELD_REMOVE, () => {
 
   // Fails validation
   it('fails validation if fieldLinkId is not passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -694,7 +745,7 @@ describe(commands.CONTENTTYPE_FIELD_REMOVE, () => {
   });
 
   it('fails validation if webUrl is not passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }

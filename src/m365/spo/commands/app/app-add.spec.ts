@@ -1,6 +1,5 @@
 import assert from 'assert';
 import fs from 'fs';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './app-add.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -19,16 +18,16 @@ describe(commands.APP_ADD, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
   let requests: any[];
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.spoUrl = 'https://contoso.sharepoint.com';
     commandInfo = Cli.getCommandInfo(command);
@@ -47,13 +46,13 @@ describe(commands.APP_ADD, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     requests = [];
-    sinon.stub(request, 'get').resolves({ "CorporateCatalogUrl": "https://contoso.sharepoint.com/sites/apps" });
+    jest.spyOn(request, 'get').mockClear().mockImplementation().resolves({ "CorporateCatalogUrl": "https://contoso.sharepoint.com/sites/apps" });
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       request.get,
       fs.readFileSync,
@@ -61,8 +60,8 @@ describe(commands.APP_ADD, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -76,7 +75,7 @@ describe(commands.APP_ADD, () => {
   });
 
   it('adds new app to the tenant app catalog', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/tenantappcatalog/Add(overwrite=false, url='spfx.sppkg')`) > -1) {
         if (opts.headers &&
           opts.headers.accept &&
@@ -90,14 +89,14 @@ describe(commands.APP_ADD, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(fs, 'readFileSync').returns('123');
+    jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('123');
 
     await command.action(logger, { options: { filePath: 'spfx.sppkg', output: 'text' } });
     assert(loggerLogSpy.calledWith("bda5ce2f-9ac7-4a6f-a98b-7ae1c168519e"));
   });
 
   it('adds new app to the tenant app catalog (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
 
       if ((opts.url as string).indexOf(`/_api/web/tenantappcatalog/Add(overwrite=false, url='spfx.sppkg')`) > -1) {
@@ -112,7 +111,7 @@ describe(commands.APP_ADD, () => {
 
       throw 'Invalid request';
     });
-    sinon.stub(fs, 'readFileSync').returns('123');
+    jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('123');
     try {
       await command.action(logger, { options: { debug: true, filePath: 'spfx.sppkg' } });
       let correctRequestIssued = false;
@@ -129,7 +128,7 @@ describe(commands.APP_ADD, () => {
       assert(correctRequestIssued);
     }
     finally {
-      sinonUtil.restore([
+      jestUtil.restore([
         request.post,
         fs.readFileSync
       ]);
@@ -137,7 +136,7 @@ describe(commands.APP_ADD, () => {
   });
 
   it('adds new app to a site app catalog (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
 
       if ((opts.url as string).indexOf(`/_api/web/sitecollectionappcatalog/Add(overwrite=false, url='spfx.sppkg')`) > -1) {
@@ -152,7 +151,7 @@ describe(commands.APP_ADD, () => {
 
       throw 'Invalid request';
     });
-    sinon.stub(fs, 'readFileSync').returns('123');
+    jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('123');
 
     try {
       await command.action(logger, { options: { debug: true, filePath: 'spfx.sppkg', appCatalogScope: 'sitecollection', appCatalogUrl: 'https://contoso.sharepoint.com' } });
@@ -170,107 +169,113 @@ describe(commands.APP_ADD, () => {
       assert(correctRequestIssued);
     }
     finally {
-      sinonUtil.restore([
+      jestUtil.restore([
         request.post,
         fs.readFileSync
       ]);
     }
   });
 
-  it('returns all info about the added app in the JSON output mode', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      requests.push(opts);
+  it('returns all info about the added app in the JSON output mode',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        requests.push(opts);
 
-      if ((opts.url as string).indexOf(`/_api/web/tenantappcatalog/Add(overwrite=false, url='spfx.sppkg')`) > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0 &&
-          opts.headers.binaryStringRequestBody &&
-          opts.data) {
-          return '{"CheckInComment":"","CheckOutType":2,"ContentTag":"{BDA5CE2F-9AC7-4A6F-A98B-7AE1C168519E},4,3","CustomizedPageStatus":0,"ETag":"\\"{BDA5CE2F-9AC7-4A6F-A98B-7AE1C168519E},4\\"","Exists":true,"IrmEnabled":false,"Length":"3752","Level":1,"LinkingUri":null,"LinkingUrl":"","MajorVersion":3,"MinorVersion":0,"Name":"spfx-01.sppkg","ServerRelativeUrl":"/sites/apps/AppCatalog/spfx.sppkg","TimeCreated":"2018-05-25T06:59:20Z","TimeLastModified":"2018-05-25T08:23:18Z","Title":"spfx-01-client-side-solution","UIVersion":1536,"UIVersionLabel":"3.0","UniqueId":"bda5ce2f-9ac7-4a6f-a98b-7ae1c168519e"}';
+        if ((opts.url as string).indexOf(`/_api/web/tenantappcatalog/Add(overwrite=false, url='spfx.sppkg')`) > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0 &&
+            opts.headers.binaryStringRequestBody &&
+            opts.data) {
+            return '{"CheckInComment":"","CheckOutType":2,"ContentTag":"{BDA5CE2F-9AC7-4A6F-A98B-7AE1C168519E},4,3","CustomizedPageStatus":0,"ETag":"\\"{BDA5CE2F-9AC7-4A6F-A98B-7AE1C168519E},4\\"","Exists":true,"IrmEnabled":false,"Length":"3752","Level":1,"LinkingUri":null,"LinkingUrl":"","MajorVersion":3,"MinorVersion":0,"Name":"spfx-01.sppkg","ServerRelativeUrl":"/sites/apps/AppCatalog/spfx.sppkg","TimeCreated":"2018-05-25T06:59:20Z","TimeLastModified":"2018-05-25T08:23:18Z","Title":"spfx-01-client-side-solution","UIVersion":1536,"UIVersionLabel":"3.0","UniqueId":"bda5ce2f-9ac7-4a6f-a98b-7ae1c168519e"}';
+          }
         }
+
+        throw 'Invalid request';
+      });
+      jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('123');
+
+      try {
+        await command.action(logger, { options: { filePath: 'spfx.sppkg', output: 'json' } });
+        assert(loggerLogSpy.calledWith(JSON.parse('{"CheckInComment":"","CheckOutType":2,"ContentTag":"{BDA5CE2F-9AC7-4A6F-A98B-7AE1C168519E},4,3","CustomizedPageStatus":0,"ETag":"\\"{BDA5CE2F-9AC7-4A6F-A98B-7AE1C168519E},4\\"","Exists":true,"IrmEnabled":false,"Length":"3752","Level":1,"LinkingUri":null,"LinkingUrl":"","MajorVersion":3,"MinorVersion":0,"Name":"spfx-01.sppkg","ServerRelativeUrl":"/sites/apps/AppCatalog/spfx.sppkg","TimeCreated":"2018-05-25T06:59:20Z","TimeLastModified":"2018-05-25T08:23:18Z","Title":"spfx-01-client-side-solution","UIVersion":1536,"UIVersionLabel":"3.0","UniqueId":"bda5ce2f-9ac7-4a6f-a98b-7ae1c168519e"}')));
       }
-
-      throw 'Invalid request';
-    });
-    sinon.stub(fs, 'readFileSync').returns('123');
-
-    try {
-      await command.action(logger, { options: { filePath: 'spfx.sppkg', output: 'json' } });
-      assert(loggerLogSpy.calledWith(JSON.parse('{"CheckInComment":"","CheckOutType":2,"ContentTag":"{BDA5CE2F-9AC7-4A6F-A98B-7AE1C168519E},4,3","CustomizedPageStatus":0,"ETag":"\\"{BDA5CE2F-9AC7-4A6F-A98B-7AE1C168519E},4\\"","Exists":true,"IrmEnabled":false,"Length":"3752","Level":1,"LinkingUri":null,"LinkingUrl":"","MajorVersion":3,"MinorVersion":0,"Name":"spfx-01.sppkg","ServerRelativeUrl":"/sites/apps/AppCatalog/spfx.sppkg","TimeCreated":"2018-05-25T06:59:20Z","TimeLastModified":"2018-05-25T08:23:18Z","Title":"spfx-01-client-side-solution","UIVersion":1536,"UIVersionLabel":"3.0","UniqueId":"bda5ce2f-9ac7-4a6f-a98b-7ae1c168519e"}')));
+      finally {
+        jestUtil.restore([
+          request.post,
+          fs.readFileSync
+        ]);
+      }
     }
-    finally {
-      sinonUtil.restore([
-        request.post,
-        fs.readFileSync
-      ]);
-    }
-  });
+  );
 
-  it('correctly handles failure when the app already exists in the tenant app catalog', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      requests.push(opts);
+  it('correctly handles failure when the app already exists in the tenant app catalog',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        requests.push(opts);
 
-      if ((opts.url as string).indexOf(`/_api/web/tenantappcatalog/Add(overwrite=false, url='spfx.sppkg')`) > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0 &&
-          opts.headers.binaryStringRequestBody &&
-          opts.data) {
-          throw { error: JSON.stringify({ "odata.error": { "code": "-2130575257, Microsoft.SharePoint.SPException", "message": { "lang": "en-US", "value": "A file with the name AppCatalog/spfx.sppkg already exists. It was last modified by i:0#.f|membership|admin@contoso.onmi on 24 Nov 2017 12:50:43 -0800." } } }) };
+        if ((opts.url as string).indexOf(`/_api/web/tenantappcatalog/Add(overwrite=false, url='spfx.sppkg')`) > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0 &&
+            opts.headers.binaryStringRequestBody &&
+            opts.data) {
+            throw { error: JSON.stringify({ "odata.error": { "code": "-2130575257, Microsoft.SharePoint.SPException", "message": { "lang": "en-US", "value": "A file with the name AppCatalog/spfx.sppkg already exists. It was last modified by i:0#.f|membership|admin@contoso.onmi on 24 Nov 2017 12:50:43 -0800." } } }) };
+          }
         }
+
+        throw 'Invalid request';
+      });
+      jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('123');
+
+      try {
+        await assert.rejects(command.action(logger, { options: { debug: true, filePath: 'spfx.sppkg' } } as any),
+          new CommandError('A file with the name AppCatalog/spfx.sppkg already exists. It was last modified by i:0#.f|membership|admin@contoso.onmi on 24 Nov 2017 12:50:43 -0800.'));
       }
-
-      throw 'Invalid request';
-    });
-    sinon.stub(fs, 'readFileSync').returns('123');
-
-    try {
-      await assert.rejects(command.action(logger, { options: { debug: true, filePath: 'spfx.sppkg' } } as any),
-        new CommandError('A file with the name AppCatalog/spfx.sppkg already exists. It was last modified by i:0#.f|membership|admin@contoso.onmi on 24 Nov 2017 12:50:43 -0800.'));
+      finally {
+        jestUtil.restore([
+          request.post,
+          fs.readFileSync
+        ]);
+      }
     }
-    finally {
-      sinonUtil.restore([
-        request.post,
-        fs.readFileSync
-      ]);
-    }
-  });
+  );
 
-  it('correctly handles failure when the app already exists in the site app catalog', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      requests.push(opts);
+  it('correctly handles failure when the app already exists in the site app catalog',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        requests.push(opts);
 
-      if ((opts.url as string).indexOf(`/_api/web/sitecollectionappcatalog/Add(overwrite=false, url='spfx.sppkg')`) > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0 &&
-          opts.headers.binaryStringRequestBody &&
-          opts.data) {
-          return Promise.reject({
-            error: JSON.stringify({ "odata.error": { "code": "-2130575257, Microsoft.SharePoint.SPException", "message": { "lang": "en-US", "value": "A file with the name AppCatalog/spfx.sppkg already exists. It was last modified by i:0#.f|membership|admin@contoso.onmi on 24 Nov 2017 12:50:43 -0800." } } })
-          });
+        if ((opts.url as string).indexOf(`/_api/web/sitecollectionappcatalog/Add(overwrite=false, url='spfx.sppkg')`) > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0 &&
+            opts.headers.binaryStringRequestBody &&
+            opts.data) {
+            return Promise.reject({
+              error: JSON.stringify({ "odata.error": { "code": "-2130575257, Microsoft.SharePoint.SPException", "message": { "lang": "en-US", "value": "A file with the name AppCatalog/spfx.sppkg already exists. It was last modified by i:0#.f|membership|admin@contoso.onmi on 24 Nov 2017 12:50:43 -0800." } } })
+            });
+          }
         }
+
+        throw 'Invalid request';
+      });
+      jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('123');
+
+      try {
+        await assert.rejects(command.action(logger, { options: { debug: true, filePath: 'spfx.sppkg', appCatalogScope: 'sitecollection', appCatalogUrl: 'https://contoso.sharepoint.com' } } as any),
+          new CommandError('A file with the name AppCatalog/spfx.sppkg already exists. It was last modified by i:0#.f|membership|admin@contoso.onmi on 24 Nov 2017 12:50:43 -0800.'));
       }
-
-      throw 'Invalid request';
-    });
-    sinon.stub(fs, 'readFileSync').returns('123');
-
-    try {
-      await assert.rejects(command.action(logger, { options: { debug: true, filePath: 'spfx.sppkg', appCatalogScope: 'sitecollection', appCatalogUrl: 'https://contoso.sharepoint.com' } } as any),
-        new CommandError('A file with the name AppCatalog/spfx.sppkg already exists. It was last modified by i:0#.f|membership|admin@contoso.onmi on 24 Nov 2017 12:50:43 -0800.'));
+      finally {
+        jestUtil.restore([
+          request.post,
+          fs.readFileSync
+        ]);
+      }
     }
-    finally {
-      sinonUtil.restore([
-        request.post,
-        fs.readFileSync
-      ]);
-    }
-  });
+  );
 
   it('correctly handles random API error', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
 
       if ((opts.url as string).indexOf(`/_api/web/tenantappcatalog/Add(overwrite=false, url='spfx.sppkg')`) > -1) {
@@ -285,13 +290,13 @@ describe(commands.APP_ADD, () => {
 
       throw 'Invalid request';
     });
-    sinon.stub(fs, 'readFileSync').returns('123');
+    jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('123');
 
     try {
       await assert.rejects(command.action(logger, { options: { debug: true, filePath: 'spfx.sppkg' } } as any), new CommandError('An error has occurred'));
     }
     finally {
-      sinonUtil.restore([
+      jestUtil.restore([
         request.post,
         fs.readFileSync
       ]);
@@ -299,7 +304,7 @@ describe(commands.APP_ADD, () => {
   });
 
   it('correctly handles random API error when sitecollection', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
 
       if ((opts.url as string).indexOf(`/_api/web/sitecollectionappcatalog/Add(overwrite=false, url='spfx.sppkg')`) > -1) {
@@ -314,14 +319,14 @@ describe(commands.APP_ADD, () => {
 
       throw 'Invalid request';
     });
-    sinon.stub(fs, 'readFileSync').returns('123');
+    jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('123');
 
     try {
       await assert.rejects(command.action(logger, { options: { debug: true, filePath: 'spfx.sppkg', appCatalogScope: 'sitecollection', appCatalogUrl: 'https://contoso.sharepoint.com' } } as any),
         new CommandError('An error has occurred'));
     }
     finally {
-      sinonUtil.restore([
+      jestUtil.restore([
         request.post,
         fs.readFileSync
       ]);
@@ -329,7 +334,7 @@ describe(commands.APP_ADD, () => {
   });
 
   it('correctly handles random API error (string error)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
 
       if ((opts.url as string).indexOf(`/_api/web/tenantappcatalog/Add(overwrite=false, url='spfx.sppkg')`) > -1) {
@@ -344,53 +349,55 @@ describe(commands.APP_ADD, () => {
 
       throw 'Invalid request';
     });
-    sinon.stub(fs, 'readFileSync').returns('123');
+    jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('123');
 
     try {
       await assert.rejects(command.action(logger, { options: { debug: true, filePath: 'spfx.sppkg' } } as any),
         new CommandError('An error has occurred'));
     }
     finally {
-      sinonUtil.restore([
+      jestUtil.restore([
         request.post,
         fs.readFileSync
       ]);
     }
   });
 
-  it('correctly handles random API error when sitecollection (string error)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      requests.push(opts);
+  it('correctly handles random API error when sitecollection (string error)',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        requests.push(opts);
 
-      if ((opts.url as string).indexOf(`/_api/web/sitecollectionappcatalog/Add(overwrite=false, url='spfx.sppkg')`) > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0 &&
-          opts.headers.binaryStringRequestBody &&
-          opts.data) {
-          return Promise.reject('An error has occurred');
+        if ((opts.url as string).indexOf(`/_api/web/sitecollectionappcatalog/Add(overwrite=false, url='spfx.sppkg')`) > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0 &&
+            opts.headers.binaryStringRequestBody &&
+            opts.data) {
+            return Promise.reject('An error has occurred');
+          }
         }
+
+        throw 'Invalid request';
+      });
+      jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('123');
+
+      try {
+        await assert.rejects(command.action(logger, { options: { debug: true, filePath: 'spfx.sppkg', appCatalogScope: 'sitecollection', appCatalogUrl: 'https://contoso.sharepoint.com' } } as any),
+          new CommandError('An error has occurred'));
       }
-
-      throw 'Invalid request';
-    });
-    sinon.stub(fs, 'readFileSync').returns('123');
-
-    try {
-      await assert.rejects(command.action(logger, { options: { debug: true, filePath: 'spfx.sppkg', appCatalogScope: 'sitecollection', appCatalogUrl: 'https://contoso.sharepoint.com' } } as any),
-        new CommandError('An error has occurred'));
+      finally {
+        jestUtil.restore([
+          request.post,
+          fs.readFileSync
+        ]);
+      }
     }
-    finally {
-      sinonUtil.restore([
-        request.post,
-        fs.readFileSync
-      ]);
-    }
-  });
+  );
 
   it('handles promise error while getting tenant appcatalog', async () => {
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').callsFake(() => {
+    jestUtil.restore(request.get);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
       return Promise.reject('An error has occurred');
     });
 
@@ -402,10 +409,10 @@ describe(commands.APP_ADD, () => {
   });
 
   it('handles error while getting tenant appcatalog', async () => {
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').rejects(new Error('An error has occurred'));
+    jestUtil.restore(request.get);
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
       if ((opts.url as string).indexOf('_vti_bin/client.svc/ProcessQuery') > -1) {
         return JSON.stringify([
@@ -430,7 +437,7 @@ describe(commands.APP_ADD, () => {
   });
 
   it('fails validation on invalid scope', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -444,12 +451,12 @@ describe(commands.APP_ADD, () => {
 
   it('passes validation on valid \'tenant\' scope', async () => {
     const stats: fs.Stats = new fs.Stats();
-    sinon.stub(stats, 'isDirectory').returns(false);
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'lstatSync').returns(stats);
+    jest.spyOn(stats, 'isDirectory').mockClear().mockReturnValue(false);
+    jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+    jest.spyOn(fs, 'lstatSync').mockClear().mockReturnValue(stats);
 
     const actual = await command.validate({ options: { appCatalogScope: 'tenant', filePath: 'abc' } }, commandInfo);
-    sinonUtil.restore([
+    jestUtil.restore([
       fs.existsSync,
       fs.lstatSync
     ]);
@@ -458,12 +465,12 @@ describe(commands.APP_ADD, () => {
 
   it('passes validation on valid \'Tenant\' scope', async () => {
     const stats: fs.Stats = new fs.Stats();
-    sinon.stub(stats, 'isDirectory').returns(false);
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'lstatSync').returns(stats);
+    jest.spyOn(stats, 'isDirectory').mockClear().mockReturnValue(false);
+    jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+    jest.spyOn(fs, 'lstatSync').mockClear().mockReturnValue(stats);
 
     const actual = await command.validate({ options: { appCatalogScope: 'Tenant', filePath: 'abc' } }, commandInfo);
-    sinonUtil.restore([
+    jestUtil.restore([
       fs.existsSync,
       fs.lstatSync
     ]);
@@ -472,12 +479,12 @@ describe(commands.APP_ADD, () => {
 
   it('passes validation on valid \'SiteCollection\' scope', async () => {
     const stats: fs.Stats = new fs.Stats();
-    sinon.stub(stats, 'isDirectory').returns(false);
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'lstatSync').returns(stats);
+    jest.spyOn(stats, 'isDirectory').mockClear().mockReturnValue(false);
+    jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+    jest.spyOn(fs, 'lstatSync').mockClear().mockReturnValue(stats);
 
     const actual = await command.validate({ options: { appCatalogScope: 'SiteCollection', appCatalogUrl: 'https://contoso.sharepoint.com', filePath: 'abc' } }, commandInfo);
-    sinonUtil.restore([
+    jestUtil.restore([
       fs.existsSync,
       fs.lstatSync
     ]);
@@ -486,7 +493,7 @@ describe(commands.APP_ADD, () => {
 
   it('submits to tenant app catalog when scope not specified', async () => {
     // setup call to fake requests...
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
 
       if ((opts.url as string).indexOf(`/_api/web/`) > -1) {
@@ -501,7 +508,7 @@ describe(commands.APP_ADD, () => {
 
       throw 'Invalid request';
     });
-    sinon.stub(fs, 'readFileSync').returns('123');
+    jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('123');
 
     try {
       await command.action(logger, { options: { filePath: 'spfx.sppkg' } });
@@ -515,101 +522,105 @@ describe(commands.APP_ADD, () => {
       assert(correctAppCatalogUsed);
     }
     finally {
-      sinonUtil.restore([
+      jestUtil.restore([
         request.post,
         fs.readFileSync
       ]);
     }
   });
 
-  it('submits to tenant app catalog when scope \'tenant\' specified ', async () => {
-    // setup call to fake requests...
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      requests.push(opts);
+  it('submits to tenant app catalog when scope \'tenant\' specified ',
+    async () => {
+      // setup call to fake requests...
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        requests.push(opts);
 
-      if ((opts.url as string).indexOf(`/_api/web/`) > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0 &&
-          opts.headers.binaryStringRequestBody &&
-          opts.data) {
-          return '{"CheckInComment":"","CheckOutType":2,"ContentTag":"{BDA5CE2F-9AC7-4A6F-A98B-7AE1C168519E},4,3","CustomizedPageStatus":0,"ETag":"\\"{BDA5CE2F-9AC7-4A6F-A98B-7AE1C168519E},4\\"","Exists":true,"IrmEnabled":false,"Length":"3752","Level":1,"LinkingUri":null,"LinkingUrl":"","MajorVersion":3,"MinorVersion":0,"Name":"spfx-01.sppkg","ServerRelativeUrl":"/sites/apps/AppCatalog/spfx.sppkg","TimeCreated":"2018-05-25T06:59:20Z","TimeLastModified":"2018-05-25T08:23:18Z","Title":"spfx-01-client-side-solution","UIVersion":1536,"UIVersionLabel":"3.0","UniqueId":"bda5ce2f-9ac7-4a6f-a98b-7ae1c168519e"}';
+        if ((opts.url as string).indexOf(`/_api/web/`) > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0 &&
+            opts.headers.binaryStringRequestBody &&
+            opts.data) {
+            return '{"CheckInComment":"","CheckOutType":2,"ContentTag":"{BDA5CE2F-9AC7-4A6F-A98B-7AE1C168519E},4,3","CustomizedPageStatus":0,"ETag":"\\"{BDA5CE2F-9AC7-4A6F-A98B-7AE1C168519E},4\\"","Exists":true,"IrmEnabled":false,"Length":"3752","Level":1,"LinkingUri":null,"LinkingUrl":"","MajorVersion":3,"MinorVersion":0,"Name":"spfx-01.sppkg","ServerRelativeUrl":"/sites/apps/AppCatalog/spfx.sppkg","TimeCreated":"2018-05-25T06:59:20Z","TimeLastModified":"2018-05-25T08:23:18Z","Title":"spfx-01-client-side-solution","UIVersion":1536,"UIVersionLabel":"3.0","UniqueId":"bda5ce2f-9ac7-4a6f-a98b-7ae1c168519e"}';
+          }
         }
-      }
 
-      throw 'Invalid request';
-    });
-    sinon.stub(fs, 'readFileSync').callsFake(() => '123');
-
-    try {
-      await command.action(logger, { options: { appCatalogScope: 'tenant', filePath: 'spfx.sppkg' } });
-      let correctAppCatalogUsed = false;
-      requests.forEach(r => {
-        if (r.url.indexOf('/tenantappcatalog/') > -1) {
-          correctAppCatalogUsed = true;
-        }
+        throw 'Invalid request';
       });
-      assert(correctAppCatalogUsed);
-    }
-    finally {
-      sinonUtil.restore([
-        request.post,
-        fs.readFileSync
-      ]);
-    }
-  });
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(() => '123');
 
-  it('submits to sitecollection app catalog when scope \'sitecollection\' specified ', async () => {
-    // setup call to fake requests...
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      requests.push(opts);
-
-      if ((opts.url as string).indexOf(`/_api/web/`) > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0 &&
-          opts.headers.binaryStringRequestBody &&
-          opts.data) {
-          return '{"CheckInComment":"","CheckOutType":2,"ContentTag":"{BDA5CE2F-9AC7-4A6F-A98B-7AE1C168519E},4,3","CustomizedPageStatus":0,"ETag":"\\"{BDA5CE2F-9AC7-4A6F-A98B-7AE1C168519E},4\\"","Exists":true,"IrmEnabled":false,"Length":"3752","Level":1,"LinkingUri":null,"LinkingUrl":"","MajorVersion":3,"MinorVersion":0,"Name":"spfx-01.sppkg","ServerRelativeUrl":"/sites/apps/AppCatalog/spfx.sppkg","TimeCreated":"2018-05-25T06:59:20Z","TimeLastModified":"2018-05-25T08:23:18Z","Title":"spfx-01-client-side-solution","UIVersion":1536,"UIVersionLabel":"3.0","UniqueId":"bda5ce2f-9ac7-4a6f-a98b-7ae1c168519e"}';
-        }
+      try {
+        await command.action(logger, { options: { appCatalogScope: 'tenant', filePath: 'spfx.sppkg' } });
+        let correctAppCatalogUsed = false;
+        requests.forEach(r => {
+          if (r.url.indexOf('/tenantappcatalog/') > -1) {
+            correctAppCatalogUsed = true;
+          }
+        });
+        assert(correctAppCatalogUsed);
       }
+      finally {
+        jestUtil.restore([
+          request.post,
+          fs.readFileSync
+        ]);
+      }
+    }
+  );
 
-      throw 'Invalid request';
-    });
-    sinon.stub(fs, 'readFileSync').returns('123');
+  it('submits to sitecollection app catalog when scope \'sitecollection\' specified ',
+    async () => {
+      // setup call to fake requests...
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        requests.push(opts);
 
-    try {
-      await command.action(logger, { options: { appCatalogScope: 'sitecollection', filePath: 'spfx.sppkg', appCatalogUrl: 'https://contoso.sharepoint.com' } });
-      let correctAppCatalogUsed = false;
-      requests.forEach(r => {
-        if (r.url.indexOf('/sitecollectionappcatalog/') > -1) {
-          correctAppCatalogUsed = true;
+        if ((opts.url as string).indexOf(`/_api/web/`) > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0 &&
+            opts.headers.binaryStringRequestBody &&
+            opts.data) {
+            return '{"CheckInComment":"","CheckOutType":2,"ContentTag":"{BDA5CE2F-9AC7-4A6F-A98B-7AE1C168519E},4,3","CustomizedPageStatus":0,"ETag":"\\"{BDA5CE2F-9AC7-4A6F-A98B-7AE1C168519E},4\\"","Exists":true,"IrmEnabled":false,"Length":"3752","Level":1,"LinkingUri":null,"LinkingUrl":"","MajorVersion":3,"MinorVersion":0,"Name":"spfx-01.sppkg","ServerRelativeUrl":"/sites/apps/AppCatalog/spfx.sppkg","TimeCreated":"2018-05-25T06:59:20Z","TimeLastModified":"2018-05-25T08:23:18Z","Title":"spfx-01-client-side-solution","UIVersion":1536,"UIVersionLabel":"3.0","UniqueId":"bda5ce2f-9ac7-4a6f-a98b-7ae1c168519e"}';
+          }
         }
+
+        throw 'Invalid request';
       });
-      assert(correctAppCatalogUsed);
+      jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('123');
+
+      try {
+        await command.action(logger, { options: { appCatalogScope: 'sitecollection', filePath: 'spfx.sppkg', appCatalogUrl: 'https://contoso.sharepoint.com' } });
+        let correctAppCatalogUsed = false;
+        requests.forEach(r => {
+          if (r.url.indexOf('/sitecollectionappcatalog/') > -1) {
+            correctAppCatalogUsed = true;
+          }
+        });
+        assert(correctAppCatalogUsed);
+      }
+      finally {
+        jestUtil.restore([
+          request.post,
+          fs.readFileSync
+        ]);
+      }
     }
-    finally {
-      sinonUtil.restore([
-        request.post,
-        fs.readFileSync
-      ]);
-    }
-  });
+  );
 
   it('fails validation if file path doesn\'t exist', async () => {
-    sinon.stub(fs, 'existsSync').returns(false);
+    jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(false);
     const actual = await command.validate({ options: { filePath: 'abc' } }, commandInfo);
-    sinonUtil.restore(fs.existsSync);
+    jestUtil.restore(fs.existsSync);
     assert.notStrictEqual(actual, true);
   });
 
   it('fails validation if file path points to a directory', async () => {
     const stats: fs.Stats = new fs.Stats();
-    sinon.stub(stats, 'isDirectory').returns(true);
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'lstatSync').returns(stats);
+    jest.spyOn(stats, 'isDirectory').mockClear().mockReturnValue(true);
+    jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+    jest.spyOn(fs, 'lstatSync').mockClear().mockReturnValue(stats);
     const actual = await command.validate({ options: { filePath: 'abc' } }, commandInfo);
-    sinonUtil.restore([
+    jestUtil.restore([
       fs.existsSync,
       fs.lstatSync
     ]);
@@ -618,13 +629,13 @@ describe(commands.APP_ADD, () => {
 
   it('fails validation when invalid scope is specified', async () => {
     const stats: fs.Stats = new fs.Stats();
-    sinon.stub(stats, 'isDirectory').returns(false);
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'lstatSync').returns(stats);
+    jest.spyOn(stats, 'isDirectory').mockClear().mockReturnValue(false);
+    jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+    jest.spyOn(fs, 'lstatSync').mockClear().mockReturnValue(stats);
 
     const actual = await command.validate({ options: { filePath: 'abc', appCatalogScope: 'foo' } }, commandInfo);
 
-    sinonUtil.restore([
+    jestUtil.restore([
       fs.existsSync,
       fs.lstatSync
     ]);
@@ -633,13 +644,13 @@ describe(commands.APP_ADD, () => {
 
   it('passes validation when path points to a valid file', async () => {
     const stats: fs.Stats = new fs.Stats();
-    sinon.stub(stats, 'isDirectory').returns(false);
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'lstatSync').returns(stats);
+    jest.spyOn(stats, 'isDirectory').mockClear().mockReturnValue(false);
+    jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+    jest.spyOn(fs, 'lstatSync').mockClear().mockReturnValue(stats);
 
     const actual = await command.validate({ options: { filePath: 'abc' } }, commandInfo);
 
-    sinonUtil.restore([
+    jestUtil.restore([
       fs.existsSync,
       fs.lstatSync
     ]);
@@ -648,77 +659,85 @@ describe(commands.APP_ADD, () => {
 
   it('passes validation when no scope is specified', async () => {
     const stats: fs.Stats = new fs.Stats();
-    sinon.stub(stats, 'isDirectory').returns(false);
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'lstatSync').returns(stats);
+    jest.spyOn(stats, 'isDirectory').mockClear().mockReturnValue(false);
+    jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+    jest.spyOn(fs, 'lstatSync').mockClear().mockReturnValue(stats);
 
     const actual = await command.validate({ options: { filePath: 'abc' } }, commandInfo);
 
-    sinonUtil.restore([
+    jestUtil.restore([
       fs.existsSync,
       fs.lstatSync
     ]);
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation when the scope is specified with \'tenant\'', async () => {
-    const stats: fs.Stats = new fs.Stats();
-    sinon.stub(stats, 'isDirectory').returns(false);
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'lstatSync').returns(stats);
+  it('passes validation when the scope is specified with \'tenant\'',
+    async () => {
+      const stats: fs.Stats = new fs.Stats();
+      jest.spyOn(stats, 'isDirectory').mockClear().mockReturnValue(false);
+      jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+      jest.spyOn(fs, 'lstatSync').mockClear().mockReturnValue(stats);
 
-    const actual = await command.validate({ options: { filePath: 'abc', appCatalogScope: 'tenant' } }, commandInfo);
+      const actual = await command.validate({ options: { filePath: 'abc', appCatalogScope: 'tenant' } }, commandInfo);
 
-    sinonUtil.restore([
-      fs.existsSync,
-      fs.lstatSync
-    ]);
-    assert.strictEqual(actual, true);
-  });
+      jestUtil.restore([
+        fs.existsSync,
+        fs.lstatSync
+      ]);
+      assert.strictEqual(actual, true);
+    }
+  );
 
 
-  it('should fail when \'sitecollection\' scope, but no appCatalogUrl specified', async () => {
-    const stats: fs.Stats = new fs.Stats();
-    sinon.stub(stats, 'isDirectory').returns(false);
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'lstatSync').returns(stats);
+  it('should fail when \'sitecollection\' scope, but no appCatalogUrl specified',
+    async () => {
+      const stats: fs.Stats = new fs.Stats();
+      jest.spyOn(stats, 'isDirectory').mockClear().mockReturnValue(false);
+      jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+      jest.spyOn(fs, 'lstatSync').mockClear().mockReturnValue(stats);
 
-    const actual = await command.validate({ options: { filePath: 'abc', appCatalogScope: 'sitecollection' } }, commandInfo);
+      const actual = await command.validate({ options: { filePath: 'abc', appCatalogScope: 'sitecollection' } }, commandInfo);
 
-    sinonUtil.restore([
-      fs.existsSync,
-      fs.lstatSync
-    ]);
-    assert.notStrictEqual(actual, true);
-  });
+      jestUtil.restore([
+        fs.existsSync,
+        fs.lstatSync
+      ]);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('should not fail when \'tenant\' scope, but also appCatalogUrl specified', async () => {
-    const stats: fs.Stats = new fs.Stats();
-    sinon.stub(stats, 'isDirectory').returns(false);
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'lstatSync').returns(stats);
+  it('should not fail when \'tenant\' scope, but also appCatalogUrl specified',
+    async () => {
+      const stats: fs.Stats = new fs.Stats();
+      jest.spyOn(stats, 'isDirectory').mockClear().mockReturnValue(false);
+      jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+      jest.spyOn(fs, 'lstatSync').mockClear().mockReturnValue(stats);
 
-    const actual = await command.validate({ options: { filePath: 'abc', appCatalogScope: 'tenant', appCatalogUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
+      const actual = await command.validate({ options: { filePath: 'abc', appCatalogScope: 'tenant', appCatalogUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
 
-    sinonUtil.restore([
-      fs.existsSync,
-      fs.lstatSync
-    ]);
-    assert.strictEqual(actual, true);
-  });
+      jestUtil.restore([
+        fs.existsSync,
+        fs.lstatSync
+      ]);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('should fail when \'sitecollection\' scope, but bad appCatalogUrl format specified', async () => {
-    const stats: fs.Stats = new fs.Stats();
-    sinon.stub(stats, 'isDirectory').returns(false);
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'lstatSync').returns(stats);
+  it('should fail when \'sitecollection\' scope, but bad appCatalogUrl format specified',
+    async () => {
+      const stats: fs.Stats = new fs.Stats();
+      jest.spyOn(stats, 'isDirectory').mockClear().mockReturnValue(false);
+      jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+      jest.spyOn(fs, 'lstatSync').mockClear().mockReturnValue(stats);
 
-    const actual = await command.validate({ options: { filePath: 'abc', appCatalogScope: 'sitecollection', appCatalogUrl: 'contoso.sharepoint.com' } }, commandInfo);
+      const actual = await command.validate({ options: { filePath: 'abc', appCatalogScope: 'sitecollection', appCatalogUrl: 'contoso.sharepoint.com' } }, commandInfo);
 
-    sinonUtil.restore([
-      fs.existsSync,
-      fs.lstatSync
-    ]);
-    assert.notStrictEqual(actual, true);
-  });
+      jestUtil.restore([
+        fs.existsSync,
+        fs.lstatSync
+      ]);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 });

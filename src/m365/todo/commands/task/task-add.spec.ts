@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request, { CliRequestOptions } from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './task-add.js';
 
@@ -17,7 +16,7 @@ describe(commands.TASK_ADD, () => {
   let log: string[];
   let logger: Logger;
   let commandInfo: CommandInfo;
-  let postStub: sinon.SinonStub<[options: CliRequestOptions]>;
+  let postStub: jest.Mock<[options: CliRequestOptions]>;
 
   const getRequestData = {
     "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('4cb2b035-ad76-406c-bdc4-6c72ad403a22')/todo/lists",
@@ -39,11 +38,11 @@ describe(commands.TASK_ADD, () => {
     }
   };
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -62,7 +61,7 @@ describe(commands.TASK_ADD, () => {
       }
     };
     (command as any).items = [];
-    postStub = sinon.stub(request, 'post').callsFake(async (opts: any) => {
+    postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts: any) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/me/todo/lists/AQMkADlhMTRkOGEzLWQ1M2QtNGVkNS04NjdmLWU0NzJhMjZmZWNmMwAuAAADKvwNgAMNPE_zFNRJXVrU1wEAhHKQZHItDEOVCn8U3xuA2AABmQeVPwAAAA==/tasks`) {
         return postRequestData;
       }
@@ -70,7 +69,7 @@ describe(commands.TASK_ADD, () => {
       throw 'invalid request';
     });
 
-    sinon.stub(request, 'get').callsFake(async (opts: any) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts: any) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/me/todo/lists?$filter=displayName eq 'Tasks%20List'`) {
         return getRequestData;
       }
@@ -80,15 +79,15 @@ describe(commands.TASK_ADD, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post,
       Date.now
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -132,8 +131,8 @@ describe(commands.TASK_ADD, () => {
       }
     } as any);
 
-    assert.strictEqual(postStub.lastCall.args[0].data.body.content, bodyText);
-    assert.strictEqual(postStub.lastCall.args[0].data.body.contentType, 'text');
+    assert.strictEqual(postStub.mock.lastCall[0].data.body.content, bodyText);
+    assert.strictEqual(postStub.mock.lastCall[0].data.body.contentType, 'text');
   });
 
   it('adds To Do task with importance', async () => {
@@ -145,7 +144,7 @@ describe(commands.TASK_ADD, () => {
       }
     } as any);
 
-    assert.strictEqual(postStub.lastCall.args[0].data.importance, 'high');
+    assert.strictEqual(postStub.mock.lastCall[0].data.importance, 'high');
   });
 
   it('adds To Do task with dueDateTime', async () => {
@@ -158,7 +157,7 @@ describe(commands.TASK_ADD, () => {
       }
     } as any);
 
-    assert.deepStrictEqual(postStub.lastCall.args[0].data.dueDateTime, { dateTime: dateTime, timeZone: 'Etc/GMT' });
+    assert.deepStrictEqual(postStub.mock.lastCall[0].data.dueDateTime, { dateTime: dateTime, timeZone: 'Etc/GMT' });
   });
 
   it('adds To Do task with reminderDateTime', async () => {
@@ -171,7 +170,7 @@ describe(commands.TASK_ADD, () => {
       }
     } as any);
 
-    assert.deepStrictEqual(postStub.lastCall.args[0].data.reminderDateTime, { dateTime: dateTime, timeZone: 'Etc/GMT' });
+    assert.deepStrictEqual(postStub.mock.lastCall[0].data.reminderDateTime, { dateTime: dateTime, timeZone: 'Etc/GMT' });
   });
 
   it('adds To Do task with categories ', async () => {
@@ -183,7 +182,7 @@ describe(commands.TASK_ADD, () => {
       }
     } as any);
 
-    assert.deepStrictEqual(postStub.lastCall.args[0].data.categories, ['None', 'Preset24']);
+    assert.deepStrictEqual(postStub.mock.lastCall[0].data.categories, ['None', 'Preset24']);
   });
 
   it('adds To Do task with completedDateTime', async () => {
@@ -196,7 +195,7 @@ describe(commands.TASK_ADD, () => {
       }
     } as any);
 
-    assert.deepStrictEqual(postStub.lastCall.args[0].data.completedDateTime, { dateTime: dateTime, timeZone: 'Etc/GMT' });
+    assert.deepStrictEqual(postStub.mock.lastCall[0].data.completedDateTime, { dateTime: dateTime, timeZone: 'Etc/GMT' });
   });
 
   it('adds To Do task with startDateTime', async () => {
@@ -209,7 +208,7 @@ describe(commands.TASK_ADD, () => {
       }
     } as any);
 
-    assert.deepStrictEqual(postStub.lastCall.args[0].data.startDateTime, { dateTime: dateTime, timeZone: 'Etc/GMT' });
+    assert.deepStrictEqual(postStub.mock.lastCall[0].data.startDateTime, { dateTime: dateTime, timeZone: 'Etc/GMT' });
   });
 
   it('adds To Do task with status', async () => {
@@ -221,34 +220,36 @@ describe(commands.TASK_ADD, () => {
       }
     } as any);
 
-    assert.deepStrictEqual(postStub.lastCall.args[0].data.status, 'inProgress');
+    assert.deepStrictEqual(postStub.mock.lastCall[0].data.status, 'inProgress');
   });
 
-  it('rejects if no tasks list is found with the specified list name', async () => {
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').callsFake(async (opts: any) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/me/todo/lists?$filter=displayName eq 'Tasks%20List'`) {
-        return {
-          "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('4cb2b035-ad76-406c-bdc4-6c72ad403a22')/todo/lists",
-          "value": []
-        };
-      }
+  it('rejects if no tasks list is found with the specified list name',
+    async () => {
+      jestUtil.restore(request.get);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts: any) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/me/todo/lists?$filter=displayName eq 'Tasks%20List'`) {
+          return {
+            "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('4cb2b035-ad76-406c-bdc4-6c72ad403a22')/todo/lists",
+            "value": []
+          };
+        }
 
-      throw 'invalid request';
-    });
+        throw 'invalid request';
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        title: 'New task',
-        listName: 'Tasks List',
-        debug: true
-      }
-    } as any), new CommandError('The specified task list does not exist'));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          title: 'New task',
+          listName: 'Tasks List',
+          debug: true
+        }
+      } as any), new CommandError('The specified task list does not exist'));
+    }
+  );
 
   it('handles error correctly', async () => {
-    sinonUtil.restore(request.post);
-    sinon.stub(request, 'post').rejects(new Error('An error has occurred'));
+    jestUtil.restore(request.post);
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
     await assert.rejects(command.action(logger, { options: { listName: "Tasks List", title: "New task" } } as any), new CommandError('An error has occurred'));
   });
@@ -309,30 +310,34 @@ describe(commands.TASK_ADD, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation when valid completedDateTime is passed without status completed', async () => {
-    const dateTime = '2023-01-01';
-    const actual = await command.validate({
-      options: {
-        title: 'New task',
-        listName: 'Tasks List',
-        completedDateTime: dateTime,
-        status: 'inProgress'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation when valid completedDateTime is passed without status completed',
+    async () => {
+      const dateTime = '2023-01-01';
+      const actual = await command.validate({
+        options: {
+          title: 'New task',
+          listName: 'Tasks List',
+          completedDateTime: dateTime,
+          status: 'inProgress'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when valid completedDateTime is passed without status', async () => {
-    const dateTime = '2023-01-01';
-    const actual = await command.validate({
-      options: {
-        title: 'New task',
-        listName: 'Tasks List',
-        completedDateTime: dateTime
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation when valid completedDateTime is passed without status',
+    async () => {
+      const dateTime = '2023-01-01';
+      const actual = await command.validate({
+        options: {
+          title: 'New task',
+          listName: 'Tasks List',
+          completedDateTime: dateTime
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation when invalid startDateTime is passed', async () => {
     const actual = await command.validate({

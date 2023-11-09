@@ -12,13 +12,15 @@ describe('FN006004_CFG_PS_developer', () => {
     rule = new FN006004_CFG_PS_developer();
   });
 
-  it('doesn\'t return notification if package-solution.json is not available', () => {
-    const project: Project = {
-      path: '/usr/tmp'
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it('doesn\'t return notification if package-solution.json is not available',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp'
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
   it('returns notification if developer section is not set', () => {
     const project: Project = {

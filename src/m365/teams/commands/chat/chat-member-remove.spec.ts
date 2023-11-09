@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { odata } from '../../../../utils/odata.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './chat-member-remove.js';
 
@@ -45,11 +44,11 @@ describe(commands.CHAT_MEMBER_REMOVE, () => {
   let commandInfo: CommandInfo;
   let promptOptions: any;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -67,7 +66,7 @@ describe(commands.CHAT_MEMBER_REMOVE, () => {
         log.push(msg);
       }
     };
-    sinon.stub(Cli, 'prompt').callsFake(async (options) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options) => {
       promptOptions = options;
       return { continue: false };
     });
@@ -75,15 +74,15 @@ describe(commands.CHAT_MEMBER_REMOVE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       odata.getAllItems,
       request.delete,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -96,14 +95,14 @@ describe(commands.CHAT_MEMBER_REMOVE, () => {
   });
 
   it('removes the member by specifying the userId', async () => {
-    sinon.stub(odata, 'getAllItems').callsFake(async url => {
+    jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async url => {
       if (url === `https://graph.microsoft.com/v1.0/chats/${chatId}/members`) {
         return chatMembers;
       }
 
       throw 'Invalid request';
     });
-    const deleteStub = sinon.stub(request, 'delete').callsFake(async (opts) => {
+    const deleteStub = jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/chats/${chatId}/members/${chatMemberId}`) {
         return;
       }
@@ -115,87 +114,99 @@ describe(commands.CHAT_MEMBER_REMOVE, () => {
     assert(deleteStub.called);
   });
 
-  it('removes the member from a chat by specifying the member id', async () => {
-    const deleteStub = sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/chats/${chatId}/members/${chatMemberId}`) {
-        return;
-      }
+  it('removes the member from a chat by specifying the member id',
+    async () => {
+      const deleteStub = jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/chats/${chatId}/members/${chatMemberId}`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { chatId: chatId, id: chatMemberId, force: true, verbose: true } });
-    assert(deleteStub.called);
-  });
-
-
-  it('removes the specified member retrieved by user principal name when prompt confirmed', async () => {
-    sinon.stub(odata, 'getAllItems').callsFake(async url => {
-      if (url === `https://graph.microsoft.com/v1.0/chats/${chatId}/members`) {
-        return chatMembers;
-      }
-
-      throw 'Invalid request';
-    });
-    const deleteStub = sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/chats/${chatId}/members/${chatMemberId}`) {
-        return;
-      }
-
-      throw 'Invalid request';
-    });
-
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
-
-    await command.action(logger, { options: { chatId: chatId, userName: userPrincipalName, verbose: true } });
-    assert(deleteStub.called);
-  });
-
-  it('throws error when member by specifying userName is not found in the chat', async () => {
-    sinon.stub(odata, 'getAllItems').callsFake(async url => {
-      if (url === `https://graph.microsoft.com/v1.0/chats/${chatId}/members`) {
-        return [...chatMembers.slice(1)];
-      }
-
-      throw 'Invalid request';
-    });
-
-    await assert.rejects(command.action(logger, { options: { chatId: chatId, userName: userPrincipalName, force: true, verbose: true } }),
-      new CommandError(`Member with userName '${userPrincipalName}' could not be found in the chat.`));
-  });
-
-  it('throws error when member by specifying userId is not found in the chat', async () => {
-    sinon.stub(odata, 'getAllItems').callsFake(async url => {
-      if (url === `https://graph.microsoft.com/v1.0/chats/${chatId}/members`) {
-        return [...chatMembers.slice(1)];
-      }
-
-      throw 'Invalid request';
-    });
-
-    await assert.rejects(command.action(logger, { options: { chatId: chatId, userId: userId, force: true, verbose: true } }),
-      new CommandError(`Member with userId '${userId}' could not be found in the chat.`));
-  });
-
-  it('prompts before removing the specified message when confirm option not passed', async () => {
-    await command.action(logger, { options: { chatId: chatId, id: chatMemberId } });
-
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      await command.action(logger, { options: { chatId: chatId, id: chatMemberId, force: true, verbose: true } });
+      assert(deleteStub.called);
     }
+  );
 
-    assert(promptIssued);
-  });
 
-  it('aborts removing the specified chat member when confirm option not passed and prompt not confirmed', async () => {
-    const deleteStub = sinon.stub(request, 'delete').resolves();
+  it('removes the specified member retrieved by user principal name when prompt confirmed',
+    async () => {
+      jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async url => {
+        if (url === `https://graph.microsoft.com/v1.0/chats/${chatId}/members`) {
+          return chatMembers;
+        }
 
-    await command.action(logger, { options: { chatId: chatId, userId: userId } });
-    assert(deleteStub.notCalled);
-  });
+        throw 'Invalid request';
+      });
+      const deleteStub = jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/chats/${chatId}/members/${chatMemberId}`) {
+          return;
+        }
+
+        throw 'Invalid request';
+      });
+
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
+
+      await command.action(logger, { options: { chatId: chatId, userName: userPrincipalName, verbose: true } });
+      assert(deleteStub.called);
+    }
+  );
+
+  it('throws error when member by specifying userName is not found in the chat',
+    async () => {
+      jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async url => {
+        if (url === `https://graph.microsoft.com/v1.0/chats/${chatId}/members`) {
+          return [...chatMembers.slice(1)];
+        }
+
+        throw 'Invalid request';
+      });
+
+      await assert.rejects(command.action(logger, { options: { chatId: chatId, userName: userPrincipalName, force: true, verbose: true } }),
+        new CommandError(`Member with userName '${userPrincipalName}' could not be found in the chat.`));
+    }
+  );
+
+  it('throws error when member by specifying userId is not found in the chat',
+    async () => {
+      jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async url => {
+        if (url === `https://graph.microsoft.com/v1.0/chats/${chatId}/members`) {
+          return [...chatMembers.slice(1)];
+        }
+
+        throw 'Invalid request';
+      });
+
+      await assert.rejects(command.action(logger, { options: { chatId: chatId, userId: userId, force: true, verbose: true } }),
+        new CommandError(`Member with userId '${userId}' could not be found in the chat.`));
+    }
+  );
+
+  it('prompts before removing the specified message when confirm option not passed',
+    async () => {
+      await command.action(logger, { options: { chatId: chatId, id: chatMemberId } });
+
+      let promptIssued = false;
+
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+
+      assert(promptIssued);
+    }
+  );
+
+  it('aborts removing the specified chat member when confirm option not passed and prompt not confirmed',
+    async () => {
+      const deleteStub = jest.spyOn(request, 'delete').mockClear().mockImplementation().resolves();
+
+      await command.action(logger, { options: { chatId: chatId, userId: userId } });
+      assert(deleteStub.notCalled);
+    }
+  );
 
   it('fails validation if the chatId is not valid chatId', async () => {
     const actual = await command.validate({ options: { chatId: 'invalid', userId: userId } }, commandInfo);

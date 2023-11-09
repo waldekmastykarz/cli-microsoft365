@@ -13,7 +13,7 @@ describe('utils/md', () => {
   let loginHelp: string;
   let loginHelpPlain: string;
 
-  before(() => {
+  beforeAll(() => {
     cliCompletionClinkUpdateHelp = fs.readFileSync(path.join(__dirname, '..', '..', 'docs', 'docs', 'cmd', 'cli', 'completion', 'completion-clink-update.mdx'), 'utf8');
     cliCompletionClinkUpdateHelpPlain = md.md2plain(cliCompletionClinkUpdateHelp, path.join(__dirname, '..', '..', 'docs'));
     loginHelp = fs.readFileSync(path.join(__dirname, '..', '..', 'docs', 'docs', 'cmd', 'login.mdx'), 'utf8');
@@ -133,8 +133,10 @@ describe('utils/md', () => {
     assert.strictEqual(actual, 'This is<br>new<br>line');
   });
 
-  it(`doesn't fail escaping special md characters if the specified arg is undefined`, () => {
-    const actual = md.escapeMd(undefined);
-    assert.strictEqual(actual, undefined);
-  });
+  it(`doesn't fail escaping special md characters if the specified arg is undefined`,
+    () => {
+      const actual = md.escapeMd(undefined);
+      assert.strictEqual(actual, undefined);
+    }
+  );
 });

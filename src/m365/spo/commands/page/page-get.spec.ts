@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './page-get.js';
 import { classicPage, controlsMock, pageListItemMock, sectionMock } from './page-get.mock.js';
@@ -17,14 +16,14 @@ import { classicPage, controlsMock, pageListItemMock, sectionMock } from './page
 describe(commands.PAGE_GET, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -42,17 +41,17 @@ describe(commands.PAGE_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -68,26 +67,28 @@ describe(commands.PAGE_GET, () => {
     assert.deepStrictEqual(command.defaultProperties(), ['commentsDisabled', 'numSections', 'numControls', 'title', 'layoutType']);
   });
 
-  it('gets information about a modern page including all returned properties', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
-        return pageListItemMock;
-      }
+  it('gets information about a modern page including all returned properties',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
+          return pageListItemMock;
+        }
 
-      if ((opts.url as string).indexOf(`/_api/SitePages/Pages(83)`) > -1) {
-        return controlsMock;
-      }
+        if ((opts.url as string).indexOf(`/_api/SitePages/Pages(83)`) > -1) {
+          return controlsMock;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a', name: 'home.aspx', output: 'json' } } as any);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].numControls, sectionMock.numControls);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].numSections, sectionMock.numSections);
-  });
+      await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a', name: 'home.aspx', output: 'json' } } as any);
+      assert.strictEqual(loggerLogSpy.mock.lastCall[0].numControls, sectionMock.numControls);
+      assert.strictEqual(loggerLogSpy.mock.lastCall[0].numSections, sectionMock.numSections);
+    }
+  );
 
   it('gets information about a modern page', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
         return pageListItemMock;
       }
@@ -108,7 +109,7 @@ describe(commands.PAGE_GET, () => {
   });
 
   it('gets information about a modern page on root of tenant', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/SitePages/home.aspx')`) > -1) {
         return pageListItemMock;
       }
@@ -128,42 +129,46 @@ describe(commands.PAGE_GET, () => {
     }));
   });
 
-  it('gets information about a modern page when the specified page name doesn\'t contain extension', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
-        return pageListItemMock;
-      }
+  it('gets information about a modern page when the specified page name doesn\'t contain extension',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
+          return pageListItemMock;
+        }
 
-      if ((opts.url as string).indexOf(`/_api/SitePages/Pages(83)`) > -1) {
-        return controlsMock;
-      }
+        if ((opts.url as string).indexOf(`/_api/SitePages/Pages(83)`) > -1) {
+          return controlsMock;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a', name: 'home', output: 'json' } } as any);
-    assert(loggerLogSpy.calledWith({
-      ...pageListItemMock,
-      canvasContentJson: controlsMock.CanvasContent1,
-      ...sectionMock
-    }));
-  });
+      await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a', name: 'home', output: 'json' } } as any);
+      assert(loggerLogSpy.calledWith({
+        ...pageListItemMock,
+        canvasContentJson: controlsMock.CanvasContent1,
+        ...sectionMock
+      }));
+    }
+  );
 
-  it('check if section and control HTML parsing gets skipped for metadata only mode', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
-        return pageListItemMock;
-      }
+  it('check if section and control HTML parsing gets skipped for metadata only mode',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
+          return pageListItemMock;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a', name: 'home', metadataOnly: true, output: 'json' } });
-    assert(loggerLogSpy.calledWith(pageListItemMock));
-  });
+      await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a', name: 'home', metadataOnly: true, output: 'json' } });
+      assert(loggerLogSpy.calledWith(pageListItemMock));
+    }
+  );
 
   it('shows error when the specified page is a classic page', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
         return classicPage;
       }
@@ -176,7 +181,7 @@ describe(commands.PAGE_GET, () => {
   });
 
   it('correctly handles page not found', async () => {
-    sinon.stub(request, 'get').callsFake(() => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
       throw {
         error: {
           "odata.error": {
@@ -195,7 +200,7 @@ describe(commands.PAGE_GET, () => {
   });
 
   it('correctly handles OData error when retrieving pages', async () => {
-    sinon.stub(request, 'get').callsFake(() => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
       throw { error: { 'odata.error': { message: { value: 'An error has occurred' } } } };
     });
 
@@ -214,13 +219,17 @@ describe(commands.PAGE_GET, () => {
     assert(containsOption);
   });
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', name: 'home.aspx' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', name: 'home.aspx' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when the webUrl is a valid SharePoint URL and name is specified', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', name: 'home.aspx' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when the webUrl is a valid SharePoint URL and name is specified',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', name: 'home.aspx' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

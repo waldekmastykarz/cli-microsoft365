@@ -1,6 +1,5 @@
 import assert from 'assert';
 import fs from 'fs';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './groupsetting-remove.js';
 
@@ -20,12 +19,12 @@ describe(commands.GROUPSETTING_REMOVE, () => {
   let commandInfo: CommandInfo;
   let promptOptions: any;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(fs, 'readFileSync').returns('abc');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('abc');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -43,7 +42,7 @@ describe(commands.GROUPSETTING_REMOVE, () => {
         log.push(msg);
       }
     };
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
@@ -51,15 +50,15 @@ describe(commands.GROUPSETTING_REMOVE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.delete,
       global.setTimeout,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -71,90 +70,102 @@ describe(commands.GROUPSETTING_REMOVE, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('removes the specified group setting without prompting for confirmation when confirm option specified', async () => {
-    const deleteRequestStub = sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === 'https://graph.microsoft.com/v1.0/groupSettings/28beab62-7540-4db1-a23f-29a6018a3848') {
-        return;
+  it('removes the specified group setting without prompting for confirmation when confirm option specified',
+    async () => {
+      const deleteRequestStub = jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://graph.microsoft.com/v1.0/groupSettings/28beab62-7540-4db1-a23f-29a6018a3848') {
+          return;
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger, { options: { id: '28beab62-7540-4db1-a23f-29a6018a3848', force: true } });
+      assert(deleteRequestStub.called);
+    }
+  );
+
+  it('removes the specified group setting without prompting for confirmation when confirm option specified (debug)',
+    async () => {
+      const deleteRequestStub = jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://graph.microsoft.com/v1.0/groupSettings/28beab62-7540-4db1-a23f-29a6018a3848') {
+          return;
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger, { options: { debug: true, id: '28beab62-7540-4db1-a23f-29a6018a3848', force: true } });
+      assert(deleteRequestStub.called);
+    }
+  );
+
+  it('prompts before removing the specified group setting when confirm option not passed',
+    async () => {
+      await command.action(logger, { options: { id: '28beab62-7540-4db1-a23f-29a6018a3848' } });
+      let promptIssued = false;
+
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
       }
 
-      throw 'Invalid request';
-    });
+      assert(promptIssued);
+    }
+  );
 
-    await command.action(logger, { options: { id: '28beab62-7540-4db1-a23f-29a6018a3848', force: true } });
-    assert(deleteRequestStub.called);
-  });
+  it('prompts before removing the specified group setting when confirm option not passed (debug)',
+    async () => {
+      await command.action(logger, { options: { debug: true, id: '28beab62-7540-4db1-a23f-29a6018a3848' } });
+      let promptIssued = false;
 
-  it('removes the specified group setting without prompting for confirmation when confirm option specified (debug)', async () => {
-    const deleteRequestStub = sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === 'https://graph.microsoft.com/v1.0/groupSettings/28beab62-7540-4db1-a23f-29a6018a3848') {
-        return;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
       }
 
-      throw 'Invalid request';
-    });
-
-    await command.action(logger, { options: { debug: true, id: '28beab62-7540-4db1-a23f-29a6018a3848', force: true } });
-    assert(deleteRequestStub.called);
-  });
-
-  it('prompts before removing the specified group setting when confirm option not passed', async () => {
-    await command.action(logger, { options: { id: '28beab62-7540-4db1-a23f-29a6018a3848' } });
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      assert(promptIssued);
     }
+  );
 
-    assert(promptIssued);
-  });
+  it('aborts removing the group setting when prompt not confirmed',
+    async () => {
+      const postSpy = jest.spyOn(request, 'delete').mockClear();
 
-  it('prompts before removing the specified group setting when confirm option not passed (debug)', async () => {
-    await command.action(logger, { options: { debug: true, id: '28beab62-7540-4db1-a23f-29a6018a3848' } });
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      await command.action(logger, { options: { id: '28beab62-7540-4db1-a23f-29a6018a3848' } });
+      assert(postSpy.notCalled);
     }
+  );
 
-    assert(promptIssued);
-  });
+  it('aborts removing the group setting when prompt not confirmed (debug)',
+    async () => {
+      const postSpy = jest.spyOn(request, 'delete').mockClear();
 
-  it('aborts removing the group setting when prompt not confirmed', async () => {
-    const postSpy = sinon.spy(request, 'delete');
-
-    await command.action(logger, { options: { id: '28beab62-7540-4db1-a23f-29a6018a3848' } });
-    assert(postSpy.notCalled);
-  });
-
-  it('aborts removing the group setting when prompt not confirmed (debug)', async () => {
-    const postSpy = sinon.spy(request, 'delete');
-
-    await command.action(logger, { options: { debug: true, id: '28beab62-7540-4db1-a23f-29a6018a3848' } });
-    assert(postSpy.notCalled);
-  });
+      await command.action(logger, { options: { debug: true, id: '28beab62-7540-4db1-a23f-29a6018a3848' } });
+      assert(postSpy.notCalled);
+    }
+  );
 
   it('removes the group setting when prompt confirmed', async () => {
-    const postStub = sinon.stub(request, 'delete').callsFake(() => Promise.resolve());
+    const postStub = jest.spyOn(request, 'delete').mockClear().mockImplementation(() => Promise.resolve());
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
     await command.action(logger, { options: { id: '28beab62-7540-4db1-a23f-29a6018a3848' } });
     assert(postStub.called);
   });
 
   it('removes the group setting when prompt confirmed (debug)', async () => {
-    const deleteStub = sinon.stub(request, 'delete').resolves();
+    const deleteStub = jest.spyOn(request, 'delete').mockClear().mockImplementation().resolves();
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
     await command.action(logger, { options: { debug: true, id: '28beab62-7540-4db1-a23f-29a6018a3848' } });
     assert(deleteStub.called);
   });
 
   it('correctly handles error when group setting is not found', async () => {
-    sinon.stub(request, 'delete').rejects({
+    jest.spyOn(request, 'delete').mockClear().mockImplementation().rejects({
       error: { 'odata.error': { message: { value: 'File Not Found.' } } }
     });
 

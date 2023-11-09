@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './user-add.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -74,15 +73,15 @@ describe(commands.USER_ADD, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -100,20 +99,20 @@ describe(commands.USER_ADD, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       request.put,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -125,35 +124,39 @@ describe(commands.USER_ADD, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('creates Azure AD user using a preset password but requiring the user to change it the next login', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === graphBaseUrl) {
-        return userResponseWithoutPassword;
-      }
+  it('creates Azure AD user using a preset password but requiring the user to change it the next login',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === graphBaseUrl) {
+          return userResponseWithoutPassword;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
 
-    await command.action(logger, { options: { verbose: true, userName: userName, displayName: displayName, password: password, forceChangePasswordNextSignIn: true } });
-    assert(loggerLogSpy.calledWith(userResponseWithPassword));
-  });
+      await command.action(logger, { options: { verbose: true, userName: userName, displayName: displayName, password: password, forceChangePasswordNextSignIn: true } });
+      assert(loggerLogSpy.calledWith(userResponseWithPassword));
+    }
+  );
 
-  it('creates a disabled Azure AD user and set custom mailNickname', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === graphBaseUrl) {
-        return userResponseWithoutPassword;
-      }
+  it('creates a disabled Azure AD user and set custom mailNickname',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === graphBaseUrl) {
+          return userResponseWithoutPassword;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { userName: userName, displayName: displayName, password: password, mailNickname: mailNickname, accountEnabled: false } });
-    assert(loggerLogSpy.calledWith(userResponseWithPassword));
-  });
+      await command.action(logger, { options: { userName: userName, displayName: displayName, password: password, mailNickname: mailNickname, accountEnabled: false } });
+      assert(loggerLogSpy.calledWith(userResponseWithPassword));
+    }
+  );
 
   it('creates Azure AD user and set its manager by id', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === graphBaseUrl) {
         return userResponseWithoutPassword;
       }
@@ -161,7 +164,7 @@ describe(commands.USER_ADD, () => {
       throw 'Invalid request';
     });
 
-    const putStub = sinon.stub(request, 'put').callsFake(async (opts) => {
+    const putStub = jest.spyOn(request, 'put').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${graphBaseUrl}/${userResponseWithPassword.id}/manager/$ref`) {
         return;
       }
@@ -170,75 +173,89 @@ describe(commands.USER_ADD, () => {
     });
 
     await command.action(logger, { options: { userName: userName, displayName: displayName, managerUserId: managerUserId } });
-    assert.strictEqual(putStub.lastCall.args[0].data['@odata.id'], `${graphBaseUrl}/${managerUserId}`);
+    assert.strictEqual(putStub.mock.lastCall[0].data['@odata.id'], `${graphBaseUrl}/${managerUserId}`);
   });
 
-  it('creates Azure AD user and set its manager by user principal name', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === graphBaseUrl) {
-        return userResponseWithoutPassword;
-      }
+  it('creates Azure AD user and set its manager by user principal name',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === graphBaseUrl) {
+          return userResponseWithoutPassword;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    const putStub = sinon.stub(request, 'put').callsFake(async (opts) => {
-      if (opts.url === `${graphBaseUrl}/${userResponseWithPassword.id}/manager/$ref`) {
-        return;
-      }
+      const putStub = jest.spyOn(request, 'put').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${graphBaseUrl}/${userResponseWithPassword.id}/manager/$ref`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { userName: userName, displayName: displayName, managerUserName: managerUserName } });
-    assert.strictEqual(putStub.lastCall.args[0].data['@odata.id'], `${graphBaseUrl}/${managerUserName}`);
-  });
+      await command.action(logger, { options: { userName: userName, displayName: displayName, managerUserName: managerUserName } });
+      assert.strictEqual(putStub.mock.lastCall[0].data['@odata.id'], `${graphBaseUrl}/${managerUserName}`);
+    }
+  );
 
-  it('correctly handles Graph error when userPrincipalName already exists in the tenant', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === graphBaseUrl) {
-        throw graphError;
-      }
+  it('correctly handles Graph error when userPrincipalName already exists in the tenant',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === graphBaseUrl) {
+          throw graphError;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, { options: { userName: userName, displayName: displayName } }),
-      new CommandError(graphError.error.message));
-  });
+      await assert.rejects(command.action(logger, { options: { userName: userName, displayName: displayName } }),
+        new CommandError(graphError.error.message));
+    }
+  );
 
-  it('fails validation if userName is not a valid userPrincipalName', async () => {
-    const actual = await command.validate({ options: { displayName: displayName, userName: 'invalid' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if userName is not a valid userPrincipalName',
+    async () => {
+      const actual = await command.validate({ options: { displayName: displayName, userName: 'invalid' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation usageLocation is not a valid usageLocation', async () => {
-    const actual = await command.validate({ options: { displayName: displayName, userName: userName, usageLocation: 'invalid' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation usageLocation is not a valid usageLocation',
+    async () => {
+      const actual = await command.validate({ options: { displayName: displayName, userName: userName, usageLocation: 'invalid' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation preferredLanguage is not a valid preferredLanguage', async () => {
-    const actual = await command.validate({ options: { displayName: displayName, userName: userName, preferredLanguage: 'z' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation preferredLanguage is not a valid preferredLanguage',
+    async () => {
+      const actual = await command.validate({ options: { displayName: displayName, userName: userName, preferredLanguage: 'z' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if both managerUserId and managerUserName are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both managerUserId and managerUserName are specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { displayName: displayName, userName: userName, managerUserId: managerUserId, managerUserName: managerUserName } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { displayName: displayName, userName: userName, managerUserId: managerUserId, managerUserName: managerUserName } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if managerUserName is not a valid userPrincipalName', async () => {
-    const actual = await command.validate({ options: { displayName: displayName, userName: userName, managerUserName: 'invalid' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if managerUserName is not a valid userPrincipalName',
+    async () => {
+      const actual = await command.validate({ options: { displayName: displayName, userName: userName, managerUserName: 'invalid' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if managerUserId is not a valid GUID', async () => {
     const actual = await command.validate({ options: { displayName: displayName, userName: userName, managerUserId: 'invalid' } }, commandInfo);
@@ -260,23 +277,31 @@ describe(commands.USER_ADD, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if companyName has more than 64 characters', async () => {
-    const actual = await command.validate({ options: { displayName: displayName, userName: userName, companyName: largeString } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if companyName has more than 64 characters',
+    async () => {
+      const actual = await command.validate({ options: { displayName: displayName, userName: userName, companyName: largeString } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if department has more than 64 characters', async () => {
-    const actual = await command.validate({ options: { displayName: displayName, userName: userName, department: largeString } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if department has more than 64 characters',
+    async () => {
+      const actual = await command.validate({ options: { displayName: displayName, userName: userName, department: largeString } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if only userName and displayName are specified', async () => {
-    const actual = await command.validate({ options: { displayName: displayName, userName: userName } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if only userName and displayName are specified',
+    async () => {
+      const actual = await command.validate({ options: { displayName: displayName, userName: userName } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if all options (excluding managerUserName and forceChangePasswordNextSignInWithMfa) are specified', async () => {
-    const actual = await command.validate({ options: { displayName: displayName, userName: userName, accountEnabled: accountEnabled, mailNickname: mailNickname, password: password, firstName: firstName, lastName: lastName, forceChangePasswordNextSignIn: true, usageLocation: usageLocation, officeLocation: officeLocation, jobTitle: jobTitle, companyName: companyName, department: department, preferredLanguage: preferredLanguage, managerUserId: managerUserId } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if all options (excluding managerUserName and forceChangePasswordNextSignInWithMfa) are specified',
+    async () => {
+      const actual = await command.validate({ options: { displayName: displayName, userName: userName, accountEnabled: accountEnabled, mailNickname: mailNickname, password: password, firstName: firstName, lastName: lastName, forceChangePasswordNextSignIn: true, usageLocation: usageLocation, officeLocation: officeLocation, jobTitle: jobTitle, companyName: companyName, department: department, preferredLanguage: preferredLanguage, managerUserId: managerUserId } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

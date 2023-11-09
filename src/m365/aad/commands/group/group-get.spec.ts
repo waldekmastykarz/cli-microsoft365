@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,14 +8,14 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './group-get.js';
 
 describe(commands.GROUP_GET, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
   const groupResponse = {
     value: [{
@@ -48,11 +47,11 @@ describe(commands.GROUP_GET, () => {
   const validId = "1caf7dcd-7e83-4c3a-94f7-932a1299c844";
   const validDisplayName = "Finance";
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -70,18 +69,18 @@ describe(commands.GROUP_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       Cli.handleMultipleResultsFound
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -93,37 +92,41 @@ describe(commands.GROUP_GET, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('retrieves information about the specified Azure AD Group by id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups/${validId}`) {
-        return groupResponse.value[0];
-      }
+  it('retrieves information about the specified Azure AD Group by id',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups/${validId}`) {
+          return groupResponse.value[0];
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { id: validId } });
-    assert(loggerLogSpy.calledWith(groupResponse.value[0]));
-  });
+      await command.action(logger, { options: { id: validId } });
+      assert(loggerLogSpy.calledWith(groupResponse.value[0]));
+    }
+  );
 
-  it('retrieves information about the specified Azure AD Group by displayName', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${validDisplayName}'`) {
-        return groupResponse;
-      }
+  it('retrieves information about the specified Azure AD Group by displayName',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${validDisplayName}'`) {
+          return groupResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves(groupResponse);
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves(groupResponse);
 
-    await command.action(logger, { options: { displayName: validDisplayName } });
-    assert(loggerLogSpy.calledWith(groupResponse.value[0]));
-  });
+      await command.action(logger, { options: { displayName: validDisplayName } });
+      assert(loggerLogSpy.calledWith(groupResponse.value[0]));
+    }
+  );
 
   it('handles random API error', async () => {
     const errorMessage = 'Something went wrong';
-    sinon.stub(request, 'get').rejects(new Error(errorMessage));
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error(errorMessage));
 
     await assert.rejects(command.action(logger, { options: { id: validId } }), new CommandError(errorMessage));
   });
@@ -138,8 +141,10 @@ describe(commands.GROUP_GET, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation if required options specified (displayName)', async () => {
-    const actual = await command.validate({ options: { displayName: validDisplayName } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if required options specified (displayName)',
+    async () => {
+      const actual = await command.validate({ options: { displayName: validDisplayName } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

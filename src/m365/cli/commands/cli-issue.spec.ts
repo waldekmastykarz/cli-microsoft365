@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import { Cli } from '../../../cli/Cli.js';
 import { CommandInfo } from '../../../cli/CommandInfo.js';
 import { Logger } from '../../../cli/Logger.js';
@@ -15,12 +14,12 @@ describe(commands.ISSUE, () => {
   let log: any[];
   let logger: Logger;
   let commandInfo: CommandInfo;
-  let openStub: sinon.SinonStub;
+  let openStub: jest.Mock;
 
-  before(() => {
-    sinon.stub(telemetry, 'trackEvent').callsFake(() => { });
-    sinon.stub(pid, 'getProcessName').callsFake(() => '');
-    sinon.stub(session, 'getId').callsFake(() => '');
+  beforeAll(() => {
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockImplementation(() => { });
+    jest.spyOn(pid, 'getProcessName').mockClear().mockImplementation(() => '');
+    jest.spyOn(session, 'getId').mockClear().mockImplementation(() => '');
     (command as any).open = () => { };
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -38,15 +37,15 @@ describe(commands.ISSUE, () => {
         log.push(msg);
       }
     };
-    openStub = sinon.stub(browserUtil, 'open').callsFake(async () => { return; });
+    openStub = jest.spyOn(browserUtil, 'open').mockClear().mockImplementation(async () => { return; });
   });
 
   afterEach(() => {
-    openStub.restore();
+    openStub.mockRestore();
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
   });
 
   it('has correct name', () => {
@@ -81,8 +80,8 @@ describe(commands.ISSUE, () => {
   it('Opens URL for a command (debug)', async () => {
     const commandUrl = 'https://aka.ms/cli-m365/new-command';
 
-    openStub.restore();
-    openStub = sinon.stub(browserUtil, 'open').callsFake(async (url) => {
+    openStub.mockRestore();
+    openStub = jest.spyOn(browserUtil, 'open').mockClear().mockImplementation(async (url) => {
       if (url === commandUrl) {
         return;
       }
@@ -99,8 +98,8 @@ describe(commands.ISSUE, () => {
 
   it('Opens URL for a bug (debug)', async () => {
     const bugUrl = 'https://aka.ms/cli-m365/bug';
-    openStub.restore();
-    openStub = sinon.stub(browserUtil, 'open').callsFake(async (url) => {
+    openStub.mockRestore();
+    openStub = jest.spyOn(browserUtil, 'open').mockClear().mockImplementation(async (url) => {
       if (url === bugUrl) {
         return;
       }
@@ -117,8 +116,8 @@ describe(commands.ISSUE, () => {
 
   it('Opens URL for a sample (debug)', async () => {
     const sampleScriptUrl = 'https://aka.ms/cli-m365/new-sample-script';
-    openStub.restore();
-    openStub = sinon.stub(browserUtil, 'open').callsFake(async (url) => {
+    openStub.mockRestore();
+    openStub = jest.spyOn(browserUtil, 'open').mockClear().mockImplementation(async (url) => {
       if (url === sampleScriptUrl) {
         return;
       }

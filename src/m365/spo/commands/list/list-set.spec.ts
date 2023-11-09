@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './list-set.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -20,12 +19,12 @@ describe(commands.LIST_SET, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -46,14 +45,14 @@ describe(commands.LIST_SET, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -68,7 +67,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified title for list retrieved by title', async () => {
     const newTitle = 'List 1';
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`_api/web/lists/getByTitle(\'Documents\')`) > -1) {
         actual = opts.data.Title;
         return { ErrorMessage: null };
@@ -84,7 +83,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified title for list retrieved by url', async () => {
     const newTitle = 'List 1';
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/GetList('%2Fsites%2Fproject-x%2Fdocuments')`) > -1) {
         actual = opts.data.Title;
         return { ErrorMessage: null };
@@ -100,7 +99,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified title for list', async () => {
     const newTitle = 'List 1';
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists(guid'3EA5A977-315E-4E25-8B0F-E4F949BF6B8F')`) > -1) {
         actual = opts.data.Title;
         return { ErrorMessage: null };
@@ -116,7 +115,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified description for list', async () => {
     const expected = 'List 1 description';
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.Description;
         return { ErrorMessage: null };
@@ -132,7 +131,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified templateFeatureId for list', async () => {
     const expected = '00bfea71-de22-43b2-a848-c05709900100';
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.TemplateFeatureId;
         return { ErrorMessage: null };
@@ -148,7 +147,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified allowDeletion for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.AllowDeletion;
         return { ErrorMessage: null };
@@ -164,7 +163,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified allowEveryoneViewItems for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.AllowEveryoneViewItems;
         return { ErrorMessage: null };
@@ -180,7 +179,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified allowMultiResponses for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.AllowMultiResponses;
         return { ErrorMessage: null };
@@ -196,7 +195,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified contentTypesEnabled for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.ContentTypesEnabled;
         return { ErrorMessage: null };
@@ -212,7 +211,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified crawlNonDefaultViews for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.CrawlNonDefaultViews;
         return { ErrorMessage: null };
@@ -228,7 +227,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified defaultContentApprovalWorkflowId for list', async () => {
     const expected = '00bfea71-de22-43b2-a848-c05709900100';
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.DefaultContentApprovalWorkflowId;
         return { ErrorMessage: null };
@@ -244,7 +243,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified defaultDisplayFormUrl for list', async () => {
     const expected = '/sites/project-x/List%201/view.aspx';
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.DefaultDisplayFormUrl;
         return { ErrorMessage: null };
@@ -260,7 +259,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified defaultEditFormUrl for list', async () => {
     const expected = '/sites/project-x/List%201/edit.aspx';
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.DefaultEditFormUrl;
         return { ErrorMessage: null };
@@ -277,7 +276,7 @@ describe(commands.LIST_SET, () => {
     const expected = 'LTR';
     let actual = '';
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists(guid`) > -1) {
         actual = opts.data.Direction;
         return { ErrorMessage: null };
@@ -293,7 +292,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified disableCommenting for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/sites/project-x/_api/web/lists(guid'3EA5A977-315E-4E25-8B0F-E4F949BF6B8F')/`) {
         actual = opts.data.DisableCommenting;
         return { ErrorMessage: null };
@@ -309,7 +308,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified disableGridEditing for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.DisableGridEditing;
         return { ErrorMessage: null };
@@ -325,7 +324,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified draftVersionVisibility for list', async () => {
     const expected = 1;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.DraftVersionVisibility;
         return { ErrorMessage: null };
@@ -341,7 +340,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified emailAlias for list', async () => {
     const expected = 'yourname@contoso.onmicrosoft.com';
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.EmailAlias;
         return { ErrorMessage: null };
@@ -357,7 +356,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified enableAssignToEmail for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.EnableAssignToEmail;
         return { ErrorMessage: null };
@@ -373,7 +372,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified enableAttachments for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.EnableAttachments;
         return { ErrorMessage: null };
@@ -389,7 +388,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified enableDeployWithDependentList for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.EnableDeployWithDependentList;
         return { ErrorMessage: null };
@@ -405,7 +404,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified enableFolderCreation for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.EnableFolderCreation;
         return { ErrorMessage: null };
@@ -421,7 +420,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified enableMinorVersions for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.EnableMinorVersions;
         return { ErrorMessage: null };
@@ -437,7 +436,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified enableModeration for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.EnableModeration;
         return { ErrorMessage: null };
@@ -453,7 +452,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified enablePeopleSelector for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.EnablePeopleSelector;
         return { ErrorMessage: null };
@@ -469,7 +468,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified enableResourceSelector for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.EnableResourceSelector;
         return { ErrorMessage: null };
@@ -485,7 +484,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified enableSchemaCaching for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.EnableSchemaCaching;
         return { ErrorMessage: null };
@@ -501,7 +500,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified enableSyndication for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.EnableSyndication;
         return { ErrorMessage: null };
@@ -517,7 +516,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified enableThrottling for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.EnableThrottling;
         return { ErrorMessage: null };
@@ -533,7 +532,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified enableVersioning for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.EnableVersioning;
         return { ErrorMessage: null };
@@ -549,7 +548,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified enforceDataValidation for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.EnforceDataValidation;
         return { ErrorMessage: null };
@@ -565,7 +564,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified excludeFromOfflineClient for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.ExcludeFromOfflineClient;
         return { ErrorMessage: null };
@@ -581,7 +580,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified fetchPropertyBagForListView for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.FetchPropertyBagForListView;
         return { ErrorMessage: null };
@@ -597,7 +596,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified followable for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.Followable;
         return { ErrorMessage: null };
@@ -613,7 +612,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified forceCheckout for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.ForceCheckout;
         return { ErrorMessage: null };
@@ -629,7 +628,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified forceDefaultContentType for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.ForceDefaultContentType;
         return { ErrorMessage: null };
@@ -645,7 +644,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified hidden for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.Hidden;
         return { ErrorMessage: null };
@@ -661,7 +660,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified includedInMyFilesScope for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.IncludedInMyFilesScope;
         return { ErrorMessage: null };
@@ -677,7 +676,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified irmEnabled for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.IrmEnabled;
         return { ErrorMessage: null };
@@ -693,7 +692,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified irmExpire for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.IrmExpire;
         return { ErrorMessage: null };
@@ -709,7 +708,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified irmReject for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.IrmReject;
         return { ErrorMessage: null };
@@ -725,7 +724,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified isApplicationList for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.IsApplicationList;
         return { ErrorMessage: null };
@@ -741,7 +740,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified listExperienceOptions for list', async () => {
     const expected = 1;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.ListExperienceOptions;
         return { ErrorMessage: null };
@@ -757,7 +756,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified majorVersionLimit for list', async () => {
     const expected = 34;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.MajorVersionLimit;
         return { ErrorMessage: null };
@@ -773,7 +772,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified majorWithMinorVersionsLimit for list', async () => {
     const expected = 20;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.MajorWithMinorVersionsLimit;
         return { ErrorMessage: null };
@@ -789,7 +788,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified multipleDataList for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.MultipleDataList;
         return { ErrorMessage: null };
@@ -805,7 +804,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified navigateForFormsPages for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.NavigateForFormsPages;
         return { ErrorMessage: null };
@@ -821,7 +820,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified needUpdateSiteClientTag for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.NeedUpdateSiteClientTag;
         return { ErrorMessage: null };
@@ -837,7 +836,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified noCrawl for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.NoCrawl;
         return { ErrorMessage: null };
@@ -853,7 +852,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified onQuickLaunch for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.OnQuickLaunch;
         return { ErrorMessage: null };
@@ -869,7 +868,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified ordered for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.Ordered;
         return { ErrorMessage: null };
@@ -885,7 +884,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified parserDisabled for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.ParserDisabled;
         return { ErrorMessage: null };
@@ -901,7 +900,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified readOnlyUI for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.ReadOnlyUI;
         return { ErrorMessage: null };
@@ -917,7 +916,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified readSecurity for list', async () => {
     const expected = 2;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.ReadSecurity;
         return { ErrorMessage: null };
@@ -933,7 +932,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified requestAccessEnabled for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.RequestAccessEnabled;
         return { ErrorMessage: null };
@@ -949,7 +948,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified restrictUserUpdates for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.RestrictUserUpdates;
         return { ErrorMessage: null };
@@ -965,7 +964,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified sendToLocationName for list', async () => {
     const expected = 'SendToLocation';
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.SendToLocationName;
         return { ErrorMessage: null };
@@ -981,7 +980,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified sendToLocationUrl for list', async () => {
     const expected = '/sites/project-x/SendToLocation.aspx';
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.SendToLocationUrl;
         return { ErrorMessage: null };
@@ -997,7 +996,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified showUser for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.ShowUser;
         return { ErrorMessage: null };
@@ -1013,7 +1012,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified useFormsForDisplay for list', async () => {
     const expected = true;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.UseFormsForDisplay;
         return { ErrorMessage: null };
@@ -1029,7 +1028,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified validationFormula for list', async () => {
     const expected = `IF(fieldName=true);'truetest':'falsetest'`;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.ValidationFormula;
         return { ErrorMessage: null };
@@ -1045,7 +1044,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified validationMessage for list', async () => {
     const expected = 'Error on field x';
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.ValidationMessage;
         return { ErrorMessage: null };
@@ -1061,7 +1060,7 @@ describe(commands.LIST_SET, () => {
   it('sets specified writeSecurity for list', async () => {
     const expected = 4;
     let actual = '';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
         actual = opts.data.WriteSecurity;
         return { ErrorMessage: null };
@@ -1075,7 +1074,7 @@ describe(commands.LIST_SET, () => {
   });
 
   it('correctly handles random API error', async () => {
-    sinon.stub(request, 'post').callsFake(() => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(() => {
       throw 'An error has occurred';
     });
 
@@ -1110,7 +1109,7 @@ describe(commands.LIST_SET, () => {
   });
 
   it('fails validation if the neither id, title or url is set', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -1123,7 +1122,7 @@ describe(commands.LIST_SET, () => {
   });
 
   it('fails validation if id and title is set', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -1145,35 +1144,47 @@ describe(commands.LIST_SET, () => {
     assert(actual);
   });
 
-  it('fails validation if the url option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', id: '3EA5A977-315E-4E25-8B0F-E4F949BF6B8F', contentTypesEnabled: true } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the url option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', id: '3EA5A977-315E-4E25-8B0F-E4F949BF6B8F', contentTypesEnabled: true } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the url option is a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '3EA5A977-315E-4E25-8B0F-E4F949BF6B8F' } }, commandInfo);
-    assert(actual);
-  });
+  it('passes validation if the url option is a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '3EA5A977-315E-4E25-8B0F-E4F949BF6B8F' } }, commandInfo);
+      assert(actual);
+    }
+  );
 
-  it('fails validation if the templateFeatureId option is not a valid GUID', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '3EA5A977-315E-4E25-8B0F-E4F949BF6B8F', templateFeatureId: 'foo' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the templateFeatureId option is not a valid GUID',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '3EA5A977-315E-4E25-8B0F-E4F949BF6B8F', templateFeatureId: 'foo' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the templateFeatureId option is a valid GUID', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '3EA5A977-315E-4E25-8B0F-E4F949BF6B8F', templateFeatureId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF' } }, commandInfo);
-    assert(actual);
-  });
+  it('passes validation if the templateFeatureId option is a valid GUID',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '3EA5A977-315E-4E25-8B0F-E4F949BF6B8F', templateFeatureId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF' } }, commandInfo);
+      assert(actual);
+    }
+  );
 
-  it('fails validation if the defaultContentApprovalWorkflowId option is not a valid GUID', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '3EA5A977-315E-4E25-8B0F-E4F949BF6B8F', defaultContentApprovalWorkflowId: 'foo' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the defaultContentApprovalWorkflowId option is not a valid GUID',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '3EA5A977-315E-4E25-8B0F-E4F949BF6B8F', defaultContentApprovalWorkflowId: 'foo' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the defaultContentApprovalWorkflowId option is a valid GUID', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '3EA5A977-315E-4E25-8B0F-E4F949BF6B8F', defaultContentApprovalWorkflowId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF' } }, commandInfo);
-    assert(actual);
-  });
+  it('passes validation if the defaultContentApprovalWorkflowId option is a valid GUID',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '3EA5A977-315E-4E25-8B0F-E4F949BF6B8F', defaultContentApprovalWorkflowId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF' } }, commandInfo);
+      assert(actual);
+    }
+  );
 
   it('fails if non existing draftVersionVisibility specified', async () => {
     const draftVersionValue = 'NonExistingDraftVersionVisibility';
@@ -1187,17 +1198,21 @@ describe(commands.LIST_SET, () => {
     assert(actual === true);
   });
 
-  it('fails if emailAlias specified, but enableAssignToEmail is not true', async () => {
-    const emailAliasValue = 'yourname@contoso.onmicrosoft.com';
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '3EA5A977-315E-4E25-8B0F-E4F949BF6B8F', emailAlias: emailAliasValue } }, commandInfo);
-    assert.strictEqual(actual, `emailAlias could not be set if enableAssignToEmail is not set to true. Please set enableAssignToEmail.`);
-  });
+  it('fails if emailAlias specified, but enableAssignToEmail is not true',
+    async () => {
+      const emailAliasValue = 'yourname@contoso.onmicrosoft.com';
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '3EA5A977-315E-4E25-8B0F-E4F949BF6B8F', emailAlias: emailAliasValue } }, commandInfo);
+      assert.strictEqual(actual, `emailAlias could not be set if enableAssignToEmail is not set to true. Please set enableAssignToEmail.`);
+    }
+  );
 
-  it('has correct emailAlias and enableAssignToEmail values specified', async () => {
-    const emailAliasValue = 'yourname@contoso.onmicrosoft.com';
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '3EA5A977-315E-4E25-8B0F-E4F949BF6B8F', emailAlias: emailAliasValue, enableAssignToEmail: true } }, commandInfo);
-    assert(actual === true);
-  });
+  it('has correct emailAlias and enableAssignToEmail values specified',
+    async () => {
+      const emailAliasValue = 'yourname@contoso.onmicrosoft.com';
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '3EA5A977-315E-4E25-8B0F-E4F949BF6B8F', emailAlias: emailAliasValue, enableAssignToEmail: true } }, commandInfo);
+      assert(actual === true);
+    }
+  );
 
   it('fails if non existing direction specified', async () => {
     const directionValue = 'abc';
@@ -1211,23 +1226,29 @@ describe(commands.LIST_SET, () => {
     assert(actual === true);
   });
 
-  it('fails if majorVersionLimit specified, but enableVersioning is not true', async () => {
-    const majorVersionLimitValue = 20;
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '3EA5A977-315E-4E25-8B0F-E4F949BF6B8F', majorVersionLimit: majorVersionLimitValue } }, commandInfo);
-    assert.strictEqual(actual, `majorVersionLimit option is only valid in combination with enableVersioning.`);
-  });
+  it('fails if majorVersionLimit specified, but enableVersioning is not true',
+    async () => {
+      const majorVersionLimitValue = 20;
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '3EA5A977-315E-4E25-8B0F-E4F949BF6B8F', majorVersionLimit: majorVersionLimitValue } }, commandInfo);
+      assert.strictEqual(actual, `majorVersionLimit option is only valid in combination with enableVersioning.`);
+    }
+  );
 
-  it('has correct majorVersionLimit and enableVersioning values specified', async () => {
-    const majorVersionLimitValue = 20;
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '3EA5A977-315E-4E25-8B0F-E4F949BF6B8F', majorVersionLimit: majorVersionLimitValue, enableVersioning: true } }, commandInfo);
-    assert(actual === true);
-  });
+  it('has correct majorVersionLimit and enableVersioning values specified',
+    async () => {
+      const majorVersionLimitValue = 20;
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '3EA5A977-315E-4E25-8B0F-E4F949BF6B8F', majorVersionLimit: majorVersionLimitValue, enableVersioning: true } }, commandInfo);
+      assert(actual === true);
+    }
+  );
 
-  it('fails if majorWithMinorVersionsLimit specified, but enableModeration is not true', async () => {
-    const majorWithMinorVersionLimitValue = 20;
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '3EA5A977-315E-4E25-8B0F-E4F949BF6B8F', majorWithMinorVersionsLimit: majorWithMinorVersionLimitValue } }, commandInfo);
-    assert.strictEqual(actual, `majorWithMinorVersionsLimit option is only valid in combination with enableMinorVersions or enableModeration.`);
-  });
+  it('fails if majorWithMinorVersionsLimit specified, but enableModeration is not true',
+    async () => {
+      const majorWithMinorVersionLimitValue = 20;
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '3EA5A977-315E-4E25-8B0F-E4F949BF6B8F', majorWithMinorVersionsLimit: majorWithMinorVersionLimitValue } }, commandInfo);
+      assert.strictEqual(actual, `majorWithMinorVersionsLimit option is only valid in combination with enableMinorVersions or enableModeration.`);
+    }
+  );
 
 
   it('fails if non existing readSecurity specified', async () => {

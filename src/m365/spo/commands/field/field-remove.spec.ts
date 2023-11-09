@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './field-remove.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -22,12 +21,12 @@ describe(commands.FIELD_REMOVE, () => {
   let requests: any[];
   let promptOptions: any;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -46,7 +45,7 @@ describe(commands.FIELD_REMOVE, () => {
       }
     };
 
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
@@ -55,7 +54,7 @@ describe(commands.FIELD_REMOVE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       request.get,
       Cli.prompt,
@@ -63,8 +62,8 @@ describe(commands.FIELD_REMOVE, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -76,57 +75,65 @@ describe(commands.FIELD_REMOVE, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('prompts before removing field when confirmation argument not passed (id)', async () => {
-    await command.action(logger, { options: { id: 'b2307a39-e878-458b-bc90-03bc578531d6', webUrl: 'https://contoso.sharepoint.com' } });
-    let promptIssued = false;
+  it('prompts before removing field when confirmation argument not passed (id)',
+    async () => {
+      await command.action(logger, { options: { id: 'b2307a39-e878-458b-bc90-03bc578531d6', webUrl: 'https://contoso.sharepoint.com' } });
+      let promptIssued = false;
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+
+      assert(promptIssued);
     }
+  );
 
-    assert(promptIssued);
-  });
+  it('prompts before removing field when confirmation argument not passed (title)',
+    async () => {
+      await command.action(logger, { options: { title: 'myfield1', webUrl: 'https://contoso.sharepoint.com' } });
+      let promptIssued = false;
 
-  it('prompts before removing field when confirmation argument not passed (title)', async () => {
-    await command.action(logger, { options: { title: 'myfield1', webUrl: 'https://contoso.sharepoint.com' } });
-    let promptIssued = false;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      assert(promptIssued);
     }
+  );
 
-    assert(promptIssued);
-  });
+  it('prompts before removing list column when confirmation argument not passed',
+    async () => {
+      await command.action(logger, { options: { title: 'myfield1', webUrl: 'https://contoso.sharepoint.com', listTitle: 'My List' } });
+      let promptIssued = false;
 
-  it('prompts before removing list column when confirmation argument not passed', async () => {
-    await command.action(logger, { options: { title: 'myfield1', webUrl: 'https://contoso.sharepoint.com', listTitle: 'My List' } });
-    let promptIssued = false;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      assert(promptIssued);
     }
-
-    assert(promptIssued);
-  });
+  );
 
   it('aborts removing field when prompt not confirmed', async () => {
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: false });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: false });
 
     await command.action(logger, { options: { id: 'b2307a39-e878-458b-bc90-03bc578531d6', webUrl: 'https://contoso.sharepoint.com' } });
     assert(requests.length === 0);
   });
 
-  it('aborts removing field when prompt not confirmed and passing the group parameter', async () => {
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: false });
+  it('aborts removing field when prompt not confirmed and passing the group parameter',
+    async () => {
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: false });
 
-    await command.action(logger, { options: { group: 'MyGroup', webUrl: 'https://contoso.sharepoint.com' } });
-    assert(requests.length === 0);
-  });
+      await command.action(logger, { options: { group: 'MyGroup', webUrl: 'https://contoso.sharepoint.com' } });
+      assert(requests.length === 0);
+    }
+  );
 
   it('removes the field when prompt confirmed', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
 
       if ((opts.url as string).indexOf(`/_api/web/fields(guid'`) > -1) {
@@ -140,8 +147,8 @@ describe(commands.FIELD_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
     await assert.rejects(command.action(logger, { options: { id: 'b2307a39-e878-458b-bc90-03bc578531d6', webUrl: 'https://contoso.sharepoint.com' } }));
     let correctRequestIssued = false;
     requests.forEach(r => {
@@ -156,7 +163,7 @@ describe(commands.FIELD_REMOVE, () => {
 
   it('command correctly handles field get reject request', async () => {
     const err = 'Invalid request';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/fields/getbyinternalnameortitle(') > -1) {
         throw err;
       }
@@ -177,7 +184,7 @@ describe(commands.FIELD_REMOVE, () => {
   });
 
   it('uses correct API url when id option is passed', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/fields/getbyid(\'') > -1) {
         return 'Correct Url';
       }
@@ -196,70 +203,74 @@ describe(commands.FIELD_REMOVE, () => {
     });
   });
 
-  it('calls the correct remove url when id and list url specified', async () => {
-    const getStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
-        return {
-          "Id": "03e45e84-1992-4d42-9116-26f756012634"
-        };
-      }
+  it('calls the correct remove url when id and list url specified',
+    async () => {
+      const getStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
+          return {
+            "Id": "03e45e84-1992-4d42-9116-26f756012634"
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, { options: { verbose: true, webUrl: 'https://contoso.sharepoint.com/sites/portal', id: '03e45e84-1992-4d42-9116-26f756012634', listUrl: 'Lists/Events', force: true } }));
-    assert.strictEqual(getStub.lastCall.args[0].url, 'https://contoso.sharepoint.com/sites/portal/_api/web/GetList(\'%2Fsites%2Fportal%2FLists%2FEvents\')/fields/getbyid(\'03e45e84-1992-4d42-9116-26f756012634\')');
-  });
+      await assert.rejects(command.action(logger, { options: { verbose: true, webUrl: 'https://contoso.sharepoint.com/sites/portal', id: '03e45e84-1992-4d42-9116-26f756012634', listUrl: 'Lists/Events', force: true } }));
+      assert.strictEqual(getStub.mock.lastCall[0].url, 'https://contoso.sharepoint.com/sites/portal/_api/web/GetList(\'%2Fsites%2Fportal%2FLists%2FEvents\')/fields/getbyid(\'03e45e84-1992-4d42-9116-26f756012634\')');
+    }
+  );
 
-  it('calls group and deletes two fields and asks for confirmation', async () => {
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+  it('calls group and deletes two fields and asks for confirmation',
+    async () => {
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    const getStub = sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/sites/portal/_api/web/GetList(\'%2Fsites%2Fportal%2FLists%2FEvents\')/fields`) {
-        return {
-          "value": [{
-            "Id": "03e45e84-1992-4d42-9116-26f756012634",
-            "Group": "MyGroup"
-          },
-          {
-            "Id": "03e45e84-1992-4d42-9116-26f756012635",
-            "Group": "MyGroup"
-          },
-          {
-            "Id": "03e45e84-1992-4d42-9116-26f756012636",
-            "Group": "DifferentGroup"
-          }]
-        };
-      }
-      throw 'Invalid request';
-    });
+      const getStub = jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/sites/portal/_api/web/GetList(\'%2Fsites%2Fportal%2FLists%2FEvents\')/fields`) {
+          return {
+            "value": [{
+              "Id": "03e45e84-1992-4d42-9116-26f756012634",
+              "Group": "MyGroup"
+            },
+            {
+              "Id": "03e45e84-1992-4d42-9116-26f756012635",
+              "Group": "MyGroup"
+            },
+            {
+              "Id": "03e45e84-1992-4d42-9116-26f756012636",
+              "Group": "DifferentGroup"
+            }]
+          };
+        }
+        throw 'Invalid request';
+      });
 
-    const deletion = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/GetList(\'%2Fsites%2Fportal%2FLists%2FEvents\')/fields/getbyid(\'03e45e84-1992-4d42-9116-26f756012634\')`) > -1) {
-        return {
-          "Id": "03e45e84-1992-4d42-9116-26f756012634"
-        };
-      }
+      const deletion = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/GetList(\'%2Fsites%2Fportal%2FLists%2FEvents\')/fields/getbyid(\'03e45e84-1992-4d42-9116-26f756012634\')`) > -1) {
+          return {
+            "Id": "03e45e84-1992-4d42-9116-26f756012634"
+          };
+        }
 
-      if ((opts.url as string).indexOf(`/_api/web/GetList(\'%2Fsites%2Fportal%2FLists%2FEvents\')/fields/getbyid(\'03e45e84-1992-4d42-9116-26f756012635\')`) > -1) {
-        return {
-          "Id": "03e45e84-1992-4d42-9116-26f756012635"
-        };
-      }
+        if ((opts.url as string).indexOf(`/_api/web/GetList(\'%2Fsites%2Fportal%2FLists%2FEvents\')/fields/getbyid(\'03e45e84-1992-4d42-9116-26f756012635\')`) > -1) {
+          return {
+            "Id": "03e45e84-1992-4d42-9116-26f756012635"
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { verbose: true, webUrl: 'https://contoso.sharepoint.com/sites/portal', group: 'MyGroup', listUrl: '/sites/portal/Lists/Events' } });
-    assert(getStub.called);
-    assert.strictEqual(deletion.firstCall.args[0].url, 'https://contoso.sharepoint.com/sites/portal/_api/web/GetList(\'%2Fsites%2Fportal%2FLists%2FEvents\')/fields/getbyid(\'03e45e84-1992-4d42-9116-26f756012634\')');
-    assert.strictEqual(deletion.secondCall.args[0].url, 'https://contoso.sharepoint.com/sites/portal/_api/web/GetList(\'%2Fsites%2Fportal%2FLists%2FEvents\')/fields/getbyid(\'03e45e84-1992-4d42-9116-26f756012635\')');
-    assert.strictEqual(deletion.callCount, 2);
-  });
+      await command.action(logger, { options: { verbose: true, webUrl: 'https://contoso.sharepoint.com/sites/portal', group: 'MyGroup', listUrl: '/sites/portal/Lists/Events' } });
+      assert(getStub.called);
+      assert.strictEqual(deletion.mock.calls[0][0].url, 'https://contoso.sharepoint.com/sites/portal/_api/web/GetList(\'%2Fsites%2Fportal%2FLists%2FEvents\')/fields/getbyid(\'03e45e84-1992-4d42-9116-26f756012634\')');
+      assert.strictEqual(deletion.mock.calls[1][0].url, 'https://contoso.sharepoint.com/sites/portal/_api/web/GetList(\'%2Fsites%2Fportal%2FLists%2FEvents\')/fields/getbyid(\'03e45e84-1992-4d42-9116-26f756012635\')');
+      assert.strictEqual(deletion.callCount, 2);
+    }
+  );
 
   it('calls group and deletes two fields', async () => {
-    const getStub = sinon.stub(request, 'get').callsFake(async (opts) => {
+    const getStub = jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/sites/portal/_api/web/fields`) {
         return {
           "value": [{
@@ -279,7 +290,7 @@ describe(commands.FIELD_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    const deletion = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const deletion = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/fields/getbyid(\'03e45e84-1992-4d42-9116-26f756012634\')`) > -1) {
         return {
           "Id": "03e45e84-1992-4d42-9116-26f756012634"
@@ -297,13 +308,13 @@ describe(commands.FIELD_REMOVE, () => {
 
     await command.action(logger, { options: { verbose: true, webUrl: 'https://contoso.sharepoint.com/sites/portal', group: 'MyGroup', force: true } });
     assert(getStub.called);
-    assert.strictEqual(deletion.firstCall.args[0].url, 'https://contoso.sharepoint.com/sites/portal/_api/web/fields/getbyid(\'03e45e84-1992-4d42-9116-26f756012634\')');
-    assert.strictEqual(deletion.secondCall.args[0].url, 'https://contoso.sharepoint.com/sites/portal/_api/web/fields/getbyid(\'03e45e84-1992-4d42-9116-26f756012635\')');
+    assert.strictEqual(deletion.mock.calls[0][0].url, 'https://contoso.sharepoint.com/sites/portal/_api/web/fields/getbyid(\'03e45e84-1992-4d42-9116-26f756012634\')');
+    assert.strictEqual(deletion.mock.calls[1][0].url, 'https://contoso.sharepoint.com/sites/portal/_api/web/fields/getbyid(\'03e45e84-1992-4d42-9116-26f756012635\')');
     assert.strictEqual(deletion.callCount, 2);
   });
 
   it('calls group and deletes no fields', async () => {
-    const getStub = sinon.stub(request, 'get').callsFake(async (opts) => {
+    const getStub = jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/sites/portal/_api/web/fields`) {
         return {
           "value": [{
@@ -323,7 +334,7 @@ describe(commands.FIELD_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    const deletion = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const deletion = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/fields`) > -1) {
         return {
           "Id": "03e45e84-1992-4d42-9116-26f756012634"
@@ -350,9 +361,9 @@ describe(commands.FIELD_REMOVE, () => {
       }
     };
 
-    const getStub = sinon.stub(request, 'get').rejects(error);
+    const getStub = jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(error);
 
-    const deletion = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const deletion = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/fields/getbyid(\'03e45e84-1992-4d42-9116-26f756012635\')`) > -1) {
         return {
           "Id": "03e45e84-1992-4d42-9116-26f756012635"
@@ -383,7 +394,7 @@ describe(commands.FIELD_REMOVE, () => {
         }
       }
     };
-    const getStub = sinon.stub(request, 'get').callsFake(async (opts) => {
+    const getStub = jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/sites/portal/_api/web/fields`) {
         return {
           "value": [{
@@ -403,7 +414,7 @@ describe(commands.FIELD_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    const deletion = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const deletion = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/fields/getbyid(\'03e45e84-1992-4d42-9116-26f756012635\')`) > -1) {
         return {
           "Id": "03e45e84-1992-4d42-9116-26f756012635"
@@ -420,54 +431,60 @@ describe(commands.FIELD_REMOVE, () => {
     await assert.rejects(command.action(logger, { options: { verbose: true, webUrl: 'https://contoso.sharepoint.com/sites/portal', group: 'MyGroup', force: true } } as any),
       new CommandError(error.error['odata.error'].message.value));
     assert(getStub.called);
-    assert.strictEqual(deletion.firstCall.args[0].url, 'https://contoso.sharepoint.com/sites/portal/_api/web/fields/getbyid(\'03e45e84-1992-4d42-9116-26f756012634\')');
+    assert.strictEqual(deletion.mock.calls[0][0].url, 'https://contoso.sharepoint.com/sites/portal/_api/web/fields/getbyid(\'03e45e84-1992-4d42-9116-26f756012634\')');
     assert.strictEqual(deletion.callCount, 2);
   });
 
-  it('calls the correct get url when field title and list title specified (verbose)', async () => {
-    const getStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
-        return {
-          "Id": "03e45e84-1992-4d42-9116-26f756012634"
-        };
-      }
+  it('calls the correct get url when field title and list title specified (verbose)',
+    async () => {
+      const getStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
+          return {
+            "Id": "03e45e84-1992-4d42-9116-26f756012634"
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, verbose: true, webUrl: 'https://contoso.sharepoint.com/sites/portal', title: 'Title', listTitle: 'Documents', force: true } });
-    assert.strictEqual(getStub.lastCall.args[0].url, 'https://contoso.sharepoint.com/sites/portal/_api/web/lists/getByTitle(\'Documents\')/fields/getbyinternalnameortitle(\'Title\')');
-  });
+      await command.action(logger, { options: { debug: true, verbose: true, webUrl: 'https://contoso.sharepoint.com/sites/portal', title: 'Title', listTitle: 'Documents', force: true } });
+      assert.strictEqual(getStub.mock.lastCall[0].url, 'https://contoso.sharepoint.com/sites/portal/_api/web/lists/getByTitle(\'Documents\')/fields/getbyinternalnameortitle(\'Title\')');
+    }
+  );
 
-  it('calls the correct get url when field title and list title specified', async () => {
-    const getStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
-        return {
-          "Id": "03e45e84-1992-4d42-9116-26f756012634"
-        };
-      }
+  it('calls the correct get url when field title and list title specified',
+    async () => {
+      const getStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
+          return {
+            "Id": "03e45e84-1992-4d42-9116-26f756012634"
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/portal', title: 'Title', listTitle: 'Documents', force: true } });
-    assert.strictEqual(getStub.lastCall.args[0].url, 'https://contoso.sharepoint.com/sites/portal/_api/web/lists/getByTitle(\'Documents\')/fields/getbyinternalnameortitle(\'Title\')');
-  });
+      await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/portal', title: 'Title', listTitle: 'Documents', force: true } });
+      assert.strictEqual(getStub.mock.lastCall[0].url, 'https://contoso.sharepoint.com/sites/portal/_api/web/lists/getByTitle(\'Documents\')/fields/getbyinternalnameortitle(\'Title\')');
+    }
+  );
 
-  it('calls the correct get url when field title and list url specified', async () => {
-    const getStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
-        return {
-          "Id": "03e45e84-1992-4d42-9116-26f756012634"
-        };
-      }
+  it('calls the correct get url when field title and list url specified',
+    async () => {
+      const getStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/lists`) > -1) {
+          return {
+            "Id": "03e45e84-1992-4d42-9116-26f756012634"
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com/sites/portal', title: 'Title', listId: '03e45e84-1992-4d42-9116-26f756012634', force: true } });
-    assert.strictEqual(getStub.lastCall.args[0].url, 'https://contoso.sharepoint.com/sites/portal/_api/web/lists(guid\'03e45e84-1992-4d42-9116-26f756012634\')/fields/getbyinternalnameortitle(\'Title\')');
-  });
+      await command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com/sites/portal', title: 'Title', listId: '03e45e84-1992-4d42-9116-26f756012634', force: true } });
+      assert.strictEqual(getStub.mock.lastCall[0].url, 'https://contoso.sharepoint.com/sites/portal/_api/web/lists(guid\'03e45e84-1992-4d42-9116-26f756012634\')/fields/getbyinternalnameortitle(\'Title\')');
+    }
+  );
 
   it('correctly handles site column not found', async () => {
     const error = {
@@ -480,7 +497,7 @@ describe(commands.FIELD_REMOVE, () => {
         }
       }
     };
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/fields/getbyinternalnameortitle(') > -1) {
         throw error;
       }
@@ -493,7 +510,7 @@ describe(commands.FIELD_REMOVE, () => {
   });
 
   it('correctly handles list column not found', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists/getByTitle('Documents')/fields/getbyid(`) > -1) {
         throw {
           error: {
@@ -516,7 +533,7 @@ describe(commands.FIELD_REMOVE, () => {
   });
 
   it('correctly handles list not found', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/lists/getByTitle('Documents')/fields/getbyid(`) > -1) {
         throw {
           error: {
@@ -549,33 +566,41 @@ describe(commands.FIELD_REMOVE, () => {
     assert(containsTypeOption);
   });
 
-  it('fails validation if both id and title options are not passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both id and title options are not passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', force: true, listTitle: 'Documents' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', force: true, listTitle: 'Documents' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if the url option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo.com', id: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the url option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo.com', id: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the url option is a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF' } }, commandInfo);
-    assert(actual);
-  });
+  it('passes validation if the url option is a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF' } }, commandInfo);
+      assert(actual);
+    }
+  );
 
-  it('fails validation if the field ID option is not a valid GUID', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '12345' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the field ID option is not a valid GUID',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '12345' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation if the field ID option is a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF' } }, commandInfo);

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { GraphFileDetails } from '../../../../utils/spo.js';
 import { urlUtil } from '../../../../utils/urlUtil.js';
 import commands from '../../commands.js';
@@ -37,11 +36,11 @@ describe(commands.FILE_SHARINGLINK_CLEAR, () => {
   let commandInfo: CommandInfo;
   let promptOptions: any;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -59,7 +58,7 @@ describe(commands.FILE_SHARINGLINK_CLEAR, () => {
         log.push(msg);
       }
     };
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
@@ -67,7 +66,7 @@ describe(commands.FILE_SHARINGLINK_CLEAR, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.delete,
       request.get,
       Cli.prompt,
@@ -75,8 +74,8 @@ describe(commands.FILE_SHARINGLINK_CLEAR, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -88,20 +87,24 @@ describe(commands.FILE_SHARINGLINK_CLEAR, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', fileId: fileId } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', fileId: fileId } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the fileId option is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: webUrl, fileId: 'invalid' } }, commandInfo);
     assert.notStrictEqual(actual, true);
   });
 
-  it('passes validation if the webUrl and fileId options are valid', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, fileId: fileId } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if the webUrl and fileId options are valid',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, fileId: fileId } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the scope option is not a valid scope', async () => {
     const actual = await command.validate({ options: { webUrl: webUrl, fileId: fileId, scope: 'invalid' } }, commandInfo);
@@ -113,95 +116,103 @@ describe(commands.FILE_SHARINGLINK_CLEAR, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('aborts clearing the sharing links to a file when confirm option not passed and prompt not confirmed', async () => {
-    const postSpy = sinon.spy(request, 'post');
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: false });
+  it('aborts clearing the sharing links to a file when confirm option not passed and prompt not confirmed',
+    async () => {
+      const postSpy = jest.spyOn(request, 'post').mockClear();
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: false });
 
-    await command.action(logger, { options: { webUrl: webUrl, fileUrl: fileUrl } });
+      await command.action(logger, { options: { webUrl: webUrl, fileUrl: fileUrl } });
 
-    assert(postSpy.notCalled);
-  });
-
-  it('prompts before clearing the sharing links to a file when confirm option not passed', async () => {
-    await command.action(logger, { options: { webUrl: webUrl, fileId: fileId } });
-
-    let promptIssued = false;
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      assert(postSpy.notCalled);
     }
-    assert(promptIssued);
-  });
+  );
 
-  it('clears sharing links from a specific file retrieved by url', async () => {
-    const fileServerRelativeUrl: string = urlUtil.getServerRelativePath(webUrl, fileUrl);
+  it('prompts before clearing the sharing links to a file when confirm option not passed',
+    async () => {
+      await command.action(logger, { options: { webUrl: webUrl, fileId: fileId } });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
-
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/GetFileByServerRelativePath(decodedUrl='${formatting.encodeQueryParameter(fileServerRelativeUrl)}')?$select=SiteId,VroomItemId,VroomDriveId`) {
-        return fileInformationResponse;
+      let promptIssued = false;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
       }
+      assert(promptIssued);
+    }
+  );
 
-      throw 'Invalid request';
-    });
+  it('clears sharing links from a specific file retrieved by url',
+    async () => {
+      const fileServerRelativeUrl: string = urlUtil.getServerRelativePath(webUrl, fileUrl);
 
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command): Promise<any> => {
-      if (command === spoFileSharingLinkListCommand) {
-        return sharingLinksListCommandResponse;
-      }
-      throw 'Error occurred while executing the command.';
-    });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    const deleteStub = sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/sites/${fileInformationResponse.SiteId}/drives/${fileInformationResponse.VroomDriveID}/items/${fileInformationResponse.VroomItemID}/permissions/${sharingLink.id}`) {
-        return;
-      }
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/GetFileByServerRelativePath(decodedUrl='${formatting.encodeQueryParameter(fileServerRelativeUrl)}')?$select=SiteId,VroomItemId,VroomDriveId`) {
+          return fileInformationResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { verbose: true, webUrl: webUrl, fileUrl: fileUrl, force: true } });
-    assert(deleteStub.called);
-  });
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command): Promise<any> => {
+        if (command === spoFileSharingLinkListCommand) {
+          return sharingLinksListCommandResponse;
+        }
+        throw 'Error occurred while executing the command.';
+      });
 
-  it('clears sharing links of type anonymous from a specific file retrieved by id', async () => {
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+      const deleteStub = jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/sites/${fileInformationResponse.SiteId}/drives/${fileInformationResponse.VroomDriveID}/items/${fileInformationResponse.VroomItemID}/permissions/${sharingLink.id}`) {
+          return;
+        }
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/GetFileById('${fileId}')?$select=SiteId,VroomItemId,VroomDriveId`) {
-        return fileInformationResponse;
-      }
+        throw 'Invalid request';
+      });
 
-      throw 'Invalid request';
-    });
+      await command.action(logger, { options: { verbose: true, webUrl: webUrl, fileUrl: fileUrl, force: true } });
+      assert(deleteStub.called);
+    }
+  );
 
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command): Promise<any> => {
-      if (command === spoFileSharingLinkListCommand) {
-        return sharingLinksListCommandResponse;
-      }
-      throw 'Error occurred while executing the command.';
-    });
+  it('clears sharing links of type anonymous from a specific file retrieved by id',
+    async () => {
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    const deleteStub = sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/sites/${fileInformationResponse.SiteId}/drives/${fileInformationResponse.VroomDriveID}/items/${fileInformationResponse.VroomItemID}/permissions/${sharingLink.id}`) {
-        return;
-      }
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/GetFileById('${fileId}')?$select=SiteId,VroomItemId,VroomDriveId`) {
+          return fileInformationResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { verbose: true, webUrl: webUrl, fileId: fileId, scope: 'anonymous' } });
-    assert(deleteStub.called);
-  });
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command): Promise<any> => {
+        if (command === spoFileSharingLinkListCommand) {
+          return sharingLinksListCommandResponse;
+        }
+        throw 'Error occurred while executing the command.';
+      });
+
+      const deleteStub = jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/sites/${fileInformationResponse.SiteId}/drives/${fileInformationResponse.VroomDriveID}/items/${fileInformationResponse.VroomItemID}/permissions/${sharingLink.id}`) {
+          return;
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger, { options: { verbose: true, webUrl: webUrl, fileId: fileId, scope: 'anonymous' } });
+      assert(deleteStub.called);
+    }
+  );
 
   it('throws error when file not found by id', async () => {
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/web/GetFileById('${fileId}')?$select=SiteId,VroomItemId,VroomDriveId`) {
         throw { error: { 'odata.error': { message: { value: 'File Not Found.' } } } };
       }

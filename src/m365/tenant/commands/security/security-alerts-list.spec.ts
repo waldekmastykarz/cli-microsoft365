@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Logger } from '../../../../cli/Logger.js';
 import { CommandError } from '../../../../Command.js';
@@ -7,7 +6,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './security-alerts-list.js';
 
@@ -531,13 +530,13 @@ describe(commands.SECURITY_ALERTS_LIST, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
   });
 
@@ -554,17 +553,17 @@ describe(commands.SECURITY_ALERTS_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -580,65 +579,71 @@ describe(commands.SECURITY_ALERTS_LIST, () => {
     assert.deepStrictEqual(command.defaultProperties(), ['id', 'title', 'severity']);
   });
 
-  it('correctly returns list of security alerts for vendor with name Azure Security Center', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/security/alerts?$filter=vendorInformation/provider eq 'ASC'`) {
-        return {
-          value: alertASC
-        };
-      }
+  it('correctly returns list of security alerts for vendor with name Azure Security Center',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/security/alerts?$filter=vendorInformation/provider eq 'ASC'`) {
+          return {
+            value: alertASC
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    const options: any = {
-      vendor: 'Azure Security Center'
-    };
+      const options: any = {
+        vendor: 'Azure Security Center'
+      };
 
-    await command.action(logger, { options } as any);
-    assert(loggerLogSpy.calledWith(alertASC));
-  });
+      await command.action(logger, { options } as any);
+      assert(loggerLogSpy.calledWith(alertASC));
+    }
+  );
 
-  it('correctly returns list of security alerts for vendor with name Microsoft Cloud App Security', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/security/alerts?$filter=vendorInformation/provider eq 'MCAS'`) {
-        return {
-          value: alertMCAS
-        };
-      }
+  it('correctly returns list of security alerts for vendor with name Microsoft Cloud App Security',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/security/alerts?$filter=vendorInformation/provider eq 'MCAS'`) {
+          return {
+            value: alertMCAS
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    const options: any = {
-      vendor: 'Microsoft Cloud App Security'
-    };
+      const options: any = {
+        vendor: 'Microsoft Cloud App Security'
+      };
 
-    await command.action(logger, { options } as any);
-    assert(loggerLogSpy.calledWith(alertMCAS));
-  });
+      await command.action(logger, { options } as any);
+      assert(loggerLogSpy.calledWith(alertMCAS));
+    }
+  );
 
-  it('correctly returns list of security alerts for vendor with name Azure Active Directory Identity Protection', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/security/alerts?$filter=vendorInformation/provider eq 'IPC'`) {
-        return {
-          value: alertIPC
-        };
-      }
+  it('correctly returns list of security alerts for vendor with name Azure Active Directory Identity Protection',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/security/alerts?$filter=vendorInformation/provider eq 'IPC'`) {
+          return {
+            value: alertIPC
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    const options: any = {
-      vendor: 'Azure Active Directory Identity Protection'
-    };
+      const options: any = {
+        vendor: 'Azure Active Directory Identity Protection'
+      };
 
-    await command.action(logger, { options } as any);
-    assert(loggerLogSpy.calledWith(alertIPC));
-  });
+      await command.action(logger, { options } as any);
+      assert(loggerLogSpy.calledWith(alertIPC));
+    }
+  );
 
   it('correctly returns list of security alerts as csv', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/security/alerts`) {
         return {
           value: alertResponseCSV
@@ -657,7 +662,7 @@ describe(commands.SECURITY_ALERTS_LIST, () => {
   });
 
   it('correctly returns list with security alerts', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/security/alerts`) {
         return {
           value: alertResponse
@@ -675,7 +680,7 @@ describe(commands.SECURITY_ALERTS_LIST, () => {
   });
 
   it('fails when serviceAnnouncement endpoint fails', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/security/alerts`) {
         return {};
       }
@@ -687,8 +692,8 @@ describe(commands.SECURITY_ALERTS_LIST, () => {
   });
 
   it('correctly handles random API error', async () => {
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').rejects(new Error('An error has occurred'));
+    jestUtil.restore(request.get);
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
     await assert.rejects(command.action(logger, { options: {} } as any), new CommandError('An error has occurred'));
   });

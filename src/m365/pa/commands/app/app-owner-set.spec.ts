@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './app-owner-set.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -204,12 +203,12 @@ describe(commands.APP_OWNER_SET, () => {
     appType: "ClassicCanvasApp"
   };
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -230,15 +229,15 @@ describe(commands.APP_OWNER_SET, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -251,7 +250,7 @@ describe(commands.APP_OWNER_SET, () => {
   });
 
   it('fails validation if userId or userName not specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -263,18 +262,20 @@ describe(commands.APP_OWNER_SET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if userId and userName are both specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if userId and userName are both specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { environmentName: validEnvironmentName, appName: validAppName, userId: validUserId, userName: validUserName } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { environmentName: validEnvironmentName, appName: validAppName, userId: validUserId, userName: validUserName } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if appName is not a GUID', async () => {
     const actual = await command.validate({ options: { environmentName: validEnvironmentName, appName: 'invalid', userId: validUserId } }, commandInfo);
@@ -306,10 +307,12 @@ describe(commands.APP_OWNER_SET, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('fails validation if roleForOldAppOwner is not a valid role', async () => {
-    const actual = await command.validate({ options: { environmentName: validEnvironmentName, appName: validAppName, userId: validUserId, roleForOldAppOwner: 'invalid' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if roleForOldAppOwner is not a valid role',
+    async () => {
+      const actual = await command.validate({ options: { environmentName: validEnvironmentName, appName: validAppName, userId: validUserId, roleForOldAppOwner: 'invalid' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation if roleForOldAppOwner is a valid role', async () => {
     const actual = await command.validate({ options: { environmentName: validEnvironmentName, appName: validAppName, userId: validUserId, roleForOldAppOwner: 'CanView' } }, commandInfo);
@@ -317,7 +320,7 @@ describe(commands.APP_OWNER_SET, () => {
   });
 
   it('sets a new Power Apps app owner using userName', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=userPrincipalName eq '${formatting.encodeQueryParameter(validUserName)}'&$select=Id`) {
         return userResponse;
       }
@@ -325,7 +328,7 @@ describe(commands.APP_OWNER_SET, () => {
       throw 'Invalid request';
     });
 
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://api.powerapps.com/providers/Microsoft.PowerApps/scopes/admin/environments/${validEnvironmentName}/apps/${validAppName}/modifyAppOwner?api-version=2022-11-01`) {
         return appOwnerSetResponse;
       }
@@ -337,11 +340,11 @@ describe(commands.APP_OWNER_SET, () => {
     };
 
     await command.action(logger, { options: { verbose: true, environmentName: validEnvironmentName, appName: validAppName, userName: validUserName } });
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, requestBody);
+    assert.deepStrictEqual(postStub.mock.lastCall[0].data, requestBody);
   });
 
   it('sets a new Power Apps app owner using userId', async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://api.powerapps.com/providers/Microsoft.PowerApps/scopes/admin/environments/${validEnvironmentName}/apps/${validAppName}/modifyAppOwner?api-version=2022-11-01`) {
         return appOwnerSetResponse;
       }
@@ -353,44 +356,48 @@ describe(commands.APP_OWNER_SET, () => {
     };
 
     await command.action(logger, { options: { environmentName: validEnvironmentName, appName: validAppName, userId: validUserId } });
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, requestBody);
+    assert.deepStrictEqual(postStub.mock.lastCall[0].data, requestBody);
   });
 
-  it('sets a new Power Apps owner using userId and sets old owner with role CanView', async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://api.powerapps.com/providers/Microsoft.PowerApps/scopes/admin/environments/${validEnvironmentName}/apps/${validAppName}/modifyAppOwner?api-version=2022-11-01`) {
-        return appOwnerSetResponse;
-      }
-    });
+  it('sets a new Power Apps owner using userId and sets old owner with role CanView',
+    async () => {
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://api.powerapps.com/providers/Microsoft.PowerApps/scopes/admin/environments/${validEnvironmentName}/apps/${validAppName}/modifyAppOwner?api-version=2022-11-01`) {
+          return appOwnerSetResponse;
+        }
+      });
 
-    const requestBody = {
-      newAppOwner: 'd2481133-e3ed-4add-836d-6e200969dd03',
-      roleForOldAppOwner: 'CanView'
-    };
+      const requestBody = {
+        newAppOwner: 'd2481133-e3ed-4add-836d-6e200969dd03',
+        roleForOldAppOwner: 'CanView'
+      };
 
-    await command.action(logger, { options: { environmentName: validEnvironmentName, appName: validAppName, userId: validUserId, roleForOldAppOwner: 'CanView' } });
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, requestBody);
-  });
+      await command.action(logger, { options: { environmentName: validEnvironmentName, appName: validAppName, userId: validUserId, roleForOldAppOwner: 'CanView' } });
+      assert.deepStrictEqual(postStub.mock.lastCall[0].data, requestBody);
+    }
+  );
 
-  it('sets a new Power Apps owner using userId and sets old owner with role CanEdit', async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://api.powerapps.com/providers/Microsoft.PowerApps/scopes/admin/environments/${validEnvironmentName}/apps/${validAppName}/modifyAppOwner?api-version=2022-11-01`) {
-        return appOwnerSetResponse;
-      }
-    });
+  it('sets a new Power Apps owner using userId and sets old owner with role CanEdit',
+    async () => {
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://api.powerapps.com/providers/Microsoft.PowerApps/scopes/admin/environments/${validEnvironmentName}/apps/${validAppName}/modifyAppOwner?api-version=2022-11-01`) {
+          return appOwnerSetResponse;
+        }
+      });
 
-    const requestBody = {
-      newAppOwner: 'd2481133-e3ed-4add-836d-6e200969dd03',
-      roleForOldAppOwner: 'CanEdit'
-    };
+      const requestBody = {
+        newAppOwner: 'd2481133-e3ed-4add-836d-6e200969dd03',
+        roleForOldAppOwner: 'CanEdit'
+      };
 
-    await command.action(logger, { options: { environmentName: validEnvironmentName, appName: validAppName, userId: validUserId, roleForOldAppOwner: 'CanEdit' } });
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, requestBody);
-  });
+      await command.action(logger, { options: { environmentName: validEnvironmentName, appName: validAppName, userId: validUserId, roleForOldAppOwner: 'CanEdit' } });
+      assert.deepStrictEqual(postStub.mock.lastCall[0].data, requestBody);
+    }
+  );
 
   it('correctly handles API OData error', async () => {
     const errorMessage = `The specified user with user id ${validUserId} does not exist.`;
-    sinon.stub(request, 'post').rejects({
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects({
       error: {
         error: {
           message: errorMessage

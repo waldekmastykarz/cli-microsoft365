@@ -106,49 +106,55 @@ describe('JsonRule', () => {
     assert.strictEqual(node?.loc?.start.line, 4, 'Incorrect line number');
   });
 
-  it('returns correct line number for a specified object from an array', () => {
-    const jsonFile: JsonFile = {
-      source: JSON.stringify({
-        prop: [
-          {},
-          {}
-        ]
-      }, null, 2)
-    };
-    const node = rule.getAstNode(jsonFile, 'prop[1]');
-    assert.notStrictEqual(typeof node, 'undefined', 'Node not found');
-    assert.strictEqual(node?.loc?.start.line, 4, 'Incorrect line number');
-  });
+  it('returns correct line number for a specified object from an array',
+    () => {
+      const jsonFile: JsonFile = {
+        source: JSON.stringify({
+          prop: [
+            {},
+            {}
+          ]
+        }, null, 2)
+      };
+      const node = rule.getAstNode(jsonFile, 'prop[1]');
+      assert.notStrictEqual(typeof node, 'undefined', 'Node not found');
+      assert.strictEqual(node?.loc?.start.line, 4, 'Incorrect line number');
+    }
+  );
 
-  it('returns correct line number for the child property of the specified object from an array', () => {
-    const jsonFile: JsonFile = {
-      source: JSON.stringify({
-        prop: [
-          {},
-          {
-            child: 'value'
-          }
-        ]
-      }, null, 2)
-    };
-    const node = rule.getAstNode(jsonFile, 'prop[1].child');
-    assert.notStrictEqual(typeof node, 'undefined', 'Node not found');
-    assert.strictEqual(node?.loc?.start.line, 5, 'Incorrect line number');
-  });
+  it('returns correct line number for the child property of the specified object from an array',
+    () => {
+      const jsonFile: JsonFile = {
+        source: JSON.stringify({
+          prop: [
+            {},
+            {
+              child: 'value'
+            }
+          ]
+        }, null, 2)
+      };
+      const node = rule.getAstNode(jsonFile, 'prop[1].child');
+      assert.notStrictEqual(typeof node, 'undefined', 'Node not found');
+      assert.strictEqual(node?.loc?.start.line, 5, 'Incorrect line number');
+    }
+  );
 
-  it('returns line number of the parent node if a child property of the specified object from an array not found', () => {
-    const jsonFile: JsonFile = {
-      source: JSON.stringify({
-        prop: [
-          {},
-          {
-            child: 'value'
-          }
-        ]
-      }, null, 2)
-    };
-    const node = rule.getAstNode(jsonFile, 'prop[1].child1');
-    assert.notStrictEqual(typeof node, 'undefined', 'Node not found');
-    assert.strictEqual(node?.loc?.start.line, 4, 'Incorrect line number');
-  });
+  it('returns line number of the parent node if a child property of the specified object from an array not found',
+    () => {
+      const jsonFile: JsonFile = {
+        source: JSON.stringify({
+          prop: [
+            {},
+            {
+              child: 'value'
+            }
+          ]
+        }, null, 2)
+      };
+      const node = rule.getAstNode(jsonFile, 'prop[1].child1');
+      assert.notStrictEqual(typeof node, 'undefined', 'Node not found');
+      assert.strictEqual(node?.loc?.start.line, 4, 'Incorrect line number');
+    }
+  );
 });

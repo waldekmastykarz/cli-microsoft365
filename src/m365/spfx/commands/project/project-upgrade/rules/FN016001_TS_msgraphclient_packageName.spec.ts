@@ -1,7 +1,6 @@
 import assert from 'assert';
 import fs from 'fs';
-import sinon from 'sinon';
-import { sinonUtil } from '../../../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../../../utils/jestUtil.js';
 import { Project, TsFile } from '../../project-model/index.js';
 import { Finding } from '../../report-model/Finding.js';
 import { FN016001_TS_msgraphclient_packageName } from './FN016001_TS_msgraphclient_packageName.js';
@@ -11,7 +10,7 @@ describe('FN016001_TS_msgraphclient_packageName', () => {
   let findings: Finding[];
   let rule: FN016001_TS_msgraphclient_packageName;
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       fs.existsSync,
       fs.readFileSync,
       (TsRule as any).getParentOfType
@@ -28,7 +27,7 @@ describe('FN016001_TS_msgraphclient_packageName', () => {
   });
 
   it('doesn\'t return notifications if no .ts files found', () => {
-    sinon.stub(fs, 'existsSync').callsFake(() => false);
+    jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(() => false);
     const project: Project = {
       path: '/usr/tmp'
     };
@@ -37,7 +36,7 @@ describe('FN016001_TS_msgraphclient_packageName', () => {
   });
 
   it('doesn\'t return notifications if specified .ts file not found', () => {
-    sinon.stub(fs, 'existsSync').callsFake(() => false);
+    jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(() => false);
     const project: Project = {
       path: '/usr/tmp',
       tsFiles: [
@@ -48,30 +47,34 @@ describe('FN016001_TS_msgraphclient_packageName', () => {
     assert.strictEqual(findings.length, 0);
   });
 
-  it('doesn\'t return notifications if couldn\'t retrieve the import declaration', () => {
-    sinon.stub(fs, 'existsSync').callsFake(() => true);
-    sinon.stub(fs, 'readFileSync').callsFake(() => `import { MSGraphClient } from '@microsoft/sp-http';`);
-    sinon.stub(TsRule as any, 'getParentOfType').callsFake(() => undefined);
-    const project: Project = {
-      path: '/usr/tmp',
-      tsFiles: [
-        new TsFile('foo')
-      ]
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it('doesn\'t return notifications if couldn\'t retrieve the import declaration',
+    () => {
+      jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(() => true);
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(() => `import { MSGraphClient } from '@microsoft/sp-http';`);
+      jest.spyOn(TsRule as any, 'getParentOfType').mockClear().mockImplementation(() => undefined);
+      const project: Project = {
+        path: '/usr/tmp',
+        tsFiles: [
+          new TsFile('foo')
+        ]
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
-  it('doesn\'t return notifications if MSGraphClient is already imported from the correct package', () => {
-    sinon.stub(fs, 'existsSync').callsFake(() => true);
-    sinon.stub(fs, 'readFileSync').callsFake(() => `import { MSGraphClient } from '@microsoft/sp-http';`);
-    const project: Project = {
-      path: '/usr/tmp',
-      tsFiles: [
-        new TsFile('foo')
-      ]
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it('doesn\'t return notifications if MSGraphClient is already imported from the correct package',
+    () => {
+      jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(() => true);
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation(() => `import { MSGraphClient } from '@microsoft/sp-http';`);
+      const project: Project = {
+        path: '/usr/tmp',
+        tsFiles: [
+          new TsFile('foo')
+        ]
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 });

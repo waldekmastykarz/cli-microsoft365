@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './team-archive.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -20,12 +19,12 @@ describe(commands.TEAM_ARCHIVE, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -47,15 +46,15 @@ describe(commands.TEAM_ARCHIVE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -86,7 +85,7 @@ describe(commands.TEAM_ARCHIVE, () => {
   });
 
   it('fails validation when no option is specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -102,7 +101,7 @@ describe(commands.TEAM_ARCHIVE, () => {
   });
 
   it('fails when team name does not exist', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq 'Finance'`) {
         return {
           "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#teams",
@@ -128,7 +127,7 @@ describe(commands.TEAM_ARCHIVE, () => {
   });
 
   it('archives a Microsoft Team by id', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/teams/f5dba91d-6494-4d5e-89a7-ad832f6946d6/archive`) {
         return;
       }
@@ -144,7 +143,7 @@ describe(commands.TEAM_ARCHIVE, () => {
   });
 
   it('archives a Microsoft Team by name', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq 'Finance'`) {
         return {
           "value": [
@@ -158,7 +157,7 @@ describe(commands.TEAM_ARCHIVE, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/teams/00000000-0000-0000-0000-000000000000/archive`) {
         return;
       }
@@ -173,43 +172,47 @@ describe(commands.TEAM_ARCHIVE, () => {
     } as any);
   });
 
-  it('archives a Microsoft Teams teams when \'shouldSetSpoSiteReadOnlyForMembers\' specified', async () => {
-    const postStub: sinon.SinonStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/teams/f5dba91d-6494-4d5e-89a7-ad832f6946d6/archive`) {
-        return;
-      }
+  it('archives a Microsoft Teams teams when \'shouldSetSpoSiteReadOnlyForMembers\' specified',
+    async () => {
+      const postStub: jest.Mock = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/teams/f5dba91d-6494-4d5e-89a7-ad832f6946d6/archive`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        id: 'f5dba91d-6494-4d5e-89a7-ad832f6946d6',
-        shouldSetSpoSiteReadOnlyForMembers: true
-      }
-    } as any);
-    assert.strictEqual(postStub.lastCall.args[0].data.shouldSetSpoSiteReadOnlyForMembers, true);
-  });
+      await command.action(logger, {
+        options: {
+          id: 'f5dba91d-6494-4d5e-89a7-ad832f6946d6',
+          shouldSetSpoSiteReadOnlyForMembers: true
+        }
+      } as any);
+      assert.strictEqual(postStub.mock.lastCall[0].data.shouldSetSpoSiteReadOnlyForMembers, true);
+    }
+  );
 
-  it('should set to false value when \'shouldSetSpoSiteReadOnlyForMembers\' not specified', async () => {
-    const postStub: sinon.SinonStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/teams/f5dba91d-6494-4d5e-89a7-ad832f6946d6/archive`) {
-        return;
-      }
+  it('should set to false value when \'shouldSetSpoSiteReadOnlyForMembers\' not specified',
+    async () => {
+      const postStub: jest.Mock = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/teams/f5dba91d-6494-4d5e-89a7-ad832f6946d6/archive`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        id: 'f5dba91d-6494-4d5e-89a7-ad832f6946d6'
-      }
-    } as any);
-    assert.strictEqual(postStub.lastCall.args[0].data["shouldSetSpoSiteReadOnlyForMembers"], false);
-  });
+      await command.action(logger, {
+        options: {
+          id: 'f5dba91d-6494-4d5e-89a7-ad832f6946d6'
+        }
+      } as any);
+      assert.strictEqual(postStub.mock.lastCall[0].data["shouldSetSpoSiteReadOnlyForMembers"], false);
+    }
+  );
 
   it('should correctly handle graph error response', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/teams/f5dba91d-6494-4d5e-89a7-ad832f6946d6/archive`) {
         throw {
           "error": {
@@ -241,7 +244,7 @@ describe(commands.TEAM_ARCHIVE, () => {
         }
       }
     };
-    sinon.stub(request, 'post').rejects(error);
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, {
       options: {

@@ -12,13 +12,15 @@ describe('FN006005_CFG_PS_metadata', () => {
     rule = new FN006005_CFG_PS_metadata();
   });
 
-  it('doesn\'t return notification if package-solution.json is not available', () => {
-    const project: Project = {
-      path: '/usr/tmp'
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it('doesn\'t return notification if package-solution.json is not available',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp'
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
   it('has a default empty resolution', () => {
     assert.strictEqual(rule.resolution, '');

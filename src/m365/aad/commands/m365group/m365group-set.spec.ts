@@ -1,7 +1,6 @@
 import { Group } from '@microsoft/microsoft-graph-types';
 import assert from 'assert';
 import fs from 'fs';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -11,7 +10,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './m365group-set.js';
 import { aadGroup } from '../../../../utils/aadGroup.js';
@@ -19,16 +18,16 @@ import { aadGroup } from '../../../../utils/aadGroup.js';
 describe(commands.M365GROUP_SET, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogToStderrSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(aadGroup, 'isUnifiedGroup').resolves(true);
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(aadGroup, 'isUnifiedGroup').mockClear().mockImplementation().resolves(true);
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -46,13 +45,13 @@ describe(commands.M365GROUP_SET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
     (command as any).pollingInterval = 0;
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       request.put,
       request.patch,
@@ -61,8 +60,8 @@ describe(commands.M365GROUP_SET, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -75,7 +74,7 @@ describe(commands.M365GROUP_SET, () => {
   });
 
   it('updates Microsoft 365 Group display name', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/groups/28beab62-7540-4db1-a23f-29a6018a3848') {
         if (JSON.stringify(opts.data) === JSON.stringify(<Group>{
           displayName: 'My group'
@@ -93,7 +92,7 @@ describe(commands.M365GROUP_SET, () => {
   });
 
   it('updates Microsoft 365 Group description (debug)', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/groups/28beab62-7540-4db1-a23f-29a6018a3848') {
         if (JSON.stringify(opts.data) === JSON.stringify(<Group>{
           description: 'My group'
@@ -110,7 +109,7 @@ describe(commands.M365GROUP_SET, () => {
   });
 
   it('updates Microsoft 365 Group to public', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/groups/28beab62-7540-4db1-a23f-29a6018a3848') {
         if (JSON.stringify(opts.data) === JSON.stringify(<Group>{
           visibility: 'Public'
@@ -127,7 +126,7 @@ describe(commands.M365GROUP_SET, () => {
   });
 
   it('updates Microsoft 365 Group to private', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/groups/28beab62-7540-4db1-a23f-29a6018a3848') {
         if (JSON.stringify(opts.data) === JSON.stringify(<Group>{
           visibility: 'Private'
@@ -144,8 +143,8 @@ describe(commands.M365GROUP_SET, () => {
   });
 
   it('updates Microsoft 365 Group logo with a png image', async () => {
-    sinon.stub(fs, 'readFileSync').returns('abc');
-    sinon.stub(request, 'put').callsFake(async (opts) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('abc');
+    jest.spyOn(request, 'put').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/groups/28beab62-7540-4db1-a23f-29a6018a3848/photo/$value' &&
         opts.headers &&
         opts.headers['content-type'] === 'image/png') {
@@ -160,8 +159,8 @@ describe(commands.M365GROUP_SET, () => {
   });
 
   it('updates Microsoft 365 Group logo with a jpg image (debug)', async () => {
-    sinon.stub(fs, 'readFileSync').returns('abc');
-    sinon.stub(request, 'put').callsFake(async (opts) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('abc');
+    jest.spyOn(request, 'put').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/groups/f3db5c2b-068f-480d-985b-ec78b9fa0e76/photo/$value' &&
         opts.headers &&
         opts.headers['content-type'] === 'image/jpeg') {
@@ -176,8 +175,8 @@ describe(commands.M365GROUP_SET, () => {
   });
 
   it('updates Microsoft 365 Group logo with a gif image', async () => {
-    sinon.stub(fs, 'readFileSync').returns('abc');
-    sinon.stub(request, 'put').callsFake(async (opts) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('abc');
+    jest.spyOn(request, 'put').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/groups/f3db5c2b-068f-480d-985b-ec78b9fa0e76/photo/$value' &&
         opts.headers &&
         opts.headers['content-type'] === 'image/gif') {
@@ -191,25 +190,27 @@ describe(commands.M365GROUP_SET, () => {
     assert(loggerLogSpy.notCalled);
   });
 
-  it('handles failure when updating Microsoft 365 Group logo and succeeds after 10 attempts', async () => {
-    let amountOfCalls = 1;
-    sinon.stub(fs, 'readFileSync').returns('abc');
-    const putStub = sinon.stub(request, 'put').callsFake(async (opts) => {
-      if (opts.url === 'https://graph.microsoft.com/v1.0/groups/f3db5c2b-068f-480d-985b-ec78b9fa0e76/photo/$value' && amountOfCalls < 10) {
-        amountOfCalls++;
+  it('handles failure when updating Microsoft 365 Group logo and succeeds after 10 attempts',
+    async () => {
+      let amountOfCalls = 1;
+      jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('abc');
+      const putStub = jest.spyOn(request, 'put').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://graph.microsoft.com/v1.0/groups/f3db5c2b-068f-480d-985b-ec78b9fa0e76/photo/$value' && amountOfCalls < 10) {
+          amountOfCalls++;
+          throw 'Invalid request';
+        }
+
+        if (opts.url === 'https://graph.microsoft.com/v1.0/groups/f3db5c2b-068f-480d-985b-ec78b9fa0e76/photo/$value') {
+          return;
+        }
+
         throw 'Invalid request';
-      }
+      });
 
-      if (opts.url === 'https://graph.microsoft.com/v1.0/groups/f3db5c2b-068f-480d-985b-ec78b9fa0e76/photo/$value') {
-        return;
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger, { options: { id: 'f3db5c2b-068f-480d-985b-ec78b9fa0e76', logoPath: 'logo.png' } });
-    assert.strictEqual(putStub.callCount, 10);
-  });
+      await command.action(logger, { options: { id: 'f3db5c2b-068f-480d-985b-ec78b9fa0e76', logoPath: 'logo.png' } });
+      assert.strictEqual(putStub.callCount, 10);
+    }
+  );
 
   it('handles failure when updating Microsoft 365 Group logo', async () => {
     const error = {
@@ -217,8 +218,8 @@ describe(commands.M365GROUP_SET, () => {
         message: 'An error has occurred'
       }
     };
-    sinon.stub(fs, 'readFileSync').returns('abc');
-    sinon.stub(request, 'put').callsFake(async (opts) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('abc');
+    jest.spyOn(request, 'put').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/groups/f3db5c2b-068f-480d-985b-ec78b9fa0e76/photo/$value') {
         throw error;
       }
@@ -230,27 +231,29 @@ describe(commands.M365GROUP_SET, () => {
       new CommandError('An error has occurred'));
   });
 
-  it('handles failure when updating Microsoft 365 Group logo (debug)', async () => {
-    const error = {
-      error: {
-        message: 'An error has occurred'
-      }
-    };
-    sinon.stub(fs, 'readFileSync').returns('abc');
-    sinon.stub(request, 'put').callsFake(async (opts) => {
-      if (opts.url === 'https://graph.microsoft.com/v1.0/groups/f3db5c2b-068f-480d-985b-ec78b9fa0e76/photo/$value') {
-        throw error;
-      }
+  it('handles failure when updating Microsoft 365 Group logo (debug)',
+    async () => {
+      const error = {
+        error: {
+          message: 'An error has occurred'
+        }
+      };
+      jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('abc');
+      jest.spyOn(request, 'put').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://graph.microsoft.com/v1.0/groups/f3db5c2b-068f-480d-985b-ec78b9fa0e76/photo/$value') {
+          throw error;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, { options: { debug: true, id: 'f3db5c2b-068f-480d-985b-ec78b9fa0e76', logoPath: 'logo.png' } } as any),
-      new CommandError('An error has occurred'));
-  });
+      await assert.rejects(command.action(logger, { options: { debug: true, id: 'f3db5c2b-068f-480d-985b-ec78b9fa0e76', logoPath: 'logo.png' } } as any),
+        new CommandError('An error has occurred'));
+    }
+  );
 
   it('adds owner to Microsoft 365 Group', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/groups/f3db5c2b-068f-480d-985b-ec78b9fa0e76/owners/$ref' &&
         opts.data['@odata.id'] === 'https://graph.microsoft.com/v1.0/users/949b16c1-a032-453e-a8ae-89a52bfc1d8a') {
         return;
@@ -258,7 +261,7 @@ describe(commands.M365GROUP_SET, () => {
 
       throw 'Invalid request';
     });
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=userPrincipalName eq 'user@contoso.onmicrosoft.com'&$select=id`) {
         return {
           value: [
@@ -277,7 +280,7 @@ describe(commands.M365GROUP_SET, () => {
   });
 
   it('adds owners to Microsoft 365 Group (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/groups/f3db5c2b-068f-480d-985b-ec78b9fa0e76/owners/$ref' &&
         opts.data['@odata.id'] === 'https://graph.microsoft.com/v1.0/users/949b16c1-a032-453e-a8ae-89a52bfc1d8a') {
         return;
@@ -290,7 +293,7 @@ describe(commands.M365GROUP_SET, () => {
 
       throw 'Invalid request';
     });
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=userPrincipalName eq 'user1@contoso.onmicrosoft.com' or userPrincipalName eq 'user2@contoso.onmicrosoft.com'&$select=id`) {
         return {
           value: [
@@ -312,7 +315,7 @@ describe(commands.M365GROUP_SET, () => {
   });
 
   it('adds member to Microsoft 365 Group', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/groups/f3db5c2b-068f-480d-985b-ec78b9fa0e76/members/$ref' &&
         opts.data['@odata.id'] === 'https://graph.microsoft.com/v1.0/users/949b16c1-a032-453e-a8ae-89a52bfc1d8a') {
         return;
@@ -320,7 +323,7 @@ describe(commands.M365GROUP_SET, () => {
 
       throw 'Invalid request';
     });
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=userPrincipalName eq 'user@contoso.onmicrosoft.com'&$select=id`) {
         return {
           value: [
@@ -339,7 +342,7 @@ describe(commands.M365GROUP_SET, () => {
   });
 
   it('adds members to Microsoft 365 Group (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://graph.microsoft.com/v1.0/groups/f3db5c2b-068f-480d-985b-ec78b9fa0e76/members/$ref' &&
         opts.data['@odata.id'] === 'https://graph.microsoft.com/v1.0/users/949b16c1-a032-453e-a8ae-89a52bfc1d8a') {
         return;
@@ -352,7 +355,7 @@ describe(commands.M365GROUP_SET, () => {
 
       throw 'Invalid request';
     });
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=userPrincipalName eq 'user1@contoso.onmicrosoft.com' or userPrincipalName eq 'user2@contoso.onmicrosoft.com'&$select=id`) {
         return {
           value: [
@@ -371,7 +374,7 @@ describe(commands.M365GROUP_SET, () => {
   });
 
   it('correctly handles API OData error', async () => {
-    sinon.stub(request, 'patch').rejects({
+    jest.spyOn(request, 'patch').mockClear().mockImplementation().rejects({
       error: {
         'odata.error': {
           code: '-1, InvalidOperationException',
@@ -391,15 +394,19 @@ describe(commands.M365GROUP_SET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('passes validation when the id is a valid GUID and displayName specified', async () => {
-    const actual = await command.validate({ options: { id: '28beab62-7540-4db1-a23f-29a6018a3848', displayName: 'My group' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when the id is a valid GUID and displayName specified',
+    async () => {
+      const actual = await command.validate({ options: { id: '28beab62-7540-4db1-a23f-29a6018a3848', displayName: 'My group' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when the id is a valid GUID and description specified', async () => {
-    const actual = await command.validate({ options: { id: '28beab62-7540-4db1-a23f-29a6018a3848', description: 'My awesome group' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when the id is a valid GUID and description specified',
+    async () => {
+      const actual = await command.validate({ options: { id: '28beab62-7540-4db1-a23f-29a6018a3848', description: 'My awesome group' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('fails validation if no property to update is specified', async () => {
     const actual = await command.validate({ options: { id: '28beab62-7540-4db1-a23f-29a6018a3848' } }, commandInfo);
@@ -421,10 +428,12 @@ describe(commands.M365GROUP_SET, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation with multiple owners, comma-separated with an additional space', async () => {
-    const actual = await command.validate({ options: { id: '28beab62-7540-4db1-a23f-29a6018a3848', owners: 'user1@contoso.onmicrosoft.com, user2@contoso.onmicrosoft.com' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation with multiple owners, comma-separated with an additional space',
+    async () => {
+      const actual = await command.validate({ options: { id: '28beab62-7540-4db1-a23f-29a6018a3848', owners: 'user1@contoso.onmicrosoft.com, user2@contoso.onmicrosoft.com' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('fails validation if one of the members is invalid', async () => {
     const actual = await command.validate({ options: { id: '28beab62-7540-4db1-a23f-29a6018a3848', members: 'user' } }, commandInfo);
@@ -441,10 +450,12 @@ describe(commands.M365GROUP_SET, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation with multiple members, comma-separated with an additional space', async () => {
-    const actual = await command.validate({ options: { id: '28beab62-7540-4db1-a23f-29a6018a3848', members: 'user1@contoso.onmicrosoft.com, user2@contoso.onmicrosoft.com' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation with multiple members, comma-separated with an additional space',
+    async () => {
+      const actual = await command.validate({ options: { id: '28beab62-7540-4db1-a23f-29a6018a3848', members: 'user1@contoso.onmicrosoft.com, user2@contoso.onmicrosoft.com' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('passes validation if isPrivate is true', async () => {
     const actual = await command.validate({ options: { id: '28beab62-7540-4db1-a23f-29a6018a3848', isPrivate: true } }, commandInfo);
@@ -456,20 +467,22 @@ describe(commands.M365GROUP_SET, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('fails validation if logoPath points to a non-existent file', async () => {
-    sinon.stub(fs, 'existsSync').returns(false);
-    const actual = await command.validate({ options: { id: '28beab62-7540-4db1-a23f-29a6018a3848', logoPath: 'invalid' } }, commandInfo);
-    sinonUtil.restore(fs.existsSync);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if logoPath points to a non-existent file',
+    async () => {
+      jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(false);
+      const actual = await command.validate({ options: { id: '28beab62-7540-4db1-a23f-29a6018a3848', logoPath: 'invalid' } }, commandInfo);
+      jestUtil.restore(fs.existsSync);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if logoPath points to a folder', async () => {
     const stats: fs.Stats = new fs.Stats();
-    sinon.stub(stats, 'isDirectory').returns(true);
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'lstatSync').returns(stats);
+    jest.spyOn(stats, 'isDirectory').mockClear().mockReturnValue(true);
+    jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+    jest.spyOn(fs, 'lstatSync').mockClear().mockReturnValue(stats);
     const actual = await command.validate({ options: { id: '28beab62-7540-4db1-a23f-29a6018a3848', logoPath: 'folder' } }, commandInfo);
-    sinonUtil.restore([
+    jestUtil.restore([
       fs.existsSync,
       fs.lstatSync
     ]);
@@ -478,11 +491,11 @@ describe(commands.M365GROUP_SET, () => {
 
   it('passes validation if logoPath points to an existing file', async () => {
     const stats: fs.Stats = new fs.Stats();
-    sinon.stub(stats, 'isDirectory').returns(false);
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'lstatSync').returns(stats);
+    jest.spyOn(stats, 'isDirectory').mockClear().mockReturnValue(false);
+    jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+    jest.spyOn(fs, 'lstatSync').mockClear().mockReturnValue(stats);
     const actual = await command.validate({ options: { id: '28beab62-7540-4db1-a23f-29a6018a3848', logoPath: 'folder' } }, commandInfo);
-    sinonUtil.restore([
+    jestUtil.restore([
       fs.existsSync,
       fs.lstatSync
     ]);
@@ -569,8 +582,8 @@ describe(commands.M365GROUP_SET, () => {
   it('throws error when the group is not a unified group', async () => {
     const groupId = '3f04e370-cbc6-4091-80fe-1d038be2ad06';
 
-    sinonUtil.restore(aadGroup.isUnifiedGroup);
-    sinon.stub(aadGroup, 'isUnifiedGroup').resolves(false);
+    jestUtil.restore(aadGroup.isUnifiedGroup);
+    jest.spyOn(aadGroup, 'isUnifiedGroup').mockClear().mockImplementation().resolves(false);
 
     await assert.rejects(command.action(logger, { options: { id: groupId, displayName: 'Updated title' } } as any),
       new CommandError(`Specified group with id '${groupId}' is not a Microsoft 365 group.`));

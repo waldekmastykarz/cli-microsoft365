@@ -20,22 +20,26 @@ describe('FN021001_PKG_spfx_deps_versions_match_project_version', () => {
     assert.strictEqual(rule.description, '');
   });
 
-  it(`doesn't return notifications when project version could not be determined`, () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      packageJson: {
-        dependencies: {}
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it(`doesn't return notifications when project version could not be determined`,
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        packageJson: {
+          dependencies: {}
+        }
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
-  it(`doesn't return notifications when package.json was not collected`, () => {
-    const project: Project = {
-      path: '/usr/tmp'
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it(`doesn't return notifications when package.json was not collected`,
+    () => {
+      const project: Project = {
+        path: '/usr/tmp'
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 });

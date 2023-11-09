@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,21 +8,21 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './app-list.js';
 
 describe(commands.APP_LIST, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.spoUrl = 'https://contoso.sharepoint.com';
     commandInfo = Cli.getCommandInfo(command);
@@ -42,18 +41,18 @@ describe(commands.APP_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -71,7 +70,7 @@ describe(commands.APP_LIST, () => {
   });
 
   it('retrieves available apps from the tenant app catalog', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('SP_TenantSettings_Current') > -1) {
         return { "CorporateCatalogUrl": "https://contoso.sharepoint.com/sites/apps" };
       }
@@ -119,7 +118,7 @@ describe(commands.APP_LIST, () => {
   });
 
   it('retrieves available apps from the site app catalog', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/sitecollectionappcatalog/AvailableApps') > -1) {
         if (opts.headers &&
           opts.headers.accept &&
@@ -164,7 +163,7 @@ describe(commands.APP_LIST, () => {
   });
 
   it('includes all properties for output json', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('SP_TenantSettings_Current') > -1) {
         return { "CorporateCatalogUrl": "https://contoso.sharepoint.com/sites/apps" };
       }
@@ -229,7 +228,7 @@ describe(commands.APP_LIST, () => {
   });
 
   it('correctly handles no apps in the tenant app catalog', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('SP_TenantSettings_Current') > -1) {
         return { "CorporateCatalogUrl": "https://contoso.sharepoint.com/sites/apps" };
       }
@@ -249,7 +248,7 @@ describe(commands.APP_LIST, () => {
   });
 
   it('handles if tenant appcatalog is null or not exist (debug)', async () => {
-    sinon.stub(request, 'get').resolves(JSON.stringify({ "CorporateCatalogUrl": null }));
+    jest.spyOn(request, 'get').mockClear().mockImplementation().resolves(JSON.stringify({ "CorporateCatalogUrl": null }));
     await assert.rejects(command.action(logger, {
       options: {
         debug: true
@@ -258,7 +257,7 @@ describe(commands.APP_LIST, () => {
   });
 
   it('correctly handles no apps in the site app catalog', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/sitecollectionappcatalog/AvailableApps') > -1) {
         if (opts.headers &&
           opts.headers.accept &&
@@ -274,35 +273,37 @@ describe(commands.APP_LIST, () => {
     assert.strictEqual(log.length, 0);
   });
 
-  it('correctly handles no apps in the tenant app catalog (verbose)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('SP_TenantSettings_Current') > -1) {
-        return { "CorporateCatalogUrl": "https://contoso.sharepoint.com/sites/apps" };
-      }
-      if ((opts.url as string).indexOf('/_api/web/tenantappcatalog/AvailableApps') > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return JSON.stringify({ value: [] });
+  it('correctly handles no apps in the tenant app catalog (verbose)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('SP_TenantSettings_Current') > -1) {
+          return { "CorporateCatalogUrl": "https://contoso.sharepoint.com/sites/apps" };
         }
-      }
+        if ((opts.url as string).indexOf('/_api/web/tenantappcatalog/AvailableApps') > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return JSON.stringify({ value: [] });
+          }
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { verbose: true } });
-    let correctLogStatement = false;
-    log.forEach(l => {
-      if (!l || typeof l !== 'string') {
-        return;
-      }
+      await command.action(logger, { options: { verbose: true } });
+      let correctLogStatement = false;
+      log.forEach(l => {
+        if (!l || typeof l !== 'string') {
+          return;
+        }
 
-      if (l.indexOf('No apps found') > -1) {
-        correctLogStatement = true;
-      }
-    });
-    assert(correctLogStatement);
-  });
+        if (l.indexOf('No apps found') > -1) {
+          correctLogStatement = true;
+        }
+      });
+      assert(correctLogStatement);
+    }
+  );
 
   it('fails validation when invalid scope is specified', async () => {
     const actual = await command.validate({ options: { appCatalogScope: 'foo' } }, commandInfo);
@@ -314,28 +315,36 @@ describe(commands.APP_LIST, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation when the scope is specified with \'tenant\'', async () => {
-    const actual = await command.validate({ options: { appCatalogScope: 'tenant' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when the scope is specified with \'tenant\'',
+    async () => {
+      const actual = await command.validate({ options: { appCatalogScope: 'tenant' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('fails validation when appCatalogUrl is not a valid url', async () => {
     const actual = await command.validate({ options: { appCatalogScope: 'sitecollection', appCatalogUrl: 'abc' } }, commandInfo);
     assert.notStrictEqual(actual, true);
   });
 
-  it('should fail when \'sitecollection\' scope, but no appCatalogUrl specified', async () => {
-    const actual = await command.validate({ options: { appCatalogScope: 'sitecollection' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('should fail when \'sitecollection\' scope, but no appCatalogUrl specified',
+    async () => {
+      const actual = await command.validate({ options: { appCatalogScope: 'sitecollection' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('should fail when \'sitecollection\' scope, but  bad appCatalogUrl format specified', async () => {
-    const actual = await command.validate({ options: { appCatalogScope: 'sitecollection', appCatalogUrl: 'contoso.sharepoint.com' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('should fail when \'sitecollection\' scope, but  bad appCatalogUrl format specified',
+    async () => {
+      const actual = await command.validate({ options: { appCatalogScope: 'sitecollection', appCatalogUrl: 'contoso.sharepoint.com' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when the scope is specified with \'sitecollection\' and appCatalogUrl present', async () => {
-    const actual = await command.validate({ options: { appCatalogScope: 'sitecollection', appCatalogUrl: 'https://contoso-admin.sharepoint.com' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when the scope is specified with \'sitecollection\' and appCatalogUrl present',
+    async () => {
+      const actual = await command.validate({ options: { appCatalogScope: 'sitecollection', appCatalogUrl: 'https://contoso-admin.sharepoint.com' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

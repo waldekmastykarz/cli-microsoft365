@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './tenant-commandset-set.js';
 
@@ -50,11 +49,11 @@ describe(commands.TENANT_COMMANDSET_SET, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.spoUrl = spoUrl;
     commandInfo = Cli.getCommandInfo(command);
@@ -76,14 +75,14 @@ describe(commands.TENANT_COMMANDSET_SET, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -96,7 +95,7 @@ describe(commands.TENANT_COMMANDSET_SET, () => {
   });
 
   it('updates a tenant-wide ListView Command Set for lists', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/_api/SP_TenantSettings_Current`) {
         return { CorporateCatalogUrl: appCatalogUrl };
       }
@@ -108,7 +107,7 @@ describe(commands.TENANT_COMMANDSET_SET, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://contoso.sharepoint.com/sites/apps/_api/web/GetList('%2Fsites%2Fapps%2Flists%2FTenantWideExtensions')/Items(1)/ValidateUpdateListItem()`) {
         return {
           value: [
@@ -178,96 +177,100 @@ describe(commands.TENANT_COMMANDSET_SET, () => {
     await assert.doesNotReject(command.action(logger, { options: { id: id, newTitle: title, clientSideComponentId: clientSideComponentId, listType: 'List', location: 'Both', webTemplate: webTemplate, clientSideComponentProperties: clientSideComponentProperties, verbose: true } }));
   });
 
-  it('updates a tenant-wide ListView Command Set for lists with location ContextMenu and listType SitePages', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/_api/SP_TenantSettings_Current`) {
-        return { CorporateCatalogUrl: appCatalogUrl };
-      }
+  it('updates a tenant-wide ListView Command Set for lists with location ContextMenu and listType SitePages',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/_api/SP_TenantSettings_Current`) {
+          return { CorporateCatalogUrl: appCatalogUrl };
+        }
 
-      if (opts.url === `https://contoso.sharepoint.com/sites/apps/_api/web/GetList('%2Fsites%2Fapps%2Flists%2FTenantWideExtensions')/Items(1)`) {
-        return commandSetResponse;
-      }
+        if (opts.url === `https://contoso.sharepoint.com/sites/apps/_api/web/GetList('%2Fsites%2Fapps%2Flists%2FTenantWideExtensions')/Items(1)`) {
+          return commandSetResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/sites/apps/_api/web/GetList('%2Fsites%2Fapps%2Flists%2FTenantWideExtensions')/Items(1)/ValidateUpdateListItem()`) {
-        return {
-          value: [
-            {
-              ErrorCode: 0,
-              ErrorMessage: null,
-              FieldName: "TenantWideExtensionListTemplate",
-              FieldValue: 119,
-              HasException: false,
-              ItemId: 4
-            },
-            {
-              ErrorCode: 0,
-              ErrorMessage: null,
-              FieldName: "TenantWideExtensionLocation",
-              FieldValue: "ClientSideExtension.ListViewCommandSet.ContextMenu",
-              HasException: false,
-              ItemId: 4
-            }
-          ]
-        };
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/sites/apps/_api/web/GetList('%2Fsites%2Fapps%2Flists%2FTenantWideExtensions')/Items(1)/ValidateUpdateListItem()`) {
+          return {
+            value: [
+              {
+                ErrorCode: 0,
+                ErrorMessage: null,
+                FieldName: "TenantWideExtensionListTemplate",
+                FieldValue: 119,
+                HasException: false,
+                ItemId: 4
+              },
+              {
+                ErrorCode: 0,
+                ErrorMessage: null,
+                FieldName: "TenantWideExtensionLocation",
+                FieldValue: "ClientSideExtension.ListViewCommandSet.ContextMenu",
+                HasException: false,
+                ItemId: 4
+              }
+            ]
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.doesNotReject(command.action(logger, { options: { id: id, location: 'ContextMenu', listType: 'SitePages' } }));
-  });
+      await assert.doesNotReject(command.action(logger, { options: { id: id, location: 'ContextMenu', listType: 'SitePages' } }));
+    }
+  );
 
-  it('updates a tenant-wide ListView Command Set for lists with location CommandBar and listType Library ', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/_api/SP_TenantSettings_Current`) {
-        return { CorporateCatalogUrl: appCatalogUrl };
-      }
+  it('updates a tenant-wide ListView Command Set for lists with location CommandBar and listType Library ',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/_api/SP_TenantSettings_Current`) {
+          return { CorporateCatalogUrl: appCatalogUrl };
+        }
 
-      if (opts.url === `https://contoso.sharepoint.com/sites/apps/_api/web/GetList('%2Fsites%2Fapps%2Flists%2FTenantWideExtensions')/Items(1)`) {
-        return commandSetResponse;
-      }
+        if (opts.url === `https://contoso.sharepoint.com/sites/apps/_api/web/GetList('%2Fsites%2Fapps%2Flists%2FTenantWideExtensions')/Items(1)`) {
+          return commandSetResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/sites/apps/_api/web/GetList('%2Fsites%2Fapps%2Flists%2FTenantWideExtensions')/Items(1)/ValidateUpdateListItem()`) {
-        return {
-          value: [
-            {
-              ErrorCode: 0,
-              ErrorMessage: null,
-              FieldName: "TenantWideExtensionListTemplate",
-              FieldValue: 101,
-              HasException: false,
-              ItemId: 4
-            },
-            {
-              ErrorCode: 0,
-              ErrorMessage: null,
-              FieldName: "TenantWideExtensionLocation",
-              FieldValue: "ClientSideExtension.ListViewCommandSet.CommandBar",
-              HasException: false,
-              ItemId: 4
-            }
-          ]
-        };
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/sites/apps/_api/web/GetList('%2Fsites%2Fapps%2Flists%2FTenantWideExtensions')/Items(1)/ValidateUpdateListItem()`) {
+          return {
+            value: [
+              {
+                ErrorCode: 0,
+                ErrorMessage: null,
+                FieldName: "TenantWideExtensionListTemplate",
+                FieldValue: 101,
+                HasException: false,
+                ItemId: 4
+              },
+              {
+                ErrorCode: 0,
+                ErrorMessage: null,
+                FieldName: "TenantWideExtensionLocation",
+                FieldValue: "ClientSideExtension.ListViewCommandSet.CommandBar",
+                HasException: false,
+                ItemId: 4
+              }
+            ]
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.doesNotReject(command.action(logger, { options: { id: id, location: 'CommandBar', listType: 'Library' } }));
-  });
+      await assert.doesNotReject(command.action(logger, { options: { id: id, location: 'CommandBar', listType: 'Library' } }));
+    }
+  );
 
   const errorMessage = 'No app catalog URL found';
 
   it('throws error when tenant app catalog doesn\'t exist', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${spoUrl}/_api/SP_TenantSettings_Current`) {
         return { CorporateCatalogUrl: null };
       }
@@ -283,80 +286,88 @@ describe(commands.TENANT_COMMANDSET_SET, () => {
     }), new CommandError(errorMessage));
   });
 
-  it('throws error when retrieving a tenant app catalog fails with an exception', async () => {
-    const errorMessage = 'Couldn\'t retrieve tenant app catalog URL';
+  it('throws error when retrieving a tenant app catalog fails with an exception',
+    async () => {
+      const errorMessage = 'Couldn\'t retrieve tenant app catalog URL';
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `${spoUrl}/_api/SP_TenantSettings_Current`) {
-        throw errorMessage;
-      }
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${spoUrl}/_api/SP_TenantSettings_Current`) {
+          throw errorMessage;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        id: id,
-        newTitle: title
-      }
-    }), new CommandError(errorMessage));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          id: id,
+          newTitle: title
+        }
+      }), new CommandError(errorMessage));
+    }
+  );
 
-  it('throws error when retrieving an item which is not a listview commandset', async () => {
-    const errorMessage = 'The item is not a ListViewCommandSet';
+  it('throws error when retrieving an item which is not a listview commandset',
+    async () => {
+      const errorMessage = 'The item is not a ListViewCommandSet';
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/_api/SP_TenantSettings_Current`) {
-        return { CorporateCatalogUrl: appCatalogUrl };
-      }
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/_api/SP_TenantSettings_Current`) {
+          return { CorporateCatalogUrl: appCatalogUrl };
+        }
 
-      if (opts.url === `https://contoso.sharepoint.com/sites/apps/_api/web/GetList('%2Fsites%2Fapps%2Flists%2FTenantWideExtensions')/Items(1)`) {
-        return {
-          "FileSystemObjectType": 0,
-          "ID": 4,
-          "ServerRedirectedEmbedUri": null,
-          "ServerRedirectedEmbedUrl": "",
-          "ContentTypeId": "0x00693E2C487575B448BD420C12CEAE7EFE",
-          "Title": title,
-          "Modified": "2023-01-11T15:47:38Z",
-          "Created": "2023-01-11T15:47:38Z",
-          "AuthorId": 9,
-          "EditorId": 9,
-          "OData__UIVersionString": "1.0",
-          "Attachments": false,
-          "GUID": id,
-          "ComplianceAssetId": null,
-          "TenantWideExtensionComponentId": clientSideComponentId,
-          "TenantWideExtensionComponentProperties": "{\"testMessage\":\"Test message\"}",
-          "TenantWideExtensionWebTemplate": null,
-          "TenantWideExtensionListTemplate": 0,
-          "TenantWideExtensionLocation": "ClientSideExtension.ApplicationCustomizer",
-          "TenantWideExtensionSequence": 0,
-          "TenantWideExtensionHostProperties": null,
-          "TenantWideExtensionDisabled": false
-        };
-      }
+        if (opts.url === `https://contoso.sharepoint.com/sites/apps/_api/web/GetList('%2Fsites%2Fapps%2Flists%2FTenantWideExtensions')/Items(1)`) {
+          return {
+            "FileSystemObjectType": 0,
+            "ID": 4,
+            "ServerRedirectedEmbedUri": null,
+            "ServerRedirectedEmbedUrl": "",
+            "ContentTypeId": "0x00693E2C487575B448BD420C12CEAE7EFE",
+            "Title": title,
+            "Modified": "2023-01-11T15:47:38Z",
+            "Created": "2023-01-11T15:47:38Z",
+            "AuthorId": 9,
+            "EditorId": 9,
+            "OData__UIVersionString": "1.0",
+            "Attachments": false,
+            "GUID": id,
+            "ComplianceAssetId": null,
+            "TenantWideExtensionComponentId": clientSideComponentId,
+            "TenantWideExtensionComponentProperties": "{\"testMessage\":\"Test message\"}",
+            "TenantWideExtensionWebTemplate": null,
+            "TenantWideExtensionListTemplate": 0,
+            "TenantWideExtensionLocation": "ClientSideExtension.ApplicationCustomizer",
+            "TenantWideExtensionSequence": 0,
+            "TenantWideExtensionHostProperties": null,
+            "TenantWideExtensionDisabled": false
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        id: id,
-        newTitle: title
-      }
-    }), new CommandError(errorMessage));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          id: id,
+          newTitle: title
+        }
+      }), new CommandError(errorMessage));
+    }
+  );
 
-  it('fails validation if no option to update is specified is not a valid Guid', async () => {
-    const actual = await command.validate({ options: { id: id } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if no option to update is specified is not a valid Guid',
+    async () => {
+      const actual = await command.validate({ options: { id: id } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if clientSideComponentId is not a valid Guid', async () => {
-    const actual = await command.validate({ options: { id: id, clientSideComponentId: 'foo' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if clientSideComponentId is not a valid Guid',
+    async () => {
+      const actual = await command.validate({ options: { id: id, clientSideComponentId: 'foo' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if location value is not valid', async () => {
     const actual = await command.validate({ options: { id: id, location: 'invalid' } }, commandInfo);

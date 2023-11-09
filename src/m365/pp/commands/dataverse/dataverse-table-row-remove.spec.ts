@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { powerPlatform } from '../../../../utils/powerPlatform.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './dataverse-table-row-remove.js';
 
@@ -30,13 +29,13 @@ describe(commands.DATAVERSE_TABLE_ROW_REMOVE, () => {
   let log: string[];
   let logger: Logger;
   let promptOptions: any;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogToStderrSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -54,8 +53,8 @@ describe(commands.DATAVERSE_TABLE_ROW_REMOVE, () => {
         log.push(msg);
       }
     };
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
@@ -63,7 +62,7 @@ describe(commands.DATAVERSE_TABLE_ROW_REMOVE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.delete,
       powerPlatform.getDynamicsInstanceApiUrl,
@@ -72,8 +71,8 @@ describe(commands.DATAVERSE_TABLE_ROW_REMOVE, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -96,114 +95,126 @@ describe(commands.DATAVERSE_TABLE_ROW_REMOVE, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('passes validation if required options specified (tableName)', async () => {
-    const actual = await command.validate({ options: { environmentName: validEnvironment, tableName: validTableName, id: validId } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
-
-  it('passes validation if required options specified (entitySetName)', async () => {
-    const actual = await command.validate({ options: { environmentName: validEnvironment, entitySetName: validEntitySetName, id: validId } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
-
-  it('prompts before removing the specified row from a dataverse table owned by the currently signed-in user when confirm option not passed', async () => {
-    sinon.stub(powerPlatform, 'getDynamicsInstanceApiUrl').callsFake(async () => envUrl);
-
-    await command.action(logger, {
-      options: {
-        environmentName: validEnvironment,
-        id: validId
-      }
-    });
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+  it('passes validation if required options specified (tableName)',
+    async () => {
+      const actual = await command.validate({ options: { environmentName: validEnvironment, tableName: validTableName, id: validId } }, commandInfo);
+      assert.strictEqual(actual, true);
     }
+  );
 
-    assert(promptIssued);
-  });
+  it('passes validation if required options specified (entitySetName)',
+    async () => {
+      const actual = await command.validate({ options: { environmentName: validEnvironment, entitySetName: validEntitySetName, id: validId } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('aborts removing the specified row from a dataverse table owned by the currently signed-in user when confirm option not passed and prompt not confirmed', async () => {
-    const postSpy = sinon.spy(request, 'delete');
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: false }
-    ));
-    await command.action(logger, {
-      options: {
-        environmentName: validEnvironment,
-        id: validId
-      }
-    });
-    assert(postSpy.notCalled);
-  });
+  it('prompts before removing the specified row from a dataverse table owned by the currently signed-in user when confirm option not passed',
+    async () => {
+      jest.spyOn(powerPlatform, 'getDynamicsInstanceApiUrl').mockClear().mockImplementation(async () => envUrl);
 
-  it('removes the specified row according to the entitySetName parameter from a dataverse table owned by the currently signed-in user when prompt confirmed', async () => {
-    sinon.stub(powerPlatform, 'getDynamicsInstanceApiUrl').callsFake(async () => envUrl);
-
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.1/${validEntitySetName}(${validId})`) {
-        return;
-      }
-
-      throw 'Invalid request';
-    });
-
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: true }
-    ));
-    await command.action(logger, {
-      options: {
-        debug: true,
-        environmentName: validEnvironment,
-        id: validId,
-        entitySetName: validEntitySetName
-      }
-    });
-    assert(loggerLogToStderrSpy.called);
-  });
-
-  it('removes the specified row according to the tableName parameter from a dataverse table with the entitySetName parameter without confirmation prompt', async () => {
-    sinon.stub(powerPlatform, 'getDynamicsInstanceApiUrl').callsFake(async () => envUrl);
-
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if ((opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.0/EntityDefinitions(LogicalName='${validTableName}')?$select=EntitySetName`)) {
-        if ((opts.headers?.accept as string)?.indexOf('application/json') === 0) {
-          return tableResponse;
+      await command.action(logger, {
+        options: {
+          environmentName: validEnvironment,
+          id: validId
         }
+      });
+      let promptIssued = false;
+
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
       }
 
-      throw 'Invalid request';
-    });
+      assert(promptIssued);
+    }
+  );
 
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.1/${validEntitySetName}(${validId})`) {
-        return;
-      }
+  it('aborts removing the specified row from a dataverse table owned by the currently signed-in user when confirm option not passed and prompt not confirmed',
+    async () => {
+      const postSpy = jest.spyOn(request, 'delete').mockClear();
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: false }
+      ));
+      await command.action(logger, {
+        options: {
+          environmentName: validEnvironment,
+          id: validId
+        }
+      });
+      assert(postSpy.notCalled);
+    }
+  );
 
-      throw 'Invalid request';
-    });
+  it('removes the specified row according to the entitySetName parameter from a dataverse table owned by the currently signed-in user when prompt confirmed',
+    async () => {
+      jest.spyOn(powerPlatform, 'getDynamicsInstanceApiUrl').mockClear().mockImplementation(async () => envUrl);
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        environmentName: validEnvironment,
-        id: validId,
-        tableName: validTableName,
-        force: true
-      }
-    });
-    assert(loggerLogToStderrSpy.called);
-  });
+      jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.1/${validEntitySetName}(${validId})`) {
+          return;
+        }
+
+        throw 'Invalid request';
+      });
+
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: true }
+      ));
+      await command.action(logger, {
+        options: {
+          debug: true,
+          environmentName: validEnvironment,
+          id: validId,
+          entitySetName: validEntitySetName
+        }
+      });
+      assert(loggerLogToStderrSpy.called);
+    }
+  );
+
+  it('removes the specified row according to the tableName parameter from a dataverse table with the entitySetName parameter without confirmation prompt',
+    async () => {
+      jest.spyOn(powerPlatform, 'getDynamicsInstanceApiUrl').mockClear().mockImplementation(async () => envUrl);
+
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if ((opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.0/EntityDefinitions(LogicalName='${validTableName}')?$select=EntitySetName`)) {
+          if ((opts.headers?.accept as string)?.indexOf('application/json') === 0) {
+            return tableResponse;
+          }
+        }
+
+        throw 'Invalid request';
+      });
+
+      jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.1/${validEntitySetName}(${validId})`) {
+          return;
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger, {
+        options: {
+          debug: true,
+          environmentName: validEnvironment,
+          id: validId,
+          tableName: validTableName,
+          force: true
+        }
+      });
+      assert(loggerLogToStderrSpy.called);
+    }
+  );
 
   it('correctly handles API OData error', async () => {
     const errorMessage = 'Something went wrong';
 
-    sinon.stub(powerPlatform, 'getDynamicsInstanceApiUrl').callsFake(async () => envUrl);
+    jest.spyOn(powerPlatform, 'getDynamicsInstanceApiUrl').mockClear().mockImplementation(async () => envUrl);
 
-    sinon.stub(request, 'delete').callsFake(async () => { throw { error: { error: { message: errorMessage } } }; });
+    jest.spyOn(request, 'delete').mockClear().mockImplementation(async () => { throw { error: { error: { message: errorMessage } } }; });
 
     await assert.rejects(command.action(logger, {
       options: {
@@ -216,27 +227,29 @@ describe(commands.DATAVERSE_TABLE_ROW_REMOVE, () => {
     }), new CommandError(errorMessage));
   });
 
-  it('removes dataverse table row with the entitySetName parameter and without confirmation', async () => {
-    sinon.stub(powerPlatform, 'getDynamicsInstanceApiUrl').callsFake(async () => envUrl);
+  it('removes dataverse table row with the entitySetName parameter and without confirmation',
+    async () => {
+      jest.spyOn(powerPlatform, 'getDynamicsInstanceApiUrl').mockClear().mockImplementation(async () => envUrl);
 
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.1/${validEntitySetName}(${validId})`) {
-        return;
-      }
+      jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.1/${validEntitySetName}(${validId})`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        environmentName: validEnvironment,
-        id: validId,
-        entitySetName: validEntitySetName,
-        force: true
-      }
-    });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          environmentName: validEnvironment,
+          id: validId,
+          entitySetName: validEntitySetName,
+          force: true
+        }
+      });
 
-    assert(loggerLogToStderrSpy.called);
-  });
+      assert(loggerLogToStderrSpy.called);
+    }
+  );
 });

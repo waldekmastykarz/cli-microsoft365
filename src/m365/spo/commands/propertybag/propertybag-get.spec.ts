@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { IdentityResponse, spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './propertybag-get.js';
@@ -18,15 +17,15 @@ import command from './propertybag-get.js';
 describe(commands.PROPERTYBAG_GET, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogToStderrSpy: jest.SpyInstance;
   const stubAllPostRequests: any = (
     requestObjectIdentityResp: any = null,
     getFolderPropertyBagResp: any = null,
     getWebPropertyBagResp: any = null
   ) => {
-    return sinon.stub(request, 'post').callsFake(async (opts) => {
+    return jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       // fake requestObjectIdentity
       if (opts.data.indexOf('3747adcd-a3c3-41b9-bfab-4a64dd2f1e0a') > -1) {
         if (requestObjectIdentityResp) {
@@ -90,12 +89,12 @@ describe(commands.PROPERTYBAG_GET, () => {
     });
   };
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'abc',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -118,12 +117,12 @@ describe(commands.PROPERTYBAG_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       (command as any).getWebPropertyBag,
       (command as any).filterByKey,
@@ -132,8 +131,8 @@ describe(commands.PROPERTYBAG_GET, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -145,112 +144,122 @@ describe(commands.PROPERTYBAG_GET, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('should call getWebPropertyBag when folder is not specified and site is /', async () => {
-    stubAllPostRequests();
-    const getWebPropertyBagSpy = sinon.spy((command as any), 'getWebPropertyBag');
-    const options = {
-      webUrl: 'https://contoso.sharepoint.com',
-      debug: true
-    };
-    const objIdentity: IdentityResponse = {
-      objectIdentity: "38e4499e-10a2-5000-ce25-77d4ccc2bd96|740c6a0b-85e2-48a0-a494-e0f1759d4a77:site:f3806c23-0c9f-42d3-bc7d-3895acc06d73:web:5a39e548-b3d7-4090-9cb9-0ce7cd85d275",
-      serverRelativeUrl: "\u002f"
-    };
+  it('should call getWebPropertyBag when folder is not specified and site is /',
+    async () => {
+      stubAllPostRequests();
+      const getWebPropertyBagSpy = jest.spyOn((command as any), 'getWebPropertyBag').mockClear();
+      const options = {
+        webUrl: 'https://contoso.sharepoint.com',
+        debug: true
+      };
+      const objIdentity: IdentityResponse = {
+        objectIdentity: "38e4499e-10a2-5000-ce25-77d4ccc2bd96|740c6a0b-85e2-48a0-a494-e0f1759d4a77:site:f3806c23-0c9f-42d3-bc7d-3895acc06d73:web:5a39e548-b3d7-4090-9cb9-0ce7cd85d275",
+        serverRelativeUrl: "\u002f"
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(getWebPropertyBagSpy.calledWith(objIdentity, 'https://contoso.sharepoint.com', logger));
-    assert(getWebPropertyBagSpy.calledOnce === true);
-  });
+      await command.action(logger, { options: options } as any);
+      assert(getWebPropertyBagSpy.calledWith(objIdentity, 'https://contoso.sharepoint.com', logger));
+      assert(getWebPropertyBagSpy.calledOnce === true);
+    }
+  );
 
-  it('should call getWebPropertyBag when folder is not specified and site is /sites/test', async () => {
-    await stubAllPostRequests(JSON.stringify([{
-      "SchemaVersion": "15.0.0.0",
-      "LibraryVersion": "16.0.7331.1206",
-      "ErrorInfo": null,
-      "TraceCorrelationId": "38e4499e-10a2-5000-ce25-77d4ccc2bd96"
-    }, 7, {
-      "_ObjectType_": "SP.Web",
-      "_ObjectIdentity_": "38e4499e-10a2-5000-ce25-77d4ccc2bd96|740c6a0b-85e2-48a0-a494-e0f1759d4a77:site:f3806c23-0c9f-42d3-bc7d-3895acc06d73:web:5a39e548-b3d7-4090-9cb9-0ce7cd85d275",
-      "ServerRelativeUrl": "\u002fsites\u002ftest"
-    }]));
+  it('should call getWebPropertyBag when folder is not specified and site is /sites/test',
+    async () => {
+      await stubAllPostRequests(JSON.stringify([{
+        "SchemaVersion": "15.0.0.0",
+        "LibraryVersion": "16.0.7331.1206",
+        "ErrorInfo": null,
+        "TraceCorrelationId": "38e4499e-10a2-5000-ce25-77d4ccc2bd96"
+      }, 7, {
+        "_ObjectType_": "SP.Web",
+        "_ObjectIdentity_": "38e4499e-10a2-5000-ce25-77d4ccc2bd96|740c6a0b-85e2-48a0-a494-e0f1759d4a77:site:f3806c23-0c9f-42d3-bc7d-3895acc06d73:web:5a39e548-b3d7-4090-9cb9-0ce7cd85d275",
+        "ServerRelativeUrl": "\u002fsites\u002ftest"
+      }]));
 
-    const getWebPropertyBagSpy = sinon.spy((command as any), 'getWebPropertyBag');
-    const options = {
-      webUrl: 'https://contoso.sharepoint.com/sites/test',
-      debug: true
-    };
-    const objIdentity: IdentityResponse = {
-      objectIdentity: "38e4499e-10a2-5000-ce25-77d4ccc2bd96|740c6a0b-85e2-48a0-a494-e0f1759d4a77:site:f3806c23-0c9f-42d3-bc7d-3895acc06d73:web:5a39e548-b3d7-4090-9cb9-0ce7cd85d275",
-      serverRelativeUrl: "\u002fsites\u002ftest"
-    };
+      const getWebPropertyBagSpy = jest.spyOn((command as any), 'getWebPropertyBag').mockClear();
+      const options = {
+        webUrl: 'https://contoso.sharepoint.com/sites/test',
+        debug: true
+      };
+      const objIdentity: IdentityResponse = {
+        objectIdentity: "38e4499e-10a2-5000-ce25-77d4ccc2bd96|740c6a0b-85e2-48a0-a494-e0f1759d4a77:site:f3806c23-0c9f-42d3-bc7d-3895acc06d73:web:5a39e548-b3d7-4090-9cb9-0ce7cd85d275",
+        serverRelativeUrl: "\u002fsites\u002ftest"
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(getWebPropertyBagSpy.calledWith(objIdentity, 'https://contoso.sharepoint.com/sites/test', logger));
-    assert(getWebPropertyBagSpy.calledOnce === true);
-  });
+      await command.action(logger, { options: options } as any);
+      assert(getWebPropertyBagSpy.calledWith(objIdentity, 'https://contoso.sharepoint.com/sites/test', logger));
+      assert(getWebPropertyBagSpy.calledOnce === true);
+    }
+  );
 
-  it('should call getFolderPropertyBag when folder is specified and site is /', async () => {
-    stubAllPostRequests();
-    const getFolderPropertyBagSpy = sinon.spy((command as any), 'getFolderPropertyBag');
-    const options = {
-      webUrl: 'https://contoso.sharepoint.com',
-      folder: '/',
-      debug: true
-    };
-    const objIdentity: IdentityResponse = {
-      objectIdentity: "38e4499e-10a2-5000-ce25-77d4ccc2bd96|740c6a0b-85e2-48a0-a494-e0f1759d4a77:site:f3806c23-0c9f-42d3-bc7d-3895acc06d73:web:5a39e548-b3d7-4090-9cb9-0ce7cd85d275",
-      serverRelativeUrl: "\u002f"
-    };
+  it('should call getFolderPropertyBag when folder is specified and site is /',
+    async () => {
+      stubAllPostRequests();
+      const getFolderPropertyBagSpy = jest.spyOn((command as any), 'getFolderPropertyBag').mockClear();
+      const options = {
+        webUrl: 'https://contoso.sharepoint.com',
+        folder: '/',
+        debug: true
+      };
+      const objIdentity: IdentityResponse = {
+        objectIdentity: "38e4499e-10a2-5000-ce25-77d4ccc2bd96|740c6a0b-85e2-48a0-a494-e0f1759d4a77:site:f3806c23-0c9f-42d3-bc7d-3895acc06d73:web:5a39e548-b3d7-4090-9cb9-0ce7cd85d275",
+        serverRelativeUrl: "\u002f"
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(getFolderPropertyBagSpy.calledWith(objIdentity, 'https://contoso.sharepoint.com', '/', logger));
-    assert(getFolderPropertyBagSpy.calledOnce === true);
-  });
+      await command.action(logger, { options: options } as any);
+      assert(getFolderPropertyBagSpy.calledWith(objIdentity, 'https://contoso.sharepoint.com', '/', logger));
+      assert(getFolderPropertyBagSpy.calledOnce === true);
+    }
+  );
 
-  it('should call getFolderPropertyBag when folder is specified and site is /sites/test', async () => {
-    await stubAllPostRequests(JSON.stringify([{
-      "SchemaVersion": "15.0.0.0",
-      "LibraryVersion": "16.0.7331.1206",
-      "ErrorInfo": null,
-      "TraceCorrelationId": "38e4499e-10a2-5000-ce25-77d4ccc2bd96"
-    }, 7, {
-      "_ObjectType_": "SP.Web",
-      "_ObjectIdentity_": "38e4499e-10a2-5000-ce25-77d4ccc2bd96|740c6a0b-85e2-48a0-a494-e0f1759d4a77:site:f3806c23-0c9f-42d3-bc7d-3895acc06d73:web:5a39e548-b3d7-4090-9cb9-0ce7cd85d275",
-      "ServerRelativeUrl": "\u002fsites\u002ftest"
-    }]));
+  it('should call getFolderPropertyBag when folder is specified and site is /sites/test',
+    async () => {
+      await stubAllPostRequests(JSON.stringify([{
+        "SchemaVersion": "15.0.0.0",
+        "LibraryVersion": "16.0.7331.1206",
+        "ErrorInfo": null,
+        "TraceCorrelationId": "38e4499e-10a2-5000-ce25-77d4ccc2bd96"
+      }, 7, {
+        "_ObjectType_": "SP.Web",
+        "_ObjectIdentity_": "38e4499e-10a2-5000-ce25-77d4ccc2bd96|740c6a0b-85e2-48a0-a494-e0f1759d4a77:site:f3806c23-0c9f-42d3-bc7d-3895acc06d73:web:5a39e548-b3d7-4090-9cb9-0ce7cd85d275",
+        "ServerRelativeUrl": "\u002fsites\u002ftest"
+      }]));
 
-    const getFolderPropertyBagSpy = sinon.spy((command as any), 'getFolderPropertyBag');
-    const options = {
-      webUrl: 'https://contoso.sharepoint.com/sites/test',
-      folder: '/',
-      debug: true
-    };
-    const objIdentity: IdentityResponse = {
-      objectIdentity: "38e4499e-10a2-5000-ce25-77d4ccc2bd96|740c6a0b-85e2-48a0-a494-e0f1759d4a77:site:f3806c23-0c9f-42d3-bc7d-3895acc06d73:web:5a39e548-b3d7-4090-9cb9-0ce7cd85d275",
-      serverRelativeUrl: "\u002fsites\u002ftest"
-    };
+      const getFolderPropertyBagSpy = jest.spyOn((command as any), 'getFolderPropertyBag').mockClear();
+      const options = {
+        webUrl: 'https://contoso.sharepoint.com/sites/test',
+        folder: '/',
+        debug: true
+      };
+      const objIdentity: IdentityResponse = {
+        objectIdentity: "38e4499e-10a2-5000-ce25-77d4ccc2bd96|740c6a0b-85e2-48a0-a494-e0f1759d4a77:site:f3806c23-0c9f-42d3-bc7d-3895acc06d73:web:5a39e548-b3d7-4090-9cb9-0ce7cd85d275",
+        serverRelativeUrl: "\u002fsites\u002ftest"
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(getFolderPropertyBagSpy.calledWith(objIdentity, 'https://contoso.sharepoint.com/sites/test', '/', logger));
-    assert(getFolderPropertyBagSpy.calledOnce === true);
-  });
+      await command.action(logger, { options: options } as any);
+      assert(getFolderPropertyBagSpy.calledWith(objIdentity, 'https://contoso.sharepoint.com/sites/test', '/', logger));
+      assert(getFolderPropertyBagSpy.calledOnce === true);
+    }
+  );
 
-  it('should correctly handle getFolderPropertyBag reject promise', async () => {
-    stubAllPostRequests(null, new Promise<any>((resolve, reject) => { return reject('abc'); }));
-    const getFolderPropertyBagSpy = sinon.spy((command as any), 'getFolderPropertyBag');
-    const options = {
-      webUrl: 'https://contoso.sharepoint.com',
-      folder: '/'
-    };
+  it('should correctly handle getFolderPropertyBag reject promise',
+    async () => {
+      stubAllPostRequests(null, new Promise<any>((resolve, reject) => { return reject('abc'); }));
+      const getFolderPropertyBagSpy = jest.spyOn((command as any), 'getFolderPropertyBag').mockClear();
+      const options = {
+        webUrl: 'https://contoso.sharepoint.com',
+        folder: '/'
+      };
 
-    await assert.rejects(command.action(logger, { options: options } as any),
-      new CommandError('abc'));
-    assert(getFolderPropertyBagSpy.calledOnce === true);
-  });
+      await assert.rejects(command.action(logger, { options: options } as any),
+        new CommandError('abc'));
+      assert(getFolderPropertyBagSpy.calledOnce === true);
+    }
+  );
 
   it('should correctly handle getWebPropertyBag reject promise', async () => {
     stubAllPostRequests(null, null, new Promise<any>((resolve, reject) => { return reject('abc1'); }));
-    const getWebPropertyBagSpy = sinon.spy((command as any), 'getWebPropertyBag');
+    const getWebPropertyBagSpy = jest.spyOn((command as any), 'getWebPropertyBag').mockClear();
     const options = {
       webUrl: 'https://contoso.sharepoint.com'
     };
@@ -260,92 +269,104 @@ describe(commands.PROPERTYBAG_GET, () => {
     assert(getWebPropertyBagSpy.calledOnce === true);
   });
 
-  it('should correctly handle getFolderPropertyBag ClientSvc error response', async () => {
-    const error = JSON.stringify([{ "ErrorInfo": { "ErrorMessage": "getFolderPropertyBag error" } }]);
-    stubAllPostRequests(null, new Promise<any>((resolve) => { return resolve(error); }));
-    const getFolderPropertyBagSpy = sinon.spy((command as any), 'getFolderPropertyBag');
-    const options = {
-      webUrl: 'https://contoso.sharepoint.com',
-      folder: '/',
-      verbose: true
-    };
+  it('should correctly handle getFolderPropertyBag ClientSvc error response',
+    async () => {
+      const error = JSON.stringify([{ "ErrorInfo": { "ErrorMessage": "getFolderPropertyBag error" } }]);
+      stubAllPostRequests(null, new Promise<any>((resolve) => { return resolve(error); }));
+      const getFolderPropertyBagSpy = jest.spyOn((command as any), 'getFolderPropertyBag').mockClear();
+      const options = {
+        webUrl: 'https://contoso.sharepoint.com',
+        folder: '/',
+        verbose: true
+      };
 
-    await assert.rejects(command.action(logger, { options: options } as any),
-      new CommandError('getFolderPropertyBag error'));
-    assert(getFolderPropertyBagSpy.calledOnce === true);
-  });
+      await assert.rejects(command.action(logger, { options: options } as any),
+        new CommandError('getFolderPropertyBag error'));
+      assert(getFolderPropertyBagSpy.calledOnce === true);
+    }
+  );
 
-  it('should correctly handle getWebPropertyBag ClientSvc error response', async () => {
-    const error = JSON.stringify([{ "ErrorInfo": { "ErrorMessage": "getWebPropertyBag error" } }]);
-    stubAllPostRequests(null, null, new Promise<any>((resolve) => { return resolve(error); }));
-    const getWebPropertyBagSpy = sinon.spy((command as any), 'getWebPropertyBag');
-    const options = {
-      webUrl: 'https://contoso.sharepoint.com'
-    };
+  it('should correctly handle getWebPropertyBag ClientSvc error response',
+    async () => {
+      const error = JSON.stringify([{ "ErrorInfo": { "ErrorMessage": "getWebPropertyBag error" } }]);
+      stubAllPostRequests(null, null, new Promise<any>((resolve) => { return resolve(error); }));
+      const getWebPropertyBagSpy = jest.spyOn((command as any), 'getWebPropertyBag').mockClear();
+      const options = {
+        webUrl: 'https://contoso.sharepoint.com'
+      };
 
-    await assert.rejects(command.action(logger, { options: options } as any),
-      new CommandError('getWebPropertyBag error'));
-    assert(getWebPropertyBagSpy.calledOnce === true);
-  });
+      await assert.rejects(command.action(logger, { options: options } as any),
+        new CommandError('getWebPropertyBag error'));
+      assert(getWebPropertyBagSpy.calledOnce === true);
+    }
+  );
 
-  it('should correctly handle requestObjectIdentity error response', async () => {
-    const error = JSON.stringify([{ "ErrorInfo": { "ErrorMessage": "requestObjectIdentity error" } }]);
+  it('should correctly handle requestObjectIdentity error response',
+    async () => {
+      const error = JSON.stringify([{ "ErrorInfo": { "ErrorMessage": "requestObjectIdentity error" } }]);
 
-    stubAllPostRequests(new Promise<any>((resolve) => { return resolve(error); }), null, null);
-    const requestObjectIdentitySpy = sinon.spy(spo, 'getCurrentWebIdentity');
-    const options = {
-      webUrl: 'https://contoso.sharepoint.com'
-    };
+      stubAllPostRequests(new Promise<any>((resolve) => { return resolve(error); }), null, null);
+      const requestObjectIdentitySpy = jest.spyOn(spo, 'getCurrentWebIdentity').mockClear();
+      const options = {
+        webUrl: 'https://contoso.sharepoint.com'
+      };
 
-    await assert.rejects(command.action(logger, { options: options } as any),
-      new CommandError('requestObjectIdentity error'));
-    assert(requestObjectIdentitySpy.calledOnce === true);
-  });
+      await assert.rejects(command.action(logger, { options: options } as any),
+        new CommandError('requestObjectIdentity error'));
+      assert(requestObjectIdentitySpy.calledOnce === true);
+    }
+  );
 
-  it('should correctly handle requestObjectIdentity ErrorMessage null response', async () => {
-    const error = JSON.stringify([{ "ErrorInfo": { "ErrorMessage": undefined } }]);
+  it('should correctly handle requestObjectIdentity ErrorMessage null response',
+    async () => {
+      const error = JSON.stringify([{ "ErrorInfo": { "ErrorMessage": undefined } }]);
 
-    stubAllPostRequests(new Promise<any>((resolve) => { return resolve(error); }), null, null);
-    const requestObjectIdentitySpy = sinon.spy(spo, 'getCurrentWebIdentity');
-    const options = {
-      webUrl: 'https://contoso.sharepoint.com'
-    };
+      stubAllPostRequests(new Promise<any>((resolve) => { return resolve(error); }), null, null);
+      const requestObjectIdentitySpy = jest.spyOn(spo, 'getCurrentWebIdentity').mockClear();
+      const options = {
+        webUrl: 'https://contoso.sharepoint.com'
+      };
 
-    await assert.rejects(command.action(logger, { options: options } as any),
-      new CommandError('ClientSvc unknown error'));
-    assert(requestObjectIdentitySpy.calledOnce === true);
-  });
+      await assert.rejects(command.action(logger, { options: options } as any),
+        new CommandError('ClientSvc unknown error'));
+      assert(requestObjectIdentitySpy.calledOnce === true);
+    }
+  );
 
-  it('should correctly handle getFolderPropertyBag ErrorMessage null response and site is /', async () => {
-    const error = JSON.stringify([{ "ErrorInfo": { "ErrorMessage": undefined } }]);
+  it('should correctly handle getFolderPropertyBag ErrorMessage null response and site is /',
+    async () => {
+      const error = JSON.stringify([{ "ErrorInfo": { "ErrorMessage": undefined } }]);
 
-    stubAllPostRequests(null, new Promise<any>((resolve) => { return resolve(error); }));
-    const options = {
-      webUrl: 'https://contoso.sharepoint.com',
-      key: 'vti_parentid',
-      folder: '/'
-    };
+      stubAllPostRequests(null, new Promise<any>((resolve) => { return resolve(error); }));
+      const options = {
+        webUrl: 'https://contoso.sharepoint.com',
+        key: 'vti_parentid',
+        folder: '/'
+      };
 
-    await assert.rejects(command.action(logger, { options: options } as any),
-      new CommandError('ClientSvc unknown error'));
-  });
+      await assert.rejects(command.action(logger, { options: options } as any),
+        new CommandError('ClientSvc unknown error'));
+    }
+  );
 
-  it('should correctly handle getFolderPropertyBag ErrorMessage null response', async () => {
-    const error = JSON.stringify([{ "ErrorInfo": { "ErrorMessage": undefined } }]);
+  it('should correctly handle getFolderPropertyBag ErrorMessage null response',
+    async () => {
+      const error = JSON.stringify([{ "ErrorInfo": { "ErrorMessage": undefined } }]);
 
-    stubAllPostRequests(null, null, new Promise<any>((resolve) => { return resolve(error); }));
-    const options = {
-      webUrl: 'https://contoso.sharepoint.com',
-      key: 'vti_parentid'
-    };
+      stubAllPostRequests(null, null, new Promise<any>((resolve) => { return resolve(error); }));
+      const options = {
+        webUrl: 'https://contoso.sharepoint.com',
+        key: 'vti_parentid'
+      };
 
-    await assert.rejects(command.action(logger, { options: options } as any),
-      new CommandError('ClientSvc unknown error'));
-  });
+      await assert.rejects(command.action(logger, { options: options } as any),
+        new CommandError('ClientSvc unknown error'));
+    }
+  );
 
   it('should correctly return string property', async () => {
     stubAllPostRequests();
-    const filterByKeySpy = sinon.spy((command as any), 'filterByKey');
+    const filterByKeySpy = jest.spyOn((command as any), 'filterByKey').mockClear();
     const options = {
       webUrl: 'https://contoso.sharepoint.com',
       folder: '/',
@@ -354,13 +375,13 @@ describe(commands.PROPERTYBAG_GET, () => {
 
     await command.action(logger, { options: options } as any);
     assert(filterByKeySpy.calledOnce === true);
-    const out = loggerLogSpy.lastCall.args[0];
+    const out = loggerLogSpy.mock.lastCall[0];
     assert.strictEqual(out, '{1C5271C8-DB93-459E-9C18-68FC33EFD856}');
   });
 
   it('should correctly return date property (text)', async () => {
     stubAllPostRequests();
-    const filterByKeySpy = sinon.spy((command as any), 'filterByKey');
+    const filterByKeySpy = jest.spyOn((command as any), 'filterByKey').mockClear();
     const options = {
       webUrl: 'https://contoso.sharepoint.com',
       folder: '/',
@@ -370,7 +391,7 @@ describe(commands.PROPERTYBAG_GET, () => {
     await command.action(logger, { options: options } as any);
     assert(filterByKeySpy.calledOnce === true);
 
-    const out = loggerLogSpy.lastCall.args[0];
+    const out = loggerLogSpy.mock.lastCall[0];
     const expectedDate = new Date(2017, 10, 7, 11, 29, 31, 0);
     assert.strictEqual(out.getUTCMonth(), expectedDate.getUTCMonth(), 'getUTCMonth');
     assert.strictEqual(out.getUTCFullYear(), expectedDate.getUTCFullYear(), 'getUTCFullYear');
@@ -382,7 +403,7 @@ describe(commands.PROPERTYBAG_GET, () => {
 
   it('should correctly return date property (json)', async () => {
     stubAllPostRequests();
-    const filterByKeySpy = sinon.spy((command as any), 'filterByKey');
+    const filterByKeySpy = jest.spyOn((command as any), 'filterByKey').mockClear();
     const options = {
       webUrl: 'https://contoso.sharepoint.com',
       folder: '/',
@@ -393,7 +414,7 @@ describe(commands.PROPERTYBAG_GET, () => {
     await command.action(logger, { options: options } as any);
     assert(filterByKeySpy.calledOnce === true);
 
-    const out = loggerLogSpy.lastCall.args[0];
+    const out = loggerLogSpy.mock.lastCall[0];
     assert.strictEqual(Object.prototype.toString.call(out), '[object Date]');
     const expectedDate = new Date(2017, 10, 7, 11, 29, 31, 0);
     assert.strictEqual(out.getUTCMonth(), expectedDate.getUTCMonth(), 'getUTCMonth');
@@ -406,7 +427,7 @@ describe(commands.PROPERTYBAG_GET, () => {
 
   it('should correctly return int property', async () => {
     stubAllPostRequests();
-    const filterByKeySpy = sinon.spy((command as any), 'filterByKey');
+    const filterByKeySpy = jest.spyOn((command as any), 'filterByKey').mockClear();
     const options = {
       webUrl: 'https://contoso.sharepoint.com',
       folder: '/',
@@ -416,7 +437,7 @@ describe(commands.PROPERTYBAG_GET, () => {
     await command.action(logger, { options: options } as any);
     assert(filterByKeySpy.calledOnce === true);
 
-    const out = loggerLogSpy.lastCall.args[0];
+    const out = loggerLogSpy.mock.lastCall[0];
     assert.strictEqual(out, 1);
   });
 
@@ -429,12 +450,12 @@ describe(commands.PROPERTYBAG_GET, () => {
     };
 
     await command.action(logger, { options: options } as any);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0], 0);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0], 0);
   });
 
   it('should correctly return bool property', async () => {
     stubAllPostRequests();
-    const filterByKeySpy = sinon.spy((command as any), 'filterByKey');
+    const filterByKeySpy = jest.spyOn((command as any), 'filterByKey').mockClear();
     const options = {
       webUrl: 'https://contoso.sharepoint.com',
       folder: '/',
@@ -444,7 +465,7 @@ describe(commands.PROPERTYBAG_GET, () => {
     await command.action(logger, { options: options } as any);
     assert(filterByKeySpy.calledOnce === true);
 
-    const out = loggerLogSpy.lastCall.args[0];
+    const out = loggerLogSpy.mock.lastCall[0];
     assert.strictEqual(out, true);
   });
 
@@ -458,22 +479,24 @@ describe(commands.PROPERTYBAG_GET, () => {
     };
 
     await command.action(logger, { options: options } as any);
-    const out = loggerLogToStderrSpy.lastCall.args[0];
+    const out = loggerLogToStderrSpy.mock.lastCall[0];
     assert.strictEqual(out, 'Property not found.');
   });
 
-  it('should correctly return empty line if not found and not verbose', async () => {
-    stubAllPostRequests();
-    const options = {
-      webUrl: 'https://contoso.sharepoint.com',
-      folder: '/',
-      key: 'abc',
-      verbose: false
-    };
+  it('should correctly return empty line if not found and not verbose',
+    async () => {
+      stubAllPostRequests();
+      const options = {
+        webUrl: 'https://contoso.sharepoint.com',
+        folder: '/',
+        key: 'abc',
+        verbose: false
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert.strictEqual(loggerLogSpy.notCalled, true);
-  });
+      await command.action(logger, { options: options } as any);
+      assert.strictEqual(loggerLogSpy.notCalled, true);
+    }
+  );
 
   it('should reject promise if _ObjectIdentity_ not found', async () => {
     stubAllPostRequests('[{}]');
@@ -510,93 +533,105 @@ describe(commands.PROPERTYBAG_GET, () => {
       new CommandError('Cannot proceed. AllProperties not found'));
   });
 
-  it('should return error if requestObjectIdentity reqest failed', async () => {
-    stubAllPostRequests(new Promise<any>((resolve, reject) => { return reject('error1'); }));
-    const options = {
-      webUrl: 'https://contoso.sharepoint.com',
-      key: 'vti_parentid'
-    };
+  it('should return error if requestObjectIdentity reqest failed',
+    async () => {
+      stubAllPostRequests(new Promise<any>((resolve, reject) => { return reject('error1'); }));
+      const options = {
+        webUrl: 'https://contoso.sharepoint.com',
+        key: 'vti_parentid'
+      };
 
-    await assert.rejects(command.action(logger, { options: options } as any),
-      new CommandError('error1'));
-  });
+      await assert.rejects(command.action(logger, { options: options } as any),
+        new CommandError('error1'));
+    }
+  );
 
-  it('should correctly post url, headers and data when calling client.svc when requestObjectIdentity', async () => {
-    const postRequestSpy: sinon.SinonSpy = stubAllPostRequests();
+  it('should correctly post url, headers and data when calling client.svc when requestObjectIdentity',
+    async () => {
+      const postRequestSpy: jest.SpyInstance = stubAllPostRequests();
 
-    const options = {
-      webUrl: 'https://contoso.sharepoint.com',
-      key: 'vti_parentid'
-    };
+      const options = {
+        webUrl: 'https://contoso.sharepoint.com',
+        key: 'vti_parentid'
+      };
 
-    await command.action(logger, { options: options } as any);
-    const secondCall = postRequestSpy.getCalls()[0];
-    assert(secondCall.calledWith(sinon.match({ url: 'https://contoso.sharepoint.com/_vti_bin/client.svc/ProcessQuery' })), 'url');
-    assert(secondCall.calledWith(sinon.match({ headers: { 'X-RequestDigest': 'abc' } })), 'request digest');
-    assert(secondCall.calledWith(sinon.match({
-      data: `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><Query Id="1" ObjectPathId="5"><Query SelectAllProperties="false"><Properties><Property Name="ServerRelativeUrl" ScalarProperty="true" /></Properties></Query></Query></Actions><ObjectPaths><Property Id="5" ParentId="3" Name="Web" /><StaticProperty Id="3" TypeId="{3747adcd-a3c3-41b9-bfab-4a64dd2f1e0a}" Name="Current" /></ObjectPaths></Request>`
-    })), 'data');
-  });
+      await command.action(logger, { options: options } as any);
+      const secondCall = postRequestSpy.mock.calls[0];
+      assert(secondCall.calledWith(expect.objectContaining({ url: 'https://contoso.sharepoint.com/_vti_bin/client.svc/ProcessQuery' })), 'url');
+      assert(secondCall.calledWith(expect.objectContaining({ headers: { 'X-RequestDigest': 'abc' } })), 'request digest');
+      assert(secondCall.calledWith(expect.objectContaining({
+        data: `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><Query Id="1" ObjectPathId="5"><Query SelectAllProperties="false"><Properties><Property Name="ServerRelativeUrl" ScalarProperty="true" /></Properties></Query></Query></Actions><ObjectPaths><Property Id="5" ParentId="3" Name="Web" /><StaticProperty Id="3" TypeId="{3747adcd-a3c3-41b9-bfab-4a64dd2f1e0a}" Name="Current" /></ObjectPaths></Request>`
+      })), 'data');
+    }
+  );
 
-  it('should correctly post url, headers and data when calling client.svc when getWebPropertyBag', async () => {
-    const postRequestSpy: sinon.SinonSpy = stubAllPostRequests();
-    const options = {
-      webUrl: 'https://contoso.sharepoint.com',
-      key: 'vti_parentid'
-    };
+  it('should correctly post url, headers and data when calling client.svc when getWebPropertyBag',
+    async () => {
+      const postRequestSpy: jest.SpyInstance = stubAllPostRequests();
+      const options = {
+        webUrl: 'https://contoso.sharepoint.com',
+        key: 'vti_parentid'
+      };
 
-    await command.action(logger, { options: options } as any);
-    const lastCall = postRequestSpy.lastCall;
-    assert(lastCall.calledWith(sinon.match({ url: 'https://contoso.sharepoint.com/_vti_bin/client.svc/ProcessQuery' })));
-    assert(lastCall.calledWith(sinon.match({ headers: { 'X-RequestDigest': 'abc' } })));
-    assert(lastCall.calledWith(sinon.match({
-      data: `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><Query Id="97" ObjectPathId="5"><Query SelectAllProperties="false"><Properties><Property Name="ServerRelativeUrl" ScalarProperty="true" /><Property Name="AllProperties" SelectAll="true"><Query SelectAllProperties="false"><Properties /></Query></Property></Properties></Query></Query></Actions><ObjectPaths><Identity Id="5" Name="38e4499e-10a2-5000-ce25-77d4ccc2bd96|740c6a0b-85e2-48a0-a494-e0f1759d4a77:site:f3806c23-0c9f-42d3-bc7d-3895acc06d73:web:5a39e548-b3d7-4090-9cb9-0ce7cd85d275" /></ObjectPaths></Request>`
-    })));
-  });
+      await command.action(logger, { options: options } as any);
+      const lastCall = postRequestSpy.mock.lastCall;
+      assert(lastCall.calledWith(expect.objectContaining({ url: 'https://contoso.sharepoint.com/_vti_bin/client.svc/ProcessQuery' })));
+      assert(lastCall.calledWith(expect.objectContaining({ headers: { 'X-RequestDigest': 'abc' } })));
+      assert(lastCall.calledWith(expect.objectContaining({
+        data: `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><Query Id="97" ObjectPathId="5"><Query SelectAllProperties="false"><Properties><Property Name="ServerRelativeUrl" ScalarProperty="true" /><Property Name="AllProperties" SelectAll="true"><Query SelectAllProperties="false"><Properties /></Query></Property></Properties></Query></Query></Actions><ObjectPaths><Identity Id="5" Name="38e4499e-10a2-5000-ce25-77d4ccc2bd96|740c6a0b-85e2-48a0-a494-e0f1759d4a77:site:f3806c23-0c9f-42d3-bc7d-3895acc06d73:web:5a39e548-b3d7-4090-9cb9-0ce7cd85d275" /></ObjectPaths></Request>`
+      })));
+    }
+  );
 
-  it('should correctly post payload when calling client.svc when getFolderPropertyBag and site is /', async () => {
-    const postRequestSpy: sinon.SinonSpy = stubAllPostRequests();
-    const options = {
-      webUrl: 'https://contoso.sharepoint.com',
-      key: 'vti_parentid',
-      folder: '/'
-    };
+  it('should correctly post payload when calling client.svc when getFolderPropertyBag and site is /',
+    async () => {
+      const postRequestSpy: jest.SpyInstance = stubAllPostRequests();
+      const options = {
+        webUrl: 'https://contoso.sharepoint.com',
+        key: 'vti_parentid',
+        folder: '/'
+      };
 
-    await command.action(logger, { options: options } as any);
-    const lastCall = postRequestSpy.lastCall;
-    assert(lastCall.calledWith(sinon.match({ url: 'https://contoso.sharepoint.com/_vti_bin/client.svc/ProcessQuery' })));
-    assert(lastCall.calledWith(sinon.match({ headers: { 'X-RequestDigest': 'abc' } })));
-    assert(lastCall.calledWith(sinon.match({
-      data: `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="10" ObjectPathId="9" /><ObjectIdentityQuery Id="11" ObjectPathId="9" /><Query Id="12" ObjectPathId="9"><Query SelectAllProperties="false"><Properties><Property Name="Properties" SelectAll="true"><Query SelectAllProperties="false"><Properties /></Query></Property></Properties></Query></Query></Actions><ObjectPaths><Method Id="9" ParentId="5" Name="GetFolderByServerRelativeUrl"><Parameters><Parameter Type="String">/</Parameter></Parameters></Method><Identity Id="5" Name="38e4499e-10a2-5000-ce25-77d4ccc2bd96|740c6a0b-85e2-48a0-a494-e0f1759d4a77:site:f3806c23-0c9f-42d3-bc7d-3895acc06d73:web:5a39e548-b3d7-4090-9cb9-0ce7cd85d275" /></ObjectPaths></Request>`
-    })));
-  });
+      await command.action(logger, { options: options } as any);
+      const lastCall = postRequestSpy.mock.lastCall;
+      assert(lastCall.calledWith(expect.objectContaining({ url: 'https://contoso.sharepoint.com/_vti_bin/client.svc/ProcessQuery' })));
+      assert(lastCall.calledWith(expect.objectContaining({ headers: { 'X-RequestDigest': 'abc' } })));
+      assert(lastCall.calledWith(expect.objectContaining({
+        data: `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="10" ObjectPathId="9" /><ObjectIdentityQuery Id="11" ObjectPathId="9" /><Query Id="12" ObjectPathId="9"><Query SelectAllProperties="false"><Properties><Property Name="Properties" SelectAll="true"><Query SelectAllProperties="false"><Properties /></Query></Property></Properties></Query></Query></Actions><ObjectPaths><Method Id="9" ParentId="5" Name="GetFolderByServerRelativeUrl"><Parameters><Parameter Type="String">/</Parameter></Parameters></Method><Identity Id="5" Name="38e4499e-10a2-5000-ce25-77d4ccc2bd96|740c6a0b-85e2-48a0-a494-e0f1759d4a77:site:f3806c23-0c9f-42d3-bc7d-3895acc06d73:web:5a39e548-b3d7-4090-9cb9-0ce7cd85d275" /></ObjectPaths></Request>`
+      })));
+    }
+  );
 
-  it('should correctly post payload when calling client.svc when getFolderPropertyBag and site is /sites/test', async () => {
-    const postRequestSpy: sinon.SinonSpy = stubAllPostRequests(JSON.stringify([{
-      "SchemaVersion": "15.0.0.0",
-      "LibraryVersion": "16.0.7331.1206",
-      "ErrorInfo": null,
-      "TraceCorrelationId": "38e4499e-10a2-5000-ce25-77d4ccc2bd96"
-    }, 7, {
-      "_ObjectType_": "SP.Web",
-      "_ObjectIdentity_": "38e4499e-10a2-5000-ce25-77d4ccc2bd96|740c6a0b-85e2-48a0-a494-e0f1759d4a77:site:f3806c23-0c9f-42d3-bc7d-3895acc06d73:web:5a39e548-b3d7-4090-9cb9-0ce7cd85d275",
-      "ServerRelativeUrl": "\u002fsites\u002ftest"
-    }]));
+  it('should correctly post payload when calling client.svc when getFolderPropertyBag and site is /sites/test',
+    async () => {
+      const postRequestSpy: jest.SpyInstance = stubAllPostRequests(JSON.stringify([{
+        "SchemaVersion": "15.0.0.0",
+        "LibraryVersion": "16.0.7331.1206",
+        "ErrorInfo": null,
+        "TraceCorrelationId": "38e4499e-10a2-5000-ce25-77d4ccc2bd96"
+      }, 7, {
+        "_ObjectType_": "SP.Web",
+        "_ObjectIdentity_": "38e4499e-10a2-5000-ce25-77d4ccc2bd96|740c6a0b-85e2-48a0-a494-e0f1759d4a77:site:f3806c23-0c9f-42d3-bc7d-3895acc06d73:web:5a39e548-b3d7-4090-9cb9-0ce7cd85d275",
+        "ServerRelativeUrl": "\u002fsites\u002ftest"
+      }]));
 
-    const options = {
-      webUrl: 'https://contoso.sharepoint.com/sites/test',
-      key: 'vti_parentid',
-      folder: '/'
-    };
+      const options = {
+        webUrl: 'https://contoso.sharepoint.com/sites/test',
+        key: 'vti_parentid',
+        folder: '/'
+      };
 
-    await command.action(logger, { options: options } as any);
-    const lastCall = postRequestSpy.lastCall;
-    assert(lastCall.calledWith(sinon.match({ url: 'https://contoso.sharepoint.com/sites/test/_vti_bin/client.svc/ProcessQuery' })));
-    assert(lastCall.calledWith(sinon.match({ headers: { 'X-RequestDigest': 'abc' } })));
-    assert(lastCall.calledWith(sinon.match({
-      data: `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="10" ObjectPathId="9" /><ObjectIdentityQuery Id="11" ObjectPathId="9" /><Query Id="12" ObjectPathId="9"><Query SelectAllProperties="false"><Properties><Property Name="Properties" SelectAll="true"><Query SelectAllProperties="false"><Properties /></Query></Property></Properties></Query></Query></Actions><ObjectPaths><Method Id="9" ParentId="5" Name="GetFolderByServerRelativeUrl"><Parameters><Parameter Type="String">/sites/test/</Parameter></Parameters></Method><Identity Id="5" Name="38e4499e-10a2-5000-ce25-77d4ccc2bd96|740c6a0b-85e2-48a0-a494-e0f1759d4a77:site:f3806c23-0c9f-42d3-bc7d-3895acc06d73:web:5a39e548-b3d7-4090-9cb9-0ce7cd85d275" /></ObjectPaths></Request>`
-    })));
-  });
+      await command.action(logger, { options: options } as any);
+      const lastCall = postRequestSpy.mock.lastCall;
+      assert(lastCall.calledWith(expect.objectContaining(
+        { url: 'https://contoso.sharepoint.com/sites/test/_vti_bin/client.svc/ProcessQuery' }
+      )));
+      assert(lastCall.calledWith(expect.objectContaining({ headers: { 'X-RequestDigest': 'abc' } })));
+      assert(lastCall.calledWith(expect.objectContaining({
+        data: `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><ObjectPath Id="10" ObjectPathId="9" /><ObjectIdentityQuery Id="11" ObjectPathId="9" /><Query Id="12" ObjectPathId="9"><Query SelectAllProperties="false"><Properties><Property Name="Properties" SelectAll="true"><Query SelectAllProperties="false"><Properties /></Query></Property></Properties></Query></Query></Actions><ObjectPaths><Method Id="9" ParentId="5" Name="GetFolderByServerRelativeUrl"><Parameters><Parameter Type="String">/sites/test/</Parameter></Parameters></Method><Identity Id="5" Name="38e4499e-10a2-5000-ce25-77d4ccc2bd96|740c6a0b-85e2-48a0-a494-e0f1759d4a77:site:f3806c23-0c9f-42d3-bc7d-3895acc06d73:web:5a39e548-b3d7-4090-9cb9-0ce7cd85d275" /></ObjectPaths></Request>`
+      })));
+    }
+  );
 
   it('supports specifying folder', () => {
     const options = command.options;
@@ -628,16 +663,18 @@ describe(commands.PROPERTYBAG_GET, () => {
     assert.strictEqual(prop.value, true);
   });
 
-  it('fails validation if the url option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({
-      options:
-      {
-        webUrl: 'foo',
-        key: 'abc'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the url option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({
+        options:
+        {
+          webUrl: 'foo',
+          key: 'abc'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation when the url and key options specified', async () => {
     const actual = await command.validate({
@@ -650,27 +687,31 @@ describe(commands.PROPERTYBAG_GET, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation when the url, key and folder options specified', async () => {
-    const actual = await command.validate({
-      options:
-      {
-        webUrl: "https://contoso.sharepoint.com",
-        key: 123,
-        folder: "/"
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
-
-  it('doesn\'t fail validation if the optional folder option not specified', async () => {
-    const actual = await command.validate(
-      {
+  it('passes validation when the url, key and folder options specified',
+    async () => {
+      const actual = await command.validate({
         options:
         {
           webUrl: "https://contoso.sharepoint.com",
-          key: 'abc'
+          key: 123,
+          folder: "/"
         }
       }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+      assert.strictEqual(actual, true);
+    }
+  );
+
+  it('doesn\'t fail validation if the optional folder option not specified',
+    async () => {
+      const actual = await command.validate(
+        {
+          options:
+          {
+            webUrl: "https://contoso.sharepoint.com",
+            key: 'abc'
+          }
+        }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './task-set.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -138,15 +137,15 @@ describe(commands.TASK_SET, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.accessTokens[(command as any).resource] = {
       accessToken: 'abc',
@@ -168,14 +167,14 @@ describe(commands.TASK_SET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
     (command as any).planId = undefined;
     (command as any).bucketId = undefined;
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post,
       request.patch,
@@ -183,8 +182,8 @@ describe(commands.TASK_SET, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.accessTokens = {};
   });
@@ -197,103 +196,113 @@ describe(commands.TASK_SET, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('fails validation when both bucketId and bucketName are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation when both bucketId and bucketName are specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
-        bucketId: 'IK8tuFTwQEa5vTonM7ZMRZgAKdno',
-        bucketName: 'My Bucket'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
+          bucketId: 'IK8tuFTwQEa5vTonM7ZMRZgAKdno',
+          bucketName: 'My Bucket'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when bucketName is specified but not planId, planTitle, or rosterId', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation when bucketName is specified but not planId, planTitle, or rosterId',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
-        bucketName: 'My Bucket'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
+          bucketName: 'My Bucket'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when bucketName is specified but planId, planTitle, and rosterId are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation when bucketName is specified but planId, planTitle, and rosterId are specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
-        bucketName: 'My Bucket',
-        planId: '8QZEH7b3wkS_bGQobscsM5gADCBb',
-        planTitle: 'My Planner',
-        rosterId: 'DjL5xiKO10qut8LQgztpKskABWna'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
+          bucketName: 'My Bucket',
+          planId: '8QZEH7b3wkS_bGQobscsM5gADCBb',
+          planTitle: 'My Planner',
+          rosterId: 'DjL5xiKO10qut8LQgztpKskABWna'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when planTitle is specified without ownerGroupId or ownerGroupName', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation when planTitle is specified without ownerGroupId or ownerGroupName',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
-        bucketName: 'My Bucket',
-        planTitle: 'My Planner Plan'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
+          bucketName: 'My Bucket',
+          planTitle: 'My Planner Plan'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when planTitle is specified with both ownerGroupId and ownerGroupName', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation when planTitle is specified with both ownerGroupId and ownerGroupName',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
-        bucketName: 'My Bucket',
-        planTitle: 'My Planner Plan',
-        ownerGroupId: '0d0402ee-970f-4951-90b5-2f24519d2e40',
-        ownerGroupName: 'My Planner Group'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
+          bucketName: 'My Bucket',
+          planTitle: 'My Planner Plan',
+          ownerGroupId: '0d0402ee-970f-4951-90b5-2f24519d2e40',
+          ownerGroupName: 'My Planner Group'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the ownerGroupId is not a valid guid.', async () => {
     const actual = await command.validate({
@@ -307,15 +316,17 @@ describe(commands.TASK_SET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if startDateTime contains invalid format.', async () => {
-    const actual = await command.validate({
-      options: {
-        id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
-        startDateTime: '2021-99-99'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if startDateTime contains invalid format.',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
+          startDateTime: '2021-99-99'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if dueDateTime contains invalid format.', async () => {
     const actual = await command.validate({
@@ -327,64 +338,74 @@ describe(commands.TASK_SET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if percentComplete contains invalid format.', async () => {
-    const actual = await command.validate({
-      options: {
-        id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
-        percentComplete: 'Not A Number'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if percentComplete contains invalid format.',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
+          percentComplete: 'Not A Number'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if percentComplete is not between 0 and 100.', async () => {
-    const actual = await command.validate({
-      options: {
-        id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
-        percentComplete: 599
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if percentComplete is not between 0 and 100.',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
+          percentComplete: 599
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if assignedToUserIds contains invalid guid.', async () => {
-    const actual = await command.validate({
-      options: {
-        id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
-        assignedToUserIds: "2e42fe76-3f42-4884-b325-aefd7a905446,8d1ff29c-a6f4-4786-b316-test"
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if assignedToUserIds contains invalid guid.',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
+          assignedToUserIds: "2e42fe76-3f42-4884-b325-aefd7a905446,8d1ff29c-a6f4-4786-b316-test"
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when both assignedToUserIds and assignedToUserNames are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation when both assignedToUserIds and assignedToUserNames are specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
-        assignedToUserIds: "2e42fe76-3f42-4884-b325-aefd7a905446,8d1ff29c-a6f4-4786-b316-eb6030e1a09e",
-        assignedToUserNames: "Allan.Carroll@contoso.onmicrosoft.com,Ida.Stevens@contoso.onmicrosoft.com"
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
+          assignedToUserIds: "2e42fe76-3f42-4884-b325-aefd7a905446,8d1ff29c-a6f4-4786-b316-eb6030e1a09e",
+          assignedToUserNames: "Allan.Carroll@contoso.onmicrosoft.com,Ida.Stevens@contoso.onmicrosoft.com"
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if incorrect appliedCategory is specified.', async () => {
-    const actual = await command.validate({
-      options: {
-        id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
-        appliedCategories: "category1,category9"
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if incorrect appliedCategory is specified.',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
+          appliedCategories: "category1,category9"
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if priority lower than 0 is specified.', async () => {
     const actual = await command.validate({
@@ -406,15 +427,17 @@ describe(commands.TASK_SET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if priority is specified which is a number with decimals.', async () => {
-    const actual = await command.validate({
-      options: {
-        id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
-        priority: 5.6
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if priority is specified which is a number with decimals.',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
+          priority: 5.6
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if unknown priority label is specified.', async () => {
     const actual = await command.validate({
@@ -437,7 +460,7 @@ describe(commands.TASK_SET, () => {
   });
 
   it('correctly updates planner task with title', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}`) {
         return taskResponse;
       }
@@ -445,7 +468,7 @@ describe(commands.TASK_SET, () => {
       throw 'Invalid Request';
     });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}` &&
         JSON.stringify(opts.headers) === JSON.stringify({
           'accept': 'application/json'
@@ -466,9 +489,9 @@ describe(commands.TASK_SET, () => {
   });
 
   it('uses correct value for urgent priority', async () => {
-    const requestPatchStub = sinon.stub(request, 'patch').resolves(taskResponse);
+    const requestPatchStub = jest.spyOn(request, 'patch').mockClear().mockImplementation().resolves(taskResponse);
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}`) {
         return { "@odata.etag": "TestEtag" };
       }
@@ -482,13 +505,13 @@ describe(commands.TASK_SET, () => {
     };
 
     await command.action(logger, { options: options } as any);
-    assert.strictEqual(requestPatchStub.lastCall.args[0].data.priority, 1);
+    assert.strictEqual(requestPatchStub.mock.lastCall[0].data.priority, 1);
   });
 
   it('uses correct value for important priority', async () => {
-    const requestPatchStub = sinon.stub(request, 'patch').resolves(taskResponse);
+    const requestPatchStub = jest.spyOn(request, 'patch').mockClear().mockImplementation().resolves(taskResponse);
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}`) {
         return { "@odata.etag": "TestEtag" };
       }
@@ -502,13 +525,13 @@ describe(commands.TASK_SET, () => {
     };
 
     await command.action(logger, { options: options } as any);
-    assert.strictEqual(requestPatchStub.lastCall.args[0].data.priority, 3);
+    assert.strictEqual(requestPatchStub.mock.lastCall[0].data.priority, 3);
   });
 
   it('uses correct value for medium priority', async () => {
-    const requestPatchStub = sinon.stub(request, 'patch').resolves(taskResponse);
+    const requestPatchStub = jest.spyOn(request, 'patch').mockClear().mockImplementation().resolves(taskResponse);
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}`) {
         return { "@odata.etag": "TestEtag" };
       }
@@ -522,13 +545,13 @@ describe(commands.TASK_SET, () => {
     };
 
     await command.action(logger, { options: options } as any);
-    assert.strictEqual(requestPatchStub.lastCall.args[0].data.priority, 5);
+    assert.strictEqual(requestPatchStub.mock.lastCall[0].data.priority, 5);
   });
 
   it('uses correct value for low priority', async () => {
-    const requestPatchStub = sinon.stub(request, 'patch').resolves(taskResponse);
+    const requestPatchStub = jest.spyOn(request, 'patch').mockClear().mockImplementation().resolves(taskResponse);
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}`) {
         return { "@odata.etag": "TestEtag" };
       }
@@ -542,232 +565,240 @@ describe(commands.TASK_SET, () => {
     };
 
     await command.action(logger, { options: options } as any);
-    assert.strictEqual(requestPatchStub.lastCall.args[0].data.priority, 9);
+    assert.strictEqual(requestPatchStub.mock.lastCall[0].data.priority, 9);
   });
 
-  it('correctly updates planner task to bucket with bucketName, planTitle, and ownerGroupName', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}`) {
-        return taskResponse;
-      }
+  it('correctly updates planner task to bucket with bucketName, planTitle, and ownerGroupName',
+    async () => {
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}`) {
+          return taskResponse;
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter('My Planner Group')}'`) {
-        return groupByDisplayNameResponse;
-      }
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter('My Planner Group')}'`) {
+          return groupByDisplayNameResponse;
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups/0d0402ee-970f-4951-90b5-2f24519d2e40/planner/plans`) {
-        return {
-          value: [
-            {
-              "title": "My Planner Plan",
-              "id": "8QZEH7b3wkS_bGQobscsM5gADCBb"
-            }
-          ]
-        };
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups/0d0402ee-970f-4951-90b5-2f24519d2e40/planner/plans`) {
+          return {
+            value: [
+              {
+                "title": "My Planner Plan",
+                "id": "8QZEH7b3wkS_bGQobscsM5gADCBb"
+              }
+            ]
+          };
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${formatting.encodeQueryParameter('8QZEH7b3wkS_bGQobscsM5gADCBb')}/buckets?$select=id,name`) {
-        return {
-          value: [
-            {
-              "name": "My Planner Bucket",
-              "id": "IK8tuFTwQEa5vTonM7ZMRZgAKdno"
-            }
-          ]
-        };
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${formatting.encodeQueryParameter('8QZEH7b3wkS_bGQobscsM5gADCBb')}/buckets?$select=id,name`) {
+          return {
+            value: [
+              {
+                "name": "My Planner Bucket",
+                "id": "IK8tuFTwQEa5vTonM7ZMRZgAKdno"
+              }
+            ]
+          };
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}` &&
-        JSON.stringify(opts.headers) === JSON.stringify({
-          'accept': 'application/json'
-        })) {
-        return { "@odata.etag": "TestEtag" };
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}` &&
+          JSON.stringify(opts.headers) === JSON.stringify({
+            'accept': 'application/json'
+          })) {
+          return { "@odata.etag": "TestEtag" };
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups/0d0402ee-970f-4951-90b5-2f24519d2e40/planner/plans`) {
-        return {
-          value: [
-            {
-              "title": "My Planner Plan",
-              "id": "8QZEH7b3wkS_bGQobscsM5gADCBb"
-            }
-          ]
-        };
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups/0d0402ee-970f-4951-90b5-2f24519d2e40/planner/plans`) {
+          return {
+            value: [
+              {
+                "title": "My Planner Plan",
+                "id": "8QZEH7b3wkS_bGQobscsM5gADCBb"
+              }
+            ]
+          };
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter('My Planner Group')}'`) {
-        return groupByDisplayNameResponse;
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter('My Planner Group')}'`) {
+          return groupByDisplayNameResponse;
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    const options: any = {
-      id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
-      bucketName: 'My Planner Bucket',
-      planTitle: 'My Planner Plan',
-      ownerGroupName: 'My Planner Group'
-    };
+      const options: any = {
+        id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
+        bucketName: 'My Planner Bucket',
+        planTitle: 'My Planner Plan',
+        ownerGroupName: 'My Planner Group'
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(loggerLogSpy.calledWith(taskResponse));
-  });
+      await command.action(logger, { options: options } as any);
+      assert(loggerLogSpy.calledWith(taskResponse));
+    }
+  );
 
-  it('correctly updates planner task to bucket with bucketName, planTitle, and ownerGroupId', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}`) {
-        return taskResponse;
-      }
+  it('correctly updates planner task to bucket with bucketName, planTitle, and ownerGroupId',
+    async () => {
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}`) {
+          return taskResponse;
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${formatting.encodeQueryParameter('8QZEH7b3wkS_bGQobscsM5gADCBb')}/buckets?$select=id,name`) {
-        return {
-          value: [
-            {
-              "name": "My Planner Bucket",
-              "id": "IK8tuFTwQEa5vTonM7ZMRZgAKdno"
-            }
-          ]
-        };
-      }
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${formatting.encodeQueryParameter('8QZEH7b3wkS_bGQobscsM5gADCBb')}/buckets?$select=id,name`) {
+          return {
+            value: [
+              {
+                "name": "My Planner Bucket",
+                "id": "IK8tuFTwQEa5vTonM7ZMRZgAKdno"
+              }
+            ]
+          };
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}` &&
-        JSON.stringify(opts.headers) === JSON.stringify({
-          'accept': 'application/json'
-        })) {
-        return { "@odata.etag": "TestEtag" };
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}` &&
+          JSON.stringify(opts.headers) === JSON.stringify({
+            'accept': 'application/json'
+          })) {
+          return { "@odata.etag": "TestEtag" };
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups/0d0402ee-970f-4951-90b5-2f24519d2e40/planner/plans`) {
-        return {
-          value: [
-            {
-              "title": "My Planner Plan",
-              "id": "8QZEH7b3wkS_bGQobscsM5gADCBb"
-            }
-          ]
-        };
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups/0d0402ee-970f-4951-90b5-2f24519d2e40/planner/plans`) {
+          return {
+            value: [
+              {
+                "title": "My Planner Plan",
+                "id": "8QZEH7b3wkS_bGQobscsM5gADCBb"
+              }
+            ]
+          };
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    const options: any = {
-      id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
-      bucketName: 'My Planner Bucket',
-      planTitle: 'My Planner Plan',
-      ownerGroupId: '0d0402ee-970f-4951-90b5-2f24519d2e40'
-    };
+      const options: any = {
+        id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
+        bucketName: 'My Planner Bucket',
+        planTitle: 'My Planner Plan',
+        ownerGroupId: '0d0402ee-970f-4951-90b5-2f24519d2e40'
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(loggerLogSpy.calledWith(taskResponse));
-  });
+      await command.action(logger, { options: options } as any);
+      assert(loggerLogSpy.calledWith(taskResponse));
+    }
+  );
 
-  it('correctly updates planner task to bucket with bucketName and planId', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}`) {
-        return taskResponse;
-      }
+  it('correctly updates planner task to bucket with bucketName and planId',
+    async () => {
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}`) {
+          return taskResponse;
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${formatting.encodeQueryParameter('8QZEH7b3wkS_bGQobscsM5gADCBb')}/buckets?$select=id,name`) {
-        return {
-          value: [
-            {
-              "name": "My Planner Bucket",
-              "id": "IK8tuFTwQEa5vTonM7ZMRZgAKdno"
-            }
-          ]
-        };
-      }
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${formatting.encodeQueryParameter('8QZEH7b3wkS_bGQobscsM5gADCBb')}/buckets?$select=id,name`) {
+          return {
+            value: [
+              {
+                "name": "My Planner Bucket",
+                "id": "IK8tuFTwQEa5vTonM7ZMRZgAKdno"
+              }
+            ]
+          };
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}` &&
-        JSON.stringify(opts.headers) === JSON.stringify({
-          'accept': 'application/json'
-        })) {
-        return { "@odata.etag": "TestEtag" };
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}` &&
+          JSON.stringify(opts.headers) === JSON.stringify({
+            'accept': 'application/json'
+          })) {
+          return { "@odata.etag": "TestEtag" };
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    const options: any = {
-      id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
-      bucketName: 'My Planner Bucket',
-      planId: '8QZEH7b3wkS_bGQobscsM5gADCBb'
-    };
+      const options: any = {
+        id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
+        bucketName: 'My Planner Bucket',
+        planId: '8QZEH7b3wkS_bGQobscsM5gADCBb'
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(loggerLogSpy.calledWith(taskResponse));
-  });
+      await command.action(logger, { options: options } as any);
+      assert(loggerLogSpy.calledWith(taskResponse));
+    }
+  );
 
-  it('correctly updates planner task with percentComplete by rosterId', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}`) {
-        return taskResponse;
-      }
+  it('correctly updates planner task with percentComplete by rosterId',
+    async () => {
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}`) {
+          return taskResponse;
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/beta/planner/rosters/DjL5xiKO10qut8LQgztpKskABWna/plans`) {
-        return {
-          "value": [{
-            "id": '8QZEH7b3wkS_bGQobscsM5gADCBb',
-            "title": 'My Planner Plan'
-          }]
-        };
-      }
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/beta/planner/rosters/DjL5xiKO10qut8LQgztpKskABWna/plans`) {
+          return {
+            "value": [{
+              "id": '8QZEH7b3wkS_bGQobscsM5gADCBb',
+              "title": 'My Planner Plan'
+            }]
+          };
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/8QZEH7b3wkS_bGQobscsM5gADCBb/buckets?$select=id,name`) {
-        return {
-          "value": [
-            {
-              "@odata.etag": "W/\"JzEtQnVja2V0QEBAQEBAQEBAQEBAQEBARCc=\"",
-              "name": "My Planner Bucket",
-              "id": "IK8tuFTwQEa5vTonM7ZMRZgAKdno"
-            }
-          ]
-        };
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/8QZEH7b3wkS_bGQobscsM5gADCBb/buckets?$select=id,name`) {
+          return {
+            "value": [
+              {
+                "@odata.etag": "W/\"JzEtQnVja2V0QEBAQEBAQEBAQEBAQEBARCc=\"",
+                "name": "My Planner Bucket",
+                "id": "IK8tuFTwQEa5vTonM7ZMRZgAKdno"
+              }
+            ]
+          };
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}` &&
-        JSON.stringify(opts.headers) === JSON.stringify({
-          'accept': 'application/json'
-        })) {
-        return {
-          "@odata.etag": "TestEtag"
-        };
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}` &&
+          JSON.stringify(opts.headers) === JSON.stringify({
+            'accept': 'application/json'
+          })) {
+          return {
+            "@odata.etag": "TestEtag"
+          };
+        }
 
-      return Promise.reject('Invalid request');
-    });
+        return Promise.reject('Invalid request');
+      });
 
-    const options: any = {
-      id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
-      percentComplete: '50',
-      rosterId: 'DjL5xiKO10qut8LQgztpKskABWna',
-      bucketName: 'My Planner Bucket'
-    };
+      const options: any = {
+        id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
+        percentComplete: '50',
+        rosterId: 'DjL5xiKO10qut8LQgztpKskABWna',
+        bucketName: 'My Planner Bucket'
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(loggerLogSpy.calledWith(taskResponse));
-  });
+      await command.action(logger, { options: options } as any);
+      assert(loggerLogSpy.calledWith(taskResponse));
+    }
+  );
 
 
   it('correctly updates planner task with assignedToUserIds', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}`) {
         return taskResponseWithAssignments;
       }
@@ -775,7 +806,7 @@ describe(commands.TASK_SET, () => {
       throw 'Invalid Request';
     });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}` &&
         JSON.stringify(opts.headers) === JSON.stringify({
           'accept': 'application/json'
@@ -796,7 +827,7 @@ describe(commands.TASK_SET, () => {
   });
 
   it('correctly updates planner task with assignedToUserNames', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}`) {
         return taskResponseWithAssignments;
       }
@@ -804,7 +835,7 @@ describe(commands.TASK_SET, () => {
       throw 'Invalid Request';
     });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=userPrincipalName eq '${formatting.encodeQueryParameter('user@contoso.onmicrosoft.com')}'&$select=id,userPrincipalName`) {
         return {
           value: [
@@ -836,7 +867,7 @@ describe(commands.TASK_SET, () => {
   });
 
   it('correctly updates planner task with description', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}/details` &&
         JSON.stringify(opts.headers) === JSON.stringify({
           'accept': 'application/json'
@@ -858,7 +889,7 @@ describe(commands.TASK_SET, () => {
       throw 'Invalid Request';
     });
 
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}/details`) {
         return {
           "description": "My Task Description",
@@ -883,44 +914,46 @@ describe(commands.TASK_SET, () => {
     assert(loggerLogSpy.calledWith(taskResponseWithDetails));
   });
 
-  it('correctly updates planner task with appliedCategories, bucketId, startDateTime, dueDateTime, percentComplete, assigneePriority, orderHint, and priority', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}`) {
-        return taskResponse;
-      }
+  it('correctly updates planner task with appliedCategories, bucketId, startDateTime, dueDateTime, percentComplete, assigneePriority, orderHint, and priority',
+    async () => {
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}`) {
+          return taskResponse;
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}` &&
-        JSON.stringify(opts.headers) === JSON.stringify({
-          'accept': 'application/json'
-        })) {
-        return { "@odata.etag": "TestEtag" };
-      }
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}` &&
+          JSON.stringify(opts.headers) === JSON.stringify({
+            'accept': 'application/json'
+          })) {
+          return { "@odata.etag": "TestEtag" };
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    const options: any = {
-      id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
-      appliedCategories: 'category1,category2',
-      bucketId: 'IK8tuFTwQEa5vTonM7ZMRZgAKdno',
-      startDateTime: '2014-01-01T00:00:00Z',
-      dueDateTime: '2023-01-01T00:00:00Z',
-      percentComplete: '50',
-      assigneePriority: ' !',
-      orderHint: ' !',
-      priority: 3
-    };
+      const options: any = {
+        id: 'Z-RLQGfppU6H3663DBzfs5gAMD3o',
+        appliedCategories: 'category1,category2',
+        bucketId: 'IK8tuFTwQEa5vTonM7ZMRZgAKdno',
+        startDateTime: '2014-01-01T00:00:00Z',
+        dueDateTime: '2023-01-01T00:00:00Z',
+        percentComplete: '50',
+        assigneePriority: ' !',
+        orderHint: ' !',
+        priority: 3
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(loggerLogSpy.calledWith(taskResponse));
-  });
+      await command.action(logger, { options: options } as any);
+      assert(loggerLogSpy.calledWith(taskResponse));
+    }
+  );
 
   it('fails when no bucket is found', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${formatting.encodeQueryParameter('8QZEH7b3wkS_bGQobscsM5gADCBb')}/buckets?$select=id,name`) {
         return { value: [] };
       }
@@ -938,7 +971,7 @@ describe(commands.TASK_SET, () => {
   });
 
   it('fails when an invalid user is specified', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=userPrincipalName eq 'user%40contoso.onmicrosoft.com'&$select=id,userPrincipalName`) {
         return {
           value: [
@@ -967,7 +1000,7 @@ describe(commands.TASK_SET, () => {
   });
 
   it('fails validation when ownerGroupName not found', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/groups?$filter=displayName') > -1) {
         return { value: [] };
       }
@@ -985,7 +1018,7 @@ describe(commands.TASK_SET, () => {
   });
 
   it('fails validation when task endpoint fails', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}`) {
         return taskResponse;
       }
@@ -993,7 +1026,7 @@ describe(commands.TASK_SET, () => {
       throw 'Invalid Request';
     });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}/details`) {
         throw 'Error fetching task';
       }
@@ -1018,7 +1051,7 @@ describe(commands.TASK_SET, () => {
   });
 
   it('fails validation when task details endpoint fails', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}`) {
         return taskResponse;
       }
@@ -1026,7 +1059,7 @@ describe(commands.TASK_SET, () => {
       throw 'Invalid Request';
     });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/tasks/${formatting.encodeQueryParameter('Z-RLQGfppU6H3663DBzfs5gAMD3o')}/details`) {
         throw 'Error fetching task details';
       }
@@ -1051,8 +1084,8 @@ describe(commands.TASK_SET, () => {
   });
 
   it('correctly handles random API error', async () => {
-    sinonUtil.restore(request.get);
-    sinon.stub(request, 'get').rejects(new Error('An error has occurred'));
+    jestUtil.restore(request.get);
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
     await assert.rejects(command.action(logger, { options: {} } as any), new CommandError('An error has occurred'));
   });

@@ -12,16 +12,18 @@ describe('FN013001_GULP_msGridSassSuppression', () => {
     rule = new FN013001_GULP_msGridSassSuppression();
   });
 
-  it('doesn\'t return notification if ms-grid sass suppression is already present', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      gulpfileJs: {
-        source: rule.resolution
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it('doesn\'t return notification if ms-grid sass suppression is already present',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        gulpfileJs: {
+          source: rule.resolution
+        }
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
   it('doesn\'t return notification if gulpfile.js is not available', () => {
     const project: Project = {

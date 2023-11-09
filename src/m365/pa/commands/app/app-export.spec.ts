@@ -1,6 +1,5 @@
 import assert from 'assert';
 import fs from 'fs';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -10,7 +9,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './app-export.js';
 
@@ -18,7 +17,7 @@ describe(commands.APP_EXPORT, () => {
   let log: string[];
   let logger: Logger;
   let commandInfo: CommandInfo;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogToStderrSpy: jest.SpyInstance;
 
   const actualFilename = 'Power App.zip';
   const packageDisplayName = 'Power App';
@@ -146,12 +145,12 @@ describe(commands.APP_EXPORT, () => {
     data: [80, 75, 3, 4, 20, 0, 0, 0, 8, 0, 237, 115, 99, 86, 250, 76, 155, 216, 248, 3, 0, 0, 7, 8, 0, 0, 71, 0, 0, 0, 77, 105, 99, 114, 111, 115, 111, 102, 116, 46, 80, 111, 119, 101, 114, 65, 112, 112, 115, 47, 97, 112, 112, 115, 47, 49, 56, 48, 50, 54, 54, 51, 51, 48]
   };
 
-  before(() => {
+  beforeAll(() => {
     (command as any).pollingInterval = 0;
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -169,19 +168,19 @@ describe(commands.APP_EXPORT, () => {
         log.push(msg);
       }
     };
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post,
       fs.writeFileSync
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -195,7 +194,7 @@ describe(commands.APP_EXPORT, () => {
 
   it('exports the specified App', async () => {
     let index = 0;
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === exportPackageResponse.headers.location) {
         if (index === 0) {
           index = 1;
@@ -213,7 +212,7 @@ describe(commands.APP_EXPORT, () => {
       throw 'invalid request';
     });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://api.bap.microsoft.com/providers/Microsoft.BusinessAppPlatform/environments/${environmentName}/listPackageResources?api-version=2016-11-01`) {
         return listPackageResourcesResponse;
       }
@@ -224,14 +223,14 @@ describe(commands.APP_EXPORT, () => {
 
       throw 'invalid request';
     });
-    sinon.stub(fs, 'writeFileSync').returns();
+    jest.spyOn(fs, 'writeFileSync').mockClear().mockReturnValue();
 
     await assert.doesNotReject(command.action(logger, { options: { name: appId, environmentName: environmentName, packageDisplayName: packageDisplayName } }));
   });
 
   it('exports the specified App (debug)', async () => {
     let index = 0;
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === exportPackageResponse.headers.location) {
         if (index === 0) {
           index = 1;
@@ -249,7 +248,7 @@ describe(commands.APP_EXPORT, () => {
       throw 'invalid request';
     });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://api.bap.microsoft.com/providers/Microsoft.BusinessAppPlatform/environments/${environmentName}/listPackageResources?api-version=2016-11-01`) {
         return listPackageResourcesResponse;
       }
@@ -260,7 +259,7 @@ describe(commands.APP_EXPORT, () => {
 
       throw 'invalid request';
     });
-    sinon.stub(fs, 'writeFileSync').returns();
+    jest.spyOn(fs, 'writeFileSync').mockClear().mockReturnValue();
 
     await command.action(logger, { options: { verbose: true, name: appId, environmentName: environmentName, packageDisplayName: packageDisplayName, packageDescription: packageDescription, packageCreatedBy: packageCreatedBy, packageSourceEnvironment: packageSourceEnvironment, path: path } });
     assert(loggerLogToStderrSpy.calledWith(`File saved to path '${path}/${actualFilename}'`));
@@ -272,16 +271,18 @@ describe(commands.APP_EXPORT, () => {
   });
 
   it('fails validation if specified path doesn\'t exist', async () => {
-    sinon.stub(fs, 'existsSync').returns(false);
+    jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(false);
     const actual = await command.validate({ options: { name: appId, environmentName: environmentName, packageDisplayName: packageDisplayName, path: '/path/not/found.zip' } }, commandInfo);
-    sinonUtil.restore(fs.existsSync);
+    jestUtil.restore(fs.existsSync);
     assert.notStrictEqual(actual, true);
   });
 
-  it('passes validation when the name, environment and packageDisplayName specified', async () => {
-    const actual = await command.validate({ options: { name: appId, environmentName: environmentName, packageDisplayName: packageDisplayName } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when the name, environment and packageDisplayName specified',
+    async () => {
+      const actual = await command.validate({ options: { name: appId, environmentName: environmentName, packageDisplayName: packageDisplayName } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('correctly handles API OData error', async () => {
     const error = {
@@ -290,7 +291,7 @@ describe(commands.APP_EXPORT, () => {
       }
     };
 
-    sinon.stub(request, 'post').rejects(error);
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, { options: { name: appId, environmentName: environmentName, packageDisplayName: packageDisplayName } } as any),
       new CommandError(error.error.message));

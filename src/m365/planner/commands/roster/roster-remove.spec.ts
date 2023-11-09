@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { Logger } from '../../../../cli/Logger.js';
@@ -8,7 +7,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './roster-remove.js';
 
@@ -19,11 +18,11 @@ describe(commands.PLAN_REMOVE, () => {
   let logger: Logger;
   let promptOptions: any;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.accessTokens[(command as any).resource] = {
       accessToken: 'abc',
@@ -45,21 +44,21 @@ describe(commands.PLAN_REMOVE, () => {
       }
     };
     promptOptions = undefined;
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.delete,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.accessTokens = {};
   });
@@ -72,34 +71,38 @@ describe(commands.PLAN_REMOVE, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('prompts before removing the specified Roster when confirm option not passed', async () => {
-    await command.action(logger, {
-      options: {
-        id: validRosterId
+  it('prompts before removing the specified Roster when confirm option not passed',
+    async () => {
+      await command.action(logger, {
+        options: {
+          id: validRosterId
+        }
+      });
+
+      let promptIssued = false;
+
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
       }
-    });
 
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      assert(promptIssued);
     }
+  );
 
-    assert(promptIssued);
-  });
-
-  it('aborts removing the specified Roster when confirm option not passed and prompt not confirmed', async () => {
-    const deleteSpy = sinon.spy(request, 'delete');
-    await command.action(logger, {
-      options: {
-        id: validRosterId
-      }
-    });
-    assert(deleteSpy.notCalled);
-  });
+  it('aborts removing the specified Roster when confirm option not passed and prompt not confirmed',
+    async () => {
+      const deleteSpy = jest.spyOn(request, 'delete').mockClear();
+      await command.action(logger, {
+        options: {
+          id: validRosterId
+        }
+      });
+      assert(deleteSpy.notCalled);
+    }
+  );
 
   it('correctly deletes Roster by id', async () => {
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
+    jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/beta/planner/rosters/${validRosterId}`) {
         return;
       }
@@ -117,7 +120,7 @@ describe(commands.PLAN_REMOVE, () => {
   });
 
   it('correctly deletes Roster by id when prompt confirmed', async () => {
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
+    jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/beta/planner/rosters/${validRosterId}`) {
         return;
       }
@@ -125,8 +128,8 @@ describe(commands.PLAN_REMOVE, () => {
       throw 'Invalid Request';
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
     await command.action(logger, {
       options: {
@@ -136,7 +139,7 @@ describe(commands.PLAN_REMOVE, () => {
   });
 
   it('correctly handles random API error', async () => {
-    sinon.stub(request, 'delete').rejects({
+    jest.spyOn(request, 'delete').mockClear().mockImplementation().rejects({
       error: {
         message: 'The requested item is not found.'
       }

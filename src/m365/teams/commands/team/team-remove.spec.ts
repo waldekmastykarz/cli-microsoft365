@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './team-remove.js';
 
@@ -19,11 +18,11 @@ describe(commands.TEAM_REMOVE, () => {
   let promptOptions: any;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -43,22 +42,22 @@ describe(commands.TEAM_REMOVE, () => {
     };
 
     promptOptions = undefined;
-    sinon.stub(Cli, 'prompt').callsFake(async (options) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options) => {
       promptOptions = options;
       return { continue: false };
     });
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.delete,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -89,7 +88,7 @@ describe(commands.TEAM_REMOVE, () => {
   });
 
   it('fails when team name does not exist', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq 'Finance'`) {
         return {
           "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#teams",
@@ -113,42 +112,50 @@ describe(commands.TEAM_REMOVE, () => {
     } as any), new CommandError('The specified team does not exist in the Microsoft Teams'));
   });
 
-  it('prompts before removing the specified team by id when confirm option not passed', async () => {
-    await command.action(logger, { options: { id: "00000000-0000-0000-0000-000000000000" } });
-    let promptIssued = false;
+  it('prompts before removing the specified team by id when confirm option not passed',
+    async () => {
+      await command.action(logger, { options: { id: "00000000-0000-0000-0000-000000000000" } });
+      let promptIssued = false;
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+      assert(promptIssued);
     }
-    assert(promptIssued);
-  });
+  );
 
-  it('prompts before removing the specified team by name when confirm option not passed (debug)', async () => {
-    await command.action(logger, { options: { debug: true, name: "Finance" } });
-    let promptIssued = false;
+  it('prompts before removing the specified team by name when confirm option not passed (debug)',
+    async () => {
+      await command.action(logger, { options: { debug: true, name: "Finance" } });
+      let promptIssued = false;
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+      assert(promptIssued);
     }
-    assert(promptIssued);
-  });
+  );
 
-  it('aborts removing the specified team when confirm option not passed and prompt not confirmed', async () => {
-    const postSpy = sinon.spy(request, 'delete');
-    await command.action(logger, { options: { id: "00000000-0000-0000-0000-000000000000" } });
-    assert(postSpy.notCalled);
-  });
+  it('aborts removing the specified team when confirm option not passed and prompt not confirmed',
+    async () => {
+      const postSpy = jest.spyOn(request, 'delete').mockClear();
+      await command.action(logger, { options: { id: "00000000-0000-0000-0000-000000000000" } });
+      assert(postSpy.notCalled);
+    }
+  );
 
-  it('aborts removing the specified team when confirm option not passed and prompt not confirmed (debug)', async () => {
-    const postSpy = sinon.spy(request, 'delete');
-    await command.action(logger, { options: { debug: true, id: "00000000-0000-0000-0000-000000000000" } });
-    assert(postSpy.notCalled);
-  });
+  it('aborts removing the specified team when confirm option not passed and prompt not confirmed (debug)',
+    async () => {
+      const postSpy = jest.spyOn(request, 'delete').mockClear();
+      await command.action(logger, { options: { debug: true, id: "00000000-0000-0000-0000-000000000000" } });
+      assert(postSpy.notCalled);
+    }
+  );
 
   it('removes the specified team when prompt confirmed (debug)', async () => {
     let teamsDeleteCallIssued = false;
 
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
+    jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups/00000000-0000-0000-0000-000000000000`) {
         teamsDeleteCallIssued = true;
         return;
@@ -157,53 +164,57 @@ describe(commands.TEAM_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
     await command.action(logger, { options: { debug: true, id: "00000000-0000-0000-0000-000000000000" } });
     assert(teamsDeleteCallIssued);
   });
 
-  it('removes the specified team by id without prompting when confirmed specified', async () => {
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups/00000000-0000-0000-0000-000000000000`) {
-        return;
-      }
+  it('removes the specified team by id without prompting when confirmed specified',
+    async () => {
+      jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups/00000000-0000-0000-0000-000000000000`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { id: "00000000-0000-0000-0000-000000000000", force: true } });
-  });
+      await command.action(logger, { options: { id: "00000000-0000-0000-0000-000000000000", force: true } });
+    }
+  );
 
-  it('removes the specified team by name without prompting when confirmed specified', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq 'Finance'`) {
-        return {
-          "value": [
-            {
-              "id": "00000000-0000-0000-0000-000000000000",
-              "resourceProvisioningOptions": ["Team"]
-            }
-          ]
-        };
-      }
-      throw 'Invalid request';
-    });
+  it('removes the specified team by name without prompting when confirmed specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq 'Finance'`) {
+          return {
+            "value": [
+              {
+                "id": "00000000-0000-0000-0000-000000000000",
+                "resourceProvisioningOptions": ["Team"]
+              }
+            ]
+          };
+        }
+        throw 'Invalid request';
+      });
 
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups/00000000-0000-0000-0000-000000000000`) {
-        return;
-      }
+      jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups/00000000-0000-0000-0000-000000000000`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { name: "Finance", force: true } });
-  });
+      await command.action(logger, { options: { name: "Finance", force: true } });
+    }
+  );
 
   it('should handle Microsoft graph error response', async () => {
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
+    jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups/8231f9f2-701f-4c6e-93ce-ecb563e3c1ee`) {
         throw {
           "error": {
@@ -220,8 +231,8 @@ describe(commands.TEAM_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
     await assert.rejects(command.action(logger, { options: { id: '8231f9f2-701f-4c6e-93ce-ecb563e3c1ee' } } as any), new CommandError('No team found with Group Id 8231f9f2-701f-4c6e-93ce-ecb563e3c1ee'));
   });

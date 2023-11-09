@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './message-remove.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -20,12 +19,12 @@ describe(commands.MESSAGE_REMOVE, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -47,15 +46,15 @@ describe(commands.MESSAGE_REMOVE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.delete,
       Cli.prompt,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -73,7 +72,7 @@ describe(commands.MESSAGE_REMOVE, () => {
   });
 
   it('id is required', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -85,42 +84,46 @@ describe(commands.MESSAGE_REMOVE, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('calls the messaging endpoint with the right parameters and confirmation', async () => {
-    const requestDeleteStub = sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === 'https://www.yammer.com/api/v1/messages/10123190123123.json') {
-        return;
-      }
-      throw 'Invalid request';
-    });
+  it('calls the messaging endpoint with the right parameters and confirmation',
+    async () => {
+      const requestDeleteStub = jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://www.yammer.com/api/v1/messages/10123190123123.json') {
+          return;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, id: 10123190123123, force: true } });
-    assert.strictEqual(requestDeleteStub.lastCall.args[0].url, 'https://www.yammer.com/api/v1/messages/10123190123123.json');
-  });
+      await command.action(logger, { options: { debug: true, id: 10123190123123, force: true } });
+      assert.strictEqual(requestDeleteStub.mock.lastCall[0].url, 'https://www.yammer.com/api/v1/messages/10123190123123.json');
+    }
+  );
 
-  it('calls the messaging endpoint with the right parameters without confirmation', async () => {
-    const requestDeleteStub = sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === 'https://www.yammer.com/api/v1/messages/10123190123123.json') {
-        return;
-      }
-      throw 'Invalid request';
-    });
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: true }
-    ));
+  it('calls the messaging endpoint with the right parameters without confirmation',
+    async () => {
+      const requestDeleteStub = jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === 'https://www.yammer.com/api/v1/messages/10123190123123.json') {
+          return;
+        }
+        throw 'Invalid request';
+      });
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: true }
+      ));
 
-    await command.action(logger, { options: { debug: true, id: 10123190123123, force: false } });
-    assert.strictEqual(requestDeleteStub.lastCall.args[0].url, 'https://www.yammer.com/api/v1/messages/10123190123123.json');
-  });
+      await command.action(logger, { options: { debug: true, id: 10123190123123, force: false } });
+      assert.strictEqual(requestDeleteStub.mock.lastCall[0].url, 'https://www.yammer.com/api/v1/messages/10123190123123.json');
+    }
+  );
 
   it('does not call the messaging endpoint without confirmation', async () => {
-    const requestDeleteStub = sinon.stub(request, 'delete').callsFake(async (opts) => {
+    const requestDeleteStub = jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://www.yammer.com/api/v1/messages/10123190123123.json') {
         return;
       }
       throw 'Invalid request';
     });
 
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: false }
     ));
 
@@ -129,7 +132,7 @@ describe(commands.MESSAGE_REMOVE, () => {
   });
 
   it('correctly handles error', async () => {
-    sinon.stub(request, 'delete').callsFake(async () => {
+    jest.spyOn(request, 'delete').mockClear().mockImplementation(async () => {
       throw {
         "error": {
           "base": "An error has occurred."

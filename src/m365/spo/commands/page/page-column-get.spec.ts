@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import { ClientSidePage } from './clientsidepages.js';
 import command from './page-column-get.js';
@@ -19,7 +18,7 @@ describe(commands.PAGE_COLUMN_GET, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
   const apiResponse = {
@@ -82,12 +81,12 @@ describe(commands.PAGE_COLUMN_GET, () => {
     "UniqueId": "16035d61-edb9-4758-a490-3d13fcd9fdaa"
   };
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -105,19 +104,19 @@ describe(commands.PAGE_COLUMN_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       ClientSidePage.fromHtml,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -129,225 +128,237 @@ describe(commands.PAGE_COLUMN_GET, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('Get information about the specific column of a modern page', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
-        return apiResponse;
-      }
+  it('Get information about the specific column of a modern page',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
+          return apiResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a', pageName: 'home.aspx', section: 1, column: 1, output: 'text' } });
-    assert(loggerLogSpy.calledWith(
-      {
-        "order": 1,
-        "factor": 6,
-        "controls": "ccaa96dc-4d16-4940-bf0d-7b179628a8fd (undefined)"
-      }
-    ));
-  });
+      await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a', pageName: 'home.aspx', section: 1, column: 1, output: 'text' } });
+      assert(loggerLogSpy.calledWith(
+        {
+          "order": 1,
+          "factor": 6,
+          "controls": "ccaa96dc-4d16-4940-bf0d-7b179628a8fd (undefined)"
+        }
+      ));
+    }
+  );
 
-  it('Get information about the specific column of a modern page - no sections available', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
-        return {
-          "ListItemAllFields": {
-            "FileSystemObjectType": 0,
-            "Id": 9,
-            "ServerRedirectedEmbedUri": null,
-            "ServerRedirectedEmbedUrl": "",
-            "ContentTypeId": "0x0101009D1CB255DA76424F860D91F20E6C41180070E97A63FCC58F47B8FE04D0654FD44E",
-            "WikiField": null,
-            "Title": "Nova",
-            "ClientSideApplicationId": "b6917cb1-93a0-4b97-a84d-7cf49975d4ec",
-            "CanvasContent1": "<div></div>",
-            "BannerImageUrl": {
-              "Description": "/_layouts/15/images/sitepagethumbnail.png",
-              "Url": "/_layouts/15/images/sitepagethumbnail.png"
+  it('Get information about the specific column of a modern page - no sections available',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
+          return {
+            "ListItemAllFields": {
+              "FileSystemObjectType": 0,
+              "Id": 9,
+              "ServerRedirectedEmbedUri": null,
+              "ServerRedirectedEmbedUrl": "",
+              "ContentTypeId": "0x0101009D1CB255DA76424F860D91F20E6C41180070E97A63FCC58F47B8FE04D0654FD44E",
+              "WikiField": null,
+              "Title": "Nova",
+              "ClientSideApplicationId": "b6917cb1-93a0-4b97-a84d-7cf49975d4ec",
+              "CanvasContent1": "<div></div>",
+              "BannerImageUrl": {
+                "Description": "/_layouts/15/images/sitepagethumbnail.png",
+                "Url": "/_layouts/15/images/sitepagethumbnail.png"
+              },
+              "Description": "asd",
+              "PromotedState": 0,
+              "FirstPublishedDate": null,
+              "LayoutWebpartsContent": "<div><div data-sp-canvascontrol=\"\" data-sp-canvasdataversion=\"1.4\" data-sp-controldata=\"&#123;&quot;id&quot;&#58;&quot;cbe7b0a9-3504-44dd-a3a3-0e5cacd07788&quot;,&quot;instanceId&quot;&#58;&quot;cbe7b0a9-3504-44dd-a3a3-0e5cacd07788&quot;,&quot;title&quot;&#58;&quot;Região do Título&quot;,&quot;description&quot;&#58;&quot;Descrição da Região de Título&quot;,&quot;serverProcessedContent&quot;&#58;&#123;&quot;htmlStrings&quot;&#58;&#123;&#125;,&quot;searchablePlainTexts&quot;&#58;&#123;&#125;,&quot;imageSources&quot;&#58;&#123;&#125;,&quot;links&quot;&#58;&#123;&#125;&#125;,&quot;dataVersion&quot;&#58;&quot;1.4&quot;,&quot;properties&quot;&#58;&#123;&quot;title&quot;&#58;&quot;Nova&quot;,&quot;imageSourceType&quot;&#58;4,&quot;layoutType&quot;&#58;&quot;FullWidthImage&quot;,&quot;textAlignment&quot;&#58;&quot;Left&quot;,&quot;showTopicHeader&quot;&#58;false,&quot;showPublishDate&quot;&#58;false,&quot;topicHeader&quot;&#58;&quot;&quot;&#125;&#125;\"></div></div>",
+              "ComplianceAssetId": null,
+              "OData__AuthorBylineId": null,
+              "_AuthorBylineStringId": null,
+              "OData__OriginalSourceUrl": null,
+              "OData__OriginalSourceSiteId": null,
+              "OData__OriginalSourceWebId": null,
+              "OData__OriginalSourceListId": null,
+              "OData__OriginalSourceItemId": null,
+              "ID": 9,
+              "Created": "2018-07-11T16:24:12",
+              "AuthorId": 9,
+              "Modified": "2018-07-11T16:33:57",
+              "EditorId": 9,
+              "OData__CopySource": null,
+              "CheckoutUserId": 9,
+              "OData__UIVersionString": "1.0",
+              "GUID": "903cdabe-7a28-4e96-a55e-c768185d7d9a"
             },
-            "Description": "asd",
-            "PromotedState": 0,
-            "FirstPublishedDate": null,
-            "LayoutWebpartsContent": "<div><div data-sp-canvascontrol=\"\" data-sp-canvasdataversion=\"1.4\" data-sp-controldata=\"&#123;&quot;id&quot;&#58;&quot;cbe7b0a9-3504-44dd-a3a3-0e5cacd07788&quot;,&quot;instanceId&quot;&#58;&quot;cbe7b0a9-3504-44dd-a3a3-0e5cacd07788&quot;,&quot;title&quot;&#58;&quot;Região do Título&quot;,&quot;description&quot;&#58;&quot;Descrição da Região de Título&quot;,&quot;serverProcessedContent&quot;&#58;&#123;&quot;htmlStrings&quot;&#58;&#123;&#125;,&quot;searchablePlainTexts&quot;&#58;&#123;&#125;,&quot;imageSources&quot;&#58;&#123;&#125;,&quot;links&quot;&#58;&#123;&#125;&#125;,&quot;dataVersion&quot;&#58;&quot;1.4&quot;,&quot;properties&quot;&#58;&#123;&quot;title&quot;&#58;&quot;Nova&quot;,&quot;imageSourceType&quot;&#58;4,&quot;layoutType&quot;&#58;&quot;FullWidthImage&quot;,&quot;textAlignment&quot;&#58;&quot;Left&quot;,&quot;showTopicHeader&quot;&#58;false,&quot;showPublishDate&quot;&#58;false,&quot;topicHeader&quot;&#58;&quot;&quot;&#125;&#125;\"></div></div>",
-            "ComplianceAssetId": null,
-            "OData__AuthorBylineId": null,
-            "_AuthorBylineStringId": null,
-            "OData__OriginalSourceUrl": null,
-            "OData__OriginalSourceSiteId": null,
-            "OData__OriginalSourceWebId": null,
-            "OData__OriginalSourceListId": null,
-            "OData__OriginalSourceItemId": null,
-            "ID": 9,
-            "Created": "2018-07-11T16:24:12",
-            "AuthorId": 9,
-            "Modified": "2018-07-11T16:33:57",
-            "EditorId": 9,
-            "OData__CopySource": null,
-            "CheckoutUserId": 9,
-            "OData__UIVersionString": "1.0",
-            "GUID": "903cdabe-7a28-4e96-a55e-c768185d7d9a"
-          },
-          "CheckInComment": "",
-          "CheckOutType": 0,
-          "ContentTag": "{16035D61-EDB9-4758-A490-3D13FCD9FDAA},10,8",
-          "CustomizedPageStatus": 0,
-          "ETag": "\"{16035D61-EDB9-4758-A490-3D13FCD9FDAA},10\"",
-          "Exists": true,
-          "IrmEnabled": false,
-          "Length": "4708",
-          "Level": 255,
-          "LinkingUri": null,
-          "LinkingUrl": "",
-          "MajorVersion": 1,
-          "MinorVersion": 0,
-          "Name": "Nova.aspx",
-          "ServerRelativeUrl": "/SitePages/Nova.aspx",
-          "TimeCreated": "2018-07-11T19:24:12Z",
-          "TimeLastModified": "2018-07-11T19:33:57Z",
-          "Title": "Nova",
-          "UIVersion": 512,
-          "UIVersionLabel": "1.0",
-          "UniqueId": "16035d61-edb9-4758-a490-3d13fcd9fdaa"
-        };
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a', pageName: 'home.aspx', section: 1, column: 1 } });
-    assert(loggerLogSpy.notCalled);
-  });
-
-  it('Get information about the specific column of a modern page - no columns available', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
-        return {
-          "ListItemAllFields": {
-            "FileSystemObjectType": 0,
-            "Id": 9,
-            "ServerRedirectedEmbedUri": null,
-            "ServerRedirectedEmbedUrl": "",
-            "ContentTypeId": "0x0101009D1CB255DA76424F860D91F20E6C41180070E97A63FCC58F47B8FE04D0654FD44E",
-            "WikiField": null,
+            "CheckInComment": "",
+            "CheckOutType": 0,
+            "ContentTag": "{16035D61-EDB9-4758-A490-3D13FCD9FDAA},10,8",
+            "CustomizedPageStatus": 0,
+            "ETag": "\"{16035D61-EDB9-4758-A490-3D13FCD9FDAA},10\"",
+            "Exists": true,
+            "IrmEnabled": false,
+            "Length": "4708",
+            "Level": 255,
+            "LinkingUri": null,
+            "LinkingUrl": "",
+            "MajorVersion": 1,
+            "MinorVersion": 0,
+            "Name": "Nova.aspx",
+            "ServerRelativeUrl": "/SitePages/Nova.aspx",
+            "TimeCreated": "2018-07-11T19:24:12Z",
+            "TimeLastModified": "2018-07-11T19:33:57Z",
             "Title": "Nova",
-            "ClientSideApplicationId": "b6917cb1-93a0-4b97-a84d-7cf49975d4ec",
-            "CanvasContent1": "<div><div data-sp-canvascontrol=\"\" data-sp-canvasdataversion=\"1.0\" data-sp-controldata=\"&#123;&quot;displayMode&quot;&#58;2,&quot;position&quot;&#58;&#123;&quot;sectionIndex&quot;&#58;2,&quot;sectionFactor&quot;&#58;6,&quot;zoneIndex&quot;&#58;1&#125;&#125;\"></div><div data-sp-canvascontrol=\"\" data-sp-canvasdataversion=\"1.0\" data-sp-controldata=\"&#123;&quot;displayMode&quot;&#58;2,&quot;position&quot;&#58;&#123;&quot;sectionIndex&quot;&#58;1,&quot;sectionFactor&quot;&#58;6,&quot;zoneIndex&quot;&#58;2&#125;&#125;\"></div><div data-sp-canvascontrol=\"\" data-sp-canvasdataversion=\"1.0\" data-sp-controldata=\"&#123;&quot;displayMode&quot;&#58;2,&quot;position&quot;&#58;&#123;&quot;sectionIndex&quot;&#58;2,&quot;sectionFactor&quot;&#58;6,&quot;zoneIndex&quot;&#58;2&#125;&#125;\"></div></div>",
-            "BannerImageUrl": {
-              "Description": "/_layouts/15/images/sitepagethumbnail.png",
-              "Url": "/_layouts/15/images/sitepagethumbnail.png"
+            "UIVersion": 512,
+            "UIVersionLabel": "1.0",
+            "UniqueId": "16035d61-edb9-4758-a490-3d13fcd9fdaa"
+          };
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a', pageName: 'home.aspx', section: 1, column: 1 } });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
+
+  it('Get information about the specific column of a modern page - no columns available',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
+          return {
+            "ListItemAllFields": {
+              "FileSystemObjectType": 0,
+              "Id": 9,
+              "ServerRedirectedEmbedUri": null,
+              "ServerRedirectedEmbedUrl": "",
+              "ContentTypeId": "0x0101009D1CB255DA76424F860D91F20E6C41180070E97A63FCC58F47B8FE04D0654FD44E",
+              "WikiField": null,
+              "Title": "Nova",
+              "ClientSideApplicationId": "b6917cb1-93a0-4b97-a84d-7cf49975d4ec",
+              "CanvasContent1": "<div><div data-sp-canvascontrol=\"\" data-sp-canvasdataversion=\"1.0\" data-sp-controldata=\"&#123;&quot;displayMode&quot;&#58;2,&quot;position&quot;&#58;&#123;&quot;sectionIndex&quot;&#58;2,&quot;sectionFactor&quot;&#58;6,&quot;zoneIndex&quot;&#58;1&#125;&#125;\"></div><div data-sp-canvascontrol=\"\" data-sp-canvasdataversion=\"1.0\" data-sp-controldata=\"&#123;&quot;displayMode&quot;&#58;2,&quot;position&quot;&#58;&#123;&quot;sectionIndex&quot;&#58;1,&quot;sectionFactor&quot;&#58;6,&quot;zoneIndex&quot;&#58;2&#125;&#125;\"></div><div data-sp-canvascontrol=\"\" data-sp-canvasdataversion=\"1.0\" data-sp-controldata=\"&#123;&quot;displayMode&quot;&#58;2,&quot;position&quot;&#58;&#123;&quot;sectionIndex&quot;&#58;2,&quot;sectionFactor&quot;&#58;6,&quot;zoneIndex&quot;&#58;2&#125;&#125;\"></div></div>",
+              "BannerImageUrl": {
+                "Description": "/_layouts/15/images/sitepagethumbnail.png",
+                "Url": "/_layouts/15/images/sitepagethumbnail.png"
+              },
+              "Description": "asd",
+              "PromotedState": 0,
+              "FirstPublishedDate": null,
+              "LayoutWebpartsContent": "<div><div data-sp-canvascontrol=\"\" data-sp-canvasdataversion=\"1.4\" data-sp-controldata=\"&#123;&quot;id&quot;&#58;&quot;cbe7b0a9-3504-44dd-a3a3-0e5cacd07788&quot;,&quot;instanceId&quot;&#58;&quot;cbe7b0a9-3504-44dd-a3a3-0e5cacd07788&quot;,&quot;title&quot;&#58;&quot;Região do Título&quot;,&quot;description&quot;&#58;&quot;Descrição da Região de Título&quot;,&quot;serverProcessedContent&quot;&#58;&#123;&quot;htmlStrings&quot;&#58;&#123;&#125;,&quot;searchablePlainTexts&quot;&#58;&#123;&#125;,&quot;imageSources&quot;&#58;&#123;&#125;,&quot;links&quot;&#58;&#123;&#125;&#125;,&quot;dataVersion&quot;&#58;&quot;1.4&quot;,&quot;properties&quot;&#58;&#123;&quot;title&quot;&#58;&quot;Nova&quot;,&quot;imageSourceType&quot;&#58;4,&quot;layoutType&quot;&#58;&quot;FullWidthImage&quot;,&quot;textAlignment&quot;&#58;&quot;Left&quot;,&quot;showTopicHeader&quot;&#58;false,&quot;showPublishDate&quot;&#58;false,&quot;topicHeader&quot;&#58;&quot;&quot;&#125;&#125;\"></div></div>",
+              "ComplianceAssetId": null,
+              "OData__AuthorBylineId": null,
+              "_AuthorBylineStringId": null,
+              "OData__OriginalSourceUrl": null,
+              "OData__OriginalSourceSiteId": null,
+              "OData__OriginalSourceWebId": null,
+              "OData__OriginalSourceListId": null,
+              "OData__OriginalSourceItemId": null,
+              "ID": 9,
+              "Created": "2018-07-11T16:24:12",
+              "AuthorId": 9,
+              "Modified": "2018-07-11T16:33:57",
+              "EditorId": 9,
+              "OData__CopySource": null,
+              "CheckoutUserId": 9,
+              "OData__UIVersionString": "1.0",
+              "GUID": "903cdabe-7a28-4e96-a55e-c768185d7d9a"
             },
-            "Description": "asd",
-            "PromotedState": 0,
-            "FirstPublishedDate": null,
-            "LayoutWebpartsContent": "<div><div data-sp-canvascontrol=\"\" data-sp-canvasdataversion=\"1.4\" data-sp-controldata=\"&#123;&quot;id&quot;&#58;&quot;cbe7b0a9-3504-44dd-a3a3-0e5cacd07788&quot;,&quot;instanceId&quot;&#58;&quot;cbe7b0a9-3504-44dd-a3a3-0e5cacd07788&quot;,&quot;title&quot;&#58;&quot;Região do Título&quot;,&quot;description&quot;&#58;&quot;Descrição da Região de Título&quot;,&quot;serverProcessedContent&quot;&#58;&#123;&quot;htmlStrings&quot;&#58;&#123;&#125;,&quot;searchablePlainTexts&quot;&#58;&#123;&#125;,&quot;imageSources&quot;&#58;&#123;&#125;,&quot;links&quot;&#58;&#123;&#125;&#125;,&quot;dataVersion&quot;&#58;&quot;1.4&quot;,&quot;properties&quot;&#58;&#123;&quot;title&quot;&#58;&quot;Nova&quot;,&quot;imageSourceType&quot;&#58;4,&quot;layoutType&quot;&#58;&quot;FullWidthImage&quot;,&quot;textAlignment&quot;&#58;&quot;Left&quot;,&quot;showTopicHeader&quot;&#58;false,&quot;showPublishDate&quot;&#58;false,&quot;topicHeader&quot;&#58;&quot;&quot;&#125;&#125;\"></div></div>",
-            "ComplianceAssetId": null,
-            "OData__AuthorBylineId": null,
-            "_AuthorBylineStringId": null,
-            "OData__OriginalSourceUrl": null,
-            "OData__OriginalSourceSiteId": null,
-            "OData__OriginalSourceWebId": null,
-            "OData__OriginalSourceListId": null,
-            "OData__OriginalSourceItemId": null,
-            "ID": 9,
-            "Created": "2018-07-11T16:24:12",
-            "AuthorId": 9,
-            "Modified": "2018-07-11T16:33:57",
-            "EditorId": 9,
-            "OData__CopySource": null,
-            "CheckoutUserId": 9,
-            "OData__UIVersionString": "1.0",
-            "GUID": "903cdabe-7a28-4e96-a55e-c768185d7d9a"
-          },
-          "CheckInComment": "",
-          "CheckOutType": 0,
-          "ContentTag": "{16035D61-EDB9-4758-A490-3D13FCD9FDAA},10,8",
-          "CustomizedPageStatus": 0,
-          "ETag": "\"{16035D61-EDB9-4758-A490-3D13FCD9FDAA},10\"",
-          "Exists": true,
-          "IrmEnabled": false,
-          "Length": "4708",
-          "Level": 255,
-          "LinkingUri": null,
-          "LinkingUrl": "",
-          "MajorVersion": 1,
-          "MinorVersion": 0,
-          "Name": "Nova.aspx",
-          "ServerRelativeUrl": "/SitePages/Nova.aspx",
-          "TimeCreated": "2018-07-11T19:24:12Z",
-          "TimeLastModified": "2018-07-11T19:33:57Z",
-          "Title": "Nova",
-          "UIVersion": 512,
-          "UIVersionLabel": "1.0",
-          "UniqueId": "16035d61-edb9-4758-a490-3d13fcd9fdaa"
-        };
-      }
+            "CheckInComment": "",
+            "CheckOutType": 0,
+            "ContentTag": "{16035D61-EDB9-4758-A490-3D13FCD9FDAA},10,8",
+            "CustomizedPageStatus": 0,
+            "ETag": "\"{16035D61-EDB9-4758-A490-3D13FCD9FDAA},10\"",
+            "Exists": true,
+            "IrmEnabled": false,
+            "Length": "4708",
+            "Level": 255,
+            "LinkingUri": null,
+            "LinkingUrl": "",
+            "MajorVersion": 1,
+            "MinorVersion": 0,
+            "Name": "Nova.aspx",
+            "ServerRelativeUrl": "/SitePages/Nova.aspx",
+            "TimeCreated": "2018-07-11T19:24:12Z",
+            "TimeLastModified": "2018-07-11T19:33:57Z",
+            "Title": "Nova",
+            "UIVersion": 512,
+            "UIVersionLabel": "1.0",
+            "UniqueId": "16035d61-edb9-4758-a490-3d13fcd9fdaa"
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a', pageName: 'home.aspx', section: 1, column: 5 } });
-    assert(loggerLogSpy.notCalled);
-  });
+      await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a', pageName: 'home.aspx', section: 1, column: 5 } });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
-  it('Get information about the specific column of a modern page (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
-        return apiResponse;
-      }
+  it('Get information about the specific column of a modern page (debug)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
+          return apiResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com/sites/team-a', pageName: 'home.aspx', section: 1, column: 1, output: 'text' } });
-    assert(loggerLogSpy.calledWith(
-      {
-        "order": 1,
+      await command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com/sites/team-a', pageName: 'home.aspx', section: 1, column: 1, output: 'text' } });
+      assert(loggerLogSpy.calledWith(
+        {
+          "order": 1,
+          "factor": 6,
+          "controls": "ccaa96dc-4d16-4940-bf0d-7b179628a8fd (undefined)"
+        }));
+    }
+  );
+
+  it('Get information about the specific column of a modern page when the specified page name doesn\'t contain extension',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
+          return apiResponse;
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a', pageName: 'home', section: 1, column: 1, output: 'text' } });
+      assert(loggerLogSpy.calledWith(
+        {
+          "order": 1,
+          "factor": 6,
+          "controls": "ccaa96dc-4d16-4940-bf0d-7b179628a8fd (undefined)"
+        }
+      ));
+    }
+  );
+
+  it('Get information about the specific column of a modern page in json output mode',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
+          return apiResponse;
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a', pageName: 'home.aspx', output: 'json', section: 1, column: 1 } });
+      assert.strictEqual(JSON.stringify(log[0]), JSON.stringify({
         "factor": 6,
-        "controls": "ccaa96dc-4d16-4940-bf0d-7b179628a8fd (undefined)"
+        "order": 1,
+        "dataVersion": "1.0",
+        "jsonData": "&#123;&quot;displayMode&quot;&#58;2,&quot;position&quot;&#58;&#123;&quot;sectionFactor&quot;&#58;6,&quot;sectionIndex&quot;&#58;1,&quot;zoneIndex&quot;&#58;1&#125;&#125;",
+        "controls": [{ "controlType": 4, "dataVersion": "1.0", "order": 1, "id": "ccaa96dc-4d16-4940-bf0d-7b179628a8fd", "controlData": { "controlType": 4, "displayMode": 2, "id": "ccaa96dc-4d16-4940-bf0d-7b179628a8fd", "position": { "zoneIndex": 1, "sectionIndex": 1, "controlIndex": 1, "sectionFactor": 6 }, "editorType": "CKEditor" }, "_text": "<p>asd</p>" }]
       }));
-  });
-
-  it('Get information about the specific column of a modern page when the specified page name doesn\'t contain extension', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
-        return apiResponse;
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a', pageName: 'home', section: 1, column: 1, output: 'text' } });
-    assert(loggerLogSpy.calledWith(
-      {
-        "order": 1,
-        "factor": 6,
-        "controls": "ccaa96dc-4d16-4940-bf0d-7b179628a8fd (undefined)"
-      }
-    ));
-  });
-
-  it('Get information about the specific column of a modern page in json output mode', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
-        return apiResponse;
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a', pageName: 'home.aspx', output: 'json', section: 1, column: 1 } });
-    assert.strictEqual(JSON.stringify(log[0]), JSON.stringify({
-      "factor": 6,
-      "order": 1,
-      "dataVersion": "1.0",
-      "jsonData": "&#123;&quot;displayMode&quot;&#58;2,&quot;position&quot;&#58;&#123;&quot;sectionFactor&quot;&#58;6,&quot;sectionIndex&quot;&#58;1,&quot;zoneIndex&quot;&#58;1&#125;&#125;",
-      "controls": [{ "controlType": 4, "dataVersion": "1.0", "order": 1, "id": "ccaa96dc-4d16-4940-bf0d-7b179628a8fd", "controlData": { "controlType": 4, "displayMode": 2, "id": "ccaa96dc-4d16-4940-bf0d-7b179628a8fd", "position": { "zoneIndex": 1, "sectionIndex": 1, "controlIndex": 1, "sectionFactor": 6 }, "editorType": "CKEditor" }, "_text": "<p>asd</p>" }]
-    }));
-  });
+    }
+  );
 
   it('shows error when the specified page is a classic page', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/GetFileByServerRelativePath(DecodedUrl='/sites/team-a/SitePages/home.aspx')`) > -1) {
         return {
           "ListItemAllFields": {
@@ -413,7 +424,7 @@ describe(commands.PAGE_COLUMN_GET, () => {
   });
 
   it('correctly handles page not found', async () => {
-    sinon.stub(request, 'get').callsFake(() => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
       throw {
         error: {
           "odata.error": {
@@ -431,20 +442,22 @@ describe(commands.PAGE_COLUMN_GET, () => {
   });
 
   it('correctly handles OData error when retrieving pages', async () => {
-    sinon.stub(request, 'get').callsFake(() => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
       throw { error: { 'odata.error': { message: { value: 'An error has occurred' } } } };
     });
 
     await assert.rejects(command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a', pageName: 'home.aspx', section: 1, column: 1 } } as any), new CommandError('An error has occurred'));
   });
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', pageName: 'home.aspx', section: 1, column: 1 } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', pageName: 'home.aspx', section: 1, column: 1 } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the section option is not specifed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -462,7 +475,7 @@ describe(commands.PAGE_COLUMN_GET, () => {
   });
 
   it('fails validation if the column option is not specifed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -479,8 +492,10 @@ describe(commands.PAGE_COLUMN_GET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('passes validation when the webUrl is a valid SharePoint URL and name is specified and section is specified', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', pageName: 'home.aspx', section: 1, column: 1 } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when the webUrl is a valid SharePoint URL and name is specified and section is specified',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', pageName: 'home.aspx', section: 1, column: 1 } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

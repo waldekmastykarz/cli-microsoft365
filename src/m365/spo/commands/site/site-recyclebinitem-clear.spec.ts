@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './site-recyclebinitem-clear.js';
 
@@ -20,11 +19,11 @@ describe(commands.SITE_RECYCLEBINITEM_CLEAR, () => {
   let promptOptions: any;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -42,7 +41,7 @@ describe(commands.SITE_RECYCLEBINITEM_CLEAR, () => {
         log.push(msg);
       }
     };
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
@@ -50,14 +49,14 @@ describe(commands.SITE_RECYCLEBINITEM_CLEAR, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -69,118 +68,132 @@ describe(commands.SITE_RECYCLEBINITEM_CLEAR, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { siteUrl: 'foo', force: true } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
-
-  it('passes validation if the webUrl option is a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { siteUrl: 'https://contoso.sharepoint.com', force: true } }, commandInfo);
-    assert(actual);
-  });
-
-  it('prompts before removing the items from the recycle bin when confirm option not passed', async () => {
-    await command.action(logger, {
-      options: {
-        siteUrl: 'https://contoso.sharepoint.com'
-      }
-    });
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { siteUrl: 'foo', force: true } }, commandInfo);
+      assert.notStrictEqual(actual, true);
     }
+  );
 
-    assert(promptIssued);
-  });
+  it('passes validation if the webUrl option is a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { siteUrl: 'https://contoso.sharepoint.com', force: true } }, commandInfo);
+      assert(actual);
+    }
+  );
 
-  it('aborts removing the items from the recycle bin when confirm option not passed and prompt not confirmed', async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/_api/web/RecycleBin/DeleteAll`) {
-        return {
-          'odata.null': true
-        };
+  it('prompts before removing the items from the recycle bin when confirm option not passed',
+    async () => {
+      await command.action(logger, {
+        options: {
+          siteUrl: 'https://contoso.sharepoint.com'
+        }
+      });
+      let promptIssued = false;
+
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
       }
 
-      throw 'Invalid request';
-    });
+      assert(promptIssued);
+    }
+  );
 
-    await command.action(logger, {
-      options: {
-        siteUrl: 'https://contoso.sharepoint.com'
-      }
-    });
+  it('aborts removing the items from the recycle bin when confirm option not passed and prompt not confirmed',
+    async () => {
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/_api/web/RecycleBin/DeleteAll`) {
+          return {
+            'odata.null': true
+          };
+        }
 
-    assert(postStub.notCalled);
-  });
+        throw 'Invalid request';
+      });
 
-  it('removes all items from the first-stage recycle bin with confirm option', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/_api/web/RecycleBin/DeleteAll`) {
-        return {
-          'odata.null': true
-        };
-      }
+      await command.action(logger, {
+        options: {
+          siteUrl: 'https://contoso.sharepoint.com'
+        }
+      });
 
-      throw 'Invalid request';
-    });
+      assert(postStub.notCalled);
+    }
+  );
 
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        siteUrl: 'https://contoso.sharepoint.com',
-        force: true
-      }
-    });
-  });
+  it('removes all items from the first-stage recycle bin with confirm option',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/_api/web/RecycleBin/DeleteAll`) {
+          return {
+            'odata.null': true
+          };
+        }
 
-  it('removes all items from the first-stage recycle bin without confirmation', async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/_api/web/RecycleBin/DeleteAll`) {
-        return {
-          'odata.null': true
-        };
-      }
+        throw 'Invalid request';
+      });
 
-      throw 'Invalid request';
-    });
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          siteUrl: 'https://contoso.sharepoint.com',
+          force: true
+        }
+      });
+    }
+  );
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: true }
-    ));
+  it('removes all items from the first-stage recycle bin without confirmation',
+    async () => {
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/_api/web/RecycleBin/DeleteAll`) {
+          return {
+            'odata.null': true
+          };
+        }
 
-    await command.action(logger, {
-      options: {
-        siteUrl: 'https://contoso.sharepoint.com'
-      }
-    });
+        throw 'Invalid request';
+      });
 
-    assert(postStub.called);
-  });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: true }
+      ));
 
-  it('removes all items from the second-stage recycle bin with confirm option', async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/_api/site/RecycleBin/DeleteAllSecondStageItems`) {
-        return {
-          'odata.null': true
-        };
-      }
+      await command.action(logger, {
+        options: {
+          siteUrl: 'https://contoso.sharepoint.com'
+        }
+      });
 
-      throw 'Invalid request';
-    });
+      assert(postStub.called);
+    }
+  );
 
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        siteUrl: 'https://contoso.sharepoint.com',
-        secondary: true,
-        force: true
-      }
-    });
+  it('removes all items from the second-stage recycle bin with confirm option',
+    async () => {
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/_api/site/RecycleBin/DeleteAllSecondStageItems`) {
+          return {
+            'odata.null': true
+          };
+        }
 
-    assert(postStub.called);
-  });
+        throw 'Invalid request';
+      });
+
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          siteUrl: 'https://contoso.sharepoint.com',
+          secondary: true,
+          force: true
+        }
+      });
+
+      assert(postStub.called);
+    }
+  );
 
   it('handles error correctly', async () => {
     const error = {
@@ -193,7 +206,7 @@ describe(commands.SITE_RECYCLEBINITEM_CLEAR, () => {
       }
     };
 
-    sinon.stub(request, 'post').callsFake(async () => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async () => {
       return error;
     });
 

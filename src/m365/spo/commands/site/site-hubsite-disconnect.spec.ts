@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './site-hubsite-disconnect.js';
@@ -17,17 +16,17 @@ import command from './site-hubsite-disconnect.js';
 describe(commands.SITE_HUBSITE_DISCONNECT, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogToStderrSpy: jest.SpyInstance;
   let promptOptions: any;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'ABC',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -50,9 +49,9 @@ describe(commands.SITE_HUBSITE_DISCONNECT, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
@@ -60,14 +59,14 @@ describe(commands.SITE_HUBSITE_DISCONNECT, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -79,73 +78,83 @@ describe(commands.SITE_HUBSITE_DISCONNECT, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('disconnects the site from its hub site without prompting for confirmation when confirm option specified', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/sites/Sales/_api/site/JoinHubSite('00000000-0000-0000-0000-000000000000')`) {
-        return {
-          "odata.null": true
-        };
-      }
+  it('disconnects the site from its hub site without prompting for confirmation when confirm option specified',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/sites/Sales/_api/site/JoinHubSite('00000000-0000-0000-0000-000000000000')`) {
+          return {
+            "odata.null": true
+          };
+        }
 
-      throw 'Invalid request';
-    });
-
-    await command.action(logger, { options: { siteUrl: 'https://contoso.sharepoint.com/sites/Sales', force: true } });
-    assert(loggerLogSpy.notCalled);
-  });
-
-  it('disconnects the site from its hub site without prompting for confirmation when confirm option specified (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/sites/Sales/_api/site/JoinHubSite('00000000-0000-0000-0000-000000000000')`) {
-        return {
-          "odata.null": true
-        };
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger, { options: { debug: true, siteUrl: 'https://contoso.sharepoint.com/sites/Sales', force: true } });
-    assert(loggerLogToStderrSpy.called);
-  });
-
-  it('prompts before disconnecting the specified site from its hub site when confirm option not passed', async () => {
-    await command.action(logger, { options: { siteUrl: 'https://contoso.sharepoint.com/sites/Sales' } });
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
-    }
-
-    assert(promptIssued);
-  });
-
-  it('aborts disconnecting site from its hub site when prompt not confirmed', async () => {
-    const postSpy = sinon.spy(request, 'post');
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: false }
-    ));
-    await command.action(logger, { options: { siteUrl: 'https://contoso.sharepoint.com/sites/Sales' } });
-    assert(postSpy.notCalled);
-  });
-
-  it('disconnects the site from its hub site when prompt confirmed', async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(async () => {
-      return ({
-        "odata.null": true
+        throw 'Invalid request';
       });
-    });
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: true }
-    ));
-    await command.action(logger, { options: { siteUrl: 'https://contoso.sharepoint.com/sites/Sales' } });
-    assert(postStub.called);
-  });
+
+      await command.action(logger, { options: { siteUrl: 'https://contoso.sharepoint.com/sites/Sales', force: true } });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
+
+  it('disconnects the site from its hub site without prompting for confirmation when confirm option specified (debug)',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/sites/Sales/_api/site/JoinHubSite('00000000-0000-0000-0000-000000000000')`) {
+          return {
+            "odata.null": true
+          };
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger, { options: { debug: true, siteUrl: 'https://contoso.sharepoint.com/sites/Sales', force: true } });
+      assert(loggerLogToStderrSpy.called);
+    }
+  );
+
+  it('prompts before disconnecting the specified site from its hub site when confirm option not passed',
+    async () => {
+      await command.action(logger, { options: { siteUrl: 'https://contoso.sharepoint.com/sites/Sales' } });
+      let promptIssued = false;
+
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+
+      assert(promptIssued);
+    }
+  );
+
+  it('aborts disconnecting site from its hub site when prompt not confirmed',
+    async () => {
+      const postSpy = jest.spyOn(request, 'post').mockClear();
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: false }
+      ));
+      await command.action(logger, { options: { siteUrl: 'https://contoso.sharepoint.com/sites/Sales' } });
+      assert(postSpy.notCalled);
+    }
+  );
+
+  it('disconnects the site from its hub site when prompt confirmed',
+    async () => {
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async () => {
+        return ({
+          "odata.null": true
+        });
+      });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: true }
+      ));
+      await command.action(logger, { options: { siteUrl: 'https://contoso.sharepoint.com/sites/Sales' } });
+      assert(postStub.called);
+    }
+  );
 
   it('correctly handles error', async () => {
-    sinon.stub(request, 'post').callsFake(() => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(() => {
       throw {
         error: {
           "odata.error": {

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './group-set.js';
 
@@ -32,11 +31,11 @@ describe(commands.GROUP_SET, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -58,15 +57,15 @@ describe(commands.GROUP_SET, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       request.patch,
       Cli.executeCommandWithOutput
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -88,17 +87,19 @@ describe(commands.GROUP_SET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation when both ownerEmail and ownerUserName are specified', async () => {
-    const actual = await command.validate({
-      options: {
-        webUrl: validWebUrl,
-        id: validId,
-        ownerEmail: validOwnerEmail,
-        ownerUserName: validOwnerUserName
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation when both ownerEmail and ownerUserName are specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          webUrl: validWebUrl,
+          id: validId,
+          ownerEmail: validOwnerEmail,
+          ownerUserName: validOwnerUserName
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation when invalid web URL is passed', async () => {
     const actual = await command.validate({
@@ -122,7 +123,7 @@ describe(commands.GROUP_SET, () => {
   });
 
   it('successfully updates group settings by id', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${validWebUrl}/_api/web/sitegroups/GetById(${validId})`) {
         return;
       }
@@ -141,7 +142,7 @@ describe(commands.GROUP_SET, () => {
   });
 
   it('successfully updates group settings by name', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${validWebUrl}/_api/web/sitegroups/GetByName('${validName}')`) {
         return;
       }
@@ -159,73 +160,77 @@ describe(commands.GROUP_SET, () => {
     });
   });
 
-  it('successfully updates group owner by ownerEmail, retrieves group by id', async () => {
-    sinon.stub(Cli, 'executeCommandWithOutput').resolves({
-      stdout: JSON.stringify(userInfoResponse),
-      stderr: ''
-    });
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
-      if (opts.url === `${validWebUrl}/_api/web/sitegroups/GetById(${validId})`) {
-        return;
-      }
+  it('successfully updates group owner by ownerEmail, retrieves group by id',
+    async () => {
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation().resolves({
+        stdout: JSON.stringify(userInfoResponse),
+        stderr: ''
+      });
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${validWebUrl}/_api/web/sitegroups/GetById(${validId})`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `${validWebUrl}/_api/web/ensureUser('${userInfoResponse.userPrincipalName}')?$select=Id`) {
-        return ensureUserResponse;
-      }
+        throw 'Invalid request';
+      });
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${validWebUrl}/_api/web/ensureUser('${userInfoResponse.userPrincipalName}')?$select=Id`) {
+          return ensureUserResponse;
+        }
 
-      if (opts.url === `${validWebUrl}/_api/web/sitegroups/GetById(${validId})/SetUserAsOwner(${ensureUserResponse.Id})`) {
-        return;
-      }
+        if (opts.url === `${validWebUrl}/_api/web/sitegroups/GetById(${validId})/SetUserAsOwner(${ensureUserResponse.Id})`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        webUrl: validWebUrl,
-        id: validId,
-        ownerEmail: validOwnerEmail,
-        verbose: true
-      }
-    });
-  });
+      await command.action(logger, {
+        options: {
+          webUrl: validWebUrl,
+          id: validId,
+          ownerEmail: validOwnerEmail,
+          verbose: true
+        }
+      });
+    }
+  );
 
-  it('successfully updates group owner by ownerUserName, retrieves group by name', async () => {
-    sinon.stub(Cli, 'executeCommandWithOutput').resolves({
-      stdout: JSON.stringify(userInfoResponse),
-      stderr: ''
-    });
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
-      if (opts.url === `${validWebUrl}/_api/web/sitegroups/GetByName('${validName}')`) {
-        return;
-      }
+  it('successfully updates group owner by ownerUserName, retrieves group by name',
+    async () => {
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation().resolves({
+        stdout: JSON.stringify(userInfoResponse),
+        stderr: ''
+      });
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${validWebUrl}/_api/web/sitegroups/GetByName('${validName}')`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `${validWebUrl}/_api/web/ensureUser('${userInfoResponse.userPrincipalName}')?$select=Id`) {
-        return ensureUserResponse;
-      }
+        throw 'Invalid request';
+      });
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${validWebUrl}/_api/web/ensureUser('${userInfoResponse.userPrincipalName}')?$select=Id`) {
+          return ensureUserResponse;
+        }
 
-      if (opts.url === `${validWebUrl}/_api/web/sitegroups/GetByName('${validName}')/SetUserAsOwner(${ensureUserResponse.Id})`) {
-        return;
-      }
+        if (opts.url === `${validWebUrl}/_api/web/sitegroups/GetByName('${validName}')/SetUserAsOwner(${ensureUserResponse.Id})`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        webUrl: validWebUrl,
-        name: validName,
-        ownerUserName: validOwnerUserName,
-        verbose: true
-      }
-    });
-  });
+      await command.action(logger, {
+        options: {
+          webUrl: validWebUrl,
+          name: validName,
+          ownerUserName: validOwnerUserName,
+          verbose: true
+        }
+      });
+    }
+  );
 
   it('correctly handles random API error', async () => {
     const error = {
@@ -239,7 +244,7 @@ describe(commands.GROUP_SET, () => {
       }
     };
 
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${validWebUrl}/_api/web/sitegroups/GetByName('${validName}')`) {
         throw error;
       }

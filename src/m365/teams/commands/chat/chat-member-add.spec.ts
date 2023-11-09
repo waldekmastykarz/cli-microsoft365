@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './chat-member-add.js';
 
@@ -23,11 +22,11 @@ describe(commands.CHAT_MEMBER_ADD, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -48,13 +47,13 @@ describe(commands.CHAT_MEMBER_ADD, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -67,7 +66,7 @@ describe(commands.CHAT_MEMBER_ADD, () => {
   });
 
   it('adds a member by specifying its userId', async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/chats/${chatId}/members`) {
         return;
       }
@@ -83,11 +82,11 @@ describe(commands.CHAT_MEMBER_ADD, () => {
     };
 
     await command.action(logger, { options: { chatId: chatId, userId: userId, role: 'guest', verbose: true } });
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, requestBody);
+    assert.deepStrictEqual(postStub.mock.lastCall[0].data, requestBody);
   });
 
   it('adds a member by specifying its userName', async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/chats/${chatId}/members`) {
         return;
       }
@@ -103,48 +102,52 @@ describe(commands.CHAT_MEMBER_ADD, () => {
     };
 
     await command.action(logger, { options: { chatId: chatId, userName: userPrincipalName, verbose: true } });
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, requestBody);
+    assert.deepStrictEqual(postStub.mock.lastCall[0].data, requestBody);
   });
 
-  it('adds a member by specifying its userId and share all chat history', async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/chats/${chatId}/members`) {
-        return;
-      }
+  it('adds a member by specifying its userId and share all chat history',
+    async () => {
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/chats/${chatId}/members`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    const requestBody = {
-      '@odata.type': '#microsoft.graph.aadUserConversationMember',
-      roles: ['owner'],
-      'user@odata.bind': `https://graph.microsoft.com/v1.0/users/${userId}`,
-      visibleHistoryStartDateTime: '0001-01-01T00:00:00Z'
-    };
+      const requestBody = {
+        '@odata.type': '#microsoft.graph.aadUserConversationMember',
+        roles: ['owner'],
+        'user@odata.bind': `https://graph.microsoft.com/v1.0/users/${userId}`,
+        visibleHistoryStartDateTime: '0001-01-01T00:00:00Z'
+      };
 
-    await command.action(logger, { options: { chatId: chatId, userId: userId, includeAllHistory: true } });
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, requestBody);
-  });
+      await command.action(logger, { options: { chatId: chatId, userId: userId, includeAllHistory: true } });
+      assert.deepStrictEqual(postStub.mock.lastCall[0].data, requestBody);
+    }
+  );
 
-  it('adds a member by specifying its userId with chat history from a certain date', async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/chats/${chatId}/members`) {
-        return;
-      }
+  it('adds a member by specifying its userId with chat history from a certain date',
+    async () => {
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/chats/${chatId}/members`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    const requestBody = {
-      '@odata.type': '#microsoft.graph.aadUserConversationMember',
-      roles: ['owner'],
-      'user@odata.bind': `https://graph.microsoft.com/v1.0/users/${userId}`,
-      visibleHistoryStartDateTime: '2019-04-18T23:51:43.255Z'
-    };
+      const requestBody = {
+        '@odata.type': '#microsoft.graph.aadUserConversationMember',
+        roles: ['owner'],
+        'user@odata.bind': `https://graph.microsoft.com/v1.0/users/${userId}`,
+        visibleHistoryStartDateTime: '2019-04-18T23:51:43.255Z'
+      };
 
-    await command.action(logger, { options: { chatId: chatId, userId: userId, visibleHistoryStartDateTime: '2019-04-18T23:51:43.255Z' } });
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, requestBody);
-  });
+      await command.action(logger, { options: { chatId: chatId, userId: userId, visibleHistoryStartDateTime: '2019-04-18T23:51:43.255Z' } });
+      assert.deepStrictEqual(postStub.mock.lastCall[0].data, requestBody);
+    }
+  );
 
   it('fails validation if chatId is not valid chatId', async () => {
     const actual = await command.validate({ options: { chatId: 'invalid', userId: userId } }, commandInfo);
@@ -181,15 +184,19 @@ describe(commands.CHAT_MEMBER_ADD, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('fails validation if the visibleHistoryStartDateTime is not a valid date', async () => {
-    const actual = await command.validate({ options: { chatId: chatId, userId: userId, visibleHistoryStartDateTime: 'invalid' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the visibleHistoryStartDateTime is not a valid date',
+    async () => {
+      const actual = await command.validate({ options: { chatId: chatId, userId: userId, visibleHistoryStartDateTime: 'invalid' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the visibleHistoryStartDateTime is a valid date', async () => {
-    const actual = await command.validate({ options: { chatId: chatId, userId: userId, visibleHistoryStartDateTime: '2019-04-18T23:51:43.255Z' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if the visibleHistoryStartDateTime is a valid date',
+    async () => {
+      const actual = await command.validate({ options: { chatId: chatId, userId: userId, visibleHistoryStartDateTime: '2019-04-18T23:51:43.255Z' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('correctly handles OData API error', async () => {
     const error = {
@@ -199,7 +206,7 @@ describe(commands.CHAT_MEMBER_ADD, () => {
       }
     };
 
-    sinon.stub(request, 'post').rejects(error);
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, { options: {} } as any), new CommandError(error.error.message));
   });

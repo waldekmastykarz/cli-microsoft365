@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './team-get.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -18,15 +17,15 @@ describe(commands.TEAM_GET, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -44,18 +43,18 @@ describe(commands.TEAM_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -67,39 +66,43 @@ describe(commands.TEAM_GET, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('fails validation if both teamId and teamName options are not passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both teamId and teamName options are not passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if both teamId and teamName options are passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both teamId and teamName options are passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        id: '1caf7dcd-7e83-4c3a-94f7-932a1299c844',
-        name: 'Team Name'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          id: '1caf7dcd-7e83-4c3a-94f7-932a1299c844',
+          name: 'Team Name'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the teamId is not a valid GUID', async () => {
     const actual = await command.validate({ options: { id: 'invalid' } }, commandInfo);
@@ -112,7 +115,7 @@ describe(commands.TEAM_GET, () => {
   });
 
   it('fails to get team information due to wrong team id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/teams/1caf7dcd-7e83-4c3a-94f7-932a1299c843`) {
         return Promise.reject({
           "error": {
@@ -140,7 +143,7 @@ describe(commands.TEAM_GET, () => {
   });
 
   it('fails when team name does not exist', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq 'Finance'`) {
         return {
           "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#teams",
@@ -165,7 +168,7 @@ describe(commands.TEAM_GET, () => {
   });
 
   it('retrieves information about the specified Microsoft Team', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/teams/1caf7dcd-7e83-4c3a-94f7-932a1299c844`) {
 
         return {
@@ -256,107 +259,109 @@ describe(commands.TEAM_GET, () => {
     }));
   });
 
-  it('retrieves information about the specified Microsoft Teams team by name', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+  it('retrieves information about the specified Microsoft Teams team by name',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq 'Finance'`) {
-        return {
-          "value": [
-            {
-              "id": "1caf7dcd-7e83-4c3a-94f7-932a1299c844",
-              "resourceProvisioningOptions": ["Team"]
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq 'Finance'`) {
+          return {
+            "value": [
+              {
+                "id": "1caf7dcd-7e83-4c3a-94f7-932a1299c844",
+                "resourceProvisioningOptions": ["Team"]
+              }
+            ]
+          };
+        }
+
+        if (opts.url === `https://graph.microsoft.com/v1.0/teams/1caf7dcd-7e83-4c3a-94f7-932a1299c844`) {
+
+          return {
+            "id": "1caf7dcd-7e83-4c3a-94f7-932a1299c844",
+            "createdDateTime": "2017-11-29T03:27:05Z",
+            "displayName": "Finance",
+            "description": "This is the Contoso Finance Group. Please come here and check out the latest news, posts, files, and more.",
+            "classification": null,
+            "specialization": "none",
+            "visibility": "Public",
+            "webUrl": "https://teams.microsoft.com/l/team/19:ASjdflg-xKFnjueOwbm3es6HF2zx3Ki57MyfDFrjeg01%40thread.tacv2/conversations?groupId=1caf7dcd-7e83-4c3a-94f7-932a1299c844&tenantId=dcd219dd-bc68-4b9b-bf0b-4a33a796be35",
+            "isArchived": false,
+            "isMembershipLimitedToOwners": false,
+            "discoverySettings": {
+              "showInTeamsSearchAndSuggestions": false
+            },
+            "memberSettings": {
+              "allowCreateUpdateChannels": true,
+              "allowCreatePrivateChannels": true,
+              "allowDeleteChannels": true,
+              "allowAddRemoveApps": true,
+              "allowCreateUpdateRemoveTabs": true,
+              "allowCreateUpdateRemoveConnectors": true
+            },
+            "guestSettings": {
+              "allowCreateUpdateChannels": false,
+              "allowDeleteChannels": false
+            },
+            "messagingSettings": {
+              "allowUserEditMessages": true,
+              "allowUserDeleteMessages": true,
+              "allowOwnerDeleteMessages": true,
+              "allowTeamMentions": true,
+              "allowChannelMentions": true
+            },
+            "funSettings": {
+              "allowGiphy": true,
+              "giphyContentRating": "moderate",
+              "allowStickersAndMemes": true,
+              "allowCustomMemes": true
             }
-          ]
-        };
-      }
+          };
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/teams/1caf7dcd-7e83-4c3a-94f7-932a1299c844`) {
+        throw 'Invalid request';
+      });
 
-        return {
-          "id": "1caf7dcd-7e83-4c3a-94f7-932a1299c844",
-          "createdDateTime": "2017-11-29T03:27:05Z",
-          "displayName": "Finance",
-          "description": "This is the Contoso Finance Group. Please come here and check out the latest news, posts, files, and more.",
-          "classification": null,
-          "specialization": "none",
-          "visibility": "Public",
-          "webUrl": "https://teams.microsoft.com/l/team/19:ASjdflg-xKFnjueOwbm3es6HF2zx3Ki57MyfDFrjeg01%40thread.tacv2/conversations?groupId=1caf7dcd-7e83-4c3a-94f7-932a1299c844&tenantId=dcd219dd-bc68-4b9b-bf0b-4a33a796be35",
-          "isArchived": false,
-          "isMembershipLimitedToOwners": false,
-          "discoverySettings": {
-            "showInTeamsSearchAndSuggestions": false
-          },
-          "memberSettings": {
-            "allowCreateUpdateChannels": true,
-            "allowCreatePrivateChannels": true,
-            "allowDeleteChannels": true,
-            "allowAddRemoveApps": true,
-            "allowCreateUpdateRemoveTabs": true,
-            "allowCreateUpdateRemoveConnectors": true
-          },
-          "guestSettings": {
-            "allowCreateUpdateChannels": false,
-            "allowDeleteChannels": false
-          },
-          "messagingSettings": {
-            "allowUserEditMessages": true,
-            "allowUserDeleteMessages": true,
-            "allowOwnerDeleteMessages": true,
-            "allowTeamMentions": true,
-            "allowChannelMentions": true
-          },
-          "funSettings": {
-            "allowGiphy": true,
-            "giphyContentRating": "moderate",
-            "allowStickersAndMemes": true,
-            "allowCustomMemes": true
-          }
-        };
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger, { options: { name: 'Finance' } });
-    assert(loggerLogSpy.calledWith({
-      "id": "1caf7dcd-7e83-4c3a-94f7-932a1299c844",
-      "createdDateTime": "2017-11-29T03:27:05Z",
-      "displayName": "Finance",
-      "description": "This is the Contoso Finance Group. Please come here and check out the latest news, posts, files, and more.",
-      "classification": null,
-      "specialization": "none",
-      "visibility": "Public",
-      "webUrl": "https://teams.microsoft.com/l/team/19:ASjdflg-xKFnjueOwbm3es6HF2zx3Ki57MyfDFrjeg01%40thread.tacv2/conversations?groupId=1caf7dcd-7e83-4c3a-94f7-932a1299c844&tenantId=dcd219dd-bc68-4b9b-bf0b-4a33a796be35",
-      "isArchived": false,
-      "isMembershipLimitedToOwners": false,
-      "discoverySettings": {
-        "showInTeamsSearchAndSuggestions": false
-      },
-      "memberSettings": {
-        "allowCreateUpdateChannels": true,
-        "allowCreatePrivateChannels": true,
-        "allowDeleteChannels": true,
-        "allowAddRemoveApps": true,
-        "allowCreateUpdateRemoveTabs": true,
-        "allowCreateUpdateRemoveConnectors": true
-      },
-      "guestSettings": {
-        "allowCreateUpdateChannels": false,
-        "allowDeleteChannels": false
-      },
-      "messagingSettings": {
-        "allowUserEditMessages": true,
-        "allowUserDeleteMessages": true,
-        "allowOwnerDeleteMessages": true,
-        "allowTeamMentions": true,
-        "allowChannelMentions": true
-      },
-      "funSettings": {
-        "allowGiphy": true,
-        "giphyContentRating": "moderate",
-        "allowStickersAndMemes": true,
-        "allowCustomMemes": true
-      }
-    }));
-  });
+      await command.action(logger, { options: { name: 'Finance' } });
+      assert(loggerLogSpy.calledWith({
+        "id": "1caf7dcd-7e83-4c3a-94f7-932a1299c844",
+        "createdDateTime": "2017-11-29T03:27:05Z",
+        "displayName": "Finance",
+        "description": "This is the Contoso Finance Group. Please come here and check out the latest news, posts, files, and more.",
+        "classification": null,
+        "specialization": "none",
+        "visibility": "Public",
+        "webUrl": "https://teams.microsoft.com/l/team/19:ASjdflg-xKFnjueOwbm3es6HF2zx3Ki57MyfDFrjeg01%40thread.tacv2/conversations?groupId=1caf7dcd-7e83-4c3a-94f7-932a1299c844&tenantId=dcd219dd-bc68-4b9b-bf0b-4a33a796be35",
+        "isArchived": false,
+        "isMembershipLimitedToOwners": false,
+        "discoverySettings": {
+          "showInTeamsSearchAndSuggestions": false
+        },
+        "memberSettings": {
+          "allowCreateUpdateChannels": true,
+          "allowCreatePrivateChannels": true,
+          "allowDeleteChannels": true,
+          "allowAddRemoveApps": true,
+          "allowCreateUpdateRemoveTabs": true,
+          "allowCreateUpdateRemoveConnectors": true
+        },
+        "guestSettings": {
+          "allowCreateUpdateChannels": false,
+          "allowDeleteChannels": false
+        },
+        "messagingSettings": {
+          "allowUserEditMessages": true,
+          "allowUserDeleteMessages": true,
+          "allowOwnerDeleteMessages": true,
+          "allowTeamMentions": true,
+          "allowChannelMentions": true
+        },
+        "funSettings": {
+          "allowGiphy": true,
+          "giphyContentRating": "moderate",
+          "allowStickersAndMemes": true,
+          "allowCustomMemes": true
+        }
+      }));
+    }
+  );
 });

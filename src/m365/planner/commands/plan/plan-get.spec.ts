@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,14 +8,14 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './plan-get.js';
 
 describe(commands.PLAN_GET, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
   const validId = '2Vf8JHgsBUiIf-nuvBtv-ZgAAYw2';
   const validTitle = 'Plan name';
@@ -49,11 +48,11 @@ describe(commands.PLAN_GET, () => {
     ...planDetailsResponse
   };
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.accessTokens[(command as any).resource] = {
       accessToken: 'abc',
@@ -75,18 +74,18 @@ describe(commands.PLAN_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.accessTokens = {};
   });
@@ -122,25 +121,29 @@ describe(commands.PLAN_GET, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation when title and valid ownerGroupId specified', async () => {
-    const actual = await command.validate({
-      options: {
-        title: validTitle,
-        ownerGroupId: validOwnerGroupId
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when title and valid ownerGroupId specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          title: validTitle,
+          ownerGroupId: validOwnerGroupId
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when title and valid ownerGroupName specified', async () => {
-    const actual = await command.validate({
-      options: {
-        title: validTitle,
-        ownerGroupName: validOwnerGroupName
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when title and valid ownerGroupName specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          title: validTitle,
+          ownerGroupName: validOwnerGroupName
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('passes validation when rosterId specified', async () => {
     const actual = await command.validate({
@@ -152,7 +155,7 @@ describe(commands.PLAN_GET, () => {
   });
 
   it('correctly get planner plan with given id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${validId}`) {
         return planResponse;
       }
@@ -173,56 +176,60 @@ describe(commands.PLAN_GET, () => {
     assert(loggerLogSpy.calledWith(outputResponse));
   });
 
-  it('correctly get planner plan with given title and ownerGroupId', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups/${validOwnerGroupId}/planner/plans`) {
-        return { "value": [planResponse] };
-      }
+  it('correctly get planner plan with given title and ownerGroupId',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups/${validOwnerGroupId}/planner/plans`) {
+          return { "value": [planResponse] };
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${validId}/details`) {
-        return planDetailsResponse;
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${validId}/details`) {
+          return planDetailsResponse;
+        }
 
-      throw `Invalid request ${opts.url}`;
-    });
+        throw `Invalid request ${opts.url}`;
+      });
 
-    const options: any = {
-      title: validTitle,
-      ownerGroupId: validOwnerGroupId
-    };
+      const options: any = {
+        title: validTitle,
+        ownerGroupId: validOwnerGroupId
+      };
 
-    await command.action(logger, { options: options });
-    assert(loggerLogSpy.calledWith(outputResponse));
-  });
+      await command.action(logger, { options: options });
+      assert(loggerLogSpy.calledWith(outputResponse));
+    }
+  );
 
-  it('correctly get planner plan with given title and ownerGroupName', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/groups?$filter=displayName') > -1) {
-        return singleGroupResponse;
-      }
+  it('correctly get planner plan with given title and ownerGroupName',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/groups?$filter=displayName') > -1) {
+          return singleGroupResponse;
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups/${validOwnerGroupId}/planner/plans`) {
-        return { "value": [planResponse] };
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups/${validOwnerGroupId}/planner/plans`) {
+          return { "value": [planResponse] };
+        }
 
-      if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${validId}/details`) {
-        return planDetailsResponse;
-      }
+        if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${validId}/details`) {
+          return planDetailsResponse;
+        }
 
-      throw `Invalid request ${opts.url}`;
-    });
+        throw `Invalid request ${opts.url}`;
+      });
 
-    const options: any = {
-      title: validTitle,
-      ownerGroupName: validOwnerGroupName
-    };
+      const options: any = {
+        title: validTitle,
+        ownerGroupName: validOwnerGroupName
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert(loggerLogSpy.calledWith(outputResponse));
-  });
+      await command.action(logger, { options: options } as any);
+      assert(loggerLogSpy.calledWith(outputResponse));
+    }
+  );
 
   it('correctly get planner plan with given rosterId', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/beta/planner/rosters/${validRosterId}/plans`) {
         return { "value": [planResponse] };
       }
@@ -244,7 +251,7 @@ describe(commands.PLAN_GET, () => {
 
 
   it('correctly handles no plan found with given ownerGroupId', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups/${validOwnerGroupId}/planner/plans`) {
         return { "value": [] };
       }
@@ -262,7 +269,7 @@ describe(commands.PLAN_GET, () => {
   });
 
   it('correctly handles API OData error', async () => {
-    sinon.stub(request, 'get').rejects(new Error(`Planner plan with id '${validId}' was not found.`));
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error(`Planner plan with id '${validId}' was not found.`));
 
     await assert.rejects(command.action(logger, { options: { id: validId } }), new CommandError(`Planner plan with id '${validId}' was not found.`));
   });

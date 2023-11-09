@@ -1,7 +1,6 @@
 import { Application, ServicePrincipal } from '@microsoft/microsoft-graph-types';
 import assert from 'assert';
 import fs from 'fs';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -12,7 +11,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { odata } from '../../../../utils/odata.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './permission-add.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -32,14 +31,14 @@ describe(commands.PERMISSION_ADD, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'readFileSync').returns(JSON.stringify({
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+    jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue(JSON.stringify({
       apps: [
         {
           appId: appId,
@@ -67,7 +66,7 @@ describe(commands.PERMISSION_ADD, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.patch,
       request.post,
       odata.getAllItems,
@@ -75,8 +74,8 @@ describe(commands.PERMISSION_ADD, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -88,163 +87,173 @@ describe(commands.PERMISSION_ADD, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('adds application permissions to appId without granting admin consent', async () => {
-    sinon.stub(odata, 'getAllItems').callsFake(async (url: string) => {
-      switch (url) {
-        case 'https://graph.microsoft.com/v1.0/myorganization/servicePrincipals?$select=appId,appRoles,id,oauth2PermissionScopes,servicePrincipalNames':
-          return servicePrincipals;
-        case `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '${appId}'&$select=id,requiredResourceAccess`:
-          return applications;
-        default:
-          throw 'Invalid request';
-      }
-    });
+  it('adds application permissions to appId without granting admin consent',
+    async () => {
+      jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url: string) => {
+        switch (url) {
+          case 'https://graph.microsoft.com/v1.0/myorganization/servicePrincipals?$select=appId,appRoles,id,oauth2PermissionScopes,servicePrincipalNames':
+            return servicePrincipals;
+          case `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '${appId}'&$select=id,requiredResourceAccess`:
+            return applications;
+          default:
+            throw 'Invalid request';
+        }
+      });
 
-    const patchStub = sinon.stub(request, 'patch').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications/${applications[0].id}`) {
-        return;
-      }
-      throw 'Invalid request';
-    });
+      const patchStub = jest.spyOn(request, 'patch').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications/${applications[0].id}`) {
+          return;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { applicationPermission: applicationPermissions, verbose: true } });
-    assert(patchStub.called);
-  });
+      await command.action(logger, { options: { applicationPermission: applicationPermissions, verbose: true } });
+      assert(patchStub.called);
+    }
+  );
 
-  it('adds application permissions to appId while granting admin consent', async () => {
-    let amountOfPostCalls = 0;
-    sinon.stub(odata, 'getAllItems').callsFake(async (url: string) => {
-      switch (url) {
-        case 'https://graph.microsoft.com/v1.0/myorganization/servicePrincipals?$select=appId,appRoles,id,oauth2PermissionScopes,servicePrincipalNames':
-          return servicePrincipals;
-        case `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '${appId}'&$select=id,requiredResourceAccess`:
-          return applications;
-        default:
-          throw 'Invalid request';
-      }
-    });
+  it('adds application permissions to appId while granting admin consent',
+    async () => {
+      let amountOfPostCalls = 0;
+      jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url: string) => {
+        switch (url) {
+          case 'https://graph.microsoft.com/v1.0/myorganization/servicePrincipals?$select=appId,appRoles,id,oauth2PermissionScopes,servicePrincipalNames':
+            return servicePrincipals;
+          case `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '${appId}'&$select=id,requiredResourceAccess`:
+            return applications;
+          default:
+            throw 'Invalid request';
+        }
+      });
 
-    sinon.stub(request, 'patch').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications/${applications[0].id}`) {
-        return;
-      }
-      throw 'Invalid request';
-    });
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications/${applications[0].id}`) {
+          return;
+        }
+        throw 'Invalid request';
+      });
 
-    sinon.stub(request, 'post').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/servicePrincipals/${servicePrincipalId}/appRoleAssignments`) {
-        amountOfPostCalls += 1;
-        return;
-      }
-      throw 'Invalid request';
-    });
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/servicePrincipals/${servicePrincipalId}/appRoleAssignments`) {
+          amountOfPostCalls += 1;
+          return;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { applicationPermission: applicationPermissions, grantAdminConsent: true, verbose: true } });
-    assert.strictEqual(amountOfPostCalls, 2);
-  });
+      await command.action(logger, { options: { applicationPermission: applicationPermissions, grantAdminConsent: true, verbose: true } });
+      assert.strictEqual(amountOfPostCalls, 2);
+    }
+  );
 
-  it('adds delegated permissions to appId without granting admin consent', async () => {
-    sinon.stub(odata, 'getAllItems').callsFake(async (url: string) => {
-      switch (url) {
-        case 'https://graph.microsoft.com/v1.0/myorganization/servicePrincipals?$select=appId,appRoles,id,oauth2PermissionScopes,servicePrincipalNames':
-          return servicePrincipals;
-        case `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '${appId}'&$select=id,requiredResourceAccess`:
-          return applications;
-        default:
-          throw 'Invalid request';
-      }
-    });
+  it('adds delegated permissions to appId without granting admin consent',
+    async () => {
+      jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url: string) => {
+        switch (url) {
+          case 'https://graph.microsoft.com/v1.0/myorganization/servicePrincipals?$select=appId,appRoles,id,oauth2PermissionScopes,servicePrincipalNames':
+            return servicePrincipals;
+          case `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '${appId}'&$select=id,requiredResourceAccess`:
+            return applications;
+          default:
+            throw 'Invalid request';
+        }
+      });
 
-    const patchStub = sinon.stub(request, 'patch').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications/${applications[0].id}`) {
-        return;
-      }
-      throw 'Invalid request';
-    });
+      const patchStub = jest.spyOn(request, 'patch').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications/${applications[0].id}`) {
+          return;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { delegatedPermission: delegatedPermissions, verbose: true } });
-    assert(patchStub.called);
-  });
+      await command.action(logger, { options: { delegatedPermission: delegatedPermissions, verbose: true } });
+      assert(patchStub.called);
+    }
+  );
 
-  it('adds delegated permissions to appId while granting admin consent', async () => {
-    const pos: number = delegatedPermissions.lastIndexOf('/');
-    const permissionName: string = delegatedPermissions.substring(pos + 1);
+  it('adds delegated permissions to appId while granting admin consent',
+    async () => {
+      const pos: number = delegatedPermissions.lastIndexOf('/');
+      const permissionName: string = delegatedPermissions.substring(pos + 1);
 
-    sinon.stub(odata, 'getAllItems').callsFake(async (url: string) => {
-      switch (url) {
-        case 'https://graph.microsoft.com/v1.0/myorganization/servicePrincipals?$select=appId,appRoles,id,oauth2PermissionScopes,servicePrincipalNames':
-          return servicePrincipals;
-        case `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '${appId}'&$select=id,requiredResourceAccess`:
-          return applications;
-        default:
-          throw 'Invalid request';
-      }
-    });
+      jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url: string) => {
+        switch (url) {
+          case 'https://graph.microsoft.com/v1.0/myorganization/servicePrincipals?$select=appId,appRoles,id,oauth2PermissionScopes,servicePrincipalNames':
+            return servicePrincipals;
+          case `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '${appId}'&$select=id,requiredResourceAccess`:
+            return applications;
+          default:
+            throw 'Invalid request';
+        }
+      });
 
-    sinon.stub(request, 'patch').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications/${applications[0].id}`) {
-        return;
-      }
-      throw 'Invalid request';
-    });
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications/${applications[0].id}`) {
+          return;
+        }
+        throw 'Invalid request';
+      });
 
-    const postStub = sinon.stub(request, 'post').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/oauth2PermissionGrants`) {
-        return;
-      }
-      throw 'Invalid request';
-    });
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/oauth2PermissionGrants`) {
+          return;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { delegatedPermission: delegatedPermissions, grantAdminConsent: true, verbose: true } });
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, {
-      clientId: servicePrincipalId,
-      consentType: 'AllPrincipals',
-      principalId: null,
-      resourceId: 'fb4be1df-eaa6-4bd0-a068-71f9b2cbe2be',
-      scope: permissionName
-    });
-  });
+      await command.action(logger, { options: { delegatedPermission: delegatedPermissions, grantAdminConsent: true, verbose: true } });
+      assert.deepStrictEqual(postStub.mock.lastCall[0].data, {
+        clientId: servicePrincipalId,
+        consentType: 'AllPrincipals',
+        principalId: null,
+        resourceId: 'fb4be1df-eaa6-4bd0-a068-71f9b2cbe2be',
+        scope: permissionName
+      });
+    }
+  );
 
-  it('adds delegated and application permissions to appId while granting admin consent', async () => {
-    let amountOfPostCalls = 0;
+  it('adds delegated and application permissions to appId while granting admin consent',
+    async () => {
+      let amountOfPostCalls = 0;
 
-    sinon.stub(odata, 'getAllItems').callsFake(async (url: string) => {
-      switch (url) {
-        case 'https://graph.microsoft.com/v1.0/myorganization/servicePrincipals?$select=appId,appRoles,id,oauth2PermissionScopes,servicePrincipalNames':
-          return servicePrincipals;
-        case `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '${appId}'&$select=id,requiredResourceAccess`:
-          return applications;
-        default:
-          throw 'Invalid request';
-      }
-    });
+      jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url: string) => {
+        switch (url) {
+          case 'https://graph.microsoft.com/v1.0/myorganization/servicePrincipals?$select=appId,appRoles,id,oauth2PermissionScopes,servicePrincipalNames':
+            return servicePrincipals;
+          case `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '${appId}'&$select=id,requiredResourceAccess`:
+            return applications;
+          default:
+            throw 'Invalid request';
+        }
+      });
 
-    sinon.stub(request, 'patch').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications/${applications[0].id}`) {
-        return;
-      }
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications/${applications[0].id}`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(request, 'post').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/oauth2PermissionGrants`) {
-        amountOfPostCalls++;
-        return;
-      }
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/servicePrincipals/${servicePrincipalId}/appRoleAssignments`) {
-        amountOfPostCalls++;
-        return;
-      }
-      throw 'Invalid request';
-    });
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/oauth2PermissionGrants`) {
+          amountOfPostCalls++;
+          return;
+        }
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/servicePrincipals/${servicePrincipalId}/appRoleAssignments`) {
+          amountOfPostCalls++;
+          return;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { delegatedPermission: delegatedPermissions, applicationPermission: applicationPermissions, grantAdminConsent: true, verbose: true } });
-    assert.strictEqual(amountOfPostCalls, 3);
-  });
+      await command.action(logger, { options: { delegatedPermission: delegatedPermissions, applicationPermission: applicationPermissions, grantAdminConsent: true, verbose: true } });
+      assert.strictEqual(amountOfPostCalls, 3);
+    }
+  );
 
   it('throws an error when application is not found', async () => {
-    sinon.stub(odata, 'getAllItems').callsFake(async (url: string) => {
+    jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url: string) => {
       switch (url) {
         case 'https://graph.microsoft.com/v1.0/myorganization/servicePrincipals?$select=appId,appRoles,id,oauth2PermissionScopes,servicePrincipalNames':
           return servicePrincipals;
@@ -263,7 +272,7 @@ describe(commands.PERMISSION_ADD, () => {
     const api = 'https://grax.microsoft.com/User.ReadWrite.All';
     const pos: number = api.lastIndexOf('/');
     const servicePrincipalName: string = api.substring(0, pos);
-    sinon.stub(odata, 'getAllItems').callsFake(async (url: string) => {
+    jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url: string) => {
       switch (url) {
         case 'https://graph.microsoft.com/v1.0/myorganization/servicePrincipals?$select=appId,appRoles,id,oauth2PermissionScopes,servicePrincipalNames':
           return servicePrincipals;
@@ -283,7 +292,7 @@ describe(commands.PERMISSION_ADD, () => {
     const pos: number = api.lastIndexOf('/');
     const servicePrincipalName: string = api.substring(0, pos);
     const permissionName: string = api.substring(pos + 1);
-    sinon.stub(odata, 'getAllItems').callsFake(async (url: string) => {
+    jest.spyOn(odata, 'getAllItems').mockClear().mockImplementation(async (url: string) => {
       switch (url) {
         case 'https://graph.microsoft.com/v1.0/myorganization/servicePrincipals?$select=appId,appRoles,id,oauth2PermissionScopes,servicePrincipalNames':
           return servicePrincipals;
@@ -308,21 +317,25 @@ describe(commands.PERMISSION_ADD, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation if both applicationPermission or delegatedPermission are passed', async () => {
-    const actual = await command.validate({ options: { applicationPermission: applicationPermissions, delegatedPermission: delegatedPermissions } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if both applicationPermission or delegatedPermission are passed',
+    async () => {
+      const actual = await command.validate({ options: { applicationPermission: applicationPermissions, delegatedPermission: delegatedPermissions } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if both applicationPermission or delegatedPermission is not passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both applicationPermission or delegatedPermission is not passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: {} }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: {} }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 });

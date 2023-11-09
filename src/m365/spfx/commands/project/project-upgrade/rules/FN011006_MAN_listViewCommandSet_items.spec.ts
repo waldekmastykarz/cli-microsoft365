@@ -16,19 +16,21 @@ describe('FN011006_MAN_listViewCommandSet_items', () => {
     assert.strictEqual(rule.resolution, '');
   });
 
-  it('doesn\'t return notifications if items property is in the manifest', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      manifests: [{
+  it('doesn\'t return notifications if items property is in the manifest',
+    () => {
+      const project: Project = {
         path: '/usr/tmp',
-        componentType: 'Extension',
-        extensionType: 'ListViewCommandSet',
-        items: {}
-      } as CommandSetManifest]
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+        manifests: [{
+          path: '/usr/tmp',
+          componentType: 'Extension',
+          extensionType: 'ListViewCommandSet',
+          items: {}
+        } as CommandSetManifest]
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
   it('returns notification if items property is not in the manifest', () => {
     const project: Project = {

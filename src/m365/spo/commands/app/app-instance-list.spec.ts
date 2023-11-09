@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,22 +8,22 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './app-instance-list.js';
 
 describe(commands.APP_INSTANCE_LIST, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogToStderrSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.spoUrl = 'https://contoso.sharepoint.com';
     commandInfo = Cli.getCommandInfo(command);
@@ -43,18 +42,18 @@ describe(commands.APP_INSTANCE_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -82,7 +81,7 @@ describe(commands.APP_INSTANCE_LIST, () => {
   });
 
   it('retrieves available apps from the site collection', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/AppTiles') > -1) {
         if (opts.headers &&
           opts.headers.accept &&
@@ -121,7 +120,7 @@ describe(commands.APP_INSTANCE_LIST, () => {
 
 
   it('correctly handles no apps found in the site collection', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/AppTiles') > -1) {
         if (opts.headers &&
           opts.headers.accept &&
@@ -137,30 +136,34 @@ describe(commands.APP_INSTANCE_LIST, () => {
     assert.strictEqual(log.length, 0);
   });
 
-  it('correctly handles no apps found in the site collection (verbose)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/web/AppTiles') > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return JSON.stringify({ value: [] });
+  it('correctly handles no apps found in the site collection (verbose)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/web/AppTiles') > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return JSON.stringify({ value: [] });
+          }
         }
-      }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { siteUrl: 'https://contoso.sharepoint.com/sites/testsite', verbose: true } });
-    assert(loggerLogToStderrSpy.calledWith('No apps found'));
-  });
+      await command.action(logger, { options: { siteUrl: 'https://contoso.sharepoint.com/sites/testsite', verbose: true } });
+      assert(loggerLogToStderrSpy.calledWith('No apps found'));
+    }
+  );
 
-  it('correctly handles error while listing apps in the site collection', async () => {
-    sinon.stub(request, 'get').rejects(new Error('An error has occurred'));
+  it('correctly handles error while listing apps in the site collection',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        siteUrl: 'https://contoso.sharepoint.com/sites/testsite'
-      }
-    } as any), new CommandError('An error has occurred'));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          siteUrl: 'https://contoso.sharepoint.com/sites/testsite'
+        }
+      } as any), new CommandError('An error has occurred'));
+    }
+  );
 });

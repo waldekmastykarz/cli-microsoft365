@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { accessToken } from '../../../../utils/accessToken.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './chat-list.js';
 
@@ -42,14 +41,14 @@ describe(commands.CHAT_LIST, () => {
   ];
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.accessTokens[(command as any).resource] = {
       accessToken: 'abc',
@@ -71,18 +70,18 @@ describe(commands.CHAT_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       accessToken.isAppOnlyAccessToken
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -123,68 +122,78 @@ describe(commands.CHAT_LIST, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('validates for a correct input for oneOnOne chat conversations with a specific userName defined', async () => {
-    const actual = await command.validate({ options: { type: "oneOnOne", userName: userName } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('validates for a correct input for oneOnOne chat conversations with a specific userName defined',
+    async () => {
+      const actual = await command.validate({ options: { type: "oneOnOne", userName: userName } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('validates for a correct input for group chat conversation', async () => {
     const actual = await command.validate({ options: { type: "group" } }, commandInfo);
     assert.strictEqual(actual, true);
   });
 
-  it('validates for a correct input for meeting chat conversations', async () => {
-    const actual = await command.validate({ options: { type: "meeting" } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('validates for a correct input for meeting chat conversations',
+    async () => {
+      const actual = await command.validate({ options: { type: "meeting" } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('lists all chat conversations for the currently signed in user', async () => {
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(false);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/me/chats`) {
-        return { 'value': chatsResponse };
-      }
+  it('lists all chat conversations for the currently signed in user',
+    async () => {
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(false);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/me/chats`) {
+          return { 'value': chatsResponse };
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    await command.action(logger, { options: {} });
-    assert(loggerLogSpy.calledWith(chatsResponse));
-  });
+      await command.action(logger, { options: {} });
+      assert(loggerLogSpy.calledWith(chatsResponse));
+    }
+  );
 
-  it('lists oneOnOne chat conversations for the currently signed in user', async () => {
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(false);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/me/chats?$filter=chatType eq 'oneOnOne'`) {
-        return { 'value': chatsResponse.filter(y => y.chatType === 'oneOnOne') };
-      }
+  it('lists oneOnOne chat conversations for the currently signed in user',
+    async () => {
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(false);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/me/chats?$filter=chatType eq 'oneOnOne'`) {
+          return { 'value': chatsResponse.filter(y => y.chatType === 'oneOnOne') };
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    await command.action(logger, {
-      options: { type: 'oneOnOne' }
-    });
-    assert(loggerLogSpy.calledWith(chatsResponse.filter(y => y.chatType === 'oneOnOne')));
-  });
+      await command.action(logger, {
+        options: { type: 'oneOnOne' }
+      });
+      assert(loggerLogSpy.calledWith(chatsResponse.filter(y => y.chatType === 'oneOnOne')));
+    }
+  );
 
-  it('lists group chat conversations for the currently signed in user', async () => {
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(false);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/me/chats?$filter=chatType eq 'group'`) {
-        return { 'value': chatsResponse.filter(y => y.chatType === 'group') };
-      }
+  it('lists group chat conversations for the currently signed in user',
+    async () => {
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(false);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/me/chats?$filter=chatType eq 'group'`) {
+          return { 'value': chatsResponse.filter(y => y.chatType === 'group') };
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    await command.action(logger, { options: { type: 'group' } });
-    assert(loggerLogSpy.calledWith(chatsResponse.filter(y => y.chatType === 'group')));
-  });
+      await command.action(logger, { options: { type: 'group' } });
+      assert(loggerLogSpy.calledWith(chatsResponse.filter(y => y.chatType === 'group')));
+    }
+  );
 
   it('lists group chat conversations for a specific user by id', async () => {
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users/${userId}/chats?$filter=chatType eq 'group'`) {
         return { 'value': chatsResponse.filter(y => y.chatType === 'group') };
       }
@@ -196,39 +205,43 @@ describe(commands.CHAT_LIST, () => {
     assert(loggerLogSpy.calledWith(chatsResponse.filter(y => y.chatType === 'group')));
   });
 
-  it('lists meeting chat conversations for a specific user by userName', async () => {
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users/${userName}/chats?$filter=chatType eq 'meeting'`) {
-        return { 'value': chatsResponse.filter(y => y.chatType === 'meeting') };
-      }
+  it('lists meeting chat conversations for a specific user by userName',
+    async () => {
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users/${userName}/chats?$filter=chatType eq 'meeting'`) {
+          return { 'value': chatsResponse.filter(y => y.chatType === 'meeting') };
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    await command.action(logger, { options: { type: 'meeting', userName: userName } });
-    assert(loggerLogSpy.calledWith(chatsResponse.filter(y => y.chatType === 'meeting')));
-  });
+      await command.action(logger, { options: { type: 'meeting', userName: userName } });
+      assert(loggerLogSpy.calledWith(chatsResponse.filter(y => y.chatType === 'meeting')));
+    }
+  );
 
 
-  it('outputs all data in json output mode for the currently signed in user', async () => {
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(false);
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/me/chats`) {
-        return {
-          'value': chatsResponse
-        };
-      }
+  it('outputs all data in json output mode for the currently signed in user',
+    async () => {
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(false);
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/me/chats`) {
+          return {
+            'value': chatsResponse
+          };
+        }
 
-      throw 'Invalid Request';
-    });
+        throw 'Invalid Request';
+      });
 
-    await command.action(logger, { options: { output: 'json' } });
-    assert(loggerLogSpy.calledWith(chatsResponse));
-  });
+      await command.action(logger, { options: { output: 'json' } });
+      assert(loggerLogSpy.calledWith(chatsResponse));
+    }
+  );
 
   it('correctly handles error when listing chat conversations', async () => {
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(false);
+    jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(false);
     const error = {
       "error": {
         "code": "UnknownError",
@@ -240,18 +253,22 @@ describe(commands.CHAT_LIST, () => {
         }
       }
     };
-    sinon.stub(request, 'get').rejects(error);
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, { options: {} } as any), new CommandError('An error has occurred'));
   });
 
-  it('throws an error when passing userId using delegated permissions', async () => {
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(false);
-    await assert.rejects(command.action(logger, { options: { userId: userId } } as any), new CommandError(`The options 'userId' or 'userName' cannot be used when obtaining chats using delegated permissions`));
-  });
+  it('throws an error when passing userId using delegated permissions',
+    async () => {
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(false);
+      await assert.rejects(command.action(logger, { options: { userId: userId } } as any), new CommandError(`The options 'userId' or 'userName' cannot be used when obtaining chats using delegated permissions`));
+    }
+  );
 
-  it('throws an error when not passing userId or userName using application permissions', async () => {
-    sinon.stub(accessToken, 'isAppOnlyAccessToken').returns(true);
-    await assert.rejects(command.action(logger, { options: {} } as any), new CommandError(`The option 'userId' or 'userName' is required when obtaining chats using app only permissions`));
-  });
+  it('throws an error when not passing userId or userName using application permissions',
+    async () => {
+      jest.spyOn(accessToken, 'isAppOnlyAccessToken').mockClear().mockReturnValue(true);
+      await assert.rejects(command.action(logger, { options: {} } as any), new CommandError(`The option 'userId' or 'userName' is required when obtaining chats using app only permissions`));
+    }
+  );
 });

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './people-profilecardproperty-add.js';
 
@@ -45,14 +44,14 @@ describe(commands.PEOPLE_PROFILECARDPROPERTY_ADD, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -70,17 +69,17 @@ describe(commands.PEOPLE_PROFILECARDPROPERTY_ADD, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -97,69 +96,87 @@ describe(commands.PEOPLE_PROFILECARDPROPERTY_ADD, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if the name is customAttribute1 and the displayName option is not used.', async () => {
-    const actual = await command.validate({ options: { name: 'customAttribute1' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the name is customAttribute1 and the displayName option is not used.',
+    async () => {
+      const actual = await command.validate({ options: { name: 'customAttribute1' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if a localization property has an invalid name.', async () => {
-    const actual = await command.validate({ options: { name: 'customAttribute1', displayName: 'Cost center', 'invalid-nl-NL': 'Kostenplaats' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if a localization property has an invalid name.',
+    async () => {
+      const actual = await command.validate({ options: { name: 'customAttribute1', displayName: 'Cost center', 'invalid-nl-NL': 'Kostenplaats' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if a the localization option is used for a non-extension attribute.', async () => {
-    const actual = await command.validate({ options: { name: 'userPrincipalName', 'displayName-nl-NL': 'Kostenplaats' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if a the localization option is used for a non-extension attribute.',
+    async () => {
+      const actual = await command.validate({ options: { name: 'userPrincipalName', 'displayName-nl-NL': 'Kostenplaats' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if the displayName option is used for a non-extension attribute.', async () => {
-    const actual = await command.validate({ options: { name: 'userPrincipalName', displayName: 'Cost center' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the displayName option is used for a non-extension attribute.',
+    async () => {
+      const actual = await command.validate({ options: { name: 'userPrincipalName', displayName: 'Cost center' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the name is set to userPrincipalName.', async () => {
-    const actual = await command.validate({ options: { name: 'userPrincipalName' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if the name is set to userPrincipalName.',
+    async () => {
+      const actual = await command.validate({ options: { name: 'userPrincipalName' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the name is customAttribute1 and the displayName option is used.', async () => {
-    const actual = await command.validate({ options: { name: 'customAttribute1', displayName: 'Cost center' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if the name is customAttribute1 and the displayName option is used.',
+    async () => {
+      const actual = await command.validate({ options: { name: 'customAttribute1', displayName: 'Cost center' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if a correct localization option is used.', async () => {
-    const actual = await command.validate({ options: { name: 'customAttribute1', displayName: 'Cost center', 'displayName-nl-NL': 'Kostenplaats' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if a correct localization option is used.',
+    async () => {
+      const actual = await command.validate({ options: { name: 'customAttribute1', displayName: 'Cost center', 'displayName-nl-NL': 'Kostenplaats' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('correctly adds profile card property for userPrincipalName', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties`) {
-        return propertyResponse;
-      }
+  it('correctly adds profile card property for userPrincipalName',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties`) {
+          return propertyResponse;
+        }
 
-      throw `Invalid request ${opts.url}`;
-    });
+        throw `Invalid request ${opts.url}`;
+      });
 
-    await assert.doesNotReject(command.action(logger, { options: { name: 'userPrincipalName' } }));
-    assert(loggerLogSpy.calledOnceWithExactly(propertyResponse));
-  });
+      await assert.doesNotReject(command.action(logger, { options: { name: 'userPrincipalName' } }));
+      assert(loggerLogSpy.calledOnceWithExactly(propertyResponse));
+    }
+  );
 
-  it('correctly adds profile card property for userPrincipalName (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties`) {
-        return propertyResponse;
-      }
+  it('correctly adds profile card property for userPrincipalName (debug)',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties`) {
+          return propertyResponse;
+        }
 
-      throw `Invalid request ${opts.url}`;
-    });
+        throw `Invalid request ${opts.url}`;
+      });
 
-    await assert.doesNotReject(command.action(logger, { options: { name: 'userPrincipalName', debug: true } }));
-    assert(loggerLogSpy.calledOnceWithExactly(propertyResponse));
-  });
+      await assert.doesNotReject(command.action(logger, { options: { name: 'userPrincipalName', debug: true } }));
+      assert(loggerLogSpy.calledOnceWithExactly(propertyResponse));
+    }
+  );
 
   it('correctly adds profile card property for fax', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties`) {
         return propertyResponse;
       }
@@ -172,7 +189,7 @@ describe(commands.PEOPLE_PROFILECARDPROPERTY_ADD, () => {
   });
 
   it('correctly adds profile card property for stateOrProvince', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties`) {
         return propertyResponse;
       }
@@ -184,97 +201,109 @@ describe(commands.PEOPLE_PROFILECARDPROPERTY_ADD, () => {
     assert(loggerLogSpy.calledOnceWithExactly(propertyResponse));
   });
 
-  it('correctly adds profile card property for alias (json output)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties`) {
-        return propertyResponse;
-      }
+  it('correctly adds profile card property for alias (json output)',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties`) {
+          return propertyResponse;
+        }
 
-      throw `Invalid request ${opts.url}`;
-    });
+        throw `Invalid request ${opts.url}`;
+      });
 
-    await command.action(logger, { options: { name: 'alias', output: 'json' } });
-    assert(loggerLogSpy.calledOnceWithExactly(propertyResponse));
-  });
+      await command.action(logger, { options: { name: 'alias', output: 'json' } });
+      assert(loggerLogSpy.calledOnceWithExactly(propertyResponse));
+    }
+  );
 
-  it('correctly adds profile card property for alias (text output)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties`) {
-        return propertyResponse;
-      }
+  it('correctly adds profile card property for alias (text output)',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties`) {
+          return propertyResponse;
+        }
 
-      throw `Invalid request ${opts.url}`;
-    });
+        throw `Invalid request ${opts.url}`;
+      });
 
-    await command.action(logger, { options: { name: 'alias', output: 'text' } });
-    assert(loggerLogSpy.calledOnceWithExactly(propertyResponse));
-  });
+      await command.action(logger, { options: { name: 'alias', output: 'text' } });
+      assert(loggerLogSpy.calledOnceWithExactly(propertyResponse));
+    }
+  );
 
-  it('correctly adds profile card property for an customAttribute', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties`) {
-        return customAttributePropertyResponse;
-      }
+  it('correctly adds profile card property for an customAttribute',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties`) {
+          return customAttributePropertyResponse;
+        }
 
-      throw `Invalid request ${opts.url}`;
-    });
+        throw `Invalid request ${opts.url}`;
+      });
 
-    await command.action(logger, { options: { name: 'customAttribute1', displayName: 'Cost center' } });
-    assert(loggerLogSpy.calledOnceWithExactly(customAttributePropertyResponse));
-  });
+      await command.action(logger, { options: { name: 'customAttribute1', displayName: 'Cost center' } });
+      assert(loggerLogSpy.calledOnceWithExactly(customAttributePropertyResponse));
+    }
+  );
 
-  it('correctly adds profile card property for an customAttribute with a localization', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties`) {
-        return customAttributePropertyResponse;
-      }
+  it('correctly adds profile card property for an customAttribute with a localization',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties`) {
+          return customAttributePropertyResponse;
+        }
 
-      throw `Invalid request ${opts.url}`;
-    });
+        throw `Invalid request ${opts.url}`;
+      });
 
-    await command.action(logger, { options: { name: 'customAttribute1', displayName: 'Cost center', 'displayName-nl-NL': 'Kostenplaats' } });
-    assert(loggerLogSpy.calledOnceWithExactly(customAttributePropertyResponse));
-  });
+      await command.action(logger, { options: { name: 'customAttribute1', displayName: 'Cost center', 'displayName-nl-NL': 'Kostenplaats' } });
+      assert(loggerLogSpy.calledOnceWithExactly(customAttributePropertyResponse));
+    }
+  );
 
-  it('correctly adds profile card property for an customAttribute with a localization (text output)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties`) {
-        return customAttributePropertyResponse;
-      }
+  it('correctly adds profile card property for an customAttribute with a localization (text output)',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties`) {
+          return customAttributePropertyResponse;
+        }
 
-      throw `Invalid request ${opts.url}`;
-    });
+        throw `Invalid request ${opts.url}`;
+      });
 
-    await command.action(logger, { options: { name: 'customAttribute1', displayName: 'Cost center', 'displayName-nl-NL': 'Kostenplaats', output: 'text' } });
-    assert(loggerLogSpy.calledOnceWithExactly(customAttributePropertyTextResponse));
-  });
+      await command.action(logger, { options: { name: 'customAttribute1', displayName: 'Cost center', 'displayName-nl-NL': 'Kostenplaats', output: 'text' } });
+      assert(loggerLogSpy.calledOnceWithExactly(customAttributePropertyTextResponse));
+    }
+  );
 
-  it('fails when the addition conflicts with an existing property', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties`) {
-        throw {
-          "error": {
-            "code": "409",
-            "message": "Conflicts with existing entry",
-            "innerError": {
-              "peopleAdminErrorCode": "PeopleAdminItemConflict",
-              "peopleAdminRequestId": "36d1ea9e-83f8-49c9-7ebc-6f6c24ca03cc",
-              "peopleAdminClientRequestId": "174cf6d3-6cde-46a8-b4f3-5d4d07354ac2",
-              "date": "2023-11-02T15:22:36",
-              "request-id": "174cf6d3-6cde-46a8-b4f3-5d4d07354ac2",
-              "client-request-id": "174cf6d3-6cde-46a8-b4f3-5d4d07354ac2"
+  it('fails when the addition conflicts with an existing property',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties`) {
+          throw {
+            "error": {
+              "code": "409",
+              "message": "Conflicts with existing entry",
+              "innerError": {
+                "peopleAdminErrorCode": "PeopleAdminItemConflict",
+                "peopleAdminRequestId": "36d1ea9e-83f8-49c9-7ebc-6f6c24ca03cc",
+                "peopleAdminClientRequestId": "174cf6d3-6cde-46a8-b4f3-5d4d07354ac2",
+                "date": "2023-11-02T15:22:36",
+                "request-id": "174cf6d3-6cde-46a8-b4f3-5d4d07354ac2",
+                "client-request-id": "174cf6d3-6cde-46a8-b4f3-5d4d07354ac2"
+              }
             }
-          }
-        };
-      }
+          };
+        }
 
-      throw `Invalid request ${opts.url}`;
-    });
+        throw `Invalid request ${opts.url}`;
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        name: 'userPrincipalName'
-      }
-    }), new CommandError(`Conflicts with existing entry`));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          name: 'userPrincipalName'
+        }
+      }), new CommandError(`Conflicts with existing entry`));
+    }
+  );
 });

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import { Cli } from '../../cli/Cli.js';
 import { Logger } from '../../cli/Logger.js';
 import { telemetry } from '../../telemetry.js';
@@ -7,7 +6,7 @@ import { app } from '../../utils/app.js';
 import { browserUtil } from '../../utils/browserUtil.js';
 import { pid } from '../../utils/pid.js';
 import { session } from '../../utils/session.js';
-import { sinonUtil } from '../../utils/sinonUtil.js';
+import { jestUtil } from '../../utils/jestUtil.js';
 import commands from './commands.js';
 import command from './docs.js';
 
@@ -15,13 +14,13 @@ describe(commands.DOCS, () => {
   let log: any[];
   let logger: Logger;
   let cli: Cli;
-  let loggerLogSpy: sinon.SinonSpy;
-  let getSettingWithDefaultValueStub: sinon.SinonStub;
+  let loggerLogSpy: jest.SpyInstance;
+  let getSettingWithDefaultValueStub: jest.Mock;
 
-  before(() => {
-    sinon.stub(telemetry, 'trackEvent').callsFake(() => { });
-    sinon.stub(pid, 'getProcessName').callsFake(() => '');
-    sinon.stub(session, 'getId').callsFake(() => '');
+  beforeAll(() => {
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockImplementation(() => { });
+    jest.spyOn(pid, 'getProcessName').mockClear().mockImplementation(() => '');
+    jest.spyOn(session, 'getId').mockClear().mockImplementation(() => '');
   });
 
   beforeEach(() => {
@@ -38,19 +37,19 @@ describe(commands.DOCS, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
-    getSettingWithDefaultValueStub = sinon.stub(cli, 'getSettingWithDefaultValue').returns(false);
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    getSettingWithDefaultValueStub = jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockReturnValue(false);
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       loggerLogSpy,
       getSettingWithDefaultValueStub
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
   });
 
   it('has correct name', () => {
@@ -61,22 +60,26 @@ describe(commands.DOCS, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('should log a message and return if autoOpenLinksInBrowser is false', async () => {
-    await command.action(logger, { options: {} });
-    assert(loggerLogSpy.calledWith(app.packageJson().homepage));
-  });
+  it('should log a message and return if autoOpenLinksInBrowser is false',
+    async () => {
+      await command.action(logger, { options: {} });
+      assert(loggerLogSpy.calledWith(app.packageJson().homepage));
+    }
+  );
 
-  it('should open the CLI for Microsoft 365 docs webpage URL using "open" if autoOpenLinksInBrowser is true', async () => {
-    getSettingWithDefaultValueStub.restore();
-    getSettingWithDefaultValueStub = sinon.stub(cli, 'getSettingWithDefaultValue').returns(true);
+  it('should open the CLI for Microsoft 365 docs webpage URL using "open" if autoOpenLinksInBrowser is true',
+    async () => {
+      getSettingWithDefaultValueStub.mockRestore();
+      getSettingWithDefaultValueStub = jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockReturnValue(true);
 
-    const openStub = sinon.stub(browserUtil, 'open').callsFake(async (url) => {
-      if (url === 'https://pnp.github.io/cli-microsoft365/') {
-        return;
-      }
-      throw 'Invalid url';
-    });
-    await command.action(logger, { options: {} });
-    assert(openStub.calledWith(app.packageJson().homepage));
-  });
+      const openStub = jest.spyOn(browserUtil, 'open').mockClear().mockImplementation(async (url) => {
+        if (url === 'https://pnp.github.io/cli-microsoft365/') {
+          return;
+        }
+        throw 'Invalid url';
+      });
+      await command.action(logger, { options: {} });
+      assert(openStub.calledWith(app.packageJson().homepage));
+    }
+  );
 });

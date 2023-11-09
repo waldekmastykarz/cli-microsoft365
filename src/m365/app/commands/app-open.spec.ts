@@ -1,6 +1,5 @@
 import assert from 'assert';
 import fs from 'fs';
-import sinon from 'sinon';
 import auth from '../../../Auth.js';
 import { CommandError } from '../../../Command.js';
 import { Cli } from '../../../cli/Cli.js';
@@ -17,19 +16,19 @@ describe(commands.OPEN, () => {
   let log: string[];
   let logger: Logger;
   let cli: Cli;
-  let openStub: sinon.SinonStub;
-  let getSettingWithDefaultValueStub: sinon.SinonStub;
-  let loggerLogSpy: sinon.SinonSpy;
+  let openStub: jest.Mock;
+  let getSettingWithDefaultValueStub: jest.Mock;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'readFileSync').returns(JSON.stringify({
+    jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+    jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue(JSON.stringify({
       "apps": [
         {
           "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
@@ -54,18 +53,18 @@ describe(commands.OPEN, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
-    openStub = sinon.stub(browserUtil, 'open').resolves();
-    getSettingWithDefaultValueStub = sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((() => false));
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    openStub = jest.spyOn(browserUtil, 'open').mockClear().mockImplementation().resolves();
+    getSettingWithDefaultValueStub = jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((() => false));
   });
 
   afterEach(() => {
-    openStub.restore();
-    getSettingWithDefaultValueStub.restore();
+    openStub.mockRestore();
+    getSettingWithDefaultValueStub.mockRestore();
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -87,92 +86,102 @@ describe(commands.OPEN, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('shows message with url when the app specified with the appId is found', async () => {
-    const appId = "9b1b1e42-794b-4c71-93ac-5ed92488b67f";
-    await command.action(logger, {
-      options: {
-        appId: appId
-      }
-    });
-    assert(loggerLogSpy.calledWith(`Use a web browser to open the page https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/Overview/appId/${appId}/isMSAApp/`));
-  });
+  it('shows message with url when the app specified with the appId is found',
+    async () => {
+      const appId = "9b1b1e42-794b-4c71-93ac-5ed92488b67f";
+      await command.action(logger, {
+        options: {
+          appId: appId
+        }
+      });
+      assert(loggerLogSpy.calledWith(`Use a web browser to open the page https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/Overview/appId/${appId}/isMSAApp/`));
+    }
+  );
 
-  it('shows message with url when the app specified with the appId is found (verbose)', async () => {
-    const appId = "9b1b1e42-794b-4c71-93ac-5ed92488b67f";
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        appId: appId
-      }
-    });
-    assert(loggerLogSpy.calledWith(`Use a web browser to open the page https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/Overview/appId/${appId}/isMSAApp/`));
-  });
+  it('shows message with url when the app specified with the appId is found (verbose)',
+    async () => {
+      const appId = "9b1b1e42-794b-4c71-93ac-5ed92488b67f";
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          appId: appId
+        }
+      });
+      assert(loggerLogSpy.calledWith(`Use a web browser to open the page https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/Overview/appId/${appId}/isMSAApp/`));
+    }
+  );
 
-  it('shows message with preview-url when the app specified with the appId is found', async () => {
-    const appId = "9b1b1e42-794b-4c71-93ac-5ed92488b67f";
-    await command.action(logger, {
-      options: {
-        appId: appId,
-        preview: true
-      }
-    });
-    assert(loggerLogSpy.calledWith(`Use a web browser to open the page https://preview.portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/Overview/appId/${appId}/isMSAApp/`));
-  });
+  it('shows message with preview-url when the app specified with the appId is found',
+    async () => {
+      const appId = "9b1b1e42-794b-4c71-93ac-5ed92488b67f";
+      await command.action(logger, {
+        options: {
+          appId: appId,
+          preview: true
+        }
+      });
+      assert(loggerLogSpy.calledWith(`Use a web browser to open the page https://preview.portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/Overview/appId/${appId}/isMSAApp/`));
+    }
+  );
 
-  it('shows message with url when the app specified with the appId is found (using autoOpenInBrowser)', async () => {
-    getSettingWithDefaultValueStub.restore();
-    getSettingWithDefaultValueStub = sinon.stub(cli, 'getSettingWithDefaultValue').returns(true);
+  it('shows message with url when the app specified with the appId is found (using autoOpenInBrowser)',
+    async () => {
+      getSettingWithDefaultValueStub.mockRestore();
+      getSettingWithDefaultValueStub = jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockReturnValue(true);
 
-    openStub.restore();
-    openStub = sinon.stub(browserUtil, 'open').callsFake(async (url) => {
-      if (url === `https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/Overview/appId/${appId}/isMSAApp/`) {
-        return;
-      }
-      throw 'Invalid url';
-    });
+      openStub.mockRestore();
+      openStub = jest.spyOn(browserUtil, 'open').mockClear().mockImplementation(async (url) => {
+        if (url === `https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/Overview/appId/${appId}/isMSAApp/`) {
+          return;
+        }
+        throw 'Invalid url';
+      });
 
-    const appId = "9b1b1e42-794b-4c71-93ac-5ed92488b67f";
-    await command.action(logger, {
-      options: {
-        appId: appId
-      }
-    });
-    assert(loggerLogSpy.calledWith(`Opening the following page in your browser: https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/Overview/appId/${appId}/isMSAApp/`));
-  });
+      const appId = "9b1b1e42-794b-4c71-93ac-5ed92488b67f";
+      await command.action(logger, {
+        options: {
+          appId: appId
+        }
+      });
+      assert(loggerLogSpy.calledWith(`Opening the following page in your browser: https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/Overview/appId/${appId}/isMSAApp/`));
+    }
+  );
 
-  it('shows message with preview-url when the app specified with the appId is found (using autoOpenInBrowser)', async () => {
-    getSettingWithDefaultValueStub.restore();
-    getSettingWithDefaultValueStub = sinon.stub(cli, 'getSettingWithDefaultValue').returns(true);
+  it('shows message with preview-url when the app specified with the appId is found (using autoOpenInBrowser)',
+    async () => {
+      getSettingWithDefaultValueStub.mockRestore();
+      getSettingWithDefaultValueStub = jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockReturnValue(true);
 
-    openStub.restore();
-    openStub = sinon.stub(browserUtil, 'open').callsFake(async (url) => {
-      if (url === `https://preview.portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/Overview/appId/${appId}/isMSAApp/`) {
-        return;
-      }
-      throw 'Invalid url';
-    });
+      openStub.mockRestore();
+      openStub = jest.spyOn(browserUtil, 'open').mockClear().mockImplementation(async (url) => {
+        if (url === `https://preview.portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/Overview/appId/${appId}/isMSAApp/`) {
+          return;
+        }
+        throw 'Invalid url';
+      });
 
-    const appId = "9b1b1e42-794b-4c71-93ac-5ed92488b67f";
-    await command.action(logger, {
-      options: {
-        appId: appId,
-        preview: true
-      }
-    });
-    assert(loggerLogSpy.calledWith(`Opening the following page in your browser: https://preview.portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/Overview/appId/${appId}/isMSAApp/`));
-  });
+      const appId = "9b1b1e42-794b-4c71-93ac-5ed92488b67f";
+      await command.action(logger, {
+        options: {
+          appId: appId,
+          preview: true
+        }
+      });
+      assert(loggerLogSpy.calledWith(`Opening the following page in your browser: https://preview.portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/Overview/appId/${appId}/isMSAApp/`));
+    }
+  );
 
   it('throws error when open in browser fails', async () => {
-    openStub.restore();
-    openStub = sinon.stub(browserUtil, 'open').callsFake(async (url) => {
+    openStub.mockRestore();
+    openStub = jest.spyOn(browserUtil, 'open').mockClear().mockImplementation(async (url) => {
       if (url === `https://preview.portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/Overview/appId/${appId}/isMSAApp/`) {
         throw 'An error occurred';
       }
       throw 'Invalid url';
     });
 
-    getSettingWithDefaultValueStub.restore();
-    getSettingWithDefaultValueStub = sinon.stub(cli, 'getSettingWithDefaultValue').returns(true);
+    getSettingWithDefaultValueStub.mockRestore();
+    getSettingWithDefaultValueStub = jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockReturnValue(true);
 
     const appId = "9b1b1e42-794b-4c71-93ac-5ed92488b67f";
     await assert.rejects(command.action(logger, {

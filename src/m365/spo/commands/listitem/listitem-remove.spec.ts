@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { urlUtil } from '../../../../utils/urlUtil.js';
 import commands from '../../commands.js';
 import command from './listitem-remove.js';
@@ -28,12 +27,12 @@ describe(commands.LISTITEM_REMOVE, () => {
   let requests: any[];
   let promptOptions: any;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').callsFake(() => Promise.resolve());
-    sinon.stub(telemetry, 'trackEvent').callsFake(() => { });
-    sinon.stub(pid, 'getProcessName').callsFake(() => '');
-    sinon.stub(session, 'getId').callsFake(() => '');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation(() => Promise.resolve());
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockImplementation(() => { });
+    jest.spyOn(pid, 'getProcessName').mockClear().mockImplementation(() => '');
+    jest.spyOn(session, 'getId').mockClear().mockImplementation(() => '');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -52,22 +51,22 @@ describe(commands.LISTITEM_REMOVE, () => {
       }
     };
     requests = [];
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       Cli.prompt,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -79,31 +78,35 @@ describe(commands.LISTITEM_REMOVE, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('prompts before removing list item when confirmation argument not passed (id)', async () => {
-    await command.action(logger, { options: { id: 1, webUrl: 'https://contoso.sharepoint.com', listTitle: 'Documents' } });
-    let promptIssued = false;
+  it('prompts before removing list item when confirmation argument not passed (id)',
+    async () => {
+      await command.action(logger, { options: { id: 1, webUrl: 'https://contoso.sharepoint.com', listTitle: 'Documents' } });
+      let promptIssued = false;
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+
+      assert(promptIssued);
     }
+  );
 
-    assert(promptIssued);
-  });
+  it('prompts before removing list item when confirmation argument not passed (title)',
+    async () => {
+      await command.action(logger, { options: { listTitle: 'My list', webUrl: 'https://contoso.sharepoint.com', id: 1 } });
+      let promptIssued = false;
 
-  it('prompts before removing list item when confirmation argument not passed (title)', async () => {
-    await command.action(logger, { options: { listTitle: 'My list', webUrl: 'https://contoso.sharepoint.com', id: 1 } });
-    let promptIssued = false;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      assert(promptIssued);
     }
-
-    assert(promptIssued);
-  });
+  );
 
   it('aborts removing list item when prompt not confirmed', async () => {
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: false }
     ));
     await command.action(logger, { options: { listTitle: 'My list', webUrl: 'https://contoso.sharepoint.com', id: 1 } });
@@ -111,7 +114,7 @@ describe(commands.LISTITEM_REMOVE, () => {
   });
 
   it('removes the list item when prompt confirmed', async () => {
-    sinon.stub(request, 'post').callsFake((opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation((opts) => {
       requests.push(opts);
 
       if ((opts.url as string).indexOf(`/_api/web/lists(guid'`) > -1) {
@@ -125,8 +128,8 @@ describe(commands.LISTITEM_REMOVE, () => {
       return Promise.reject('Invalid request');
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: true }
     ));
     await command.action(logger, { options: { listId: 'b2307a39-e878-458b-bc90-03bc578531d6', webUrl: 'https://contoso.sharepoint.com', id: 1 } });
@@ -142,37 +145,39 @@ describe(commands.LISTITEM_REMOVE, () => {
     assert(correctRequestIssued);
   });
 
-  it('removes the list item from list retrieved by listUrl when prompt confirmed', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      requests.push(opts);
+  it('removes the list item from list retrieved by listUrl when prompt confirmed',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        requests.push(opts);
 
-      if (opts.url === `https://contoso.sharepoint.com/sites/project-x/_api/web/GetList('${formatting.encodeQueryParameter(listServerRelativeUrl)}')/items(1)`
-        && opts.headers && opts.headers.accept && opts.headers.accept === 'application/json;odata=nometadata') {
-        return;
-      }
+        if (opts.url === `https://contoso.sharepoint.com/sites/project-x/_api/web/GetList('${formatting.encodeQueryParameter(listServerRelativeUrl)}')/items(1)`
+          && opts.headers && opts.headers.accept && opts.headers.accept === 'application/json;odata=nometadata') {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: true }
-    ));
-    await command.action(logger, { options: { verbose: true, listUrl: listUrl, webUrl: webUrl, id: 1 } });
-    let correctRequestIssued = false;
-    requests.forEach(r => {
-      if (r.url === `https://contoso.sharepoint.com/sites/project-x/_api/web/GetList('${formatting.encodeQueryParameter(listServerRelativeUrl)}')/items(1)` &&
-        r.headers.accept &&
-        r.headers.accept === 'application/json;odata=nometadata') {
-        correctRequestIssued = true;
-      }
-    });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: true }
+      ));
+      await command.action(logger, { options: { verbose: true, listUrl: listUrl, webUrl: webUrl, id: 1 } });
+      let correctRequestIssued = false;
+      requests.forEach(r => {
+        if (r.url === `https://contoso.sharepoint.com/sites/project-x/_api/web/GetList('${formatting.encodeQueryParameter(listServerRelativeUrl)}')/items(1)` &&
+          r.headers.accept &&
+          r.headers.accept === 'application/json;odata=nometadata') {
+          correctRequestIssued = true;
+        }
+      });
 
-    assert(correctRequestIssued);
-  });
+      assert(correctRequestIssued);
+    }
+  );
 
   it('recycles the list item when prompt confirmed', async () => {
-    sinon.stub(request, 'post').callsFake((opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation((opts) => {
       requests.push(opts);
 
       if ((opts.url as string).indexOf(`/recycle()`) > -1) {
@@ -186,8 +191,8 @@ describe(commands.LISTITEM_REMOVE, () => {
       return Promise.reject('Invalid request');
     });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: true }
     ));
     await command.action(logger, { options: { listId: 'b2307a39-e878-458b-bc90-03bc578531d6', webUrl: 'https://contoso.sharepoint.com', id: 1, recycle: true } });
@@ -205,7 +210,7 @@ describe(commands.LISTITEM_REMOVE, () => {
 
   it('command correctly handles list get reject request', async () => {
     const err = 'Invalid request';
-    sinon.stub(request, 'post').callsFake((opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation((opts) => {
       if ((opts.url as string).indexOf('/_api/web/lists/GetByTitle(') > -1) {
         return Promise.reject(err);
       }
@@ -226,7 +231,7 @@ describe(commands.LISTITEM_REMOVE, () => {
   });
 
   it('uses correct API url when id option is passed', async () => {
-    sinon.stub(request, 'post').callsFake((opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation((opts) => {
       if ((opts.url as string).indexOf('/_api/web/lists(guid') > -1) {
         return Promise.resolve('Correct Url');
       }
@@ -247,7 +252,7 @@ describe(commands.LISTITEM_REMOVE, () => {
   });
 
   it('uses correct API url when recycle option is passed', async () => {
-    sinon.stub(request, 'post').callsFake((opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation((opts) => {
       if ((opts.url as string).indexOf('/recycle()') > -1) {
         return Promise.resolve('Correct Url');
       }
@@ -279,28 +284,34 @@ describe(commands.LISTITEM_REMOVE, () => {
     assert(containsTypeOption);
   });
 
-  it('fails validation if both id and title options are not passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both id and title options are not passed',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: 1 } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: 1 } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if the url option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', id: 1, listTitle: 'Documents' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the url option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', id: 1, listTitle: 'Documents' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the url option is a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF', id: 1 } }, commandInfo);
-    assert(actual);
-  });
+  it('passes validation if the url option is a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '0CD891EF-AFCE-4E55-B836-FCE03286CCCF', id: 1 } }, commandInfo);
+      assert(actual);
+    }
+  );
 
   it('fails validation if the id option is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: '12345', id: 1 } }, commandInfo);
@@ -308,7 +319,7 @@ describe(commands.LISTITEM_REMOVE, () => {
   });
 
   it('passes validation if the id option is a valid GUID', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -321,7 +332,7 @@ describe(commands.LISTITEM_REMOVE, () => {
   });
 
   it('fails validation if both id and title options are passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -334,7 +345,7 @@ describe(commands.LISTITEM_REMOVE, () => {
   });
 
   it('fails validation if id is not passed', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }

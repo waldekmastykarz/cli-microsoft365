@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,21 +8,21 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './app-uninstall.js';
 
 describe(commands.APP_UNINSTALL, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -41,19 +40,19 @@ describe(commands.APP_UNINSTALL, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.delete,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -75,55 +74,61 @@ describe(commands.APP_UNINSTALL, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('uninstalls an app from a Microsoft Teams team with confirmation', async () => {
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/teams/c527a470-a882-481c-981c-ee6efaba85c7/installedApps/YzUyN2E0NzAtYTg4Mi00ODFjLTk4MWMtZWU2ZWZhYmE4NWM3IyM0ZDFlYTA0Ny1mMTk2LTQ1MGQtYjJlOS0wZDI4NTViYTA1YTY=`) {
-        return;
-      }
+  it('uninstalls an app from a Microsoft Teams team with confirmation',
+    async () => {
+      jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/teams/c527a470-a882-481c-981c-ee6efaba85c7/installedApps/YzUyN2E0NzAtYTg4Mi00ODFjLTk4MWMtZWU2ZWZhYmE4NWM3IyM0ZDFlYTA0Ny1mMTk2LTQ1MGQtYjJlOS0wZDI4NTViYTA1YTY=`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        teamId: 'c527a470-a882-481c-981c-ee6efaba85c7',
-        id: 'YzUyN2E0NzAtYTg4Mi00ODFjLTk4MWMtZWU2ZWZhYmE4NWM3IyM0ZDFlYTA0Ny1mMTk2LTQ1MGQtYjJlOS0wZDI4NTViYTA1YTY=',
-        force: true,
-        verbose: true
-      }
-    });
-    assert(loggerLogSpy.notCalled);
-  });
+      await command.action(logger, {
+        options: {
+          teamId: 'c527a470-a882-481c-981c-ee6efaba85c7',
+          id: 'YzUyN2E0NzAtYTg4Mi00ODFjLTk4MWMtZWU2ZWZhYmE4NWM3IyM0ZDFlYTA0Ny1mMTk2LTQ1MGQtYjJlOS0wZDI4NTViYTA1YTY=',
+          force: true,
+          verbose: true
+        }
+      });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
-  it('uninstalls an app from a Microsoft Teams team without confirmation', async () => {
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/teams/c527a470-a882-481c-981c-ee6efaba85c7/installedApps/YzUyN2E0NzAtYTg4Mi00ODFjLTk4MWMtZWU2ZWZhYmE4NWM3IyM0ZDFlYTA0Ny1mMTk2LTQ1MGQtYjJlOS0wZDI4NTViYTA1YTY=`) {
-        return;
-      }
+  it('uninstalls an app from a Microsoft Teams team without confirmation',
+    async () => {
+      jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/teams/c527a470-a882-481c-981c-ee6efaba85c7/installedApps/YzUyN2E0NzAtYTg4Mi00ODFjLTk4MWMtZWU2ZWZhYmE4NWM3IyM0ZDFlYTA0Ny1mMTk2LTQ1MGQtYjJlOS0wZDI4NTViYTA1YTY=`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
-    await command.action(logger, {
-      options: {
-        teamId: 'c527a470-a882-481c-981c-ee6efaba85c7',
-        id: 'YzUyN2E0NzAtYTg4Mi00ODFjLTk4MWMtZWU2ZWZhYmE4NWM3IyM0ZDFlYTA0Ny1mMTk2LTQ1MGQtYjJlOS0wZDI4NTViYTA1YTY='
-      }
-    });
-    assert(loggerLogSpy.notCalled);
-  });
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
+      await command.action(logger, {
+        options: {
+          teamId: 'c527a470-a882-481c-981c-ee6efaba85c7',
+          id: 'YzUyN2E0NzAtYTg4Mi00ODFjLTk4MWMtZWU2ZWZhYmE4NWM3IyM0ZDFlYTA0Ny1mMTk2LTQ1MGQtYjJlOS0wZDI4NTViYTA1YTY='
+        }
+      });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
-  it('aborts uninstalling an app from a Microsoft Teams team when prompt not confirmed', async () => {
-    sinon.stub(Cli, 'prompt').resolves({ continue: false });
-    command.action(logger, {
-      options: {
-        teamId: 'c527a470-a882-481c-981c-ee6efaba85c7',
-        id: 'YzUyN2E0NzAtYTg4Mi00ODFjLTk4MWMtZWU2ZWZhYmE4NWM3IyM0ZDFlYTA0Ny1mMTk2LTQ1MGQtYjJlOS0wZDI4NTViYTA1YTY='
-      }
-    });
-    assert(loggerLogSpy.notCalled);
-  });
+  it('aborts uninstalling an app from a Microsoft Teams team when prompt not confirmed',
+    async () => {
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: false });
+      command.action(logger, {
+        options: {
+          teamId: 'c527a470-a882-481c-981c-ee6efaba85c7',
+          id: 'YzUyN2E0NzAtYTg4Mi00ODFjLTk4MWMtZWU2ZWZhYmE4NWM3IyM0ZDFlYTA0Ny1mMTk2LTQ1MGQtYjJlOS0wZDI4NTViYTA1YTY='
+        }
+      });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
   it('correctly handles error when uninstalling an app', async () => {
     const error = {
@@ -137,7 +142,7 @@ describe(commands.APP_UNINSTALL, () => {
         }
       }
     };
-    sinon.stub(request, 'delete').rejects(error);
+    jest.spyOn(request, 'delete').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, {
       options: {

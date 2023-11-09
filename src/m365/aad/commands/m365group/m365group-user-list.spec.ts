@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './m365group-user-list.js';
 import { aadGroup } from '../../../../utils/aadGroup.js';
@@ -17,15 +16,15 @@ import { aadGroup } from '../../../../utils/aadGroup.js';
 describe(commands.M365GROUP_USER_LIST, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(aadGroup, 'isUnifiedGroup').resolves(true);
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(aadGroup, 'isUnifiedGroup').mockClear().mockImplementation().resolves(true);
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -43,18 +42,18 @@ describe(commands.M365GROUP_USER_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -85,47 +84,55 @@ describe(commands.M365GROUP_USER_LIST, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('passes validation when valid groupId and no role specified', async () => {
-    const actual = await command.validate({
-      options: {
-        groupId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402'
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when valid groupId and no role specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          groupId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402'
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when valid groupId and Owner role specified', async () => {
-    const actual = await command.validate({
-      options: {
-        groupId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402',
-        role: 'Owner'
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when valid groupId and Owner role specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          groupId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402',
+          role: 'Owner'
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when valid groupId and Member role specified', async () => {
-    const actual = await command.validate({
-      options: {
-        groupId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402',
-        role: 'Member'
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when valid groupId and Member role specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          groupId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402',
+          role: 'Member'
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when valid groupId and Guest role specified', async () => {
-    const actual = await command.validate({
-      options: {
-        groupId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402',
-        role: 'Guest'
-      }
-    }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when valid groupId and Guest role specified',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          groupId: '6703ac8a-c49b-4fd4-8223-28f0ac3a6402',
+          role: 'Guest'
+        }
+      }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('correctly lists all users in a Microsoft 365 group', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups/00000000-0000-0000-0000-000000000000/owners?$select=id,displayName,userPrincipalName,userType`) {
         return {
           "value": [{ "id": "00000000-0000-0000-0000-000000000000", "displayName": "Anne Matthews", "userPrincipalName": "anne.matthews@contoso.onmicrosoft.com", "userType": "Member" }]
@@ -167,7 +174,7 @@ describe(commands.M365GROUP_USER_LIST, () => {
   });
 
   it('correctly lists all owners in a Microsoft 365 group', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups/00000000-0000-0000-0000-000000000000/owners?$select=id,displayName,userPrincipalName,userType`) {
         return {
           "value": [{ "id": "00000000-0000-0000-0000-000000000000", "displayName": "Anne Matthews", "userPrincipalName": "anne.matthews@contoso.onmicrosoft.com", "userType": "Member" }]
@@ -188,7 +195,7 @@ describe(commands.M365GROUP_USER_LIST, () => {
   });
 
   it('correctly lists all members in a Microsoft 365 group', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups/00000000-0000-0000-0000-000000000000/owners?$select=id,displayName,userPrincipalName,userType`) {
         return {
           "value": [{ "id": "00000000-0000-0000-0000-000000000000", "displayName": "Anne Matthews", "userPrincipalName": "anne.matthews@contoso.onmicrosoft.com", "userType": "Member" }]
@@ -223,50 +230,52 @@ describe(commands.M365GROUP_USER_LIST, () => {
     ]));
   });
 
-  it('correctly lists all users in a Microsoft 365 group (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups/00000000-0000-0000-0000-000000000000/owners?$select=id,displayName,userPrincipalName,userType`) {
-        return {
-          "value": [{ "id": "00000000-0000-0000-0000-000000000000", "displayName": "Anne Matthews", "userPrincipalName": "anne.matthews@contoso.onmicrosoft.com", "userType": "Member" }]
-        };
-      }
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups/00000000-0000-0000-0000-000000000000/members?$select=id,displayName,userPrincipalName,userType`) {
-        return {
-          "value": [
-            { "id": "00000000-0000-0000-0000-000000000000", "displayName": "Anne Matthews", "userPrincipalName": "anne.matthews@contoso.onmicrosoft.com", "userType": "Member" },
-            { "id": "00000000-0000-0000-0000-000000000001", "displayName": "Karl Matteson", "userPrincipalName": "karl.matteson@contoso.onmicrosoft.com", "userType": "Member" }
-          ]
-        };
-      }
+  it('correctly lists all users in a Microsoft 365 group (debug)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups/00000000-0000-0000-0000-000000000000/owners?$select=id,displayName,userPrincipalName,userType`) {
+          return {
+            "value": [{ "id": "00000000-0000-0000-0000-000000000000", "displayName": "Anne Matthews", "userPrincipalName": "anne.matthews@contoso.onmicrosoft.com", "userType": "Member" }]
+          };
+        }
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups/00000000-0000-0000-0000-000000000000/members?$select=id,displayName,userPrincipalName,userType`) {
+          return {
+            "value": [
+              { "id": "00000000-0000-0000-0000-000000000000", "displayName": "Anne Matthews", "userPrincipalName": "anne.matthews@contoso.onmicrosoft.com", "userType": "Member" },
+              { "id": "00000000-0000-0000-0000-000000000001", "displayName": "Karl Matteson", "userPrincipalName": "karl.matteson@contoso.onmicrosoft.com", "userType": "Member" }
+            ]
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, groupId: "00000000-0000-0000-0000-000000000000" } });
-    assert(loggerLogSpy.calledWith([
-      {
-        "id": "00000000-0000-0000-0000-000000000000",
-        "displayName": "Anne Matthews",
-        "userPrincipalName": "anne.matthews@contoso.onmicrosoft.com",
-        "userType": "Owner"
-      },
-      {
-        "id": "00000000-0000-0000-0000-000000000000",
-        "displayName": "Anne Matthews",
-        "userPrincipalName": "anne.matthews@contoso.onmicrosoft.com",
-        "userType": "Member"
-      },
-      {
-        "id": "00000000-0000-0000-0000-000000000001",
-        "displayName": "Karl Matteson",
-        "userPrincipalName": "karl.matteson@contoso.onmicrosoft.com",
-        "userType": "Member"
-      }
-    ]));
-  });
+      await command.action(logger, { options: { debug: true, groupId: "00000000-0000-0000-0000-000000000000" } });
+      assert(loggerLogSpy.calledWith([
+        {
+          "id": "00000000-0000-0000-0000-000000000000",
+          "displayName": "Anne Matthews",
+          "userPrincipalName": "anne.matthews@contoso.onmicrosoft.com",
+          "userType": "Owner"
+        },
+        {
+          "id": "00000000-0000-0000-0000-000000000000",
+          "displayName": "Anne Matthews",
+          "userPrincipalName": "anne.matthews@contoso.onmicrosoft.com",
+          "userType": "Member"
+        },
+        {
+          "id": "00000000-0000-0000-0000-000000000001",
+          "displayName": "Karl Matteson",
+          "userPrincipalName": "karl.matteson@contoso.onmicrosoft.com",
+          "userType": "Member"
+        }
+      ]));
+    }
+  );
 
   it('correctly handles error when listing users', async () => {
-    sinon.stub(request, 'get').rejects(new Error('An error has occurred'));
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
     await assert.rejects(command.action(logger, { options: { groupId: "00000000-0000-0000-0000-000000000000" } } as any),
       new CommandError('An error has occurred'));
@@ -275,8 +284,8 @@ describe(commands.M365GROUP_USER_LIST, () => {
   it('throws error when the group is not a unified group', async () => {
     const groupId = '3f04e370-cbc6-4091-80fe-1d038be2ad06';
 
-    sinonUtil.restore(aadGroup.isUnifiedGroup);
-    sinon.stub(aadGroup, 'isUnifiedGroup').resolves(false);
+    jestUtil.restore(aadGroup.isUnifiedGroup);
+    jest.spyOn(aadGroup, 'isUnifiedGroup').mockClear().mockImplementation().resolves(false);
 
     await assert.rejects(command.action(logger, { options: { groupId: groupId } } as any),
       new CommandError(`Specified group with id '${groupId}' is not a Microsoft 365 group.`));

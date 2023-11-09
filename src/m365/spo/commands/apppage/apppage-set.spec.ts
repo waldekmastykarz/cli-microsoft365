@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from "../../../../Auth.js";
 import { Cli } from "../../../../cli/Cli.js";
 import { CommandInfo } from "../../../../cli/CommandInfo.js";
@@ -8,7 +7,7 @@ import { CommandError } from "../../../../Command.js";
 import request from "../../../../request.js";
 import { pid } from "../../../../utils/pid.js";
 import { session } from "../../../../utils/session.js";
-import { sinonUtil } from "../../../../utils/sinonUtil.js";
+import { jestUtil } from "../../../../utils/jestUtil.js";
 import { telemetry } from "../../../../telemetry.js";
 import commands from "../../commands.js";
 import command from './apppage-set.js';
@@ -20,12 +19,12 @@ describe(commands.APPPAGE_SET, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -46,14 +45,14 @@ describe(commands.APPPAGE_SET, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -65,28 +64,30 @@ describe(commands.APPPAGE_SET, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it("fails to update the single-part app page if request is rejected", async () => {
-    sinon.stub(request, "post").callsFake(async opts => {
-      if (
-        (opts.url as string).indexOf(`_api/sitepages/Pages/UpdateFullPageApp`) > -1 &&
-        opts.data.serverRelativeUrl.indexOf("failme")
-      ) {
-        throw "Failed to update the single-part app page";
-      }
-      throw 'Invalid request';
-    });
-    await assert.rejects(command.action(logger,
-      {
-        options: {
-          name: "failme",
-          webUrl: "https://contoso.sharepoint.com/",
-          webPartData: JSON.stringify({})
+  it("fails to update the single-part app page if request is rejected",
+    async () => {
+      jest.spyOn(request, "post").mockClear().mockImplementation(async opts => {
+        if (
+          (opts.url as string).indexOf(`_api/sitepages/Pages/UpdateFullPageApp`) > -1 &&
+          opts.data.serverRelativeUrl.indexOf("failme")
+        ) {
+          throw "Failed to update the single-part app page";
         }
-      }), new CommandError(`Failed to update the single-part app page`));
-  });
+        throw 'Invalid request';
+      });
+      await assert.rejects(command.action(logger,
+        {
+          options: {
+            name: "failme",
+            webUrl: "https://contoso.sharepoint.com/",
+            webPartData: JSON.stringify({})
+          }
+        }), new CommandError(`Failed to update the single-part app page`));
+    }
+  );
 
   it("Update the single-part app pag", async () => {
-    sinon.stub(request, "post").callsFake(async opts => {
+    jest.spyOn(request, "post").mockClear().mockImplementation(async opts => {
       if (
         (opts.url as string).indexOf(`_api/sitepages/Pages/UpdateFullPageApp`) > -1
       ) {
@@ -138,7 +139,7 @@ describe(commands.APPPAGE_SET, () => {
   });
 
   it("fails validation if name not specified", async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -156,7 +157,7 @@ describe(commands.APPPAGE_SET, () => {
   });
 
   it("fails validation if webPartData not specified", async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -174,7 +175,7 @@ describe(commands.APPPAGE_SET, () => {
   });
 
   it("fails validation if webUrl not specified", async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -191,16 +192,18 @@ describe(commands.APPPAGE_SET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it("fails validation if webPartData is not a valid JSON string", async () => {
-    const actual = await command.validate({
-      options: {
-        name: "Contoso.aspx",
-        webUrl: "https://contoso",
-        webPartData: "abc"
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it("fails validation if webPartData is not a valid JSON string",
+    async () => {
+      const actual = await command.validate({
+        options: {
+          name: "Contoso.aspx",
+          webUrl: "https://contoso",
+          webPartData: "abc"
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it("validation passes on all required options", async () => {
     const actual = await command.validate({

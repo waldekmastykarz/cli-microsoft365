@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -8,7 +7,7 @@ import { CommandError, CommandErrorWithOutput } from '../../../../Command.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import spoSiteAddCommand from '../site/site-add.js';
 import spoSiteGetCommand from '../site/site-get.js';
@@ -21,11 +20,11 @@ describe(commands.TENANT_APPCATALOG_ADD, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -46,14 +45,14 @@ describe(commands.TENANT_APPCATALOG_ADD, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       Cli.executeCommand,
       Cli.executeCommandWithOutput
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -65,332 +64,348 @@ describe(commands.TENANT_APPCATALOG_ADD, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('creates app catalog when app catalog and site with different URL already exist and force used', async () => {
-    sinon.stub(Cli, 'executeCommand').callsFake(async (command, args) => {
-      if (command === spoSiteRemoveCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog' ||
-          args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
+  it('creates app catalog when app catalog and site with different URL already exist and force used',
+    async () => {
+      jest.spyOn(Cli, 'executeCommand').mockClear().mockImplementation(async (command, args) => {
+        if (command === spoSiteRemoveCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog' ||
+            args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
+
+          throw new CommandError('Invalid URL');
         }
 
-        throw new CommandError('Invalid URL');
-      }
+        if (command === spoSiteAddCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
 
-      if (command === spoSiteAddCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
+          throw 'Invalid URL';
         }
 
-        throw 'Invalid URL';
-      }
-
-      throw 'Unknown case';
-    });
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
-      if (command === spoTenantAppCatalogUrlGetCommand) {
-        return 'https://contoso.sharepoint.com/sites/old-app-catalog';
-      }
-
-      if (command === spoSiteGetCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog' ||
-          args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
+        throw 'Unknown case';
+      });
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
+        if (command === spoTenantAppCatalogUrlGetCommand) {
+          return 'https://contoso.sharepoint.com/sites/old-app-catalog';
         }
 
-        throw new CommandError('Invalid URL');
-      }
+        if (command === spoSiteGetCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog' ||
+            args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
 
-      throw 'Unknown case';
-    });
-
-    await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true } } as any);
-  });
-
-  it('creates app catalog when app catalog and site with different URL already exist and force used (debug)', async () => {
-    sinon.stub(Cli, 'executeCommand').callsFake(async (command, args) => {
-      if (command === spoSiteRemoveCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog' ||
-          args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
+          throw new CommandError('Invalid URL');
         }
 
-        throw new CommandError('Invalid URL');
-      }
+        throw 'Unknown case';
+      });
 
-      if (command === spoSiteAddCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
+      await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true } } as any);
+    }
+  );
+
+  it('creates app catalog when app catalog and site with different URL already exist and force used (debug)',
+    async () => {
+      jest.spyOn(Cli, 'executeCommand').mockClear().mockImplementation(async (command, args) => {
+        if (command === spoSiteRemoveCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog' ||
+            args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
+
+          throw new CommandError('Invalid URL');
         }
 
-        throw 'Invalid URL';
-      }
+        if (command === spoSiteAddCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
 
-      throw 'Unknown case';
-    });
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
-      if (command === spoTenantAppCatalogUrlGetCommand) {
-        return {
-          stdout: 'https://contoso.sharepoint.com/sites/old-app-catalog'
-        };
-      }
-
-      if (command === spoSiteGetCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog' ||
-          args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
+          throw 'Invalid URL';
         }
 
-        throw new CommandError('Invalid URL');
-      }
-
-      throw 'Unknown case';
-    });
-
-    await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true, debug: true } } as any);
-  });
-
-  it('handles error when creating app catalog when app catalog and site with different URL already exist and force used failed', async () => {
-    sinon.stub(Cli, 'executeCommand').callsFake(async (command, args) => {
-      if (command === spoSiteRemoveCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog' ||
-          args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
+        throw 'Unknown case';
+      });
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
+        if (command === spoTenantAppCatalogUrlGetCommand) {
+          return {
+            stdout: 'https://contoso.sharepoint.com/sites/old-app-catalog'
+          };
         }
 
-        throw new CommandError('Invalid URL');
-      }
+        if (command === spoSiteGetCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog' ||
+            args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
 
-      if (command === spoSiteAddCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          throw new CommandError('An error has occurred');
+          throw new CommandError('Invalid URL');
         }
 
-        throw 'Invalid URL';
-      }
+        throw 'Unknown case';
+      });
 
-      throw 'Unknown case';
-    });
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
-      if (command === spoTenantAppCatalogUrlGetCommand) {
-        return 'https://contoso.sharepoint.com/sites/old-app-catalog';
-      }
+      await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true, debug: true } } as any);
+    }
+  );
 
-      if (command === spoSiteGetCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog' ||
-          args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
+  it('handles error when creating app catalog when app catalog and site with different URL already exist and force used failed',
+    async () => {
+      jest.spyOn(Cli, 'executeCommand').mockClear().mockImplementation(async (command, args) => {
+        if (command === spoSiteRemoveCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog' ||
+            args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
+
+          throw new CommandError('Invalid URL');
         }
 
-        throw new CommandError('Invalid URL');
-      }
+        if (command === spoSiteAddCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            throw new CommandError('An error has occurred');
+          }
 
-      throw 'Unknown case';
-    });
-
-    await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true } } as any), new CommandError('An error has occurred'));
-  });
-
-  it('handles error when app catalog and site with different URL already exist, force used and deleting the existing site failed', async () => {
-    sinon.stub(Cli, 'executeCommand').callsFake(async (command, args) => {
-      if (command === spoSiteRemoveCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
-          return;
-        }
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          throw new CommandError('Error deleting site new-app-catalog');
+          throw 'Invalid URL';
         }
 
-        throw new CommandError('Invalid URL');
-      }
-
-      if (command === spoSiteAddCommand) {
-        throw 'Should not be called';
-      }
-
-      throw 'Unknown case';
-    });
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
-      if (command === spoTenantAppCatalogUrlGetCommand) {
-        return 'https://contoso.sharepoint.com/sites/old-app-catalog';
-      }
-
-      if (command === spoSiteGetCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog' ||
-          args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
+        throw 'Unknown case';
+      });
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
+        if (command === spoTenantAppCatalogUrlGetCommand) {
+          return 'https://contoso.sharepoint.com/sites/old-app-catalog';
         }
 
-        throw new CommandError('Invalid URL');
-      }
+        if (command === spoSiteGetCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog' ||
+            args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
 
-      throw 'Unknown case';
-    });
-
-    await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true } } as any), new CommandError('Error deleting site new-app-catalog'));
-  });
-
-  it('creates app catalog when app catalog already exists, site with different URL does not exist and force used', async () => {
-    sinon.stub(Cli, 'executeCommand').callsFake(async (command, args) => {
-      if (command === spoSiteRemoveCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
-          return;
+          throw new CommandError('Invalid URL');
         }
 
-        throw new CommandError('Invalid URL');
-      }
+        throw 'Unknown case';
+      });
 
-      if (command === spoSiteAddCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
+      await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true } } as any), new CommandError('An error has occurred'));
+    }
+  );
+
+  it('handles error when app catalog and site with different URL already exist, force used and deleting the existing site failed',
+    async () => {
+      jest.spyOn(Cli, 'executeCommand').mockClear().mockImplementation(async (command, args) => {
+        if (command === spoSiteRemoveCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
+            return;
+          }
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            throw new CommandError('Error deleting site new-app-catalog');
+          }
+
+          throw new CommandError('Invalid URL');
         }
 
-        throw 'Invalid URL';
-      }
-
-      throw 'Unknown case';
-    });
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
-      if (command === spoTenantAppCatalogUrlGetCommand) {
-        return 'https://contoso.sharepoint.com/sites/old-app-catalog';
-      }
-
-      if (command === spoSiteGetCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
-          return;
-        }
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          throw new CommandErrorWithOutput(new CommandError('404 FILE NOT FOUND'));
+        if (command === spoSiteAddCommand) {
+          throw 'Should not be called';
         }
 
-        throw new CommandError('Invalid URL');
-      }
-
-      throw 'Unknown case';
-    });
-
-    await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true } } as any);
-  });
-
-  it('creates app catalog when app catalog already exists, site with different URL does not exist and force used (debug)', async () => {
-    sinon.stub(Cli, 'executeCommand').callsFake(async (command, args) => {
-      if (command === spoSiteRemoveCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
-          return;
+        throw 'Unknown case';
+      });
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
+        if (command === spoTenantAppCatalogUrlGetCommand) {
+          return 'https://contoso.sharepoint.com/sites/old-app-catalog';
         }
 
-        throw new CommandError('Invalid URL');
-      }
+        if (command === spoSiteGetCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog' ||
+            args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
 
-      if (command === spoSiteAddCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
+          throw new CommandError('Invalid URL');
         }
 
-        throw 'Invalid URL';
-      }
+        throw 'Unknown case';
+      });
 
-      throw 'Unknown case';
-    });
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
-      if (command === spoTenantAppCatalogUrlGetCommand) {
-        return 'https://contoso.sharepoint.com/sites/old-app-catalog';
-      }
+      await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true } } as any), new CommandError('Error deleting site new-app-catalog'));
+    }
+  );
 
-      if (command === spoSiteGetCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
-          return;
-        }
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          throw new CommandErrorWithOutput(new CommandError('404 FILE NOT FOUND'));
-        }
+  it('creates app catalog when app catalog already exists, site with different URL does not exist and force used',
+    async () => {
+      jest.spyOn(Cli, 'executeCommand').mockClear().mockImplementation(async (command, args) => {
+        if (command === spoSiteRemoveCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
+            return;
+          }
 
-        throw new CommandError('Invalid URL');
-      }
-
-      throw 'Unknown case';
-    });
-
-    await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true, debug: true } } as any);
-  });
-
-  it('handles error when creating app catalog when app catalog already exists, site with different URL does not exist and force used', async () => {
-    sinon.stub(Cli, 'executeCommand').callsFake(async (command, args) => {
-      if (command === spoSiteRemoveCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
-          return;
+          throw new CommandError('Invalid URL');
         }
 
-        throw new CommandError('Invalid URL');
-      }
+        if (command === spoSiteAddCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
 
-      if (command === spoSiteAddCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          throw new CommandError('An error has occurred');
+          throw 'Invalid URL';
         }
 
-        throw 'Invalid URL';
-      }
-
-      throw 'Unknown case';
-    });
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
-      if (command === spoTenantAppCatalogUrlGetCommand) {
-        return 'https://contoso.sharepoint.com/sites/old-app-catalog';
-      }
-
-      if (command === spoSiteGetCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
-          return;
-        }
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          throw new CommandErrorWithOutput(new CommandError('404 FILE NOT FOUND'));
+        throw 'Unknown case';
+      });
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
+        if (command === spoTenantAppCatalogUrlGetCommand) {
+          return 'https://contoso.sharepoint.com/sites/old-app-catalog';
         }
 
-        throw new CommandError('Invalid URL');
-      }
+        if (command === spoSiteGetCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
+            return;
+          }
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            throw new CommandErrorWithOutput(new CommandError('404 FILE NOT FOUND'));
+          }
 
-      throw 'Unknown case';
-    });
-
-    await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true, debug: true } } as any), new CommandError('An error has occurred'));
-  });
-
-  it('handles error when retrieving site with different URL failed and app catalog already exists, and force used', async () => {
-    sinon.stub(Cli, 'executeCommand').callsFake(async (command, args) => {
-      if (command === spoSiteRemoveCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
-          return;
+          throw new CommandError('Invalid URL');
         }
 
-        throw new CommandError('Invalid URL');
-      }
+        throw 'Unknown case';
+      });
 
-      throw 'Unknown case';
-    });
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
-      if (command === spoTenantAppCatalogUrlGetCommand) {
-        return 'https://contoso.sharepoint.com/sites/old-app-catalog';
-      }
+      await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true } } as any);
+    }
+  );
 
-      if (command === spoSiteGetCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
-          return;
+  it('creates app catalog when app catalog already exists, site with different URL does not exist and force used (debug)',
+    async () => {
+      jest.spyOn(Cli, 'executeCommand').mockClear().mockImplementation(async (command, args) => {
+        if (command === spoSiteRemoveCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
+            return;
+          }
+
+          throw new CommandError('Invalid URL');
         }
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          throw new CommandErrorWithOutput(new CommandError('An error has occurred'));
+
+        if (command === spoSiteAddCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
+
+          throw 'Invalid URL';
         }
 
-        throw new CommandError('Invalid URL');
-      }
+        throw 'Unknown case';
+      });
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
+        if (command === spoTenantAppCatalogUrlGetCommand) {
+          return 'https://contoso.sharepoint.com/sites/old-app-catalog';
+        }
 
-      throw 'Unknown case';
-    });
+        if (command === spoSiteGetCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
+            return;
+          }
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            throw new CommandErrorWithOutput(new CommandError('404 FILE NOT FOUND'));
+          }
 
-    await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true, debug: true } } as any), new CommandError('An error has occurred'));
-  });
+          throw new CommandError('Invalid URL');
+        }
+
+        throw 'Unknown case';
+      });
+
+      await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true, debug: true } } as any);
+    }
+  );
+
+  it('handles error when creating app catalog when app catalog already exists, site with different URL does not exist and force used',
+    async () => {
+      jest.spyOn(Cli, 'executeCommand').mockClear().mockImplementation(async (command, args) => {
+        if (command === spoSiteRemoveCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
+            return;
+          }
+
+          throw new CommandError('Invalid URL');
+        }
+
+        if (command === spoSiteAddCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            throw new CommandError('An error has occurred');
+          }
+
+          throw 'Invalid URL';
+        }
+
+        throw 'Unknown case';
+      });
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
+        if (command === spoTenantAppCatalogUrlGetCommand) {
+          return 'https://contoso.sharepoint.com/sites/old-app-catalog';
+        }
+
+        if (command === spoSiteGetCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
+            return;
+          }
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            throw new CommandErrorWithOutput(new CommandError('404 FILE NOT FOUND'));
+          }
+
+          throw new CommandError('Invalid URL');
+        }
+
+        throw 'Unknown case';
+      });
+
+      await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true, debug: true } } as any), new CommandError('An error has occurred'));
+    }
+  );
+
+  it('handles error when retrieving site with different URL failed and app catalog already exists, and force used',
+    async () => {
+      jest.spyOn(Cli, 'executeCommand').mockClear().mockImplementation(async (command, args) => {
+        if (command === spoSiteRemoveCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
+            return;
+          }
+
+          throw new CommandError('Invalid URL');
+        }
+
+        throw 'Unknown case';
+      });
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
+        if (command === spoTenantAppCatalogUrlGetCommand) {
+          return 'https://contoso.sharepoint.com/sites/old-app-catalog';
+        }
+
+        if (command === spoSiteGetCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
+            return;
+          }
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            throw new CommandErrorWithOutput(new CommandError('An error has occurred'));
+          }
+
+          throw new CommandError('Invalid URL');
+        }
+
+        throw 'Unknown case';
+      });
+
+      await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true, debug: true } } as any), new CommandError('An error has occurred'));
+    }
+  );
 
   it('handles error when deleting existing app catalog failed', async () => {
-    sinon.stub(Cli, 'executeCommand').callsFake(async (command, args) => {
+    jest.spyOn(Cli, 'executeCommand').mockClear().mockImplementation(async (command, args) => {
       if (command === spoSiteRemoveCommand) {
         if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
           throw new CommandError('An error has occurred');
@@ -401,7 +416,7 @@ describe(commands.TENANT_APPCATALOG_ADD, () => {
 
       throw 'Unknown case';
     });
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
+    jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
       if (command === spoTenantAppCatalogUrlGetCommand) {
         return {
           stdout: 'https://contoso.sharepoint.com/sites/old-app-catalog'
@@ -423,7 +438,7 @@ describe(commands.TENANT_APPCATALOG_ADD, () => {
   });
 
   it('handles error app catalog exists and no force used', async () => {
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
+    jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
       if (command === spoTenantAppCatalogUrlGetCommand) {
         return {
           stdout: 'https://contoso.sharepoint.com/sites/old-app-catalog'
@@ -444,506 +459,540 @@ describe(commands.TENANT_APPCATALOG_ADD, () => {
     await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog' } } as any), new CommandError('Another site exists at https://contoso.sharepoint.com/sites/old-app-catalog'));
   });
 
-  it('creates app catalog when app catalog does not exist, site with different URL already exists and force used', async () => {
-    sinon.stub(Cli, 'executeCommand').callsFake(async (command, args) => {
-      if (command === spoSiteRemoveCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
+  it('creates app catalog when app catalog does not exist, site with different URL already exists and force used',
+    async () => {
+      jest.spyOn(Cli, 'executeCommand').mockClear().mockImplementation(async (command, args) => {
+        if (command === spoSiteRemoveCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
+
+          throw new CommandError('Invalid URL');
         }
 
-        throw new CommandError('Invalid URL');
-      }
+        if (command === spoSiteAddCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
 
-      if (command === spoSiteAddCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
+          throw 'Invalid URL';
         }
 
-        throw 'Invalid URL';
-      }
-
-      throw 'Unknown case';
-    });
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
-      if (command === spoTenantAppCatalogUrlGetCommand) {
-        return 'https://contoso.sharepoint.com/sites/old-app-catalog';
-      }
-
-      if (command === spoSiteGetCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
-          throw new CommandErrorWithOutput(new CommandError('404 FILE NOT FOUND'));
-        }
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
+        throw 'Unknown case';
+      });
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
+        if (command === spoTenantAppCatalogUrlGetCommand) {
+          return 'https://contoso.sharepoint.com/sites/old-app-catalog';
         }
 
-        throw new CommandError('Invalid URL');
-      }
+        if (command === spoSiteGetCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
+            throw new CommandErrorWithOutput(new CommandError('404 FILE NOT FOUND'));
+          }
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
 
-      throw 'Unknown case';
-    });
-
-    await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true } } as any);
-  });
-
-  it('handles error when creating app catalog when app catalog does not exist, site with different URL already exists and force used', async () => {
-    sinon.stub(Cli, 'executeCommand').callsFake(async (command, args) => {
-      if (command === spoSiteRemoveCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
+          throw new CommandError('Invalid URL');
         }
 
-        throw new CommandError('Invalid URL');
-      }
+        throw 'Unknown case';
+      });
 
-      if (command === spoSiteAddCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+      await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true } } as any);
+    }
+  );
+
+  it('handles error when creating app catalog when app catalog does not exist, site with different URL already exists and force used',
+    async () => {
+      jest.spyOn(Cli, 'executeCommand').mockClear().mockImplementation(async (command, args) => {
+        if (command === spoSiteRemoveCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
+
+          throw new CommandError('Invalid URL');
+        }
+
+        if (command === spoSiteAddCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            throw new CommandError('An error has occurred');
+          }
+
+          throw 'Invalid URL';
+        }
+
+        throw 'Unknown case';
+      });
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
+        if (command === spoTenantAppCatalogUrlGetCommand) {
+          return 'https://contoso.sharepoint.com/sites/old-app-catalog';
+        }
+
+        if (command === spoSiteGetCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
+            throw new CommandErrorWithOutput(new CommandError('404 FILE NOT FOUND'));
+          }
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
+
+          throw new CommandError('Invalid URL');
+        }
+
+        throw 'Unknown case';
+      });
+
+      await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true } } as any), new CommandError('An error has occurred'));
+    }
+  );
+
+  it('handles error when deleting existing site, when app catalog does not exist, site with different URL already exists and force used',
+    async () => {
+      jest.spyOn(Cli, 'executeCommand').mockClear().mockImplementation(async (command, args) => {
+        if (command === spoSiteRemoveCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            throw new CommandError('An error has occurred');
+          }
+
+          throw new CommandError('Invalid URL');
+        }
+
+        throw 'Unknown case';
+      });
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
+        if (command === spoTenantAppCatalogUrlGetCommand) {
+          return 'https://contoso.sharepoint.com/sites/old-app-catalog';
+        }
+
+        if (command === spoSiteGetCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
+            throw new CommandErrorWithOutput(new CommandError('404 FILE NOT FOUND'));
+          }
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
+
+          throw new CommandError('Invalid URL');
+        }
+
+        throw 'Unknown case';
+      });
+
+      await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true } } as any), new CommandError('An error has occurred'));
+    }
+  );
+
+  it('handles error when app catalog does not exist, site with different URL already exists and force not used',
+    async () => {
+      jest.spyOn(Cli, 'executeCommand').mockClear().mockImplementation(() => {
+        throw 'Unknown case';
+      });
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
+        if (command === spoTenantAppCatalogUrlGetCommand) {
+          return 'https://contoso.sharepoint.com/sites/old-app-catalog';
+        }
+
+        if (command === spoSiteGetCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
+            throw new CommandErrorWithOutput(new CommandError('404 FILE NOT FOUND'));
+          }
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
+
+          throw new CommandError('Invalid URL');
+        }
+
+        throw 'Unknown case';
+      });
+
+      await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog' } } as any), new CommandError('Another site exists at https://contoso.sharepoint.com/sites/new-app-catalog'));
+    }
+  );
+
+  it(`creates app catalog when app catalog and site with different URL don't exist`,
+    async () => {
+      jest.spyOn(Cli, 'executeCommand').mockClear().mockImplementation(async (command, args) => {
+        if (command === spoSiteAddCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
+
+          throw 'Invalid URL';
+        }
+
+        throw 'Unknown case';
+      });
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
+        if (command === spoTenantAppCatalogUrlGetCommand) {
+          return 'https://contoso.sharepoint.com/sites/old-app-catalog';
+        }
+
+        if (command === spoSiteGetCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog' ||
+            args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
+            throw new CommandErrorWithOutput(new CommandError('404 FILE NOT FOUND'));
+          }
+
+          throw new CommandError('Invalid URL');
+        }
+
+        throw 'Unknown case';
+      });
+
+      await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog' } } as any);
+    }
+  );
+
+  it(`handles error when creating app catalog fails, when app catalog when app catalog does and site with different URL don't exist`,
+    async () => {
+      jest.spyOn(Cli, 'executeCommand').mockClear().mockImplementation(async (command, args) => {
+        if (command === spoSiteAddCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            throw new CommandError('An error has occurred');
+          }
+
+          throw 'Invalid URL';
+        }
+
+        throw 'Unknown case';
+      });
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
+        if (command === spoTenantAppCatalogUrlGetCommand) {
+          return 'https://contoso.sharepoint.com/sites/old-app-catalog';
+        }
+
+        if (command === spoSiteGetCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog' ||
+            args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
+            throw new CommandErrorWithOutput(new CommandError('404 FILE NOT FOUND'));
+          }
+
+          throw new CommandError('Invalid URL');
+        }
+
+        throw 'Unknown case';
+      });
+
+      await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog' } } as any), new CommandError('An error has occurred'));
+    }
+  );
+
+  it(`handles error when checking if the app catalog site exists`,
+    async () => {
+      jest.spyOn(Cli, 'executeCommand').mockClear().mockImplementation(() => {
+        throw 'Unknown case';
+      });
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
+        if (command === spoTenantAppCatalogUrlGetCommand) {
+          return {
+            stdout: 'https://contoso.sharepoint.com/sites/old-app-catalog'
+          };
+        }
+
+        if (command === spoSiteGetCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
+            throw new CommandErrorWithOutput(new CommandError('An error has occurred'));
+          }
+
+          throw new CommandError('Invalid URL');
+        }
+
+        throw 'Unknown case';
+      });
+
+      await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog' } } as any), new CommandError('An error has occurred'));
+    }
+  );
+
+  it(`creates app catalog when app catalog not registered, site with different URL exists and force used`,
+    async () => {
+      jest.spyOn(Cli, 'executeCommand').mockClear().mockImplementation(async (command, args) => {
+        if (command === spoSiteRemoveCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
+
+          throw new CommandError('Invalid URL');
+        }
+
+        if (command === spoSiteAddCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
+
+          throw 'Invalid URL';
+        }
+
+        throw 'Unknown case';
+      });
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
+        if (command === spoTenantAppCatalogUrlGetCommand) {
+          return '';
+        }
+
+        if (command === spoSiteGetCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
+
+          throw new CommandError('Invalid URL');
+        }
+
+        throw 'Unknown case';
+      });
+
+      await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true } } as any);
+    }
+  );
+
+  it(`creates app catalog when app catalog not registered, site with different URL exists and force used (debug)`,
+    async () => {
+      jest.spyOn(Cli, 'executeCommand').mockClear().mockImplementation(async (command, args) => {
+        if (command === spoSiteRemoveCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
+
+          throw new CommandError('Invalid URL');
+        }
+
+        if (command === spoSiteAddCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
+
+          throw 'Invalid URL';
+        }
+
+        throw 'Unknown case';
+      });
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
+        if (command === spoTenantAppCatalogUrlGetCommand) {
+          return '';
+        }
+
+        if (command === spoSiteGetCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
+
+          throw new CommandError('Invalid URL');
+        }
+
+        throw 'Unknown case';
+      });
+
+      await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true, debug: true } } as any);
+    }
+  );
+
+  it(`handles error when creating app catalog when app catalog not registered, site with different URL exists and force used`,
+    async () => {
+      jest.spyOn(Cli, 'executeCommand').mockClear().mockImplementation(async (command, args) => {
+        if (command === spoSiteRemoveCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
+
+          throw new CommandError('Invalid URL');
+        }
+
+        if (command === spoSiteAddCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            throw new CommandError('An error has occurred');
+          }
+
+          throw 'Invalid URL';
+        }
+
+        throw 'Unknown case';
+      });
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
+        if (command === spoTenantAppCatalogUrlGetCommand) {
+          return '';
+        }
+
+        if (command === spoSiteGetCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
+
+          throw new CommandError('Invalid URL');
+        }
+
+        throw 'Unknown case';
+      });
+
+      await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true } } as any), new CommandError('An error has occurred'));
+    }
+  );
+
+  it(`handles error when deleting existing site when app catalog not registered, site with different URL exists and force used`,
+    async () => {
+      jest.spyOn(Cli, 'executeCommand').mockClear().mockImplementation(async (command, args) => {
+        if (command === spoSiteRemoveCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            throw new CommandError('An error has occurred');
+          }
+
+          throw new CommandError('Invalid URL');
+        }
+
+        throw 'Unknown case';
+      });
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
+        if (command === spoTenantAppCatalogUrlGetCommand) {
+          return '';
+        }
+
+        if (command === spoSiteGetCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
+
+          throw new CommandError('Invalid URL');
+        }
+
+        throw 'Unknown case';
+      });
+
+      await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true } } as any), new CommandError('An error has occurred'));
+    }
+  );
+
+  it(`handles error when app catalog not registered, site with different URL exists and force not used`,
+    async () => {
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
+        if (command === spoTenantAppCatalogUrlGetCommand) {
+          return '';
+        }
+
+        if (command === spoSiteGetCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
+
+          throw new CommandError('Invalid URL');
+        }
+
+        throw 'Unknown case';
+      });
+
+      await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog' } } as any), new CommandError('Another site exists at https://contoso.sharepoint.com/sites/new-app-catalog'));
+    }
+  );
+
+  it(`creates app catalog when app catalog not registered and site with different URL doesn't exist`,
+    async () => {
+      jest.spyOn(Cli, 'executeCommand').mockClear().mockImplementation(async (command, args) => {
+        if (command === spoSiteAddCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            return;
+          }
+
+          throw 'Invalid URL';
+        }
+
+        throw 'Unknown case';
+      });
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
+        if (command === spoTenantAppCatalogUrlGetCommand) {
+          return '';
+        }
+
+        if (command === spoSiteGetCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            throw new CommandErrorWithOutput(new CommandError('404 FILE NOT FOUND'));
+          }
+
+          throw new CommandError('Invalid URL');
+        }
+
+        throw 'Unknown case';
+      });
+
+      await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog' } } as any);
+    }
+  );
+
+  it(`handles error when creating app catalog when app catalog not registered and site with different URL doesn't exist`,
+    async () => {
+      jest.spyOn(Cli, 'executeCommand').mockClear().mockImplementation(async (command, args) => {
+        if (command === spoSiteAddCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            throw new CommandError('An error has occurred');
+          }
+
+          throw 'Invalid URL';
+        }
+
+        throw 'Unknown case';
+      });
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
+        if (command === spoTenantAppCatalogUrlGetCommand) {
+          return '';
+        }
+
+        if (command === spoSiteGetCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            throw new CommandErrorWithOutput(new CommandError('404 FILE NOT FOUND'));
+          }
+
+          throw new CommandError('Invalid URL');
+        }
+
+        throw 'Unknown case';
+      });
+
+      await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog' } } as any), new CommandError('An error has occurred'));
+    }
+  );
+
+  it(`handles error when app catalog not registered and checking if the site with different URL exists throws error`,
+    async () => {
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation(async (command, args): Promise<any> => {
+        if (command === spoTenantAppCatalogUrlGetCommand) {
+          return '';
+        }
+
+        if (command === spoSiteGetCommand) {
+          if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
+            throw new CommandErrorWithOutput(new CommandError('An error has occurred'));
+          }
+
+          throw new CommandError('Invalid URL');
+        }
+
+        throw 'Unknown case';
+      });
+
+      await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog' } } as any), new CommandError('An error has occurred'));
+    }
+  );
+
+  it(`handles error when checking if app catalog registered throws error`,
+    async () => {
+      jest.spyOn(Cli, 'executeCommandWithOutput').mockClear().mockImplementation((command): Promise<any> => {
+        if (command === spoTenantAppCatalogUrlGetCommand) {
           throw new CommandError('An error has occurred');
         }
 
-        throw 'Invalid URL';
-      }
-
-      throw 'Unknown case';
-    });
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
-      if (command === spoTenantAppCatalogUrlGetCommand) {
-        return 'https://contoso.sharepoint.com/sites/old-app-catalog';
-      }
-
-      if (command === spoSiteGetCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
-          throw new CommandErrorWithOutput(new CommandError('404 FILE NOT FOUND'));
-        }
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
-        }
-
-        throw new CommandError('Invalid URL');
-      }
-
-      throw 'Unknown case';
-    });
-
-    await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true } } as any), new CommandError('An error has occurred'));
-  });
-
-  it('handles error when deleting existing site, when app catalog does not exist, site with different URL already exists and force used', async () => {
-    sinon.stub(Cli, 'executeCommand').callsFake(async (command, args) => {
-      if (command === spoSiteRemoveCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          throw new CommandError('An error has occurred');
-        }
-
-        throw new CommandError('Invalid URL');
-      }
-
-      throw 'Unknown case';
-    });
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
-      if (command === spoTenantAppCatalogUrlGetCommand) {
-        return 'https://contoso.sharepoint.com/sites/old-app-catalog';
-      }
-
-      if (command === spoSiteGetCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
-          throw new CommandErrorWithOutput(new CommandError('404 FILE NOT FOUND'));
-        }
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
-        }
-
-        throw new CommandError('Invalid URL');
-      }
-
-      throw 'Unknown case';
-    });
-
-    await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true } } as any), new CommandError('An error has occurred'));
-  });
-
-  it('handles error when app catalog does not exist, site with different URL already exists and force not used', async () => {
-    sinon.stub(Cli, 'executeCommand').callsFake(() => {
-      throw 'Unknown case';
-    });
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
-      if (command === spoTenantAppCatalogUrlGetCommand) {
-        return 'https://contoso.sharepoint.com/sites/old-app-catalog';
-      }
-
-      if (command === spoSiteGetCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
-          throw new CommandErrorWithOutput(new CommandError('404 FILE NOT FOUND'));
-        }
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
-        }
-
-        throw new CommandError('Invalid URL');
-      }
-
-      throw 'Unknown case';
-    });
-
-    await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog' } } as any), new CommandError('Another site exists at https://contoso.sharepoint.com/sites/new-app-catalog'));
-  });
-
-  it(`creates app catalog when app catalog and site with different URL don't exist`, async () => {
-    sinon.stub(Cli, 'executeCommand').callsFake(async (command, args) => {
-      if (command === spoSiteAddCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
-        }
-
-        throw 'Invalid URL';
-      }
-
-      throw 'Unknown case';
-    });
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
-      if (command === spoTenantAppCatalogUrlGetCommand) {
-        return 'https://contoso.sharepoint.com/sites/old-app-catalog';
-      }
-
-      if (command === spoSiteGetCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog' ||
-          args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
-          throw new CommandErrorWithOutput(new CommandError('404 FILE NOT FOUND'));
-        }
-
-        throw new CommandError('Invalid URL');
-      }
-
-      throw 'Unknown case';
-    });
-
-    await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog' } } as any);
-  });
-
-  it(`handles error when creating app catalog fails, when app catalog when app catalog does and site with different URL don't exist`, async () => {
-    sinon.stub(Cli, 'executeCommand').callsFake(async (command, args) => {
-      if (command === spoSiteAddCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          throw new CommandError('An error has occurred');
-        }
-
-        throw 'Invalid URL';
-      }
-
-      throw 'Unknown case';
-    });
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
-      if (command === spoTenantAppCatalogUrlGetCommand) {
-        return 'https://contoso.sharepoint.com/sites/old-app-catalog';
-      }
-
-      if (command === spoSiteGetCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog' ||
-          args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
-          throw new CommandErrorWithOutput(new CommandError('404 FILE NOT FOUND'));
-        }
-
-        throw new CommandError('Invalid URL');
-      }
-
-      throw 'Unknown case';
-    });
-
-    await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog' } } as any), new CommandError('An error has occurred'));
-  });
-
-  it(`handles error when checking if the app catalog site exists`, async () => {
-    sinon.stub(Cli, 'executeCommand').callsFake(() => {
-      throw 'Unknown case';
-    });
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
-      if (command === spoTenantAppCatalogUrlGetCommand) {
-        return {
-          stdout: 'https://contoso.sharepoint.com/sites/old-app-catalog'
-        };
-      }
-
-      if (command === spoSiteGetCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/old-app-catalog') {
-          throw new CommandErrorWithOutput(new CommandError('An error has occurred'));
-        }
-
-        throw new CommandError('Invalid URL');
-      }
-
-      throw 'Unknown case';
-    });
-
-    await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog' } } as any), new CommandError('An error has occurred'));
-  });
-
-  it(`creates app catalog when app catalog not registered, site with different URL exists and force used`, async () => {
-    sinon.stub(Cli, 'executeCommand').callsFake(async (command, args) => {
-      if (command === spoSiteRemoveCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
-        }
-
-        throw new CommandError('Invalid URL');
-      }
-
-      if (command === spoSiteAddCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
-        }
-
-        throw 'Invalid URL';
-      }
-
-      throw 'Unknown case';
-    });
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
-      if (command === spoTenantAppCatalogUrlGetCommand) {
-        return '';
-      }
-
-      if (command === spoSiteGetCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
-        }
-
-        throw new CommandError('Invalid URL');
-      }
-
-      throw 'Unknown case';
-    });
-
-    await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true } } as any);
-  });
-
-  it(`creates app catalog when app catalog not registered, site with different URL exists and force used (debug)`, async () => {
-    sinon.stub(Cli, 'executeCommand').callsFake(async (command, args) => {
-      if (command === spoSiteRemoveCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
-        }
-
-        throw new CommandError('Invalid URL');
-      }
-
-      if (command === spoSiteAddCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
-        }
-
-        throw 'Invalid URL';
-      }
-
-      throw 'Unknown case';
-    });
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
-      if (command === spoTenantAppCatalogUrlGetCommand) {
-        return '';
-      }
-
-      if (command === spoSiteGetCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
-        }
-
-        throw new CommandError('Invalid URL');
-      }
-
-      throw 'Unknown case';
-    });
-
-    await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true, debug: true } } as any);
-  });
-
-  it(`handles error when creating app catalog when app catalog not registered, site with different URL exists and force used`, async () => {
-    sinon.stub(Cli, 'executeCommand').callsFake(async (command, args) => {
-      if (command === spoSiteRemoveCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
-        }
-
-        throw new CommandError('Invalid URL');
-      }
-
-      if (command === spoSiteAddCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          throw new CommandError('An error has occurred');
-        }
-
-        throw 'Invalid URL';
-      }
-
-      throw 'Unknown case';
-    });
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
-      if (command === spoTenantAppCatalogUrlGetCommand) {
-        return '';
-      }
-
-      if (command === spoSiteGetCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
-        }
-
-        throw new CommandError('Invalid URL');
-      }
-
-      throw 'Unknown case';
-    });
-
-    await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true } } as any), new CommandError('An error has occurred'));
-  });
-
-  it(`handles error when deleting existing site when app catalog not registered, site with different URL exists and force used`, async () => {
-    sinon.stub(Cli, 'executeCommand').callsFake(async (command, args) => {
-      if (command === spoSiteRemoveCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          throw new CommandError('An error has occurred');
-        }
-
-        throw new CommandError('Invalid URL');
-      }
-
-      throw 'Unknown case';
-    });
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
-      if (command === spoTenantAppCatalogUrlGetCommand) {
-        return '';
-      }
-
-      if (command === spoSiteGetCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
-        }
-
-        throw new CommandError('Invalid URL');
-      }
-
-      throw 'Unknown case';
-    });
-
-    await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog', force: true } } as any), new CommandError('An error has occurred'));
-  });
-
-  it(`handles error when app catalog not registered, site with different URL exists and force not used`, async () => {
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
-      if (command === spoTenantAppCatalogUrlGetCommand) {
-        return '';
-      }
-
-      if (command === spoSiteGetCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
-        }
-
-        throw new CommandError('Invalid URL');
-      }
-
-      throw 'Unknown case';
-    });
-
-    await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog' } } as any), new CommandError('Another site exists at https://contoso.sharepoint.com/sites/new-app-catalog'));
-  });
-
-  it(`creates app catalog when app catalog not registered and site with different URL doesn't exist`, async () => {
-    sinon.stub(Cli, 'executeCommand').callsFake(async (command, args) => {
-      if (command === spoSiteAddCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          return;
-        }
-
-        throw 'Invalid URL';
-      }
-
-      throw 'Unknown case';
-    });
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
-      if (command === spoTenantAppCatalogUrlGetCommand) {
-        return '';
-      }
-
-      if (command === spoSiteGetCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          throw new CommandErrorWithOutput(new CommandError('404 FILE NOT FOUND'));
-        }
-
-        throw new CommandError('Invalid URL');
-      }
-
-      throw 'Unknown case';
-    });
-
-    await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog' } } as any);
-  });
-
-  it(`handles error when creating app catalog when app catalog not registered and site with different URL doesn't exist`, async () => {
-    sinon.stub(Cli, 'executeCommand').callsFake(async (command, args) => {
-      if (command === spoSiteAddCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          throw new CommandError('An error has occurred');
-        }
-
-        throw 'Invalid URL';
-      }
-
-      throw 'Unknown case';
-    });
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
-      if (command === spoTenantAppCatalogUrlGetCommand) {
-        return '';
-      }
-
-      if (command === spoSiteGetCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          throw new CommandErrorWithOutput(new CommandError('404 FILE NOT FOUND'));
-        }
-
-        throw new CommandError('Invalid URL');
-      }
-
-      throw 'Unknown case';
-    });
-
-    await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog' } } as any), new CommandError('An error has occurred'));
-  });
-
-  it(`handles error when app catalog not registered and checking if the site with different URL exists throws error`, async () => {
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake(async (command, args): Promise<any> => {
-      if (command === spoTenantAppCatalogUrlGetCommand) {
-        return '';
-      }
-
-      if (command === spoSiteGetCommand) {
-        if (args.options.url === 'https://contoso.sharepoint.com/sites/new-app-catalog') {
-          throw new CommandErrorWithOutput(new CommandError('An error has occurred'));
-        }
-
-        throw new CommandError('Invalid URL');
-      }
-
-      throw 'Unknown case';
-    });
-
-    await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog' } } as any), new CommandError('An error has occurred'));
-  });
-
-  it(`handles error when checking if app catalog registered throws error`, async () => {
-    sinon.stub(Cli, 'executeCommandWithOutput').callsFake((command): Promise<any> => {
-      if (command === spoTenantAppCatalogUrlGetCommand) {
-        throw new CommandError('An error has occurred');
-      }
-
-      throw 'Unknown case';
-    });
-
-    await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog' } } as any), new CommandError('An error has occurred'));
-  });
-
-  it('fails validation if the specified url is not a valid SharePoint URL', async () => {
-    const options: any = { url: '/foo', owner: 'user@contoso.com', timeZone: 4 };
-    const actual = await command.validate({ options: options }, commandInfo);
-    assert.strictEqual(typeof actual, 'string');
-  });
+        throw 'Unknown case';
+      });
+
+      await assert.rejects(command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/new-app-catalog' } } as any), new CommandError('An error has occurred'));
+    }
+  );
+
+  it('fails validation if the specified url is not a valid SharePoint URL',
+    async () => {
+      const options: any = { url: '/foo', owner: 'user@contoso.com', timeZone: 4 };
+      const actual = await command.validate({ options: options }, commandInfo);
+      assert.strictEqual(typeof actual, 'string');
+    }
+  );
 
   it('fails validation if timeZone is not a number', async () => {
     const options: any = { url: 'https://contoso.sharepoint.com/sites/apps', owner: 'user@contoso.com', timeZone: 'a' };
@@ -951,9 +1000,11 @@ describe(commands.TENANT_APPCATALOG_ADD, () => {
     assert.strictEqual(typeof actual, 'string');
   });
 
-  it('passes validation when all options are specified and valid', async () => {
-    const options: any = { url: 'https://contoso.sharepoint.com/sites/apps', owner: 'user@contoso.com', timeZone: 4 };
-    const actual = await command.validate({ options: options }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when all options are specified and valid',
+    async () => {
+      const options: any = { url: 'https://contoso.sharepoint.com/sites/apps', owner: 'user@contoso.com', timeZone: 4 };
+      const actual = await command.validate({ options: options }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,14 +8,14 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './folder-get.js';
 
 describe(commands.FOLDER_GET, () => {
   let log: any[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
   let stubGetResponses: any;
 
@@ -358,15 +357,15 @@ describe(commands.FOLDER_GET, () => {
     "WelcomePage": ""
   };
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
 
     stubGetResponses = (getResp: any = null) => {
-      return sinon.stub(request, 'get').callsFake(async (opts) => {
+      return jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
         if ((opts.url as string).indexOf('GetFolderByServerRelativePath(') > -1 || (opts.url as string).indexOf('GetFolderById') > -1) {
           if (getResp) {
             return getResp;
@@ -395,17 +394,17 @@ describe(commands.FOLDER_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -417,20 +416,24 @@ describe(commands.FOLDER_GET, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', url: '/Shared Documents' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', url: '/Shared Documents' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the id option is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', id: '12345' } }, commandInfo);
     assert.notStrictEqual(actual, true);
   });
 
-  it('passes validation if the webUrl option is a valid SharePoint site URL and url specified', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', url: '/Shared Documents' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if the webUrl option is a valid SharePoint site URL and url specified',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', url: '/Shared Documents' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('should correctly handle folder get reject request', async () => {
     stubGetResponses(new Promise((resolve, reject) => { reject('error1'); }));
@@ -443,16 +446,18 @@ describe(commands.FOLDER_GET, () => {
     } as any), new CommandError('error1'));
   });
 
-  it('should show tip when folder get rejects with error code 500', async () => {
-    sinon.stub(request, 'get').rejects({ statusCode: 500 });
+  it('should show tip when folder get rejects with error code 500',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation().rejects({ statusCode: 500 });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        webUrl: 'https://contoso.sharepoint.com',
-        url: '/Shared Documents'
-      }
-    } as any), new CommandError('Please check the folder URL. Folder might not exist on the specified URL'));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          webUrl: 'https://contoso.sharepoint.com',
+          url: '/Shared Documents'
+        }
+      } as any), new CommandError('Please check the folder URL. Folder might not exist on the specified URL'));
+    }
+  );
 
   it('should correctly handle folder get success request', async () => {
     stubGetResponses();
@@ -464,7 +469,7 @@ describe(commands.FOLDER_GET, () => {
         url: '/Shared Documents'
       }
     });
-    assert(loggerLogSpy.lastCall.calledWith({ "Exists": true, "IsWOPIEnabled": false, "ItemCount": 0, "Name": "test1", "ProgID": null, "ServerRelativeUrl": "/sites/test1/Shared Documents/test1", "TimeCreated": "2018-05-02T23:21:45Z", "TimeLastModified": "2018-05-02T23:21:45Z", "UniqueId": "0ac3da45-cacf-4c31-9b38-9ef3697d5a66", "WelcomePage": "" }));
+    assert(loggerLogSpy.mock.lastCall.calledWith({ "Exists": true, "IsWOPIEnabled": false, "ItemCount": 0, "Name": "test1", "ProgID": null, "ServerRelativeUrl": "/sites/test1/Shared Documents/test1", "TimeCreated": "2018-05-02T23:21:45Z", "TimeLastModified": "2018-05-02T23:21:45Z", "UniqueId": "0ac3da45-cacf-4c31-9b38-9ef3697d5a66", "WelcomePage": "" }));
   });
 
   it('should pass the correct id params to request', async () => {
@@ -477,7 +482,7 @@ describe(commands.FOLDER_GET, () => {
         id: 'b2307a39-e878-458b-bc90-03bc578531d6'
       }
     });
-    const lastCall: any = request.lastCall.args[0];
+    const lastCall: any = request.mock.lastCall[0];
     assert.strictEqual(lastCall.url, 'https://contoso.sharepoint.com/_api/web/GetFolderById(\'b2307a39-e878-458b-bc90-03bc578531d6\')');
   });
 
@@ -491,41 +496,45 @@ describe(commands.FOLDER_GET, () => {
         url: '/Shared Documents'
       }
     });
-    const lastCall: any = request.lastCall.args[0];
+    const lastCall: any = request.mock.lastCall[0];
     assert.strictEqual(lastCall.url, 'https://contoso.sharepoint.com/_api/web/GetFolderByServerRelativePath(DecodedUrl=\'%2FShared%20Documents\')');
   });
 
-  it('should pass the correct url params to request (sites/test1)', async () => {
-    const request = stubGetResponses();
+  it('should pass the correct url params to request (sites/test1)',
+    async () => {
+      const request = stubGetResponses();
 
-    await command.action(logger, {
-      options: {
-        output: 'json',
-        webUrl: 'https://contoso.sharepoint.com/sites/test1',
-        url: 'Shared Documents/'
-      }
-    });
-    const lastCall: any = request.lastCall.args[0];
-    assert.strictEqual(lastCall.url, 'https://contoso.sharepoint.com/sites/test1/_api/web/GetFolderByServerRelativePath(DecodedUrl=\'%2Fsites%2Ftest1%2FShared%20Documents\')');
-  });
+      await command.action(logger, {
+        options: {
+          output: 'json',
+          webUrl: 'https://contoso.sharepoint.com/sites/test1',
+          url: 'Shared Documents/'
+        }
+      });
+      const lastCall: any = request.mock.lastCall[0];
+      assert.strictEqual(lastCall.url, 'https://contoso.sharepoint.com/sites/test1/_api/web/GetFolderByServerRelativePath(DecodedUrl=\'%2Fsites%2Ftest1%2FShared%20Documents\')');
+    }
+  );
 
-  it('retrieves details of folder if folder url and withPermissions option is passed', async () => {
-    sinon.stub(request, 'get').resolves(expectedFolder);
+  it('retrieves details of folder if folder url and withPermissions option is passed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation().resolves(expectedFolder);
 
-    await command.action(logger, {
-      options: {
-        webUrl: 'https://contoso.sharepoint.com/sites/test1',
-        url: 'Shared Documents/FolderPermission',
-        withPermissions: true
-      }
-    });
-    assert(loggerLogSpy.calledWith(expectedFolder));
-  });
+      await command.action(logger, {
+        options: {
+          webUrl: 'https://contoso.sharepoint.com/sites/test1',
+          url: 'Shared Documents/FolderPermission',
+          withPermissions: true
+        }
+      });
+      assert(loggerLogSpy.calledWith(expectedFolder));
+    }
+  );
 
   it('should show tip when root folder is used withPermissions', async () => {
     const error = "Please ensure the specified folder URL or folder Id does not refer to a root folder. Use \'spo list get\' with withPermissions instead.";
 
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if ((opts.url === `https://contoso.sharepoint.com/_api/web/GetFolderByServerRelativePath(DecodedUrl='%2FShared%20Documents')?$expand=ListItemAllFields/HasUniqueRoleAssignments,ListItemAllFields/RoleAssignments/Member,ListItemAllFields/RoleAssignments/RoleDefinitionBindings`)) {
         return { "data": { "Exists": true, "IsWOPIEnabled": false, "ItemCount": 2, "Name": "Shared Documents", "ProgID": null, "ServerRelativeUrl": "/Shared Documents", "TimeCreated": "2018-05-02T23:21:45Z", "TimeLastModified": "2018-05-02T23:21:45Z", "UniqueId": "0ac3da45-cacf-4c31-9b38-9ef3697d5a66", "WelcomePage": "" } };
       }

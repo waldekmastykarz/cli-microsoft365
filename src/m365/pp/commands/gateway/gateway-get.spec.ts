@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,14 +9,14 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './gateway-get.js';
 
 describe(commands.GATEWAY_GET, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
   const gateway: any = {
@@ -30,11 +29,11 @@ describe(commands.GATEWAY_GET, () => {
     }
   };
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -52,15 +51,15 @@ describe(commands.GATEWAY_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, "log");
+    loggerLogSpy = jest.spyOn(logger, "log").mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([request.get]);
+    jestUtil.restore([request.get]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -99,7 +98,7 @@ describe(commands.GATEWAY_GET, () => {
   });
 
   it("correctly handles error", async () => {
-    sinon.stub(request, "get").callsFake(() => {
+    jest.spyOn(request, "get").mockClear().mockImplementation(() => {
       throw "An error has occurred";
     });
 
@@ -114,7 +113,7 @@ describe(commands.GATEWAY_GET, () => {
   });
 
   it("should get gateway information for the gateway by id", async () => {
-    sinon.stub(request, "get").callsFake((opts) => {
+    jest.spyOn(request, "get").mockClear().mockImplementation((opts) => {
       if (
         opts.url ===
         "https://api.powerbi.com" +
@@ -130,10 +129,10 @@ describe(commands.GATEWAY_GET, () => {
         id: "1f69e798-5852-4fdd-ab01-33bb14b6e934"
       }
     });
-    const call: sinon.SinonSpyCall = loggerLogSpy.lastCall;
+    const call: sinon.SinonSpyCall = loggerLogSpy.mock.lastCall;
 
-    assert.strictEqual(call.args[0].id, "1f69e798-5852-4fdd-ab01-33bb14b6e934");
-    assert.strictEqual(call.args[0].name, "My_Sample_Gateway");
+    assert.strictEqual(call.mock.calls[0].id, "1f69e798-5852-4fdd-ab01-33bb14b6e934");
+    assert.strictEqual(call.mock.calls[0].name, "My_Sample_Gateway");
     assert(loggerLogSpy.calledWith(gateway));
   });
 });

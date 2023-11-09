@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './site-inplacerecordsmanagement-set.js';
 
@@ -18,11 +17,11 @@ describe(commands.SITE_INPLACERECORDSMANAGEMENT_SET, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -43,13 +42,13 @@ describe(commands.SITE_INPLACERECORDSMANAGEMENT_SET, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -61,54 +60,58 @@ describe(commands.SITE_INPLACERECORDSMANAGEMENT_SET, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('correctly handles error when in-place records management already activated', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+  it('correctly handles error when in-place records management already activated',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
 
-      if ((opts.url as string).indexOf('_api/site/features/add') > -1) {
-        throw {
-          error: {
-            "odata.error": {
-              "code": "-1, System.Data.DuplicateNameException",
-              "message": {
-                "lang": "en-US",
-                "value": "Feature 'InPlaceRecords' (ID: da2e115b-07e4-49d9-bb2c-35e93bb9fca9) is already activated at scope 'https://contoso.sharepoint.com/sites/team-a'."
+        if ((opts.url as string).indexOf('_api/site/features/add') > -1) {
+          throw {
+            error: {
+              "odata.error": {
+                "code": "-1, System.Data.DuplicateNameException",
+                "message": {
+                  "lang": "en-US",
+                  "value": "Feature 'InPlaceRecords' (ID: da2e115b-07e4-49d9-bb2c-35e93bb9fca9) is already activated at scope 'https://contoso.sharepoint.com/sites/team-a'."
+                }
               }
             }
-          }
-        };
-      }
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, { options: { siteUrl: 'https://contoso.sharepoint.com/sites/team-a', enabled: true } } as any), new CommandError("Feature 'InPlaceRecords' (ID: da2e115b-07e4-49d9-bb2c-35e93bb9fca9) is already activated at scope 'https://contoso.sharepoint.com/sites/team-a'."));
-  });
+      await assert.rejects(command.action(logger, { options: { siteUrl: 'https://contoso.sharepoint.com/sites/team-a', enabled: true } } as any), new CommandError("Feature 'InPlaceRecords' (ID: da2e115b-07e4-49d9-bb2c-35e93bb9fca9) is already activated at scope 'https://contoso.sharepoint.com/sites/team-a'."));
+    }
+  );
 
-  it('correctly handles error when in-place records management already deactivated', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+  it('correctly handles error when in-place records management already deactivated',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
 
-      if ((opts.url as string).indexOf('_api/site/features/remove') > -1) {
-        throw {
-          error: {
-            "odata.error": {
-              "code": "-1, System.InvalidOperationException",
-              "message": {
-                "lang": "en-US",
-                "value": "Feature 'da2e115b-07e4-49d9-bb2c-35e93bb9fca9' is not activated at this scope."
+        if ((opts.url as string).indexOf('_api/site/features/remove') > -1) {
+          throw {
+            error: {
+              "odata.error": {
+                "code": "-1, System.InvalidOperationException",
+                "message": {
+                  "lang": "en-US",
+                  "value": "Feature 'da2e115b-07e4-49d9-bb2c-35e93bb9fca9' is not activated at this scope."
+                }
               }
             }
-          }
-        };
-      }
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, { options: { siteUrl: 'https://contoso.sharepoint.com/sites/team-a', enabled: false } } as any), new CommandError("Feature 'da2e115b-07e4-49d9-bb2c-35e93bb9fca9' is not activated at this scope."));
-  });
+      await assert.rejects(command.action(logger, { options: { siteUrl: 'https://contoso.sharepoint.com/sites/team-a', enabled: false } } as any), new CommandError("Feature 'da2e115b-07e4-49d9-bb2c-35e93bb9fca9' is not activated at this scope."));
+    }
+  );
 
   it('should deactivate in-place records management', async () => {
-    const requestStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const requestStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
 
       if ((opts.url as string).indexOf('_api/site/features/remove') > -1) {
         return;
@@ -118,14 +121,14 @@ describe(commands.SITE_INPLACERECORDSMANAGEMENT_SET, () => {
     });
 
     await command.action(logger, { options: { debug: true, verbose: true, siteUrl: 'https://contoso.sharepoint.com/sites/team-a', enabled: false } });
-    assert.strictEqual(requestStub.lastCall.args[0].url, 'https://contoso.sharepoint.com/sites/team-a/_api/site/features/remove');
-    assert.strictEqual(requestStub.lastCall.args[0].data.featureId, 'da2e115b-07e4-49d9-bb2c-35e93bb9fca9');
-    assert.strictEqual(requestStub.lastCall.args[0].data.force, true);
+    assert.strictEqual(requestStub.mock.lastCall[0].url, 'https://contoso.sharepoint.com/sites/team-a/_api/site/features/remove');
+    assert.strictEqual(requestStub.mock.lastCall[0].data.featureId, 'da2e115b-07e4-49d9-bb2c-35e93bb9fca9');
+    assert.strictEqual(requestStub.mock.lastCall[0].data.force, true);
 
   });
 
   it('should activate in-place records management (verbose)', async () => {
-    const requestStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const requestStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
 
       if ((opts.url as string).indexOf('_api/site/features/add') > -1) {
         return;
@@ -135,13 +138,13 @@ describe(commands.SITE_INPLACERECORDSMANAGEMENT_SET, () => {
     });
 
     await command.action(logger, { options: { verbose: true, siteUrl: 'https://contoso.sharepoint.com/sites/team-a', enabled: true } });
-    assert.strictEqual(requestStub.lastCall.args[0].url, 'https://contoso.sharepoint.com/sites/team-a/_api/site/features/add');
-    assert.strictEqual(requestStub.lastCall.args[0].data.featureId, 'da2e115b-07e4-49d9-bb2c-35e93bb9fca9');
-    assert.strictEqual(requestStub.lastCall.args[0].data.force, true);
+    assert.strictEqual(requestStub.mock.lastCall[0].url, 'https://contoso.sharepoint.com/sites/team-a/_api/site/features/add');
+    assert.strictEqual(requestStub.mock.lastCall[0].data.featureId, 'da2e115b-07e4-49d9-bb2c-35e93bb9fca9');
+    assert.strictEqual(requestStub.mock.lastCall[0].data.force, true);
   });
 
   it('should activate in-place records management', async () => {
-    const requestStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const requestStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
 
       if ((opts.url as string).indexOf('_api/site/features/add') > -1) {
         return;
@@ -151,9 +154,9 @@ describe(commands.SITE_INPLACERECORDSMANAGEMENT_SET, () => {
     });
 
     await command.action(logger, { options: { siteUrl: 'https://contoso.sharepoint.com/sites/team-a', enabled: true } });
-    assert.strictEqual(requestStub.lastCall.args[0].url, 'https://contoso.sharepoint.com/sites/team-a/_api/site/features/add');
-    assert.strictEqual(requestStub.lastCall.args[0].data.featureId, 'da2e115b-07e4-49d9-bb2c-35e93bb9fca9');
-    assert.strictEqual(requestStub.lastCall.args[0].data.force, true);
+    assert.strictEqual(requestStub.mock.lastCall[0].url, 'https://contoso.sharepoint.com/sites/team-a/_api/site/features/add');
+    assert.strictEqual(requestStub.mock.lastCall[0].data.featureId, 'da2e115b-07e4-49d9-bb2c-35e93bb9fca9');
+    assert.strictEqual(requestStub.mock.lastCall[0].data.force, true);
   });
 
   it('supports specifying siteUrl', () => {
@@ -183,13 +186,17 @@ describe(commands.SITE_INPLACERECORDSMANAGEMENT_SET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('passes validation when the siteUrl is a valid SharePoint URL and enabled set to "true"', async () => {
-    const actual = await command.validate({ options: { siteUrl: 'https://contoso.sharepoint.com/sites/team-a', enabled: true } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when the siteUrl is a valid SharePoint URL and enabled set to "true"',
+    async () => {
+      const actual = await command.validate({ options: { siteUrl: 'https://contoso.sharepoint.com/sites/team-a', enabled: true } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when the siteUrl is a valid SharePoint URL and enabled set to "false"', async () => {
-    const actual = await command.validate({ options: { siteUrl: 'https://contoso.sharepoint.com/sites/team-a', enabled: false } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when the siteUrl is a valid SharePoint URL and enabled set to "false"',
+    async () => {
+      const actual = await command.validate({ options: { siteUrl: 'https://contoso.sharepoint.com/sites/team-a', enabled: false } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

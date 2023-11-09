@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './app-install.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -20,12 +19,12 @@ describe(commands.APP_INSTALL, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -47,15 +46,15 @@ describe(commands.APP_INSTALL, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -67,25 +66,27 @@ describe(commands.APP_INSTALL, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('fails validation when neither teamId, userId nor userName are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation when neither teamId, userId nor userName are specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({
-      options: {
-        id: '15d7a78e-fd77-4599-97a5-dbb6372846c5'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({
+        options: {
+          id: '15d7a78e-fd77-4599-97a5-dbb6372846c5'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation when teamId and userId are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -104,7 +105,7 @@ describe(commands.APP_INSTALL, () => {
   });
 
   it('fails validation when teamId and userName are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -123,7 +124,7 @@ describe(commands.APP_INSTALL, () => {
   });
 
   it('fails validation when userId and userName are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -202,7 +203,7 @@ describe(commands.APP_INSTALL, () => {
   });
 
   it('adds app from the catalog to a Microsoft Team', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/teams/c527a470-a882-481c-981c-ee6efaba85c7/installedApps` &&
         JSON.stringify(opts.data) === `{"teamsApp@odata.bind":"https://graph.microsoft.com/v1.0/appCatalogs/teamsApps/4440558e-8c73-4597-abc7-3644a64c4bce"}`) {
         return;
@@ -220,112 +221,118 @@ describe(commands.APP_INSTALL, () => {
     assert.strictEqual(log.length, 0);
   });
 
-  it('installs app from the catalog the user specified with userId', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=id eq 'c527a470-a882-481c-981c-ee6efaba85c7'`) {
-        return {
-          "value": [
-            {
-              "businessPhones": [
-                "425-555-0100"
-              ],
-              "displayName": "MOD Administrator",
-              "givenName": "MOD",
-              "jobTitle": null,
-              "mail": "admin@contoso.OnMicrosoft.com",
-              "mobilePhone": "425-555-0101",
-              "officeLocation": null,
-              "preferredLanguage": "en-US",
-              "surname": "Administrator",
-              "userPrincipalName": "admin@contoso.onmicrosoft.com",
-              "id": "c527a470-a882-481c-981c-ee6efaba85c7"
-            }
-          ]
-        };
-      }
+  it('installs app from the catalog the user specified with userId',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=id eq 'c527a470-a882-481c-981c-ee6efaba85c7'`) {
+          return {
+            "value": [
+              {
+                "businessPhones": [
+                  "425-555-0100"
+                ],
+                "displayName": "MOD Administrator",
+                "givenName": "MOD",
+                "jobTitle": null,
+                "mail": "admin@contoso.OnMicrosoft.com",
+                "mobilePhone": "425-555-0101",
+                "officeLocation": null,
+                "preferredLanguage": "en-US",
+                "surname": "Administrator",
+                "userPrincipalName": "admin@contoso.onmicrosoft.com",
+                "id": "c527a470-a882-481c-981c-ee6efaba85c7"
+              }
+            ]
+          };
+        }
 
-      throw 'Invalid request';
-    });
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users/c527a470-a882-481c-981c-ee6efaba85c7/teamwork/installedApps` &&
-        JSON.stringify(opts.data) === `{"teamsApp@odata.bind":"https://graph.microsoft.com/v1.0/appCatalogs/teamsApps/4440558e-8c73-4597-abc7-3644a64c4bce"}`) {
-        return;
-      }
+        throw 'Invalid request';
+      });
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users/c527a470-a882-481c-981c-ee6efaba85c7/teamwork/installedApps` &&
+          JSON.stringify(opts.data) === `{"teamsApp@odata.bind":"https://graph.microsoft.com/v1.0/appCatalogs/teamsApps/4440558e-8c73-4597-abc7-3644a64c4bce"}`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        userId: 'c527a470-a882-481c-981c-ee6efaba85c7',
-        id: '4440558e-8c73-4597-abc7-3644a64c4bce'
-      }
-    });
-    assert.strictEqual(log.length, 0);
-  });
+      await command.action(logger, {
+        options: {
+          userId: 'c527a470-a882-481c-981c-ee6efaba85c7',
+          id: '4440558e-8c73-4597-abc7-3644a64c4bce'
+        }
+      });
+      assert.strictEqual(log.length, 0);
+    }
+  );
 
-  it('installs app from the catalog the user specified with userId (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=id eq 'c527a470-a882-481c-981c-ee6efaba85c7'`) {
-        return {
-          "value": [
-            {
-              "businessPhones": [
-                "425-555-0100"
-              ],
-              "displayName": "MOD Administrator",
-              "givenName": "MOD",
-              "jobTitle": null,
-              "mail": "admin@contoso.OnMicrosoft.com",
-              "mobilePhone": "425-555-0101",
-              "officeLocation": null,
-              "preferredLanguage": "en-US",
-              "surname": "Administrator",
-              "userPrincipalName": "admin@contoso.onmicrosoft.com",
-              "id": "c527a470-a882-481c-981c-ee6efaba85c7"
-            }
-          ]
-        };
-      }
+  it('installs app from the catalog the user specified with userId (debug)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=id eq 'c527a470-a882-481c-981c-ee6efaba85c7'`) {
+          return {
+            "value": [
+              {
+                "businessPhones": [
+                  "425-555-0100"
+                ],
+                "displayName": "MOD Administrator",
+                "givenName": "MOD",
+                "jobTitle": null,
+                "mail": "admin@contoso.OnMicrosoft.com",
+                "mobilePhone": "425-555-0101",
+                "officeLocation": null,
+                "preferredLanguage": "en-US",
+                "surname": "Administrator",
+                "userPrincipalName": "admin@contoso.onmicrosoft.com",
+                "id": "c527a470-a882-481c-981c-ee6efaba85c7"
+              }
+            ]
+          };
+        }
 
-      throw 'Invalid request';
-    });
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users/c527a470-a882-481c-981c-ee6efaba85c7/teamwork/installedApps` &&
-        JSON.stringify(opts.data) === `{"teamsApp@odata.bind":"https://graph.microsoft.com/v1.0/appCatalogs/teamsApps/4440558e-8c73-4597-abc7-3644a64c4bce"}`) {
-        return;
-      }
+        throw 'Invalid request';
+      });
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users/c527a470-a882-481c-981c-ee6efaba85c7/teamwork/installedApps` &&
+          JSON.stringify(opts.data) === `{"teamsApp@odata.bind":"https://graph.microsoft.com/v1.0/appCatalogs/teamsApps/4440558e-8c73-4597-abc7-3644a64c4bce"}`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        userId: 'c527a470-a882-481c-981c-ee6efaba85c7',
-        id: '4440558e-8c73-4597-abc7-3644a64c4bce',
-        debug: true
-      }
-    });
-  });
+      await command.action(logger, {
+        options: {
+          userId: 'c527a470-a882-481c-981c-ee6efaba85c7',
+          id: '4440558e-8c73-4597-abc7-3644a64c4bce',
+          debug: true
+        }
+      });
+    }
+  );
 
-  it('installs app from the catalog the user specified with userName', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users/steve%40contoso.com/teamwork/installedApps` &&
-        JSON.stringify(opts.data) === `{"teamsApp@odata.bind":"https://graph.microsoft.com/v1.0/appCatalogs/teamsApps/4440558e-8c73-4597-abc7-3644a64c4bce"}`) {
-        return;
-      }
+  it('installs app from the catalog the user specified with userName',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users/steve%40contoso.com/teamwork/installedApps` &&
+          JSON.stringify(opts.data) === `{"teamsApp@odata.bind":"https://graph.microsoft.com/v1.0/appCatalogs/teamsApps/4440558e-8c73-4597-abc7-3644a64c4bce"}`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        userName: 'steve@contoso.com',
-        id: '4440558e-8c73-4597-abc7-3644a64c4bce'
-      }
-    });
-    assert.strictEqual(log.length, 0);
-  });
+      await command.action(logger, {
+        options: {
+          userName: 'steve@contoso.com',
+          id: '4440558e-8c73-4597-abc7-3644a64c4bce'
+        }
+      });
+      assert.strictEqual(log.length, 0);
+    }
+  );
 
   it('correctly handles error while installing Teams app', async () => {
     const error = {
@@ -339,7 +346,7 @@ describe(commands.APP_INSTALL, () => {
         }
       }
     };
-    sinon.stub(request, 'post').rejects(error);
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, {
       options: {
@@ -349,78 +356,84 @@ describe(commands.APP_INSTALL, () => {
     } as any), new CommandError(error.error.message));
   });
 
-  it(`correctly handles error when trying to install an app for a user that doesn't exist (invalid user name)`, async () => {
-    sinon.stub(request, 'post').callsFake(() => {
-      return Promise.reject({
-        "error": {
-          "code": "NotFound",
-          "message": "Failed to find user with id 'steve@contoso.com' in the tenant",
-          "innerError": {
-            "date": "2022-02-14T12:14:15",
-            "request-id": "1d6fc213-9f35-4cb3-b496-3d8b10aebdfa",
-            "client-request-id": "1d6fc213-9f35-4cb3-b496-3d8b10aebdfa"
+  it(`correctly handles error when trying to install an app for a user that doesn't exist (invalid user name)`,
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(() => {
+        return Promise.reject({
+          "error": {
+            "code": "NotFound",
+            "message": "Failed to find user with id 'steve@contoso.com' in the tenant",
+            "innerError": {
+              "date": "2022-02-14T12:14:15",
+              "request-id": "1d6fc213-9f35-4cb3-b496-3d8b10aebdfa",
+              "client-request-id": "1d6fc213-9f35-4cb3-b496-3d8b10aebdfa"
+            }
           }
-        }
+        });
       });
-    });
 
-    await assert.rejects(command.action(logger, { options: { userName: 'steve@contoso.com', id: '4440558e-8c73-4597-abc7-3644a64c4bce' } } as any), new CommandError("Failed to find user with id 'steve@contoso.com' in the tenant"));
-  });
+      await assert.rejects(command.action(logger, { options: { userName: 'steve@contoso.com', id: '4440558e-8c73-4597-abc7-3644a64c4bce' } } as any), new CommandError("Failed to find user with id 'steve@contoso.com' in the tenant"));
+    }
+  );
 
-  it(`correctly handles error when trying to install an app for a user that doesn't exist (invalid user ID)`, async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=id eq 'c527a470-a882-481c-981c-ee6efaba85c7'`) {
-        throw {
-          "error": {
-            "code": "Request_ResourceNotFound",
-            "message": "Resource 'c527a470-a882-481c-981c-ee6efaba85c7' does not exist or one of its queried reference-property objects are not present.",
-            "innerError": {
-              "date": "2022-02-14T13:27:37",
-              "request-id": "77e0ed26-8b57-48d6-a502-aca6211d6e7c",
-              "client-request-id": "77e0ed26-8b57-48d6-a502-aca6211d6e7c"
+  it(`correctly handles error when trying to install an app for a user that doesn't exist (invalid user ID)`,
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=id eq 'c527a470-a882-481c-981c-ee6efaba85c7'`) {
+          throw {
+            "error": {
+              "code": "Request_ResourceNotFound",
+              "message": "Resource 'c527a470-a882-481c-981c-ee6efaba85c7' does not exist or one of its queried reference-property objects are not present.",
+              "innerError": {
+                "date": "2022-02-14T13:27:37",
+                "request-id": "77e0ed26-8b57-48d6-a502-aca6211d6e7c",
+                "client-request-id": "77e0ed26-8b57-48d6-a502-aca6211d6e7c"
+              }
             }
-          }
-        };
-      }
+          };
+        }
 
-      throw 'Invalid request';
-    });
-    sinon.stub(request, 'post').rejects('Invalid request');
+        throw 'Invalid request';
+      });
+      jest.spyOn(request, 'post').mockClear().mockImplementation().rejects('Invalid request');
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        userId: 'c527a470-a882-481c-981c-ee6efaba85c7',
-        id: '4440558e-8c73-4597-abc7-3644a64c4bce'
-      }
-    } as any), new CommandError("User with ID c527a470-a882-481c-981c-ee6efaba85c7 not found. Original error: Resource 'c527a470-a882-481c-981c-ee6efaba85c7' does not exist or one of its queried reference-property objects are not present."));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          userId: 'c527a470-a882-481c-981c-ee6efaba85c7',
+          id: '4440558e-8c73-4597-abc7-3644a64c4bce'
+        }
+      } as any), new CommandError("User with ID c527a470-a882-481c-981c-ee6efaba85c7 not found. Original error: Resource 'c527a470-a882-481c-981c-ee6efaba85c7' does not exist or one of its queried reference-property objects are not present."));
+    }
+  );
 
-  it(`correctly handles error when trying to install an app for a user that doesn't exist (invalid user ID; debug)`, async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=id eq 'c527a470-a882-481c-981c-ee6efaba85c7'`) {
-        throw {
-          "error": {
-            "code": "Request_ResourceNotFound",
-            "message": "Resource 'c527a470-a882-481c-981c-ee6efaba85c7' does not exist or one of its queried reference-property objects are not present.",
-            "innerError": {
-              "date": "2022-02-14T13:27:37",
-              "request-id": "77e0ed26-8b57-48d6-a502-aca6211d6e7c",
-              "client-request-id": "77e0ed26-8b57-48d6-a502-aca6211d6e7c"
+  it(`correctly handles error when trying to install an app for a user that doesn't exist (invalid user ID; debug)`,
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users?$filter=id eq 'c527a470-a882-481c-981c-ee6efaba85c7'`) {
+          throw {
+            "error": {
+              "code": "Request_ResourceNotFound",
+              "message": "Resource 'c527a470-a882-481c-981c-ee6efaba85c7' does not exist or one of its queried reference-property objects are not present.",
+              "innerError": {
+                "date": "2022-02-14T13:27:37",
+                "request-id": "77e0ed26-8b57-48d6-a502-aca6211d6e7c",
+                "client-request-id": "77e0ed26-8b57-48d6-a502-aca6211d6e7c"
+              }
             }
-          }
-        };
-      }
+          };
+        }
 
-      throw 'Invalid request';
-    });
-    sinon.stub(request, 'post').rejects('Invalid request');
+        throw 'Invalid request';
+      });
+      jest.spyOn(request, 'post').mockClear().mockImplementation().rejects('Invalid request');
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        userId: 'c527a470-a882-481c-981c-ee6efaba85c7',
-        id: '4440558e-8c73-4597-abc7-3644a64c4bce',
-        debug: true
-      }
-    } as any), new CommandError("User with ID c527a470-a882-481c-981c-ee6efaba85c7 not found. Original error: Resource 'c527a470-a882-481c-981c-ee6efaba85c7' does not exist or one of its queried reference-property objects are not present."));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          userId: 'c527a470-a882-481c-981c-ee6efaba85c7',
+          id: '4440558e-8c73-4597-abc7-3644a64c4bce',
+          debug: true
+        }
+      } as any), new CommandError("User with ID c527a470-a882-481c-981c-ee6efaba85c7 not found. Original error: Resource 'c527a470-a882-481c-981c-ee6efaba85c7' does not exist or one of its queried reference-property objects are not present."));
+    }
+  );
 });

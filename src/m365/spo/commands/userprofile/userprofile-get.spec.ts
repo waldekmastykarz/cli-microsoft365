@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './userprofile-get.js';
@@ -17,15 +16,15 @@ import command from './userprofile-get.js';
 describe(commands.USERPROFILE_GET, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'ABC',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -49,17 +48,17 @@ describe(commands.USERPROFILE_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = true;
     auth.service.spoUrl = undefined;
   });
@@ -99,7 +98,7 @@ describe(commands.USERPROFILE_GET, () => {
           "Value": "i:0h.f|membership|10032000840f3681@live.com"
         }]
     };
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/SP.UserProfiles.PeopleManager/GetPropertiesFor') > -1) {
         // we need to clone the object because it's changed in the command
         // and would skew the comparison in the test outcome
@@ -118,54 +117,56 @@ describe(commands.USERPROFILE_GET, () => {
     assert.strictEqual(JSON.stringify(log[0]), JSON.stringify(loggedProfile));
   });
 
-  it('gets userprofile information about the specified user output json', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/SP.UserProfiles.PeopleManager/GetPropertiesFor') > -1) {
-        return {
-          "AccountName": "i:0#.f|membership|dips1802@dev1802.onmicrosoft.com",
-          "DirectReports": [],
-          "DisplayName": "Dipen Shah",
-          "Email": "dips1802@dev1802.onmicrosoft.com",
-          "ExtendedManagers": [],
-          "ExtendedReports": [
-            "i:0#.f|membership|dips1802@dev1802.onmicrosoft.com"
-          ],
-          "IsFollowed": false,
-          "LatestPost": null,
-          "Peers": [],
-          "PersonalSiteHostUrl": "https://contoso-my.sharepoint.com:443/",
-          "PersonalUrl": "https://contoso-my.sharepoint.com/personal/dips1802_dev1802_onmicrosoft_com/",
-          "PictureUrl": null,
-          "Title": null
-        };
-      }
-      throw 'Invalid request';
-    });
-    await command.action(logger, {
-      options: {
-        output: 'json',
-        debug: true,
-        userName: 'john.doe@contoso.onmicrosoft.com'
-      }
-    } as any);
-    assert(loggerLogSpy.calledWith({
-      "AccountName": "i:0#.f|membership|dips1802@dev1802.onmicrosoft.com",
-      "DirectReports": [],
-      "DisplayName": "Dipen Shah",
-      "Email": "dips1802@dev1802.onmicrosoft.com",
-      "ExtendedManagers": [],
-      "ExtendedReports": [
-        "i:0#.f|membership|dips1802@dev1802.onmicrosoft.com"
-      ],
-      "IsFollowed": false,
-      "LatestPost": null,
-      "Peers": [],
-      "PersonalSiteHostUrl": "https://contoso-my.sharepoint.com:443/",
-      "PersonalUrl": "https://contoso-my.sharepoint.com/personal/dips1802_dev1802_onmicrosoft_com/",
-      "PictureUrl": null,
-      "Title": null
-    }));
-  });
+  it('gets userprofile information about the specified user output json',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/SP.UserProfiles.PeopleManager/GetPropertiesFor') > -1) {
+          return {
+            "AccountName": "i:0#.f|membership|dips1802@dev1802.onmicrosoft.com",
+            "DirectReports": [],
+            "DisplayName": "Dipen Shah",
+            "Email": "dips1802@dev1802.onmicrosoft.com",
+            "ExtendedManagers": [],
+            "ExtendedReports": [
+              "i:0#.f|membership|dips1802@dev1802.onmicrosoft.com"
+            ],
+            "IsFollowed": false,
+            "LatestPost": null,
+            "Peers": [],
+            "PersonalSiteHostUrl": "https://contoso-my.sharepoint.com:443/",
+            "PersonalUrl": "https://contoso-my.sharepoint.com/personal/dips1802_dev1802_onmicrosoft_com/",
+            "PictureUrl": null,
+            "Title": null
+          };
+        }
+        throw 'Invalid request';
+      });
+      await command.action(logger, {
+        options: {
+          output: 'json',
+          debug: true,
+          userName: 'john.doe@contoso.onmicrosoft.com'
+        }
+      } as any);
+      assert(loggerLogSpy.calledWith({
+        "AccountName": "i:0#.f|membership|dips1802@dev1802.onmicrosoft.com",
+        "DirectReports": [],
+        "DisplayName": "Dipen Shah",
+        "Email": "dips1802@dev1802.onmicrosoft.com",
+        "ExtendedManagers": [],
+        "ExtendedReports": [
+          "i:0#.f|membership|dips1802@dev1802.onmicrosoft.com"
+        ],
+        "IsFollowed": false,
+        "LatestPost": null,
+        "Peers": [],
+        "PersonalSiteHostUrl": "https://contoso-my.sharepoint.com:443/",
+        "PersonalUrl": "https://contoso-my.sharepoint.com/personal/dips1802_dev1802_onmicrosoft_com/",
+        "PictureUrl": null,
+        "Title": null
+      }));
+    }
+  );
 
   it('supports specifying userName', () => {
     const options = command.options;
@@ -179,7 +180,7 @@ describe(commands.USERPROFILE_GET, () => {
   });
 
   it('handles error correctly', async () => {
-    sinon.stub(request, 'get').rejects(new Error('An error has occurred'));
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
     await assert.rejects(command.action(logger, {
       options: {
@@ -188,10 +189,12 @@ describe(commands.USERPROFILE_GET, () => {
     } as any), new CommandError('An error has occurred'));
   });
 
-  it('fails validation if the user principal name is not a valid', async () => {
-    const actual = await command.validate({ options: { userName: 'abc' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the user principal name is not a valid',
+    async () => {
+      const actual = await command.validate({ options: { userName: 'abc' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation when the user principal name is a valid', async () => {
     const actual = await command.validate({ options: { userName: 'john.doe@mytenant.onmicrosoft.com' } }, commandInfo);

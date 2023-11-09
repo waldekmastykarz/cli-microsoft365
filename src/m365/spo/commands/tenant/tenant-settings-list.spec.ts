@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Logger } from '../../../../cli/Logger.js';
 import { CommandError } from '../../../../Command.js';
@@ -7,7 +6,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './tenant-settings-list.js';
@@ -15,14 +14,14 @@ import command from './tenant-settings-list.js';
 describe(commands.TENANT_SETTINGS_LIST, () => {
   let log: any[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'ABC',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -45,17 +44,17 @@ describe(commands.TENANT_SETTINGS_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -70,7 +69,7 @@ describe(commands.TENANT_SETTINGS_LIST, () => {
 
   it('handles client.svc promise error', async () => {
     // get tenant app catalog
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('_vti_bin/client.svc/ProcessQuery') > -1) {
         throw 'An error has occurred';
       }
@@ -82,7 +81,7 @@ describe(commands.TENANT_SETTINGS_LIST, () => {
 
   it('handles error while getting tenant appcatalog', async () => {
     // get tenant app catalog
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('_vti_bin/client.svc/ProcessQuery') > -1) {
         return JSON.stringify([
           {
@@ -100,7 +99,7 @@ describe(commands.TENANT_SETTINGS_LIST, () => {
 
   it('lists the tenant settings (debug)', async () => {
     // get tenant app catalog
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('_vti_bin/client.svc/ProcessQuery') > -1) {
         return JSON.stringify([
           {
@@ -126,29 +125,29 @@ describe(commands.TENANT_SETTINGS_LIST, () => {
         debug: true
       }
     });
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].AllowDownloadingNonWebViewableFiles, true);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].BccExternalSharingInvitationsList, null);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].HideDefaultThemes, true);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0].UserVoiceForFeedbackEnabled, false);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0]["_ObjectType_"], undefined);
-    assert.strictEqual(loggerLogSpy.lastCall.args[0]["_ObjectIdentity_"], undefined);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].AllowDownloadingNonWebViewableFiles, true);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].BccExternalSharingInvitationsList, null);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].HideDefaultThemes, true);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0].UserVoiceForFeedbackEnabled, false);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0]["_ObjectType_"], undefined);
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0]["_ObjectIdentity_"], undefined);
 
-    assert.strictEqual(loggerLogSpy.lastCall.args[0]["SharingCapability"], 'ExternalUserSharingOnly');
-    assert.strictEqual(loggerLogSpy.lastCall.args[0]["SharingDomainRestrictionMode"], 'AllowList');
-    assert.strictEqual(loggerLogSpy.lastCall.args[0]["ODBMembersCanShare"], 'Unspecified');
-    assert.strictEqual(loggerLogSpy.lastCall.args[0]["ODBAccessRequests"], 'Unspecified');
-    assert.strictEqual(loggerLogSpy.lastCall.args[0]["DefaultSharingLinkType"], 'Direct');
-    assert.strictEqual(loggerLogSpy.lastCall.args[0]["FileAnonymousLinkType"], 'Edit');
-    assert.strictEqual(loggerLogSpy.lastCall.args[0]["FolderAnonymousLinkType"], 'Edit');
-    assert.strictEqual(loggerLogSpy.lastCall.args[0]["DefaultLinkPermission"], 'View');
-    assert.strictEqual(loggerLogSpy.lastCall.args[0]["ConditionalAccessPolicy"], 'AllowFullAccess');
-    assert.strictEqual(loggerLogSpy.lastCall.args[0]["SpecialCharactersStateInFileFolderNames"], 'Allowed');
-    assert.strictEqual(loggerLogSpy.lastCall.args[0]["LimitedAccessFileType"], 'WebPreviewableFiles');
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0]["SharingCapability"], 'ExternalUserSharingOnly');
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0]["SharingDomainRestrictionMode"], 'AllowList');
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0]["ODBMembersCanShare"], 'Unspecified');
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0]["ODBAccessRequests"], 'Unspecified');
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0]["DefaultSharingLinkType"], 'Direct');
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0]["FileAnonymousLinkType"], 'Edit');
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0]["FolderAnonymousLinkType"], 'Edit');
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0]["DefaultLinkPermission"], 'View');
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0]["ConditionalAccessPolicy"], 'AllowFullAccess');
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0]["SpecialCharactersStateInFileFolderNames"], 'Allowed');
+    assert.strictEqual(loggerLogSpy.mock.lastCall[0]["LimitedAccessFileType"], 'WebPreviewableFiles');
   });
 
   it('handles tenant settings error', async () => {
     // get tenant app catalog
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('_vti_bin/client.svc/ProcessQuery') > -1) {
         return JSON.stringify([
           {

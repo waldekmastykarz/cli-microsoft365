@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import { telemetry } from '../../../../telemetry.js';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -9,7 +8,7 @@ import { CommandError } from '../../../../Command.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { urlUtil } from '../../../../utils/urlUtil.js';
 import commands from '../../commands.js';
 import fs from 'fs';
@@ -31,12 +30,12 @@ describe(commands.LISTITEM_ATTACHMENT_SET, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -54,11 +53,11 @@ describe(commands.LISTITEM_ATTACHMENT_SET, () => {
         log.push(msg);
       }
     };
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake(((_, defaultValue) => defaultValue));
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation(((_, defaultValue) => defaultValue));
   });
 
   afterEach(() => {
-    sinonUtil.restore([,
+    jestUtil.restore([,
       fs.existsSync,
       fs.readFileSync,
       request.put,
@@ -66,8 +65,8 @@ describe(commands.LISTITEM_ATTACHMENT_SET, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -79,93 +78,105 @@ describe(commands.LISTITEM_ATTACHMENT_SET, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    sinon.stub(fs, 'existsSync').returns(true);
-    const actual = await command.validate({ options: { webUrl: 'invalid', listTitle: listTitle, listItemId: listItemId, filePath: filePath, fileName: fileName } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+      const actual = await command.validate({ options: { webUrl: 'invalid', listTitle: listTitle, listItemId: listItemId, filePath: filePath, fileName: fileName } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the webUrl option is a valid SharePoint site URL and filePath exists', async () => {
-    sinon.stub(fs, 'existsSync').returns(true);
-    const actual = await command.validate({ options: { webUrl: webUrl, listTitle: listTitle, listItemId: listItemId, filePath: filePath, fileName: fileName } }, commandInfo);
-    assert(actual);
-  });
+  it('passes validation if the webUrl option is a valid SharePoint site URL and filePath exists',
+    async () => {
+      jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+      const actual = await command.validate({ options: { webUrl: webUrl, listTitle: listTitle, listItemId: listItemId, filePath: filePath, fileName: fileName } }, commandInfo);
+      assert(actual);
+    }
+  );
 
-  it('fails validation if the listItemId option is not a valid number', async () => {
-    sinon.stub(fs, 'existsSync').returns(true);
-    const actual = await command.validate({ options: { webUrl: webUrl, listId: listId, listItemId: 'invalid', filePath: filePath, fileName: fileName } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the listItemId option is not a valid number',
+    async () => {
+      jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+      const actual = await command.validate({ options: { webUrl: webUrl, listId: listId, listItemId: 'invalid', filePath: filePath, fileName: fileName } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
 
   it('fails validation if the listId option is not a valid GUID', async () => {
-    sinon.stub(fs, 'existsSync').returns(true);
+    jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
     const actual = await command.validate({ options: { webUrl: webUrl, listId: 'invalid', listItemId: listItemId, filePath: filePath, fileName: fileName } }, commandInfo);
     assert.notStrictEqual(actual, true);
   });
 
   it('passes validation if the listId option is a valid GUID', async () => {
-    sinon.stub(fs, 'existsSync').returns(true);
+    jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
     const actual = await command.validate({ options: { webUrl: webUrl, listId: listId, listItemId: listItemId, filePath: filePath, fileName: fileName } }, commandInfo);
     assert(actual);
   });
 
   it('fails validation if filePath does not exist', async () => {
-    sinon.stub(fs, 'existsSync').returns(false);
+    jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(false);
     const actual = await command.validate({ options: { webUrl: webUrl, listTitle: listTitle, listItemId: listItemId, filePath: filePath, fileName: fileName } }, commandInfo);
     assert.notStrictEqual(actual, true);
   });
 
-  it('updates attachment to listitem in list retrieved by id while specifying fileName', async () => {
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'readFileSync').returns('content read');
-    const putStub = sinon.stub(request, 'put').callsFake(async (args) => {
-      if (args.url === `${webUrl}/_api/web/lists(guid'${listId}')/items(${listItemId})/AttachmentFiles('${fileName}')/$value`) {
-        return;
-      }
+  it('updates attachment to listitem in list retrieved by id while specifying fileName',
+    async () => {
+      jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+      jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('content read');
+      const putStub = jest.spyOn(request, 'put').mockClear().mockImplementation(async (args) => {
+        if (args.url === `${webUrl}/_api/web/lists(guid'${listId}')/items(${listItemId})/AttachmentFiles('${fileName}')/$value`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { verbose: true, webUrl: webUrl, listId: listId, listItemId: listItemId, filePath: filePath, fileName: fileName } });
-    assert(putStub.called);
-  });
+      await command.action(logger, { options: { verbose: true, webUrl: webUrl, listId: listId, listItemId: listItemId, filePath: filePath, fileName: fileName } });
+      assert(putStub.called);
+    }
+  );
 
-  it('updates attachment to listitem in list retrieved by url while not specifying fileName', async () => {
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'readFileSync').returns('content read');
-    const putStub = sinon.stub(request, 'put').callsFake(async (args) => {
-      if (args.url === `${webUrl}/_api/web/GetList('${formatting.encodeQueryParameter(listServerRelativeUrl)}')/items(${listItemId})/AttachmentFiles('${fileName}')/$value`) {
-        return;
-      }
+  it('updates attachment to listitem in list retrieved by url while not specifying fileName',
+    async () => {
+      jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+      jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('content read');
+      const putStub = jest.spyOn(request, 'put').mockClear().mockImplementation(async (args) => {
+        if (args.url === `${webUrl}/_api/web/GetList('${formatting.encodeQueryParameter(listServerRelativeUrl)}')/items(${listItemId})/AttachmentFiles('${fileName}')/$value`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { verbose: true, webUrl: webUrl, listUrl: listUrl, listItemId: listItemId, filePath: filePath, fileName: fileName } });
-    assert(putStub.called);
-  });
+      await command.action(logger, { options: { verbose: true, webUrl: webUrl, listUrl: listUrl, listItemId: listItemId, filePath: filePath, fileName: fileName } });
+      assert(putStub.called);
+    }
+  );
 
-  it('updates attachment to listitem in list retrieved by url while specifying fileName without extension', async () => {
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'readFileSync').returns('content read');
-    const fileNameWithoutExtension = fileName.split('.')[0];
-    const fileNameWithExtension = `${fileNameWithoutExtension}.${filePath.split('.').pop()}`;
-    const putStub = sinon.stub(request, 'put').callsFake(async (args) => {
-      if (args.url === `${webUrl}/_api/web/lists/getByTitle('${formatting.encodeQueryParameter(listTitle)}')/items(${listItemId})/AttachmentFiles('${fileNameWithExtension}')/$value`) {
-        return;
-      }
+  it('updates attachment to listitem in list retrieved by url while specifying fileName without extension',
+    async () => {
+      jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+      jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('content read');
+      const fileNameWithoutExtension = fileName.split('.')[0];
+      const fileNameWithExtension = `${fileNameWithoutExtension}.${filePath.split('.').pop()}`;
+      const putStub = jest.spyOn(request, 'put').mockClear().mockImplementation(async (args) => {
+        if (args.url === `${webUrl}/_api/web/lists/getByTitle('${formatting.encodeQueryParameter(listTitle)}')/items(${listItemId})/AttachmentFiles('${fileNameWithExtension}')/$value`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { verbose: true, webUrl: webUrl, listTitle: listTitle, listItemId: listItemId, filePath: filePath, fileName: fileNameWithoutExtension } });
-    assert(putStub.called);
-  });
+      await command.action(logger, { options: { verbose: true, webUrl: webUrl, listTitle: listTitle, listItemId: listItemId, filePath: filePath, fileName: fileNameWithoutExtension } });
+      assert(putStub.called);
+    }
+  );
 
   it('handles error when attachment does not exist', async () => {
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'readFileSync').returns('content read');
+    jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+    jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('content read');
     const error = {
       error: {
         'odata.error': {
@@ -177,7 +188,7 @@ describe(commands.LISTITEM_ATTACHMENT_SET, () => {
         }
       }
     };
-    sinon.stub(request, 'put').callsFake(async (args) => {
+    jest.spyOn(request, 'put').mockClear().mockImplementation(async (args) => {
       if (args.url === `${webUrl}/_api/web/lists(guid'${listId}')/items(${listItemId})/AttachmentFiles('${fileName}')/$value`) {
         throw error;
       }

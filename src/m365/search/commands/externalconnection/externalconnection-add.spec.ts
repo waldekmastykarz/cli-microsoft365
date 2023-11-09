@@ -1,6 +1,5 @@
 import { ExternalConnectors } from '@microsoft/microsoft-graph-types';
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './externalconnection-add.js';
 
@@ -41,11 +40,11 @@ describe(commands.EXTERNALCONNECTION_ADD, () => {
     name: 'Test Connection for CLI'
   };
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -67,13 +66,13 @@ describe(commands.EXTERNALCONNECTION_ADD, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -86,7 +85,7 @@ describe(commands.EXTERNALCONNECTION_ADD, () => {
   });
 
   it('adds an external connection', async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts: any) => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts: any) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/external/connections`) {
         return externalConnectionAddResponse;
       }
@@ -98,11 +97,11 @@ describe(commands.EXTERNALCONNECTION_ADD, () => {
       description: 'Test connection that will not do anything'
     };
     await command.action(logger, { options: options } as any);
-    assert.deepStrictEqual(postStub.getCall(0).args[0].data, externalConnectionAddResponse);
+    assert.deepStrictEqual(postStub.mock.calls[0][0].data, externalConnectionAddResponse);
   });
 
   it('adds an external connection with authorized app id', async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts: any) => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts: any) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/external/connections`) {
         return externalConnectionAddResponse;
       }
@@ -115,11 +114,11 @@ describe(commands.EXTERNALCONNECTION_ADD, () => {
       authorizedAppIds: '00000000-0000-0000-0000-000000000000,00000000-0000-0000-0000-000000000001,00000000-0000-0000-0000-000000000002'
     };
     await command.action(logger, { options: options } as any);
-    assert.deepStrictEqual(postStub.getCall(0).args[0].data, externalConnectionAddResponseWithAppIDs);
+    assert.deepStrictEqual(postStub.mock.calls[0][0].data, externalConnectionAddResponseWithAppIDs);
   });
 
   it('adds an external connection with authorised app IDs', async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts: any) => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts: any) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/external/connections`) {
         return externalConnectionAddResponseWithAppIDs;
       }
@@ -132,11 +131,11 @@ describe(commands.EXTERNALCONNECTION_ADD, () => {
       authorizedAppIds: '00000000-0000-0000-0000-000000000000,00000000-0000-0000-0000-000000000001,00000000-0000-0000-0000-000000000002'
     };
     await command.action(logger, { options: options } as any);
-    assert.deepStrictEqual(postStub.getCall(0).args[0].data, externalConnectionAddResponseWithAppIDs);
+    assert.deepStrictEqual(postStub.mock.calls[0][0].data, externalConnectionAddResponseWithAppIDs);
   });
 
   it('correctly handles error', async () => {
-    sinon.stub(request, 'post').callsFake(() => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(() => {
       throw {
         "error": {
           "code": "Error",

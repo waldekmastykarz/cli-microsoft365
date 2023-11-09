@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './plan-remove.js';
 
@@ -52,11 +51,11 @@ describe(commands.PLAN_REMOVE, () => {
   let promptOptions: any;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     auth.service.accessTokens[(command as any).resource] = {
       accessToken: 'abc',
@@ -79,22 +78,22 @@ describe(commands.PLAN_REMOVE, () => {
       }
     };
     promptOptions = undefined;
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.delete,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.accessTokens = {};
   });
@@ -117,35 +116,41 @@ describe(commands.PLAN_REMOVE, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation when title is specified with both ownerGroupName and ownerGroupId', async () => {
-    const actual = await command.validate({
-      options: {
-        title: validPlanTitle,
-        ownerGroupId: validOwnerGroupId,
-        ownerGroupName: validOwnerGroupName
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation when title is specified with both ownerGroupName and ownerGroupId',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          title: validPlanTitle,
+          ownerGroupId: validOwnerGroupId,
+          ownerGroupName: validOwnerGroupName
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when title is specified without ownerGroupName or ownerGroupId', async () => {
-    const actual = await command.validate({
-      options: {
-        title: validPlanTitle
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation when title is specified without ownerGroupName or ownerGroupId',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          title: validPlanTitle
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation when title is specified with invalid ownerGroupId', async () => {
-    const actual = await command.validate({
-      options: {
-        title: validPlanTitle,
-        ownerGroupId: 'invalid'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation when title is specified with invalid ownerGroupId',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          title: validPlanTitle,
+          ownerGroupId: 'invalid'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('validates for a correct input with id', async () => {
     const actual = await command.validate({
@@ -166,41 +171,45 @@ describe(commands.PLAN_REMOVE, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('prompts before removing the specified plan when confirm option not passed with id', async () => {
-    await command.action(logger, {
-      options: {
-        id: validPlanId
+  it('prompts before removing the specified plan when confirm option not passed with id',
+    async () => {
+      await command.action(logger, {
+        options: {
+          id: validPlanId
+        }
+      });
+
+      let promptIssued = false;
+
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
       }
-    });
 
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      assert(promptIssued);
     }
+  );
 
-    assert(promptIssued);
-  });
-
-  it('aborts removing the specified plan when confirm option not passed and prompt not confirmed', async () => {
-    const deleteSpy = sinon.spy(request, 'delete');
-    await command.action(logger, {
-      options: {
-        id: validPlanId
-      }
-    });
-    assert(deleteSpy.notCalled);
-  });
+  it('aborts removing the specified plan when confirm option not passed and prompt not confirmed',
+    async () => {
+      const deleteSpy = jest.spyOn(request, 'delete').mockClear();
+      await command.action(logger, {
+        options: {
+          id: validPlanId
+        }
+      });
+      assert(deleteSpy.notCalled);
+    }
+  );
 
   it('Correctly deletes plan by id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${validPlanId}`) {
         return singlePlanResponse;
       }
 
       throw 'Invalid request';
     });
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
+    jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${validPlanId}`) {
         return;
       }
@@ -217,7 +226,7 @@ describe(commands.PLAN_REMOVE, () => {
   });
 
   it('Correctly deletes plan by title', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(validOwnerGroupName)}'`) {
         return singleGroupsResponse;
       }
@@ -227,15 +236,15 @@ describe(commands.PLAN_REMOVE, () => {
 
       throw 'Invalid request';
     });
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
+    jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${validPlanId}`) {
         return;
       }
 
       throw 'Invalid request';
     });
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: true }
     ));
 
@@ -248,22 +257,22 @@ describe(commands.PLAN_REMOVE, () => {
   });
 
   it('Correctly deletes plan by title with group id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups/${validOwnerGroupId}/planner/plans`) {
         return singlePlansResponse;
       }
 
       throw 'Invalid request';
     });
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
+    jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${validPlanId}`) {
         return;
       }
 
       throw 'Invalid request';
     });
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
     await command.action(logger, {
       options: {
@@ -274,8 +283,8 @@ describe(commands.PLAN_REMOVE, () => {
   });
 
   it('correctly handles random API error', async () => {
-    sinon.stub(request, 'get').resolves(singlePlanResponse);
-    sinon.stub(request, 'delete').rejects(new Error('An error has occurred'));
+    jest.spyOn(request, 'get').mockClear().mockImplementation().resolves(singlePlanResponse);
+    jest.spyOn(request, 'delete').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
     await assert.rejects(command.action(logger, {
       options: {

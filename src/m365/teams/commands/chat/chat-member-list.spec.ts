@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './chat-member-list.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -18,15 +17,15 @@ describe(commands.CHAT_MEMBER_LIST, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -44,18 +43,18 @@ describe(commands.CHAT_MEMBER_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -72,7 +71,7 @@ describe(commands.CHAT_MEMBER_LIST, () => {
   });
 
   it('fails validation if chatId is not specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }
@@ -96,23 +95,27 @@ describe(commands.CHAT_MEMBER_LIST, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation for an incorrect chatId missing leading 19:.', async () => {
-    const actual = await command.validate({
-      options: {
-        chatId: '8b081ef6-4792-4def-b2c9-c363a1bf41d5_5031bb31-22c0-4f6f-9f73-91d34ab2b32d@unq.gbl.spaces'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation for an incorrect chatId missing leading 19:.',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          chatId: '8b081ef6-4792-4def-b2c9-c363a1bf41d5_5031bb31-22c0-4f6f-9f73-91d34ab2b32d@unq.gbl.spaces'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation for an incorrect chatId missing trailing @thread.v2 or @unq.gbl.spaces', async () => {
-    const actual = await command.validate({
-      options: {
-        chatId: '19:8b081ef6-4792-4def-b2c9-c363a1bf41d5_5031bb31-22c0-4f6f-9f73-91d34ab2b32d'
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation for an incorrect chatId missing trailing @thread.v2 or @unq.gbl.spaces',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          chatId: '19:8b081ef6-4792-4def-b2c9-c363a1bf41d5_5031bb31-22c0-4f6f-9f73-91d34ab2b32d'
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('validates for a correct input', async () => {
     const actual = await command.validate({
@@ -124,7 +127,7 @@ describe(commands.CHAT_MEMBER_LIST, () => {
   });
 
   it('lists chat members (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/chats/19:8b081ef6-4792-4def-b2c9-c363a1bf41d5_5031bb31-22c0-4f6f-9f73-91d34ab2b32d@unq.gbl.spaces/members`) {
         return {
           "value": [{ "@odata.type": "#microsoft.graph.aadUserConversationMember", "id": "8b081ef6-4792-4def-b2c9-c363a1bf41d5", "roles": ["owner"], "displayName": "John Doe", "userId": "8b081ef6-4792-4def-b2c9-c363a1bf41d5", "email": null, "tenantId": "6e5147da-6a35-4275-b3f3-fc069456b6eb", "visibleHistoryStartDateTime": "2019-04-18T23:51:43.255Z" }, { "@odata.type": "#microsoft.graph.aadUserConversationMember", "id": "2de87aaf-844d-4def-9dee-2c317f0be1b3", "roles": ["owner"], "displayName": "Bart Hogan", "userId": "2de87aaf-844d-4def-9dee-2c317f0be1b3", "email": null, "tenantId": "6e5147da-6a35-4275-b3f3-fc069456b6eb", "visibleHistoryStartDateTime": "0001-01-01T00:00:00Z" }, { "@odata.type": "#microsoft.graph.aadUserConversationMember", "id": "07ad17ad-ada5-4f1f-a650-7a963886a8a7", "roles": ["owner"], "displayName": "Minna Pham", "userId": "07ad17ad-ada5-4f1f-a650-7a963886a8a7", "email": null, "tenantId": "6e5147da-6a35-4275-b3f3-fc069456b6eb", "visibleHistoryStartDateTime": "2019-04-18T23:51:43.255Z" }]
@@ -181,7 +184,7 @@ describe(commands.CHAT_MEMBER_LIST, () => {
   });
 
   it('lists chat members', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/chats/19:8b081ef6-4792-4def-b2c9-c363a1bf41d5_5031bb31-22c0-4f6f-9f73-91d34ab2b32d@unq.gbl.spaces/members`) {
         return {
           "value": [{ "@odata.type": "#microsoft.graph.aadUserConversationMember", "id": "8b081ef6-4792-4def-b2c9-c363a1bf41d5", "roles": ["owner"], "displayName": "John Doe", "userId": "8b081ef6-4792-4def-b2c9-c363a1bf41d5", "email": null, "tenantId": "6e5147da-6a35-4275-b3f3-fc069456b6eb", "visibleHistoryStartDateTime": "2019-04-18T23:51:43.255Z" }, { "@odata.type": "#microsoft.graph.aadUserConversationMember", "id": "2de87aaf-844d-4def-9dee-2c317f0be1b3", "roles": ["owner"], "displayName": "Bart Hogan", "userId": "2de87aaf-844d-4def-9dee-2c317f0be1b3", "email": null, "tenantId": "6e5147da-6a35-4275-b3f3-fc069456b6eb", "visibleHistoryStartDateTime": "0001-01-01T00:00:00Z" }, { "@odata.type": "#microsoft.graph.aadUserConversationMember", "id": "07ad17ad-ada5-4f1f-a650-7a963886a8a7", "roles": ["owner"], "displayName": "Minna Pham", "userId": "07ad17ad-ada5-4f1f-a650-7a963886a8a7", "email": null, "tenantId": "6e5147da-6a35-4275-b3f3-fc069456b6eb", "visibleHistoryStartDateTime": "2019-04-18T23:51:43.255Z" }]
@@ -237,7 +240,7 @@ describe(commands.CHAT_MEMBER_LIST, () => {
   });
 
   it('outputs all data in json output mode', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/chats/19:8b081ef6-4792-4def-b2c9-c363a1bf41d5_5031bb31-22c0-4f6f-9f73-91d34ab2b32d@unq.gbl.spaces/members`) {
         return {
           "value": [{ "@odata.type": "#microsoft.graph.aadUserConversationMember", "id": "8b081ef6-4792-4def-b2c9-c363a1bf41d5", "roles": ["owner"], "displayName": "John Doe", "userId": "8b081ef6-4792-4def-b2c9-c363a1bf41d5", "email": null, "tenantId": "6e5147da-6a35-4275-b3f3-fc069456b6eb", "visibleHistoryStartDateTime": "2019-04-18T23:51:43.255Z" }, { "@odata.type": "#microsoft.graph.aadUserConversationMember", "id": "2de87aaf-844d-4def-9dee-2c317f0be1b3", "roles": ["owner"], "displayName": "Bart Hogan", "userId": "2de87aaf-844d-4def-9dee-2c317f0be1b3", "email": null, "tenantId": "6e5147da-6a35-4275-b3f3-fc069456b6eb", "visibleHistoryStartDateTime": "0001-01-01T00:00:00Z" }, { "@odata.type": "#microsoft.graph.aadUserConversationMember", "id": "07ad17ad-ada5-4f1f-a650-7a963886a8a7", "roles": ["owner"], "displayName": "Minna Pham", "userId": "07ad17ad-ada5-4f1f-a650-7a963886a8a7", "email": null, "tenantId": "6e5147da-6a35-4275-b3f3-fc069456b6eb", "visibleHistoryStartDateTime": "2019-04-18T23:51:43.255Z" }]
@@ -268,7 +271,7 @@ describe(commands.CHAT_MEMBER_LIST, () => {
         }
       }
     };
-    sinon.stub(request, 'get').rejects(error);
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, {
       options: {

@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './web-set.js';
 
@@ -18,11 +17,11 @@ describe(commands.WEB_SET, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -43,13 +42,13 @@ describe(commands.WEB_SET, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.patch
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -62,7 +61,7 @@ describe(commands.WEB_SET, () => {
   });
 
   it('updates site title', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (JSON.stringify(opts.data) === JSON.stringify({
         Title: 'New title'
       })) {
@@ -76,7 +75,7 @@ describe(commands.WEB_SET, () => {
   });
 
   it('updates site logo URL', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (JSON.stringify(opts.data) === JSON.stringify({
         SiteLogoUrl: 'image.png'
       })) {
@@ -90,7 +89,7 @@ describe(commands.WEB_SET, () => {
   });
 
   it('unsets the site logo', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (JSON.stringify(opts.data) === JSON.stringify({
         SiteLogoUrl: ''
       })) {
@@ -104,7 +103,7 @@ describe(commands.WEB_SET, () => {
   });
 
   it('disables quick launch', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (JSON.stringify(opts.data) === JSON.stringify({
         QuickLaunchEnabled: false
       })) {
@@ -118,7 +117,7 @@ describe(commands.WEB_SET, () => {
   });
 
   it('enables quick launch', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (JSON.stringify(opts.data) === JSON.stringify({
         QuickLaunchEnabled: true
       })) {
@@ -132,7 +131,7 @@ describe(commands.WEB_SET, () => {
   });
 
   it('sets site header to compact', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (JSON.stringify(opts.data) === JSON.stringify({
         HeaderLayout: 2
       })) {
@@ -146,7 +145,7 @@ describe(commands.WEB_SET, () => {
   });
 
   it('sets site header to standard', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (JSON.stringify(opts.data) === JSON.stringify({
         HeaderLayout: 1
       })) {
@@ -160,7 +159,7 @@ describe(commands.WEB_SET, () => {
   });
 
   it('sets site header emphasis to 0', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (JSON.stringify(opts.data) === JSON.stringify({
         HeaderEmphasis: 0
       })) {
@@ -174,7 +173,7 @@ describe(commands.WEB_SET, () => {
   });
 
   it('sets site header emphasis to 1', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (JSON.stringify(opts.data) === JSON.stringify({
         HeaderEmphasis: 1
       })) {
@@ -188,7 +187,7 @@ describe(commands.WEB_SET, () => {
   });
 
   it('sets site header emphasis to 2', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (JSON.stringify(opts.data) === JSON.stringify({
         HeaderEmphasis: 2
       })) {
@@ -202,7 +201,7 @@ describe(commands.WEB_SET, () => {
   });
 
   it('sets site header emphasis to 3', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (JSON.stringify(opts.data) === JSON.stringify({
         HeaderEmphasis: 3
       })) {
@@ -216,7 +215,7 @@ describe(commands.WEB_SET, () => {
   });
 
   it('sets site menu mode to megamenu', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (JSON.stringify(opts.data) === JSON.stringify({
         MegaMenuEnabled: true
       })) {
@@ -230,7 +229,7 @@ describe(commands.WEB_SET, () => {
   });
 
   it('sets site menu mode to cascading', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (JSON.stringify(opts.data) === JSON.stringify({
         MegaMenuEnabled: false
       })) {
@@ -244,7 +243,7 @@ describe(commands.WEB_SET, () => {
   });
 
   it('updates all properties', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://contoso.sharepoint.com/sites/team-a/_api/web') {
         return;
       }
@@ -256,7 +255,7 @@ describe(commands.WEB_SET, () => {
   });
 
   it('Update Welcome page', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://contoso.sharepoint.com/sites/team-a/_api/web/RootFolder') {
         return;
       }
@@ -271,7 +270,7 @@ describe(commands.WEB_SET, () => {
   });
 
   it('Update Welcome page (debug)', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://contoso.sharepoint.com/sites/team-a/_api/web/RootFolder') {
         return;
       }
@@ -286,7 +285,7 @@ describe(commands.WEB_SET, () => {
   });
 
   it('correctly handles error when hub site not found', async () => {
-    sinon.stub(request, 'patch').callsFake(() => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(() => {
       throw {
         error: {
           "odata.error": {
@@ -304,7 +303,7 @@ describe(commands.WEB_SET, () => {
   });
 
   it('correctly handles error while updating Welcome page', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://contoso.sharepoint.com/sites/team-a/_api/web/RootFolder') {
         throw {
           error: {
@@ -359,10 +358,12 @@ describe(commands.WEB_SET, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation when the url is a valid SharePoint URL and quickLaunch set to "true"', async () => {
-    const actual = await command.validate({ options: { url: 'https://contoso.sharepoint.com/sites/team-a', quickLaunchEnabled: true } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when the url is a valid SharePoint URL and quickLaunch set to "true"',
+    async () => {
+      const actual = await command.validate({ options: { url: 'https://contoso.sharepoint.com/sites/team-a', quickLaunchEnabled: true } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('fails validation if headerLayout is invalid', async () => {
     const actual = await command.validate({ options: { url: 'https://contoso.sharepoint.com/sites/team-a', headerLayout: 'invalid' } }, commandInfo);
@@ -429,18 +430,22 @@ describe(commands.WEB_SET, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation if navAudienceTargetingEnabled is set to true', async () => {
-    const actual = await command.validate({ options: { url: 'https://contoso.sharepoint.com/sites/team-a', navAudienceTargetingEnabled: true } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if navAudienceTargetingEnabled is set to true',
+    async () => {
+      const actual = await command.validate({ options: { url: 'https://contoso.sharepoint.com/sites/team-a', navAudienceTargetingEnabled: true } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if navAudienceTargetingEnabled is set to false', async () => {
-    const actual = await command.validate({ options: { url: 'https://contoso.sharepoint.com/sites/team-a', navAudienceTargetingEnabled: false } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if navAudienceTargetingEnabled is set to false',
+    async () => {
+      const actual = await command.validate({ options: { url: 'https://contoso.sharepoint.com/sites/team-a', navAudienceTargetingEnabled: false } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('enables footer', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (JSON.stringify(opts.data) === JSON.stringify({
         FooterEnabled: true
       })) {
@@ -454,7 +459,7 @@ describe(commands.WEB_SET, () => {
   });
 
   it('disables footer', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (JSON.stringify(opts.data) === JSON.stringify({
         FooterEnabled: false
       })) {
@@ -468,7 +473,7 @@ describe(commands.WEB_SET, () => {
   });
 
   it('enables navAudienceTargetingEnabled', async () => {
-    const postRequestStub = sinon.stub(request, 'patch').callsFake(async (opts) => {
+    const postRequestStub = jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === 'https://contoso.sharepoint.com/sites/team-a/_api/web') {
         return;
       }
@@ -481,7 +486,7 @@ describe(commands.WEB_SET, () => {
     };
 
     await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/team-a', navAudienceTargetingEnabled: true } });
-    assert.deepStrictEqual(postRequestStub.lastCall.args[0].data, requestBody);
+    assert.deepStrictEqual(postRequestStub.mock.lastCall[0].data, requestBody);
   });
 
   it('fails validation if search scope is not valid', async () => {
@@ -509,10 +514,12 @@ describe(commands.WEB_SET, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation even if search scope is not all lower case', async () => {
-    const actual = await command.validate({ options: { url: 'https://contoso.sharepoint.com/sites/team-a', searchScope: 'DefaultScope' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation even if search scope is not all lower case',
+    async () => {
+      const actual = await command.validate({ options: { url: 'https://contoso.sharepoint.com/sites/team-a', searchScope: 'DefaultScope' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('fails validation if search scope passed is a number', async () => {
     const actual = await command.validate({ options: { url: 'https://contoso.sharepoint.com/sites/team-a', searchScope: 2 } }, commandInfo);
@@ -520,7 +527,7 @@ describe(commands.WEB_SET, () => {
   });
 
   it('sets search scope to default scope', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (JSON.stringify(opts.data) === JSON.stringify({
         SearchScope: 0
       })) {
@@ -534,7 +541,7 @@ describe(commands.WEB_SET, () => {
   });
 
   it('sets search scope to tenant', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (JSON.stringify(opts.data) === JSON.stringify({
         SearchScope: 1
       })) {
@@ -548,7 +555,7 @@ describe(commands.WEB_SET, () => {
   });
 
   it('sets search scope to hub', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (JSON.stringify(opts.data) === JSON.stringify({
         SearchScope: 2
       })) {
@@ -562,7 +569,7 @@ describe(commands.WEB_SET, () => {
   });
 
   it('sets search scope to site', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (JSON.stringify(opts.data) === JSON.stringify({
         SearchScope: 3
       })) {
@@ -576,7 +583,7 @@ describe(commands.WEB_SET, () => {
   });
 
   it('sets search scope even if parameter is not all lower case', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (JSON.stringify(opts.data) === JSON.stringify({
         SearchScope: 3
       })) {

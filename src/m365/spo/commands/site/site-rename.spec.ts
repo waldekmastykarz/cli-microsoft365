@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './site-rename.js';
@@ -19,17 +18,17 @@ describe(commands.SITE_RENAME, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogToStderrSpy: jest.SpyInstance;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(global, 'setTimeout').callsFake((fn) => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(global, 'setTimeout').mockClear().mockImplementation((fn) => {
       fn();
       return {} as any;
     });
@@ -41,7 +40,7 @@ describe(commands.SITE_RENAME, () => {
   beforeEach(() => {
     const futureDate = new Date();
     futureDate.setSeconds(futureDate.getSeconds() + 1800);
-    sinon.stub(spo, 'getRequestDigest').resolves({ FormDigestValue: 'abc', FormDigestTimeoutSeconds: 1800, FormDigestExpiresAt: futureDate, WebFullUrl: 'https://contoso.sharepoint.com/sites/hr' });
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({ FormDigestValue: 'abc', FormDigestTimeoutSeconds: 1800, FormDigestExpiresAt: futureDate, WebFullUrl: 'https://contoso.sharepoint.com/sites/hr' });
 
     log = [];
     logger = {
@@ -55,12 +54,12 @@ describe(commands.SITE_RENAME, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post,
       spo.getRequestDigest,
@@ -68,8 +67,8 @@ describe(commands.SITE_RENAME, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -83,7 +82,7 @@ describe(commands.SITE_RENAME, () => {
   });
 
   it('creates a site rename job using new url parameter', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/SiteRenameJobs?api-version=1.4.7`) > -1) {
         return {
           "Option": 0,
@@ -111,7 +110,7 @@ describe(commands.SITE_RENAME, () => {
   });
 
   it('creates a site rename job - json output', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/SiteRenameJobs?api-version=1.4.7`) > -1) {
         return {
           "Option": 0,
@@ -153,97 +152,103 @@ describe(commands.SITE_RENAME, () => {
     }));
   });
 
-  it('creates a site rename job using new url parameter - suppressMarketplaceAppCheck flag', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/SiteRenameJobs?api-version=1.4.7`) > -1
-        && opts.data.Option === 8) {
-        return {
-          "Option": 8,
-          "Reserve": null,
-          "OperationId": "00000000-0000-0000-0000-000000000000",
-          "SkipGestures": "",
-          "SourceSiteUrl": "https://contoso.sharepoint.com/sites/site1",
-          "TargetSiteTitle": null,
-          "TargetSiteUrl": "https://contoso.sharepoint.com/sites/site1-renamed",
-          "ErrorCode": 0,
-          "ErrorDescription": null,
-          "JobId": "76b7d932-1fb5-4fca-a336-fcceb03e157b",
-          "JobState": "Success",
-          "ParentId": "00000000-0000-0000-0000-000000000000",
-          "SiteId": "18f8cd3b-c000-0000-0000-48bfd83e50c1",
-          "TriggeredBy": "user@contoso.onmicrosoft.com"
-        };
-      }
+  it('creates a site rename job using new url parameter - suppressMarketplaceAppCheck flag',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/SiteRenameJobs?api-version=1.4.7`) > -1
+          && opts.data.Option === 8) {
+          return {
+            "Option": 8,
+            "Reserve": null,
+            "OperationId": "00000000-0000-0000-0000-000000000000",
+            "SkipGestures": "",
+            "SourceSiteUrl": "https://contoso.sharepoint.com/sites/site1",
+            "TargetSiteTitle": null,
+            "TargetSiteUrl": "https://contoso.sharepoint.com/sites/site1-renamed",
+            "ErrorCode": 0,
+            "ErrorDescription": null,
+            "JobId": "76b7d932-1fb5-4fca-a336-fcceb03e157b",
+            "JobState": "Success",
+            "ParentId": "00000000-0000-0000-0000-000000000000",
+            "SiteId": "18f8cd3b-c000-0000-0000-48bfd83e50c1",
+            "TriggeredBy": "user@contoso.onmicrosoft.com"
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/site1', newUrl: 'https://contoso.sharepoint.com/sites/site1-renamed', suppressMarketplaceAppCheck: true, verbose: true } });
-    assert(loggerLogToStderrSpy.called);
-  });
+      await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/site1', newUrl: 'https://contoso.sharepoint.com/sites/site1-renamed', suppressMarketplaceAppCheck: true, verbose: true } });
+      assert(loggerLogToStderrSpy.called);
+    }
+  );
 
-  it('creates a site rename job using new url parameter - suppressWorkflow2013Check flag', async () => {
+  it('creates a site rename job using new url parameter - suppressWorkflow2013Check flag',
+    async () => {
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/SiteRenameJobs?api-version=1.4.7`) > -1
-        && opts.data.Option === 16) {
-        return {
-          "Option": 16,
-          "Reserve": null,
-          "OperationId": "00000000-0000-0000-0000-000000000000",
-          "SkipGestures": "",
-          "SourceSiteUrl": "https://contoso.sharepoint.com/sites/site1",
-          "TargetSiteTitle": null,
-          "TargetSiteUrl": "https://contoso.sharepoint.com/sites/site1-renamed",
-          "ErrorCode": 0,
-          "ErrorDescription": null,
-          "JobId": "76b7d932-1fb5-4fca-a336-fcceb03e157b",
-          "JobState": "Success",
-          "ParentId": "00000000-0000-0000-0000-000000000000",
-          "SiteId": "18f8cd3b-c000-0000-0000-48bfd83e50c1",
-          "TriggeredBy": "user@contoso.onmicrosoft.com"
-        };
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/SiteRenameJobs?api-version=1.4.7`) > -1
+          && opts.data.Option === 16) {
+          return {
+            "Option": 16,
+            "Reserve": null,
+            "OperationId": "00000000-0000-0000-0000-000000000000",
+            "SkipGestures": "",
+            "SourceSiteUrl": "https://contoso.sharepoint.com/sites/site1",
+            "TargetSiteTitle": null,
+            "TargetSiteUrl": "https://contoso.sharepoint.com/sites/site1-renamed",
+            "ErrorCode": 0,
+            "ErrorDescription": null,
+            "JobId": "76b7d932-1fb5-4fca-a336-fcceb03e157b",
+            "JobState": "Success",
+            "ParentId": "00000000-0000-0000-0000-000000000000",
+            "SiteId": "18f8cd3b-c000-0000-0000-48bfd83e50c1",
+            "TriggeredBy": "user@contoso.onmicrosoft.com"
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/site1', newUrl: 'https://contoso.sharepoint.com/sites/site1-renamed', suppressWorkflow2013Check: true, verbose: true } });
-    assert(loggerLogToStderrSpy.called);
-  });
+      await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/site1', newUrl: 'https://contoso.sharepoint.com/sites/site1-renamed', suppressWorkflow2013Check: true, verbose: true } });
+      assert(loggerLogToStderrSpy.called);
+    }
+  );
 
-  it('creates a site rename job using new url parameter - both supress flags', async () => {
+  it('creates a site rename job using new url parameter - both supress flags',
+    async () => {
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/SiteRenameJobs?api-version=1.4.7`) > -1
-        && opts.data.Option === 24) {
-        return {
-          "Option": 24,
-          "Reserve": null,
-          "OperationId": "00000000-0000-0000-0000-000000000000",
-          "SkipGestures": "",
-          "SourceSiteUrl": "https://contoso.sharepoint.com/sites/site1",
-          "TargetSiteTitle": "RenamedSite",
-          "TargetSiteUrl": "https://contoso.sharepoint.com/sites/site1-renamed",
-          "ErrorCode": 0,
-          "ErrorDescription": null,
-          "JobId": "76b7d932-1fb5-4fca-a336-fcceb03e157b",
-          "JobState": "Success",
-          "ParentId": "00000000-0000-0000-0000-000000000000",
-          "SiteId": "18f8cd3b-c000-0000-0000-48bfd83e50c1",
-          "TriggeredBy": "user@contoso.onmicrosoft.com"
-        };
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/SiteRenameJobs?api-version=1.4.7`) > -1
+          && opts.data.Option === 24) {
+          return {
+            "Option": 24,
+            "Reserve": null,
+            "OperationId": "00000000-0000-0000-0000-000000000000",
+            "SkipGestures": "",
+            "SourceSiteUrl": "https://contoso.sharepoint.com/sites/site1",
+            "TargetSiteTitle": "RenamedSite",
+            "TargetSiteUrl": "https://contoso.sharepoint.com/sites/site1-renamed",
+            "ErrorCode": 0,
+            "ErrorDescription": null,
+            "JobId": "76b7d932-1fb5-4fca-a336-fcceb03e157b",
+            "JobState": "Success",
+            "ParentId": "00000000-0000-0000-0000-000000000000",
+            "SiteId": "18f8cd3b-c000-0000-0000-48bfd83e50c1",
+            "TriggeredBy": "user@contoso.onmicrosoft.com"
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/site1', newUrl: 'https://contoso.sharepoint.com/sites/site1-renamed', newTitle: "RenamedSite", suppressWorkflow2013Check: true, suppressMarketplaceAppCheck: true, verbose: true } });
-    assert(loggerLogToStderrSpy.called);
-  });
+      await command.action(logger, { options: { url: 'https://contoso.sharepoint.com/sites/site1', newUrl: 'https://contoso.sharepoint.com/sites/site1-renamed', newTitle: "RenamedSite", suppressWorkflow2013Check: true, suppressMarketplaceAppCheck: true, verbose: true } });
+      assert(loggerLogToStderrSpy.called);
+    }
+  );
 
   it('creates a site rename job - wait for completion', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/SiteRenameJobs?api-version=1.4.7`) > -1) {
         return {
           "Option": 0,
@@ -266,7 +271,7 @@ describe(commands.SITE_RENAME, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/SiteRenameJobs/GetJobsBySiteUrl') > -1 &&
         opts.headers &&
         opts.headers['X-AttemptNumber'] &&
@@ -330,7 +335,7 @@ describe(commands.SITE_RENAME, () => {
   });
 
   it('handles API error - delayed failure - valid response', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/SiteRenameJobs?api-version=1.4.7`) > -1) {
         return {
           "Option": 0,
@@ -353,7 +358,7 @@ describe(commands.SITE_RENAME, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/SiteRenameJobs/GetJobsBySiteUrl') > -1) {
         return {
           "odata.metadata": "https://contoso-admin.sharepoint.com/_api/$metadata#SP.ApiData.SiteRenameJobEntityDatas",
@@ -392,7 +397,7 @@ describe(commands.SITE_RENAME, () => {
   });
 
   it('handles API error - delayed failure - service error', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/SiteRenameJobs?api-version=1.4.7`) > -1) {
         return {
           "Option": 0,
@@ -415,7 +420,7 @@ describe(commands.SITE_RENAME, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(request, 'get').callsFake(() => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(() => {
       throw 'Invalid request';
     });
 
@@ -430,7 +435,7 @@ describe(commands.SITE_RENAME, () => {
   });
 
   it('handles API error - immediate failure on creation', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/SiteRenameJobs?api-version=1.4.7`) > -1) {
 
         return {
@@ -490,7 +495,7 @@ describe(commands.SITE_RENAME, () => {
   });
 
   it('rejects missing newUrl', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
+    jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
       if (settingName === settingsNames.prompt) {
         return false;
       }

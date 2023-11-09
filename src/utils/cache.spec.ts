@@ -1,13 +1,12 @@
 import assert from 'assert';
 import fs from 'fs';
 import path from 'path';
-import sinon from 'sinon';
 import { cache } from './cache.js';
-import { sinonUtil } from './sinonUtil.js';
+import { jestUtil } from './jestUtil.js';
 
 describe('utils/cache', () => {
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       fs.existsSync,
       fs.readFileSync,
       fs.mkdirSync,
@@ -20,26 +19,28 @@ describe('utils/cache', () => {
   });
 
   describe('getValue', () => {
-    it(`returns undefined when the specified value doesn't exist in cache`, () => {
-      sinon.stub(fs, 'existsSync').returns(false);
-      assert.strictEqual(cache.getValue('key'), undefined);
-    });
+    it(`returns undefined when the specified value doesn't exist in cache`,
+      () => {
+        jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(false);
+        assert.strictEqual(cache.getValue('key'), undefined);
+      }
+    );
 
     it('returns the specified value from cache', () => {
-      sinon.stub(fs, 'existsSync').returns(true);
-      sinon.stub(fs, 'readFileSync').returns('value');
+      jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+      jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('value');
       assert.strictEqual(cache.getValue('key'), 'value');
     });
 
     it('returns undefined if an error occurs while reading cache', () => {
-      sinon.stub(fs, 'existsSync').returns(true);
-      sinon.stub(fs, 'readFileSync').throws();
+      jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation().throws();
       assert.strictEqual(cache.getValue('key'), undefined);
     });
 
     it('clears expired values', () => {
-      const clearExpiredSpy = sinon.spy(cache, 'clearExpired');
-      sinon.stub(fs, 'existsSync').returns(false);
+      const clearExpiredSpy = jest.spyOn(cache, 'clearExpired').mockClear();
+      jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(false);
       cache.getValue('key');
 
       assert(clearExpiredSpy.called);
@@ -48,24 +49,24 @@ describe('utils/cache', () => {
 
   describe('setValue', () => {
     it('clears expired values', () => {
-      const clearExpiredSpy = sinon.spy(cache, 'clearExpired');
-      sinon.stub(fs, 'mkdirSync').throws();
+      const clearExpiredSpy = jest.spyOn(cache, 'clearExpired').mockClear();
+      jest.spyOn(fs, 'mkdirSync').mockClear().mockImplementation().throws();
       cache.setValue('key', 'value');
 
       assert(clearExpiredSpy.called);
     });
 
     it(`doesn't fail when creating the cache folder fails`, () => {
-      sinon.stub(fs, 'mkdirSync').throws();
-      const writeFilesSpy = sinon.spy(fs, 'writeFile');
+      jest.spyOn(fs, 'mkdirSync').mockClear().mockImplementation().throws();
+      const writeFilesSpy = jest.spyOn(fs, 'writeFile').mockClear();
       cache.setValue('key', 'value');
 
       assert(writeFilesSpy.notCalled);
     });
 
     it(`doesn't fail when writing value to cache file fails`, (done) => {
-      sinon.stub(fs, 'mkdirSync').returns(undefined);
-      sinon.stub(fs, 'writeFile').returns(done()).callsArgWith(2, 'error');
+      jest.spyOn(fs, 'mkdirSync').mockClear().mockReturnValue(undefined);
+      jest.spyOn(fs, 'writeFile').mockClear().mockReturnValue(done()).mockImplementation((...args: any[]) => args[2]('error'));
       try {
         cache.setValue('key', 'value');
       }
@@ -75,8 +76,8 @@ describe('utils/cache', () => {
     });
 
     it(`writes value to cache in a cache file`, (done) => {
-      sinon.stub(fs, 'mkdirSync').returns(undefined);
-      sinon.stub(fs, 'writeFile').returns(done());
+      jest.spyOn(fs, 'mkdirSync').mockClear().mockReturnValue(undefined);
+      jest.spyOn(fs, 'writeFile').mockClear().mockReturnValue(done());
       try {
         cache.setValue('key', 'value');
       }
@@ -88,7 +89,7 @@ describe('utils/cache', () => {
 
   describe('clearExpired', () => {
     it(`doesn't fail when reading the cache folder fails`, (done) => {
-      sinon.stub(fs, 'readdir').callsArgWith(1, 'error');
+      jest.spyOn(fs, 'readdir').mockClear().mockImplementation().mockImplementation((...args: any[]) => args[1]('error'));
       try {
         cache.clearExpired(() => {
           done();
@@ -100,7 +101,7 @@ describe('utils/cache', () => {
     });
 
     it(`doesn't fail when the cache folder is empty`, (done) => {
-      sinon.stub(fs, 'readdir').callsArgWith(1, undefined, []);
+      jest.spyOn(fs, 'readdir').mockClear().mockImplementation().mockImplementation((...args: any[]) => args[1](undefined, []));
       try {
         cache.clearExpired(() => {
           done();
@@ -111,46 +112,43 @@ describe('utils/cache', () => {
       }
     });
 
-    it(`skips directories while clearing expired entries (dir + file)`, (done) => {
-      sinon.stub(fs, 'readdir').callsArgWith(1, undefined, ['directory', 'file']);
-      const twoDaysAgo = new Date();
-      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-      sinon
-        .stub(fs, 'stat')
-        .onFirstCall()
-        .callsArgWith(1, undefined, { isDirectory: () => true })
-        .onSecondCall()
-        .callsArgWith(1, undefined, { isDirectory: () => false, atime: twoDaysAgo });
-      const unlinkStub = sinon.stub(fs, 'unlink')
-        .returns()
-        .callsArg(1);
-      try {
-        cache.clearExpired(() => {
-          try {
-            assert(unlinkStub.calledWith(path.join(cache.cacheFolderPath, 'file')));
-            done();
-          }
-          catch (ex) {
-            done(ex);
-          }
-        });
+    it(`skips directories while clearing expired entries (dir + file)`,
+      (done) => {
+        jest.spyOn(fs, 'readdir').mockClear().mockImplementation().mockImplementation((...args: any[]) => args[1](undefined, ['directory', 'file']));
+        const twoDaysAgo = new Date();
+        twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+        jest.spyOn(fs, 'stat').mockClear().mockImplementation()
+          .onFirstCall().mockImplementation((...args: any[]) => args[1](undefined, { isDirectory: () => true }))
+          .onSecondCall().mockImplementation(
+            (...args: any[]) => args[1](undefined, { isDirectory: () => false, atime: twoDaysAgo })
+          );
+        const unlinkStub = jest.spyOn(fs, 'unlink').mockClear()
+          .mockReturnValue().mockImplementation((...args: any[]) => args[1]());
+        try {
+          cache.clearExpired(() => {
+            try {
+              assert(unlinkStub.calledWith(path.join(cache.cacheFolderPath, 'file')));
+              done();
+            }
+            catch (ex) {
+              done(ex);
+            }
+          });
+        }
+        catch (ex) {
+          done(ex);
+        }
       }
-      catch (ex) {
-        done(ex);
-      }
-    });
+    );
 
     it(`skips directories while clearing expired entries (dir only)`, (done) => {
-      sinon.stub(fs, 'readdir').callsArgWith(1, undefined, ['directory']);
+      jest.spyOn(fs, 'readdir').mockClear().mockImplementation().mockImplementation((...args: any[]) => args[1](undefined, ['directory']));
       const twoDaysAgo = new Date();
       twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-      sinon
-        .stub(fs, 'stat')
-        .onFirstCall()
-        .callsArgWith(1, undefined, { isDirectory: () => true });
-      const unlinkStub = sinon.stub(fs, 'unlink')
-        .returns()
-        .callsArg(1);
+      jest.spyOn(fs, 'stat').mockClear().mockImplementation()
+        .onFirstCall().mockImplementation((...args: any[]) => args[1](undefined, { isDirectory: () => true }));
+      const unlinkStub = jest.spyOn(fs, 'unlink').mockClear()
+        .mockReturnValue().mockImplementation((...args: any[]) => args[1]());
       try {
         cache.clearExpired(() => {
           try {
@@ -168,18 +166,16 @@ describe('utils/cache', () => {
     });
 
     it(`doesn't fail while reading file information fails`, (done) => {
-      sinon.stub(fs, 'readdir').callsArgWith(1, undefined, ['file1', 'file2']);
+      jest.spyOn(fs, 'readdir').mockClear().mockImplementation().mockImplementation((...args: any[]) => args[1](undefined, ['file1', 'file2']));
       const twoDaysAgo = new Date();
       twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-      sinon
-        .stub(fs, 'stat')
-        .onFirstCall()
-        .callsArgWith(1, 'error')
-        .onSecondCall()
-        .callsArgWith(1, undefined, { isDirectory: () => false, atime: twoDaysAgo });
-      const unlinkStub = sinon.stub(fs, 'unlink')
-        .returns()
-        .callsArg(1);
+      jest.spyOn(fs, 'stat').mockClear().mockImplementation()
+        .onFirstCall().mockImplementation((...args: any[]) => args[1]('error'))
+        .onSecondCall().mockImplementation(
+          (...args: any[]) => args[1](undefined, { isDirectory: () => false, atime: twoDaysAgo })
+        );
+      const unlinkStub = jest.spyOn(fs, 'unlink').mockClear()
+        .mockReturnValue().mockImplementation((...args: any[]) => args[1]());
       try {
         cache.clearExpired(() => {
           try {
@@ -197,15 +193,14 @@ describe('utils/cache', () => {
     });
 
     it(`doesn't fail while removing expired cache entry fails`, (done) => {
-      sinon.stub(fs, 'readdir').callsArgWith(1, undefined, ['file']);
+      jest.spyOn(fs, 'readdir').mockClear().mockImplementation().mockImplementation((...args: any[]) => args[1](undefined, ['file']));
       const twoDaysAgo = new Date();
       twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-      sinon
-        .stub(fs, 'stat')
-        .callsArgWith(1, undefined, { isDirectory: () => false, atime: twoDaysAgo });
-      const unlinkStub = sinon.stub(fs, 'unlink')
-        .returns()
-        .callsArgWith(1, 'error');
+      jest.spyOn(fs, 'stat').mockClear().mockImplementation().mockImplementation(
+        (...args: any[]) => args[1](undefined, { isDirectory: () => false, atime: twoDaysAgo })
+      );
+      const unlinkStub = jest.spyOn(fs, 'unlink').mockClear()
+        .mockReturnValue().mockImplementation((...args: any[]) => args[1]('error'));
       try {
         cache.clearExpired(() => {
           try {
@@ -222,91 +217,97 @@ describe('utils/cache', () => {
       }
     });
 
-    it(`doesn't remove cache entries that have been accessed in the last 24 hours`, (done) => {
-      sinon.stub(fs, 'readdir').callsArgWith(1, undefined, ['file1', 'file2']);
-      const twoDaysAgo = new Date();
-      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-      sinon
-        .stub(fs, 'stat')
-        .onFirstCall()
-        .callsArgWith(1, undefined, { isDirectory: () => false, atime: new Date() })
-        .onSecondCall()
-        .callsArgWith(1, undefined, { isDirectory: () => false, atime: twoDaysAgo });
-      const unlinkStub = sinon.stub(fs, 'unlink')
-        .returns()
-        .callsArg(1);
-      try {
-        cache.clearExpired(() => {
-          try {
-            assert(unlinkStub.calledOnce);
-            done();
-          }
-          catch (ex) {
-            done(ex);
-          }
-        });
+    it(`doesn't remove cache entries that have been accessed in the last 24 hours`,
+      (done) => {
+        jest.spyOn(fs, 'readdir').mockClear().mockImplementation().mockImplementation((...args: any[]) => args[1](undefined, ['file1', 'file2']));
+        const twoDaysAgo = new Date();
+        twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+        jest.spyOn(fs, 'stat').mockClear().mockImplementation()
+          .onFirstCall().mockImplementation(
+            (...args: any[]) => args[1](undefined, { isDirectory: () => false, atime: new Date() })
+          )
+          .onSecondCall().mockImplementation(
+            (...args: any[]) => args[1](undefined, { isDirectory: () => false, atime: twoDaysAgo })
+          );
+        const unlinkStub = jest.spyOn(fs, 'unlink').mockClear()
+          .mockReturnValue().mockImplementation((...args: any[]) => args[1]());
+        try {
+          cache.clearExpired(() => {
+            try {
+              assert(unlinkStub.calledOnce);
+              done();
+            }
+            catch (ex) {
+              done(ex);
+            }
+          });
+        }
+        catch (ex) {
+          done(ex);
+        }
       }
-      catch (ex) {
-        done(ex);
-      }
-    });
+    );
 
-    it(`doesn't remove cache entries that have been accessed in the last 24 hours (last file recently accessed)`, (done) => {
-      sinon.stub(fs, 'readdir').callsArgWith(1, undefined, ['file1', 'file2']);
-      const twoDaysAgo = new Date();
-      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-      sinon
-        .stub(fs, 'stat')
-        .onFirstCall()
-        .callsArgWith(1, undefined, { isDirectory: () => false, atime: twoDaysAgo })
-        .onSecondCall()
-        .callsArgWith(1, undefined, { isDirectory: () => false, atime: new Date() });
-      const unlinkStub = sinon.stub(fs, 'unlink')
-        .returns()
-        .callsArg(1);
-      try {
-        cache.clearExpired(() => {
-          try {
-            assert(unlinkStub.calledOnce);
-            done();
-          }
-          catch (ex) {
-            done(ex);
-          }
-        });
+    it(`doesn't remove cache entries that have been accessed in the last 24 hours (last file recently accessed)`,
+      (done) => {
+        jest.spyOn(fs, 'readdir').mockClear().mockImplementation().mockImplementation((...args: any[]) => args[1](undefined, ['file1', 'file2']));
+        const twoDaysAgo = new Date();
+        twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+        jest.spyOn(fs, 'stat').mockClear().mockImplementation()
+          .onFirstCall().mockImplementation(
+            (...args: any[]) => args[1](undefined, { isDirectory: () => false, atime: twoDaysAgo })
+          )
+          .onSecondCall().mockImplementation(
+            (...args: any[]) => args[1](undefined, { isDirectory: () => false, atime: new Date() })
+          );
+        const unlinkStub = jest.spyOn(fs, 'unlink').mockClear()
+          .mockReturnValue().mockImplementation((...args: any[]) => args[1]());
+        try {
+          cache.clearExpired(() => {
+            try {
+              assert(unlinkStub.calledOnce);
+              done();
+            }
+            catch (ex) {
+              done(ex);
+            }
+          });
+        }
+        catch (ex) {
+          done(ex);
+        }
       }
-      catch (ex) {
-        done(ex);
-      }
-    });
+    );
 
-    it(`removes cache entries that haven't been accessed in the last 24 hours`, (done) => {
-      sinon.stub(fs, 'readdir').callsArgWith(1, undefined, ['file1', 'file2']);
-      const twoDaysAgo = new Date();
-      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-      sinon
-        .stub(fs, 'stat')
-        .onFirstCall()
-        .callsArgWith(1, undefined, { isDirectory: () => false, atime: twoDaysAgo })
-        .onSecondCall()
-        .callsArgWith(1, undefined, { isDirectory: () => false, atime: twoDaysAgo });
-      const unlinkStub = sinon.stub(fs, 'unlink')
-        .returns()
-        .callsArg(1);
-      try {
-        cache.clearExpired(() => {
-          try {
-            assert(unlinkStub.calledTwice);
-            done();
-          }
-          catch (ex) {
-            done(ex);
-          }
-        });
+    it(`removes cache entries that haven't been accessed in the last 24 hours`,
+      (done) => {
+        jest.spyOn(fs, 'readdir').mockClear().mockImplementation().mockImplementation((...args: any[]) => args[1](undefined, ['file1', 'file2']));
+        const twoDaysAgo = new Date();
+        twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+        jest.spyOn(fs, 'stat').mockClear().mockImplementation()
+          .onFirstCall().mockImplementation(
+            (...args: any[]) => args[1](undefined, { isDirectory: () => false, atime: twoDaysAgo })
+          )
+          .onSecondCall().mockImplementation(
+            (...args: any[]) => args[1](undefined, { isDirectory: () => false, atime: twoDaysAgo })
+          );
+        const unlinkStub = jest.spyOn(fs, 'unlink').mockClear()
+          .mockReturnValue().mockImplementation((...args: any[]) => args[1]());
+        try {
+          cache.clearExpired(() => {
+            try {
+              assert(unlinkStub.calledTwice);
+              done();
+            }
+            catch (ex) {
+              done(ex);
+            }
+          });
+        }
+        catch (ex) {
+          done(ex);
+        }
       }
-      catch (ex) {
-        done(ex);
-      }
-    });
+    );
   });
 });

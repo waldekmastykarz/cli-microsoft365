@@ -15,26 +15,30 @@ describe('BasePermissions', () => {
     basePermissions = new BasePermissions();
   });
 
-  it('has correct permissions set with AddListItems and DeleteListItems', () => {
-    const delegatedPermissions: PermissionKind[] = [
-      PermissionKind.AddListItems, PermissionKind.DeleteListItems
-    ];
-    const result: BasePermissions = getPermissions(delegatedPermissions);
+  it('has correct permissions set with AddListItems and DeleteListItems',
+    () => {
+      const delegatedPermissions: PermissionKind[] = [
+        PermissionKind.AddListItems, PermissionKind.DeleteListItems
+      ];
+      const result: BasePermissions = getPermissions(delegatedPermissions);
 
-    assert.strictEqual(result.low, 10);
-    assert.strictEqual(result.high, 0);
-  });
+      assert.strictEqual(result.low, 10);
+      assert.strictEqual(result.high, 0);
+    }
+  );
 
-  it('has correct permissions set with ManageLists, AddListItems and DeleteListItems', () => {
-    const delegatedPermissions: PermissionKind[] = [
-      PermissionKind.ManageLists, PermissionKind.AddListItems,
-      PermissionKind.DeleteListItems
-    ];
-    const result: BasePermissions = getPermissions(delegatedPermissions);
+  it('has correct permissions set with ManageLists, AddListItems and DeleteListItems',
+    () => {
+      const delegatedPermissions: PermissionKind[] = [
+        PermissionKind.ManageLists, PermissionKind.AddListItems,
+        PermissionKind.DeleteListItems
+      ];
+      const result: BasePermissions = getPermissions(delegatedPermissions);
 
-    assert.strictEqual(result.low, 2058);
-    assert.strictEqual(result.high, 0);
-  });
+      assert.strictEqual(result.low, 2058);
+      assert.strictEqual(result.high, 0);
+    }
+  );
 
   it('has correct permissions set with ManageLists', () => {
     const delegatedPermissions: PermissionKind[] = [
@@ -76,16 +80,18 @@ describe('BasePermissions', () => {
     assert.strictEqual(result.high, 0);
   });
 
-  it('has correct permissions set with AddListItems, DeleteListItems and FullMask', () => {
-    const delegatedPermissions: PermissionKind[] = [
-      PermissionKind.AddListItems, PermissionKind.DeleteListItems,
-      PermissionKind.FullMask
-    ];
-    const result: BasePermissions = getPermissions(delegatedPermissions);
+  it('has correct permissions set with AddListItems, DeleteListItems and FullMask',
+    () => {
+      const delegatedPermissions: PermissionKind[] = [
+        PermissionKind.AddListItems, PermissionKind.DeleteListItems,
+        PermissionKind.FullMask
+      ];
+      const result: BasePermissions = getPermissions(delegatedPermissions);
 
-    assert.strictEqual(result.low, 65535);
-    assert.strictEqual(result.high, 32767);
-  });
+      assert.strictEqual(result.low, 65535);
+      assert.strictEqual(result.high, 32767);
+    }
+  );
 
   it('has correct permissions set with ManagePermissions', () => {
     const delegatedPermissions: PermissionKind[] = [

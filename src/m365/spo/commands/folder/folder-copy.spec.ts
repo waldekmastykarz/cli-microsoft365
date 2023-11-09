@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -8,7 +7,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './folder-copy.js';
 import { CommandError } from '../../../../Command.js';
@@ -26,13 +25,13 @@ describe(commands.FOLDER_COPY, () => {
   let log: any[];
   let logger: Logger;
   let commandInfo: CommandInfo;
-  let postStub: sinon.SinonStub;
+  let postStub: jest.Mock;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
 
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
@@ -52,7 +51,7 @@ describe(commands.FOLDER_COPY, () => {
       }
     };
 
-    postStub = sinon.stub(request, 'post').callsFake(async opts => {
+    postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if (opts.url === `${webUrl}/_api/SP.MoveCopyUtil.CopyFolderByPath`) {
         return {
           'odata.null': true
@@ -64,14 +63,14 @@ describe(commands.FOLDER_COPY, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -87,10 +86,12 @@ describe(commands.FOLDER_COPY, () => {
     assert.deepStrictEqual((command as any).getExcludedOptionsWithUrls(), ['targetUrl', 'sourceUrl']);
   });
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', sourceUrl: sourceUrl, targetUrl: targetUrl } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', sourceUrl: sourceUrl, targetUrl: targetUrl } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if sourceId is not a valid guid', async () => {
     const actual = await command.validate({ options: { webUrl: webUrl, sourceId: 'invalid', targetUrl: targetUrl } }, commandInfo);
@@ -107,13 +108,15 @@ describe(commands.FOLDER_COPY, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation if the webUrl option is a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, sourceUrl: sourceUrl, targetUrl: targetUrl } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if the webUrl option is a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, sourceUrl: sourceUrl, targetUrl: targetUrl } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('copies a folder correctly when specifying sourceId', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url === `${webUrl}/_api/Web/GetFolderById('${sourceId}')?$select=ServerRelativePath`) {
         return {
           ServerRelativePath: {
@@ -134,7 +137,7 @@ describe(commands.FOLDER_COPY, () => {
       }
     });
 
-    assert.deepStrictEqual(postStub.lastCall.args[0].data,
+    assert.deepStrictEqual(postStub.mock.lastCall[0].data,
       {
         srcPath: {
           DecodedUrl: absoluteSourceUrl
@@ -151,84 +154,90 @@ describe(commands.FOLDER_COPY, () => {
     );
   });
 
-  it('copies a folder correctly when specifying sourceUrl with server relative paths', async () => {
-    await command.action(logger, {
-      options: {
-        webUrl: webUrl,
-        sourceUrl: sourceUrl,
-        targetUrl: targetUrl
-      }
-    });
-
-    assert.deepStrictEqual(postStub.lastCall.args[0].data,
-      {
-        srcPath: {
-          DecodedUrl: absoluteSourceUrl
-        },
-        destPath: {
-          DecodedUrl: absoluteTargetUrl + `/${folderName}`
-        },
+  it('copies a folder correctly when specifying sourceUrl with server relative paths',
+    async () => {
+      await command.action(logger, {
         options: {
-          KeepBoth: false,
-          ShouldBypassSharedLocks: false,
-          ResetAuthorAndCreatedOnCopy: false
+          webUrl: webUrl,
+          sourceUrl: sourceUrl,
+          targetUrl: targetUrl
         }
-      }
-    );
-  });
+      });
 
-  it('copies a folder correctly when specifying sourceUrl with site relative paths', async () => {
-    await command.action(logger, {
-      options: {
-        webUrl: webUrl,
-        sourceUrl: `/Shared Documents/${folderName}`,
-        targetUrl: targetUrl,
-        nameConflictBehavior: 'fail'
-      }
-    });
+      assert.deepStrictEqual(postStub.mock.lastCall[0].data,
+        {
+          srcPath: {
+            DecodedUrl: absoluteSourceUrl
+          },
+          destPath: {
+            DecodedUrl: absoluteTargetUrl + `/${folderName}`
+          },
+          options: {
+            KeepBoth: false,
+            ShouldBypassSharedLocks: false,
+            ResetAuthorAndCreatedOnCopy: false
+          }
+        }
+      );
+    }
+  );
 
-    assert.deepStrictEqual(postStub.lastCall.args[0].data,
-      {
-        srcPath: {
-          DecodedUrl: webUrl + `/Shared Documents/${folderName}`
-        },
-        destPath: {
-          DecodedUrl: absoluteTargetUrl + `/${folderName}`
-        },
+  it('copies a folder correctly when specifying sourceUrl with site relative paths',
+    async () => {
+      await command.action(logger, {
         options: {
-          KeepBoth: false,
-          ShouldBypassSharedLocks: false,
-          ResetAuthorAndCreatedOnCopy: false
+          webUrl: webUrl,
+          sourceUrl: `/Shared Documents/${folderName}`,
+          targetUrl: targetUrl,
+          nameConflictBehavior: 'fail'
         }
-      }
-    );
-  });
+      });
 
-  it('copies a folder correctly when specifying sourceUrl with absolute paths', async () => {
-    await command.action(logger, {
-      options: {
-        webUrl: webUrl,
-        sourceUrl: rootUrl + sourceUrl,
-        targetUrl: rootUrl + targetUrl
-      }
-    });
+      assert.deepStrictEqual(postStub.mock.lastCall[0].data,
+        {
+          srcPath: {
+            DecodedUrl: webUrl + `/Shared Documents/${folderName}`
+          },
+          destPath: {
+            DecodedUrl: absoluteTargetUrl + `/${folderName}`
+          },
+          options: {
+            KeepBoth: false,
+            ShouldBypassSharedLocks: false,
+            ResetAuthorAndCreatedOnCopy: false
+          }
+        }
+      );
+    }
+  );
 
-    assert.deepStrictEqual(postStub.lastCall.args[0].data,
-      {
-        srcPath: {
-          DecodedUrl: absoluteSourceUrl
-        },
-        destPath: {
-          DecodedUrl: absoluteTargetUrl + `/${folderName}`
-        },
+  it('copies a folder correctly when specifying sourceUrl with absolute paths',
+    async () => {
+      await command.action(logger, {
         options: {
-          KeepBoth: false,
-          ShouldBypassSharedLocks: false,
-          ResetAuthorAndCreatedOnCopy: false
+          webUrl: webUrl,
+          sourceUrl: rootUrl + sourceUrl,
+          targetUrl: rootUrl + targetUrl
         }
-      }
-    );
-  });
+      });
+
+      assert.deepStrictEqual(postStub.mock.lastCall[0].data,
+        {
+          srcPath: {
+            DecodedUrl: absoluteSourceUrl
+          },
+          destPath: {
+            DecodedUrl: absoluteTargetUrl + `/${folderName}`
+          },
+          options: {
+            KeepBoth: false,
+            ShouldBypassSharedLocks: false,
+            ResetAuthorAndCreatedOnCopy: false
+          }
+        }
+      );
+    }
+  );
 
   it('copies a folder correctly when specifying various options', async () => {
     await command.action(logger, {
@@ -243,7 +252,7 @@ describe(commands.FOLDER_COPY, () => {
       }
     });
 
-    assert.deepStrictEqual(postStub.lastCall.args[0].data,
+    assert.deepStrictEqual(postStub.mock.lastCall[0].data,
       {
         srcPath: {
           DecodedUrl: absoluteSourceUrl
@@ -272,7 +281,7 @@ describe(commands.FOLDER_COPY, () => {
       }
     };
 
-    sinon.stub(request, 'get').rejects(error);
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, {
       options: {

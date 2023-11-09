@@ -12,18 +12,20 @@ describe('FN012012_TSC_include', () => {
     rule = new FN012012_TSC_include(['src/**/*.ts']);
   });
 
-  it('doesn\'t return notification if include has the exact same elements', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      tsConfigJson: {
-        include: [
-          'src/**/*.ts'
-        ]
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it('doesn\'t return notification if include has the exact same elements',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        tsConfigJson: {
+          include: [
+            'src/**/*.ts'
+          ]
+        }
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
   it('returns notification if include misses some elements', () => {
     const project: Project = {
@@ -40,19 +42,21 @@ describe('FN012012_TSC_include', () => {
     assert.strictEqual(findings[0].occurrences[0].position?.line, 2, 'Incorrect line number');
   });
 
-  it('doesn\'t return notification if include has the required elements', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      tsConfigJson: {
-        include: [
-          'foo',
-          'src/**/*.ts'
-        ]
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it('doesn\'t return notification if include has the required elements',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        tsConfigJson: {
+          include: [
+            'foo',
+            'src/**/*.ts'
+          ]
+        }
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
   it('doesn\'t return notification if object is missing', () => {
     const project: Project = {

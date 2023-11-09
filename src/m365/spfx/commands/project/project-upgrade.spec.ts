@@ -1,7 +1,6 @@
 import assert from 'assert';
 import fs from 'fs';
 import path from 'path';
-import sinon from 'sinon';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
 import { Logger } from '../../../../cli/Logger.js';
@@ -11,7 +10,7 @@ import { fsUtil } from '../../../../utils/fsUtil.js';
 import { packageManager } from '../../../../utils/packageManager.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import { Manifest, Project, VsCode } from './project-model/index.js';
 import command from './project-upgrade.js';
@@ -30,12 +29,12 @@ describe(commands.PROJECT_UPGRADE, () => {
   let project141webPartNoLib: Project;
   const projectPath: string = './src/m365/spfx/commands/project/test-projects/spfx-141-webpart-nolib';
 
-  before(() => {
-    trackEvent = sinon.stub(telemetry, 'trackEvent').callsFake((commandName) => {
+  beforeAll(() => {
+    trackEvent = jest.spyOn(telemetry, 'trackEvent').mockClear().mockImplementation((commandName) => {
       telemetryCommandName = commandName;
     });
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     project141webPartNoLib = (command as any).getProject(projectPath);
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -64,7 +63,7 @@ describe(commands.PROJECT_UPGRADE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       (command as any).getProjectRoot,
       (command as any).getProjectVersion,
       fs.existsSync,
@@ -76,8 +75,8 @@ describe(commands.PROJECT_UPGRADE, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
   });
 
   it('has correct name', () => {
@@ -99,319 +98,345 @@ describe(commands.PROJECT_UPGRADE, () => {
   });
 
   it('shows error if the project path couldn\'t be determined', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(null);
+    jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(null);
 
     await assert.rejects(command.action(logger, { options: {} } as any),
       new CommandError(`Couldn't find project root folder`, 1));
   });
 
-  it('searches for package.json in the parent folder when it doesn\'t exist in the current folder', async () => {
-    sinon.stub(fs, 'existsSync').callsFake((path) => {
-      if (path.toString().endsWith('package.json')) {
-        return false;
-      }
-      else {
-        return true;
-      }
-    });
-
-    await assert.rejects(command.action(logger, { options: {} } as any), new CommandError(`Couldn't find project root folder`, 1));
-  });
-
-  it('shows error if the specified spfx version is not supported by the CLI', async () => {
-    await assert.rejects(command.action(logger, { options: { toVersion: '0.0.1' } } as any),
-      new CommandError(`CLI for Microsoft 365 doesn't support upgrading SharePoint Framework projects to version 0.0.1. Supported versions are ${(command as any).supportedVersions.join(', ')}`, 2));
-  });
-
-  it('correctly handles the case when .yo-rc.json exists but doesn\'t contain spfx project info', async () => {
-    const originalExistsSync = fs.existsSync;
-    sinon.stub(fs, 'existsSync').callsFake((path) => {
-      if (path.toString().endsWith('.yo-rc.json')) {
-        return true;
-      }
-      else {
-        return originalExistsSync(path);
-      }
-    });
-    const originalReadFileSync = fs.readFileSync;
-    sinon.stub(fs, 'readFileSync').callsFake((path, options) => {
-      if (path.toString().endsWith('.yo-rc.json')) {
-        return `{}`;
-      }
-      else {
-        return originalReadFileSync(path, options);
-      }
-    });
-
-    await assert.rejects(command.action(logger, { options: {} } as any));
-  });
-
-  it('determines the current version from .yo-rc.json when available', async () => {
-    const originalExistsSync = fs.existsSync;
-    sinon.stub(fs, 'existsSync').callsFake((path) => {
-      if (path.toString().endsWith('.yo-rc.json')) {
-        return true;
-      }
-      else {
-        return originalExistsSync(path);
-      }
-    });
-    const originalReadFileSync = fs.readFileSync;
-    const yoRcJson = `{
-      "@microsoft/generator-sharepoint": {
-        "version": "1.4.1",
-        "libraryName": "spfx-141",
-        "libraryId": "dd1a0a8d-e043-4ca0-b9a4-256e82a66177",
-        "environment": "spo"
-      }
-    }`;
-    sinon.stub(fs, 'readFileSync').callsFake((path, options) => {
-      if (path.toString().endsWith('.yo-rc.json')) {
-        return yoRcJson;
-      }
-      else {
-        return originalReadFileSync(path, options);
-      }
-    });
-    const getProjectVersionSpy = sinon.spy(command as any, 'getProjectVersion');
-
-    await command.action(logger, { options: { toVersion: '1.4.1' } } as any);
-    assert.strictEqual(getProjectVersionSpy.lastCall.returnValue, '1.4.1');
-  });
-
-  it('determines correct version from .yo-rc.json for an SP2019 project built using generator v1.10', async () => {
-    const originalExistsSync = fs.existsSync;
-    sinon.stub(fs, 'existsSync').callsFake((path) => {
-      if (path.toString().endsWith('.yo-rc.json')) {
-        return true;
-      }
-      else {
-        return originalExistsSync(path);
-      }
-    });
-    const originalReadFileSync = fs.readFileSync;
-    const yoRcJson = `{
-      "@microsoft/generator-sharepoint": {
-        "isCreatingSolution": true,
-        "environment": "onprem19",
-        "version": "1.10.0",
-        "libraryName": "spfx-1100-sp-2019",
-        "libraryId": "04b9054d-025f-4e1a-9a85-732c57213b2f",
-        "packageManager": "npm",
-        "componentType": "webpart"
-      }
-    }`;
-    sinon.stub(fs, 'readFileSync').callsFake((path, options) => {
-      if (path.toString().endsWith('.yo-rc.json')) {
-        return yoRcJson;
-      }
-      else {
-        return originalReadFileSync(path, options);
-      }
-    });
-    const getProjectVersionSpy = sinon.spy(command as any, 'getProjectVersion');
-
-    await command.action(logger, { options: { toVersion: '1.4.1' } } as any);
-    assert.strictEqual(getProjectVersionSpy.lastCall.returnValue, '1.4.1');
-  });
-
-  it('determines correct version from .yo-rc.json for an SP2016 project built using generator v1.10', async () => {
-    const originalExistsSync = fs.existsSync;
-    sinon.stub(fs, 'existsSync').callsFake((path) => {
-      if (path.toString().endsWith('.yo-rc.json')) {
-        return true;
-      }
-      else {
-        return originalExistsSync(path);
-      }
-    });
-    const originalReadFileSync = fs.readFileSync;
-    const yoRcJson = `{
-      "@microsoft/generator-sharepoint": {
-        "isCreatingSolution": true,
-        "environment": "onprem",
-        "version": "1.10.0",
-        "libraryName": "spfx-1100-sp-2016",
-        "libraryId": "300833cb-9264-4b53-8179-2eaf105c1d41",
-        "packageManager": "npm",
-        "componentType": "webpart"
-      }
-    }`;
-    sinon.stub(fs, 'readFileSync').callsFake((path, options) => {
-      if (path.toString().endsWith('.yo-rc.json')) {
-        return yoRcJson;
-      }
-      else {
-        return originalReadFileSync(path, options);
-      }
-    });
-    const getProjectVersionSpy = sinon.spy(command as any, 'getProjectVersion');
-
-    await command.action(logger, { options: { toVersion: '1.1.0' } } as any);
-    assert.strictEqual(getProjectVersionSpy.lastCall.returnValue, '1.1.0');
-  });
-
-  it('tries to determine the current version from package.json if .yo-rc.json doesn\'t exist', async () => {
-    const originalExistsSync = fs.existsSync;
-    sinon.stub(fs, 'existsSync').callsFake((path) => {
-      if (path.toString().endsWith('.yo-rc.json')) {
-        return false;
-      }
-      else {
-        return originalExistsSync(path);
-      }
-    });
-    const originalReadFileSync = fs.readFileSync;
-    sinon.stub(fs, 'readFileSync').callsFake((path, options) => {
-      if (path.toString().endsWith('package.json')) {
-        return `{
-          "name": "spfx-141",
-          "version": "0.0.1",
-          "private": true,
-          "engines": {
-            "node": ">=0.10.0"
-          },
-          "scripts": {
-            "build": "gulp bundle",
-            "clean": "gulp clean",
-            "test": "gulp test"
-          },
-          "dependencies": {
-            "@microsoft/sp-core-library": "~1.4.1",
-            "@microsoft/sp-webpart-base": "~1.4.1",
-            "@microsoft/sp-lodash-subset": "~1.4.1",
-            "@microsoft/sp-office-ui-fabric-core": "~1.4.1",
-            "@types/webpack-env": ">=1.12.1 <1.14.0"
-          },
-          "devDependencies": {
-            "@microsoft/sp-build-web": "~1.4.1",
-            "@microsoft/sp-module-interfaces": "~1.4.1",
-            "@microsoft/sp-webpart-workbench": "~1.4.1",
-            "gulp": "~3.9.1",
-            "@types/chai": ">=3.4.34 <3.6.0",
-            "@types/mocha": ">=2.2.33 <2.6.0",
-            "ajv": "~5.2.2"
-          }
+  it('searches for package.json in the parent folder when it doesn\'t exist in the current folder',
+    async () => {
+      jest.spyOn(fs, 'existsSync').mockClear().mockImplementation((path) => {
+        if (path.toString().endsWith('package.json')) {
+          return false;
         }
-        `;
-      }
-      else {
-        return originalReadFileSync(path, options);
-      }
-    });
-    const getProjectVersionSpy = sinon.spy(command as any, 'getProjectVersion');
-
-    await command.action(logger, { options: { toVersion: '1.4.1' } } as any);
-    assert.strictEqual(getProjectVersionSpy.lastCall.returnValue, '1.4.1');
-  });
-
-  it('shows error if the project version couldn\'t be determined', async () => {
-    const originalExistsSync = fs.existsSync;
-    sinon.stub(fs, 'existsSync').callsFake((path) => {
-      if (path.toString().endsWith('.yo-rc.json')) {
-        return false;
-      }
-      else {
-        return originalExistsSync(path);
-      }
-    });
-
-    await assert.rejects(command.action(logger, { options: {} } as any), new CommandError(`Unable to determine the version of the current SharePoint Framework project`, 3));
-  });
-
-  it('determining project version doesn\'t fail if .yo-rc.json is empty', async () => {
-    const originalExistsSync = fs.existsSync;
-    sinon.stub(fs, 'existsSync').callsFake((path) => {
-      if (path.toString().endsWith('.yo-rc.json')) {
-        return true;
-      }
-      else {
-        return originalExistsSync(path);
-      }
-    });
-    const originalReadFileSync = fs.readFileSync;
-    sinon.stub(fs, 'readFileSync').callsFake((path, encoding) => {
-      if (path.toString().endsWith('.yo-rc.json')) {
-        return '';
-      }
-      else if (path.toString().endsWith('package.json')) {
-        return `{
-          "name": "spfx-141",
-          "version": "0.0.1",
-          "private": true,
-          "engines": {
-            "node": ">=0.10.0"
-          },
-          "scripts": {
-            "build": "gulp bundle",
-            "clean": "gulp clean",
-            "test": "gulp test"
-          },
-          "dependencies": {
-            "@microsoft/sp-core-library": "~1.4.1",
-            "@microsoft/sp-webpart-base": "~1.4.1",
-            "@microsoft/sp-lodash-subset": "~1.4.1",
-            "@microsoft/sp-office-ui-fabric-core": "~1.4.1",
-            "@types/webpack-env": ">=1.12.1 <1.14.0"
-          },
-          "devDependencies": {
-            "@microsoft/sp-build-web": "~1.4.1",
-            "@microsoft/sp-module-interfaces": "~1.4.1",
-            "@microsoft/sp-webpart-workbench": "~1.4.1",
-            "gulp": "~3.9.1",
-            "@types/chai": ">=3.4.34 <3.6.0",
-            "@types/mocha": ">=2.2.33 <2.6.0",
-            "ajv": "~5.2.2"
-          }
+        else {
+          return true;
         }
-        `;
-      }
-      else {
-        return originalReadFileSync(path, encoding);
-      }
-    });
-    const getProjectVersionSpy = sinon.spy(command as any, 'getProjectVersion');
+      });
 
-    await command.action(logger, { options: { toVersion: '1.4.1' } } as any);
-    assert.strictEqual(getProjectVersionSpy.lastCall.returnValue, '1.4.1');
-  });
+      await assert.rejects(command.action(logger, { options: {} } as any), new CommandError(`Couldn't find project root folder`, 1));
+    }
+  );
 
-  it('determining project version doesn\'t fail if package.json is empty', async () => {
-    const originalReadFileSync = fs.readFileSync;
-    sinon.stub(fs, 'readFileSync').callsFake((path, encoding) => {
-      if (path.toString().endsWith('package.json')) {
-        return '';
-      }
-      else {
-        return originalReadFileSync(path, encoding);
-      }
-    });
-    const getProjectVersionSpy = sinon.spy(command as any, 'getProjectVersion');
+  it('shows error if the specified spfx version is not supported by the CLI',
+    async () => {
+      await assert.rejects(command.action(logger, { options: { toVersion: '0.0.1' } } as any),
+        new CommandError(`CLI for Microsoft 365 doesn't support upgrading SharePoint Framework projects to version 0.0.1. Supported versions are ${(command as any).supportedVersions.join(', ')}`, 2));
+    }
+  );
 
-    await assert.rejects(command.action(logger, { options: { toVersion: '1.4.1' } } as any));
-    assert.strictEqual(getProjectVersionSpy.lastCall.returnValue, undefined);
-  });
+  it('correctly handles the case when .yo-rc.json exists but doesn\'t contain spfx project info',
+    async () => {
+      const originalExistsSync = fs.existsSync;
+      jest.spyOn(fs, 'existsSync').mockClear().mockImplementation((path) => {
+        if (path.toString().endsWith('.yo-rc.json')) {
+          return true;
+        }
+        else {
+          return originalExistsSync(path);
+        }
+      });
+      const originalReadFileSync = fs.readFileSync;
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path, options) => {
+        if (path.toString().endsWith('.yo-rc.json')) {
+          return `{}`;
+        }
+        else {
+          return originalReadFileSync(path, options);
+        }
+      });
 
-  it('shows error if the current project version is not supported by the CLI', async () => {
-    sinon.stub(command as any, 'getProjectVersion').returns('0.0.1');
+      await assert.rejects(command.action(logger, { options: {} } as any));
+    }
+  );
 
-    await assert.rejects(command.action(logger, { options: {} } as any),
-      new CommandError(`CLI for Microsoft 365 doesn't support upgrading projects built using SharePoint Framework v0.0.1`, 4));
-  });
+  it('determines the current version from .yo-rc.json when available',
+    async () => {
+      const originalExistsSync = fs.existsSync;
+      jest.spyOn(fs, 'existsSync').mockClear().mockImplementation((path) => {
+        if (path.toString().endsWith('.yo-rc.json')) {
+          return true;
+        }
+        else {
+          return originalExistsSync(path);
+        }
+      });
+      const originalReadFileSync = fs.readFileSync;
+      const yoRcJson = `{
+        "@microsoft/generator-sharepoint": {
+          "version": "1.4.1",
+          "libraryName": "spfx-141",
+          "libraryId": "dd1a0a8d-e043-4ca0-b9a4-256e82a66177",
+          "environment": "spo"
+        }
+      }`;
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path, options) => {
+        if (path.toString().endsWith('.yo-rc.json')) {
+          return yoRcJson;
+        }
+        else {
+          return originalReadFileSync(path, options);
+        }
+      });
+      const getProjectVersionSpy = jest.spyOn(command as any, 'getProjectVersion').mockClear();
 
-  it('shows regular message if the current project version and the version to upgrade to are the same', async () => {
-    sinon.stub(command as any, 'getProjectVersion').returns('1.5.0');
+      await command.action(logger, { options: { toVersion: '1.4.1' } } as any);
+      assert.strictEqual(getProjectVersionSpy.mock.lastCall.returnValue, '1.4.1');
+    }
+  );
 
-    await command.action(logger, { options: { toVersion: '1.5.0' } } as any);
-    assert(log.indexOf(`Project doesn't need to be upgraded`) > -1, `Doesn't return info message`);
-  });
+  it('determines correct version from .yo-rc.json for an SP2019 project built using generator v1.10',
+    async () => {
+      const originalExistsSync = fs.existsSync;
+      jest.spyOn(fs, 'existsSync').mockClear().mockImplementation((path) => {
+        if (path.toString().endsWith('.yo-rc.json')) {
+          return true;
+        }
+        else {
+          return originalExistsSync(path);
+        }
+      });
+      const originalReadFileSync = fs.readFileSync;
+      const yoRcJson = `{
+        "@microsoft/generator-sharepoint": {
+          "isCreatingSolution": true,
+          "environment": "onprem19",
+          "version": "1.10.0",
+          "libraryName": "spfx-1100-sp-2019",
+          "libraryId": "04b9054d-025f-4e1a-9a85-732c57213b2f",
+          "packageManager": "npm",
+          "componentType": "webpart"
+        }
+      }`;
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path, options) => {
+        if (path.toString().endsWith('.yo-rc.json')) {
+          return yoRcJson;
+        }
+        else {
+          return originalReadFileSync(path, options);
+        }
+      });
+      const getProjectVersionSpy = jest.spyOn(command as any, 'getProjectVersion').mockClear();
 
-  it('shows error if the current project version is higher than the version to upgrade to', async () => {
-    sinon.stub(command as any, 'getProjectVersion').returns('1.5.0');
+      await command.action(logger, { options: { toVersion: '1.4.1' } } as any);
+      assert.strictEqual(getProjectVersionSpy.mock.lastCall.returnValue, '1.4.1');
+    }
+  );
 
-    await assert.rejects(command.action(logger, { options: { toVersion: '1.4.1' } } as any),
-      new CommandError(`You cannot downgrade a project`, 5));
-  });
+  it('determines correct version from .yo-rc.json for an SP2016 project built using generator v1.10',
+    async () => {
+      const originalExistsSync = fs.existsSync;
+      jest.spyOn(fs, 'existsSync').mockClear().mockImplementation((path) => {
+        if (path.toString().endsWith('.yo-rc.json')) {
+          return true;
+        }
+        else {
+          return originalExistsSync(path);
+        }
+      });
+      const originalReadFileSync = fs.readFileSync;
+      const yoRcJson = `{
+        "@microsoft/generator-sharepoint": {
+          "isCreatingSolution": true,
+          "environment": "onprem",
+          "version": "1.10.0",
+          "libraryName": "spfx-1100-sp-2016",
+          "libraryId": "300833cb-9264-4b53-8179-2eaf105c1d41",
+          "packageManager": "npm",
+          "componentType": "webpart"
+        }
+      }`;
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path, options) => {
+        if (path.toString().endsWith('.yo-rc.json')) {
+          return yoRcJson;
+        }
+        else {
+          return originalReadFileSync(path, options);
+        }
+      });
+      const getProjectVersionSpy = jest.spyOn(command as any, 'getProjectVersion').mockClear();
+
+      await command.action(logger, { options: { toVersion: '1.1.0' } } as any);
+      assert.strictEqual(getProjectVersionSpy.mock.lastCall.returnValue, '1.1.0');
+    }
+  );
+
+  it('tries to determine the current version from package.json if .yo-rc.json doesn\'t exist',
+    async () => {
+      const originalExistsSync = fs.existsSync;
+      jest.spyOn(fs, 'existsSync').mockClear().mockImplementation((path) => {
+        if (path.toString().endsWith('.yo-rc.json')) {
+          return false;
+        }
+        else {
+          return originalExistsSync(path);
+        }
+      });
+      const originalReadFileSync = fs.readFileSync;
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path, options) => {
+        if (path.toString().endsWith('package.json')) {
+          return `{
+            "name": "spfx-141",
+            "version": "0.0.1",
+            "private": true,
+            "engines": {
+              "node": ">=0.10.0"
+            },
+            "scripts": {
+              "build": "gulp bundle",
+              "clean": "gulp clean",
+              "test": "gulp test"
+            },
+            "dependencies": {
+              "@microsoft/sp-core-library": "~1.4.1",
+              "@microsoft/sp-webpart-base": "~1.4.1",
+              "@microsoft/sp-lodash-subset": "~1.4.1",
+              "@microsoft/sp-office-ui-fabric-core": "~1.4.1",
+              "@types/webpack-env": ">=1.12.1 <1.14.0"
+            },
+            "devDependencies": {
+              "@microsoft/sp-build-web": "~1.4.1",
+              "@microsoft/sp-module-interfaces": "~1.4.1",
+              "@microsoft/sp-webpart-workbench": "~1.4.1",
+              "gulp": "~3.9.1",
+              "@types/chai": ">=3.4.34 <3.6.0",
+              "@types/mocha": ">=2.2.33 <2.6.0",
+              "ajv": "~5.2.2"
+            }
+          }
+          `;
+        }
+        else {
+          return originalReadFileSync(path, options);
+        }
+      });
+      const getProjectVersionSpy = jest.spyOn(command as any, 'getProjectVersion').mockClear();
+
+      await command.action(logger, { options: { toVersion: '1.4.1' } } as any);
+      assert.strictEqual(getProjectVersionSpy.mock.lastCall.returnValue, '1.4.1');
+    }
+  );
+
+  it('shows error if the project version couldn\'t be determined',
+    async () => {
+      const originalExistsSync = fs.existsSync;
+      jest.spyOn(fs, 'existsSync').mockClear().mockImplementation((path) => {
+        if (path.toString().endsWith('.yo-rc.json')) {
+          return false;
+        }
+        else {
+          return originalExistsSync(path);
+        }
+      });
+
+      await assert.rejects(command.action(logger, { options: {} } as any), new CommandError(`Unable to determine the version of the current SharePoint Framework project`, 3));
+    }
+  );
+
+  it('determining project version doesn\'t fail if .yo-rc.json is empty',
+    async () => {
+      const originalExistsSync = fs.existsSync;
+      jest.spyOn(fs, 'existsSync').mockClear().mockImplementation((path) => {
+        if (path.toString().endsWith('.yo-rc.json')) {
+          return true;
+        }
+        else {
+          return originalExistsSync(path);
+        }
+      });
+      const originalReadFileSync = fs.readFileSync;
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path, encoding) => {
+        if (path.toString().endsWith('.yo-rc.json')) {
+          return '';
+        }
+        else if (path.toString().endsWith('package.json')) {
+          return `{
+            "name": "spfx-141",
+            "version": "0.0.1",
+            "private": true,
+            "engines": {
+              "node": ">=0.10.0"
+            },
+            "scripts": {
+              "build": "gulp bundle",
+              "clean": "gulp clean",
+              "test": "gulp test"
+            },
+            "dependencies": {
+              "@microsoft/sp-core-library": "~1.4.1",
+              "@microsoft/sp-webpart-base": "~1.4.1",
+              "@microsoft/sp-lodash-subset": "~1.4.1",
+              "@microsoft/sp-office-ui-fabric-core": "~1.4.1",
+              "@types/webpack-env": ">=1.12.1 <1.14.0"
+            },
+            "devDependencies": {
+              "@microsoft/sp-build-web": "~1.4.1",
+              "@microsoft/sp-module-interfaces": "~1.4.1",
+              "@microsoft/sp-webpart-workbench": "~1.4.1",
+              "gulp": "~3.9.1",
+              "@types/chai": ">=3.4.34 <3.6.0",
+              "@types/mocha": ">=2.2.33 <2.6.0",
+              "ajv": "~5.2.2"
+            }
+          }
+          `;
+        }
+        else {
+          return originalReadFileSync(path, encoding);
+        }
+      });
+      const getProjectVersionSpy = jest.spyOn(command as any, 'getProjectVersion').mockClear();
+
+      await command.action(logger, { options: { toVersion: '1.4.1' } } as any);
+      assert.strictEqual(getProjectVersionSpy.mock.lastCall.returnValue, '1.4.1');
+    }
+  );
+
+  it('determining project version doesn\'t fail if package.json is empty',
+    async () => {
+      const originalReadFileSync = fs.readFileSync;
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path, encoding) => {
+        if (path.toString().endsWith('package.json')) {
+          return '';
+        }
+        else {
+          return originalReadFileSync(path, encoding);
+        }
+      });
+      const getProjectVersionSpy = jest.spyOn(command as any, 'getProjectVersion').mockClear();
+
+      await assert.rejects(command.action(logger, { options: { toVersion: '1.4.1' } } as any));
+      assert.strictEqual(getProjectVersionSpy.mock.lastCall.returnValue, undefined);
+    }
+  );
+
+  it('shows error if the current project version is not supported by the CLI',
+    async () => {
+      jest.spyOn(command as any, 'getProjectVersion').mockClear().mockReturnValue('0.0.1');
+
+      await assert.rejects(command.action(logger, { options: {} } as any),
+        new CommandError(`CLI for Microsoft 365 doesn't support upgrading projects built using SharePoint Framework v0.0.1`, 4));
+    }
+  );
+
+  it('shows regular message if the current project version and the version to upgrade to are the same',
+    async () => {
+      jest.spyOn(command as any, 'getProjectVersion').mockClear().mockReturnValue('1.5.0');
+
+      await command.action(logger, { options: { toVersion: '1.5.0' } } as any);
+      assert(log.indexOf(`Project doesn't need to be upgraded`) > -1, `Doesn't return info message`);
+    }
+  );
+
+  it('shows error if the current project version is higher than the version to upgrade to',
+    async () => {
+      jest.spyOn(command as any, 'getProjectVersion').mockClear().mockReturnValue('1.5.0');
+
+      await assert.rejects(command.action(logger, { options: { toVersion: '1.4.1' } } as any),
+        new CommandError(`You cannot downgrade a project`, 5));
+    }
+  );
 
   it('loads config.json when available', () => {
     assert.notStrictEqual(typeof (project141webPartNoLib.configJson), 'undefined');
@@ -443,7 +468,7 @@ describe(commands.PROJECT_UPGRADE, () => {
 
   it('doesn\'t fail if package.json not available', () => {
     const originalExistsSync = fs.existsSync;
-    sinon.stub(fs, 'existsSync').callsFake((path) => {
+    jest.spyOn(fs, 'existsSync').mockClear().mockImplementation((path) => {
       if (path.toString().endsWith('package.json')) {
         return false;
       }
@@ -459,7 +484,7 @@ describe(commands.PROJECT_UPGRADE, () => {
 
   it('doesn\'t fail if tsconfig.json not available', () => {
     const originalExistsSync = fs.existsSync;
-    sinon.stub(fs, 'existsSync').callsFake((path) => {
+    jest.spyOn(fs, 'existsSync').mockClear().mockImplementation((path) => {
       if (path.toString().endsWith('tsconfig.json')) {
         return false;
       }
@@ -475,7 +500,7 @@ describe(commands.PROJECT_UPGRADE, () => {
 
   it('doesn\'t fail if config.json is empty', () => {
     const originalReadFileSync = fs.readFileSync;
-    sinon.stub(fs, 'readFileSync').callsFake((path, encoding) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path, encoding) => {
       if (path.toString().endsWith('config.json')) {
         return '';
       }
@@ -491,7 +516,7 @@ describe(commands.PROJECT_UPGRADE, () => {
 
   it('doesn\'t fail if copy-assets.json is empty', () => {
     const originalReadFileSync = fs.readFileSync;
-    sinon.stub(fs, 'readFileSync').callsFake((path, encoding) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path, encoding) => {
       if (path.toString().endsWith('copy-assets.json')) {
         return '';
       }
@@ -507,7 +532,7 @@ describe(commands.PROJECT_UPGRADE, () => {
 
   it('doesn\'t fail if deploy-azure-storage.json is empty', () => {
     const originalReadFileSync = fs.readFileSync;
-    sinon.stub(fs, 'readFileSync').callsFake((path, encoding) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path, encoding) => {
       if (path.toString().endsWith('deploy-azure-storage.json')) {
         return '';
       }
@@ -523,7 +548,7 @@ describe(commands.PROJECT_UPGRADE, () => {
 
   it('doesn\'t fail if package.json is empty', () => {
     const originalReadFileSync = fs.readFileSync;
-    sinon.stub(fs, 'readFileSync').callsFake((path, encoding) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path, encoding) => {
       if (path.toString().endsWith('package.json')) {
         return '';
       }
@@ -539,7 +564,7 @@ describe(commands.PROJECT_UPGRADE, () => {
 
   it('doesn\'t fail if package-solution.json is empty', () => {
     const originalReadFileSync = fs.readFileSync;
-    sinon.stub(fs, 'readFileSync').callsFake((path, encoding) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path, encoding) => {
       if (path.toString().endsWith('package-solution.json')) {
         return '';
       }
@@ -555,7 +580,7 @@ describe(commands.PROJECT_UPGRADE, () => {
 
   it('doesn\'t fail if serve.json is empty', () => {
     const originalReadFileSync = fs.readFileSync;
-    sinon.stub(fs, 'readFileSync').callsFake((path, encoding) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path, encoding) => {
       if (path.toString().endsWith('serve.json')) {
         return '';
       }
@@ -571,7 +596,7 @@ describe(commands.PROJECT_UPGRADE, () => {
 
   it('doesn\'t fail if tslint.json is empty', () => {
     const originalExistsSync = fs.existsSync;
-    sinon.stub(fs, 'existsSync').callsFake((path) => {
+    jest.spyOn(fs, 'existsSync').mockClear().mockImplementation((path) => {
       if (path.toString().endsWith('tslint.json')) {
         return true;
       }
@@ -580,7 +605,7 @@ describe(commands.PROJECT_UPGRADE, () => {
       }
     });
     const originalReadFileSync = fs.readFileSync;
-    sinon.stub(fs, 'readFileSync').callsFake((path, encoding) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path, encoding) => {
       if (path.toString().endsWith('tslint.json')) {
         return '';
       }
@@ -596,7 +621,7 @@ describe(commands.PROJECT_UPGRADE, () => {
 
   it('doesn\'t fail if write-manifests.json is empty', () => {
     const originalReadFileSync = fs.readFileSync;
-    sinon.stub(fs, 'readFileSync').callsFake((path, encoding) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path, encoding) => {
       if (path.toString().endsWith('write-manifests.json')) {
         return '';
       }
@@ -612,7 +637,7 @@ describe(commands.PROJECT_UPGRADE, () => {
 
   it('doesn\'t fail if .yo-rc.json is empty', () => {
     const originalReadFileSync = fs.readFileSync;
-    sinon.stub(fs, 'readFileSync').callsFake((path, encoding) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path, encoding) => {
       if (path.toString().endsWith('.yo-rc.json')) {
         return '';
       }
@@ -628,7 +653,7 @@ describe(commands.PROJECT_UPGRADE, () => {
 
   it('doesn\'t fail if extensions.json is empty', () => {
     const originalReadFileSync = fs.readFileSync;
-    sinon.stub(fs, 'readFileSync').callsFake((path, encoding) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path, encoding) => {
       if (path.toString().endsWith('extensions.json')) {
         return '';
       }
@@ -648,7 +673,7 @@ describe(commands.PROJECT_UPGRADE, () => {
 
   it('doesn\'t fail if vscode settings are not available', () => {
     const originalExistsSync = fs.existsSync;
-    sinon.stub(fs, 'existsSync').callsFake((path) => {
+    jest.spyOn(fs, 'existsSync').mockClear().mockImplementation((path) => {
       if (path.toString().endsWith('settings.json')) {
         return false;
       }
@@ -664,7 +689,7 @@ describe(commands.PROJECT_UPGRADE, () => {
 
   it('doesn\'t fail if vscode settings are empty', () => {
     const originalReadFileSync = fs.readFileSync;
-    sinon.stub(fs, 'readFileSync').callsFake((path, encoding) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path, encoding) => {
       if (path.toString().endsWith('settings.json')) {
         return '';
       }
@@ -680,7 +705,7 @@ describe(commands.PROJECT_UPGRADE, () => {
 
   it('doesn\'t fail if vscode launch info is empty', () => {
     const originalReadFileSync = fs.readFileSync;
-    sinon.stub(fs, 'readFileSync').callsFake((path, encoding) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path, encoding) => {
       if (path.toString().endsWith('launch.json')) {
         return '';
       }
@@ -695,287 +720,337 @@ describe(commands.PROJECT_UPGRADE, () => {
   });
 
   //#region npm
-  it(`doesn't return any dependencies from command npm for npm package manager`, () => {
-    packageManager.mapPackageManagerCommand({
-      command: 'npm', packagesDevExact, packagesDepExact, packagesDepUn, packagesDevUn, packageMgr: 'npm'
-    });
-    assert.strictEqual(packagesDevExact.length, 0, 'Incorrect number of deps to install');
-    assert.strictEqual(packagesDepExact.length, 0, 'Incorrect number of dev deps to install');
-    assert.strictEqual(packagesDepUn.length, 0, 'Incorrect number of deps to uninstall');
-    assert.strictEqual(packagesDevUn.length, 0, 'Incorrect number of dev deps to uninstall');
-  });
+  it(`doesn't return any dependencies from command npm for npm package manager`,
+    () => {
+      packageManager.mapPackageManagerCommand({
+        command: 'npm', packagesDevExact, packagesDepExact, packagesDepUn, packagesDevUn, packageMgr: 'npm'
+      });
+      assert.strictEqual(packagesDevExact.length, 0, 'Incorrect number of deps to install');
+      assert.strictEqual(packagesDepExact.length, 0, 'Incorrect number of dev deps to install');
+      assert.strictEqual(packagesDepUn.length, 0, 'Incorrect number of deps to uninstall');
+      assert.strictEqual(packagesDevUn.length, 0, 'Incorrect number of dev deps to uninstall');
+    }
+  );
 
-  it(`returns 1 exact dependency to be installed for npm i -SE for npm package manager`, () => {
-    packageManager.mapPackageManagerCommand({
-      command: 'npm i -SE package', packagesDevExact, packagesDepExact, packagesDepUn, packagesDevUn, packageMgr: 'npm'
-    });
-    assert.strictEqual(packagesDevExact.length, 0, 'Incorrect number of deps to install');
-    assert.strictEqual(packagesDepExact.length, 1, 'Incorrect number of dev deps to install');
-    assert.strictEqual(packagesDepUn.length, 0, 'Incorrect number of deps to uninstall');
-    assert.strictEqual(packagesDevUn.length, 0, 'Incorrect number of dev deps to uninstall');
-  });
+  it(`returns 1 exact dependency to be installed for npm i -SE for npm package manager`,
+    () => {
+      packageManager.mapPackageManagerCommand({
+        command: 'npm i -SE package', packagesDevExact, packagesDepExact, packagesDepUn, packagesDevUn, packageMgr: 'npm'
+      });
+      assert.strictEqual(packagesDevExact.length, 0, 'Incorrect number of deps to install');
+      assert.strictEqual(packagesDepExact.length, 1, 'Incorrect number of dev deps to install');
+      assert.strictEqual(packagesDepUn.length, 0, 'Incorrect number of deps to uninstall');
+      assert.strictEqual(packagesDevUn.length, 0, 'Incorrect number of dev deps to uninstall');
+    }
+  );
 
-  it(`returns 1 exact dev dependency to be installed for npm i -DE for npm package manager`, () => {
-    packageManager.mapPackageManagerCommand({
-      command: 'npm i -DE package', packagesDevExact, packagesDepExact, packagesDepUn, packagesDevUn, packageMgr: 'npm'
-    });
-    assert.strictEqual(packagesDevExact.length, 1, 'Incorrect number of deps to install');
-    assert.strictEqual(packagesDepExact.length, 0, 'Incorrect number of dev deps to install');
-    assert.strictEqual(packagesDepUn.length, 0, 'Incorrect number of deps to uninstall');
-    assert.strictEqual(packagesDevUn.length, 0, 'Incorrect number of dev deps to uninstall');
-  });
+  it(`returns 1 exact dev dependency to be installed for npm i -DE for npm package manager`,
+    () => {
+      packageManager.mapPackageManagerCommand({
+        command: 'npm i -DE package', packagesDevExact, packagesDepExact, packagesDepUn, packagesDevUn, packageMgr: 'npm'
+      });
+      assert.strictEqual(packagesDevExact.length, 1, 'Incorrect number of deps to install');
+      assert.strictEqual(packagesDepExact.length, 0, 'Incorrect number of dev deps to install');
+      assert.strictEqual(packagesDepUn.length, 0, 'Incorrect number of deps to uninstall');
+      assert.strictEqual(packagesDevUn.length, 0, 'Incorrect number of dev deps to uninstall');
+    }
+  );
 
-  it(`returns 1 dependency to uninstall for npm un -S for npm package manager`, () => {
-    packageManager.mapPackageManagerCommand({
-      command: 'npm un -S package', packagesDevExact, packagesDepExact, packagesDepUn, packagesDevUn, packageMgr: 'npm'
-    });
-    assert.strictEqual(packagesDevExact.length, 0, 'Incorrect number of deps to install');
-    assert.strictEqual(packagesDepExact.length, 0, 'Incorrect number of dev deps to install');
-    assert.strictEqual(packagesDepUn.length, 1, 'Incorrect number of deps to uninstall');
-    assert.strictEqual(packagesDevUn.length, 0, 'Incorrect number of dev deps to uninstall');
-  });
+  it(`returns 1 dependency to uninstall for npm un -S for npm package manager`,
+    () => {
+      packageManager.mapPackageManagerCommand({
+        command: 'npm un -S package', packagesDevExact, packagesDepExact, packagesDepUn, packagesDevUn, packageMgr: 'npm'
+      });
+      assert.strictEqual(packagesDevExact.length, 0, 'Incorrect number of deps to install');
+      assert.strictEqual(packagesDepExact.length, 0, 'Incorrect number of dev deps to install');
+      assert.strictEqual(packagesDepUn.length, 1, 'Incorrect number of deps to uninstall');
+      assert.strictEqual(packagesDevUn.length, 0, 'Incorrect number of dev deps to uninstall');
+    }
+  );
 
-  it(`returns 1 dev dependency to uninstall for npm un -D for npm package manager`, () => {
-    packageManager.mapPackageManagerCommand({
-      command: 'npm un -D package', packagesDevExact, packagesDepExact, packagesDepUn, packagesDevUn, packageMgr: 'npm'
-    });
-    assert.strictEqual(packagesDevExact.length, 0, 'Incorrect number of deps to install');
-    assert.strictEqual(packagesDepExact.length, 0, 'Incorrect number of dev deps to install');
-    assert.strictEqual(packagesDepUn.length, 0, 'Incorrect number of deps to uninstall');
-    assert.strictEqual(packagesDevUn.length, 1, 'Incorrect number of dev deps to uninstall');
-  });
+  it(`returns 1 dev dependency to uninstall for npm un -D for npm package manager`,
+    () => {
+      packageManager.mapPackageManagerCommand({
+        command: 'npm un -D package', packagesDevExact, packagesDepExact, packagesDepUn, packagesDevUn, packageMgr: 'npm'
+      });
+      assert.strictEqual(packagesDevExact.length, 0, 'Incorrect number of deps to install');
+      assert.strictEqual(packagesDepExact.length, 0, 'Incorrect number of dev deps to install');
+      assert.strictEqual(packagesDepUn.length, 0, 'Incorrect number of deps to uninstall');
+      assert.strictEqual(packagesDevUn.length, 1, 'Incorrect number of dev deps to uninstall');
+    }
+  );
 
-  it(`returns command to install dependency for 1 dep for npm package manager`, () => {
-    const commands: string[] = packageManager.reducePackageManagerCommand({
-      packagesDepExact: ['package'],
-      packagesDevExact: [],
-      packagesDepUn: [],
-      packagesDevUn: [],
-      packageMgr: 'npm'
-    });
-    assert.strictEqual(JSON.stringify(commands), JSON.stringify(['npm i -SE package']));
-  });
+  it(`returns command to install dependency for 1 dep for npm package manager`,
+    () => {
+      const commands: string[] = packageManager.reducePackageManagerCommand({
+        packagesDepExact: ['package'],
+        packagesDevExact: [],
+        packagesDepUn: [],
+        packagesDevUn: [],
+        packageMgr: 'npm'
+      });
+      assert.strictEqual(JSON.stringify(commands), JSON.stringify(['npm i -SE package']));
+    }
+  );
 
-  it(`returns command to install dev dependency for 1 dev dep for npm package manager`, () => {
-    const commands: string[] = packageManager.reducePackageManagerCommand({
-      packagesDepExact: [],
-      packagesDevExact: ['package'],
-      packagesDepUn: [],
-      packagesDevUn: [],
-      packageMgr: 'npm'
-    });
-    assert.strictEqual(JSON.stringify(commands), JSON.stringify(['npm i -DE package']));
-  });
+  it(`returns command to install dev dependency for 1 dev dep for npm package manager`,
+    () => {
+      const commands: string[] = packageManager.reducePackageManagerCommand({
+        packagesDepExact: [],
+        packagesDevExact: ['package'],
+        packagesDepUn: [],
+        packagesDevUn: [],
+        packageMgr: 'npm'
+      });
+      assert.strictEqual(JSON.stringify(commands), JSON.stringify(['npm i -DE package']));
+    }
+  );
 
-  it(`returns command to uninstall dependency for 1 dep for npm package manager`, () => {
-    const commands: string[] = packageManager.reducePackageManagerCommand({
-      packagesDepExact: [],
-      packagesDevExact: [],
-      packagesDepUn: ['package'],
-      packagesDevUn: [],
-      packageMgr: 'npm'
-    });
-    assert.strictEqual(JSON.stringify(commands), JSON.stringify(['npm un -S package']));
-  });
+  it(`returns command to uninstall dependency for 1 dep for npm package manager`,
+    () => {
+      const commands: string[] = packageManager.reducePackageManagerCommand({
+        packagesDepExact: [],
+        packagesDevExact: [],
+        packagesDepUn: ['package'],
+        packagesDevUn: [],
+        packageMgr: 'npm'
+      });
+      assert.strictEqual(JSON.stringify(commands), JSON.stringify(['npm un -S package']));
+    }
+  );
 
-  it(`returns command to uninstall dev dependency for 1 dev dep for npm package manager`, () => {
-    const commands: string[] = packageManager.reducePackageManagerCommand({
-      packagesDepExact: [],
-      packagesDevExact: [],
-      packagesDepUn: [],
-      packagesDevUn: ['package'],
-      packageMgr: 'npm'
-    });
-    assert.strictEqual(JSON.stringify(commands), JSON.stringify(['npm un -D package']));
-  });
+  it(`returns command to uninstall dev dependency for 1 dev dep for npm package manager`,
+    () => {
+      const commands: string[] = packageManager.reducePackageManagerCommand({
+        packagesDepExact: [],
+        packagesDevExact: [],
+        packagesDepUn: [],
+        packagesDevUn: ['package'],
+        packageMgr: 'npm'
+      });
+      assert.strictEqual(JSON.stringify(commands), JSON.stringify(['npm un -D package']));
+    }
+  );
   //#endregion
 
   //#region pnpm
-  it(`doesn't return any dependencies from command pnpm for pnpm package manager`, () => {
-    (command as any).packageManager = 'pnpm';
-    packageManager.mapPackageManagerCommand({
-      command: 'pnpm', packagesDevExact, packagesDepExact, packagesDepUn, packagesDevUn, packageMgr: 'pnpm'
-    });
-    assert.strictEqual(packagesDevExact.length, 0, 'Incorrect number of deps to install');
-    assert.strictEqual(packagesDepExact.length, 0, 'Incorrect number of dev deps to install');
-    assert.strictEqual(packagesDepUn.length, 0, 'Incorrect number of deps to uninstall');
-    assert.strictEqual(packagesDevUn.length, 0, 'Incorrect number of dev deps to uninstall');
-  });
+  it(`doesn't return any dependencies from command pnpm for pnpm package manager`,
+    () => {
+      (command as any).packageManager = 'pnpm';
+      packageManager.mapPackageManagerCommand({
+        command: 'pnpm', packagesDevExact, packagesDepExact, packagesDepUn, packagesDevUn, packageMgr: 'pnpm'
+      });
+      assert.strictEqual(packagesDevExact.length, 0, 'Incorrect number of deps to install');
+      assert.strictEqual(packagesDepExact.length, 0, 'Incorrect number of dev deps to install');
+      assert.strictEqual(packagesDepUn.length, 0, 'Incorrect number of deps to uninstall');
+      assert.strictEqual(packagesDevUn.length, 0, 'Incorrect number of dev deps to uninstall');
+    }
+  );
 
-  it(`returns 1 exact dependency to be installed for pnpm i -E for pnpm package manager`, () => {
-    (command as any).packageManager = 'pnpm';
-    packageManager.mapPackageManagerCommand({
-      command: 'pnpm i -E package', packagesDevExact, packagesDepExact, packagesDepUn, packagesDevUn, packageMgr: 'pnpm'
-    });
-    assert.strictEqual(packagesDevExact.length, 0, 'Incorrect number of deps to install');
-    assert.strictEqual(packagesDepExact.length, 1, 'Incorrect number of dev deps to install');
-    assert.strictEqual(packagesDepUn.length, 0, 'Incorrect number of deps to uninstall');
-    assert.strictEqual(packagesDevUn.length, 0, 'Incorrect number of dev deps to uninstall');
-  });
+  it(`returns 1 exact dependency to be installed for pnpm i -E for pnpm package manager`,
+    () => {
+      (command as any).packageManager = 'pnpm';
+      packageManager.mapPackageManagerCommand({
+        command: 'pnpm i -E package', packagesDevExact, packagesDepExact, packagesDepUn, packagesDevUn, packageMgr: 'pnpm'
+      });
+      assert.strictEqual(packagesDevExact.length, 0, 'Incorrect number of deps to install');
+      assert.strictEqual(packagesDepExact.length, 1, 'Incorrect number of dev deps to install');
+      assert.strictEqual(packagesDepUn.length, 0, 'Incorrect number of deps to uninstall');
+      assert.strictEqual(packagesDevUn.length, 0, 'Incorrect number of dev deps to uninstall');
+    }
+  );
 
-  it(`returns 1 exact dev dependency to be installed for pnpm i -DE for npm package manager`, () => {
-    (command as any).packageManager = 'pnpm';
-    packageManager.mapPackageManagerCommand({
-      command: 'pnpm i -DE package', packagesDevExact, packagesDepExact, packagesDepUn, packagesDevUn, packageMgr: 'pnpm'
-    });
-    assert.strictEqual(packagesDevExact.length, 1, 'Incorrect number of deps to install');
-    assert.strictEqual(packagesDepExact.length, 0, 'Incorrect number of dev deps to install');
-    assert.strictEqual(packagesDepUn.length, 0, 'Incorrect number of deps to uninstall');
-    assert.strictEqual(packagesDevUn.length, 0, 'Incorrect number of dev deps to uninstall');
-  });
+  it(`returns 1 exact dev dependency to be installed for pnpm i -DE for npm package manager`,
+    () => {
+      (command as any).packageManager = 'pnpm';
+      packageManager.mapPackageManagerCommand({
+        command: 'pnpm i -DE package', packagesDevExact, packagesDepExact, packagesDepUn, packagesDevUn, packageMgr: 'pnpm'
+      });
+      assert.strictEqual(packagesDevExact.length, 1, 'Incorrect number of deps to install');
+      assert.strictEqual(packagesDepExact.length, 0, 'Incorrect number of dev deps to install');
+      assert.strictEqual(packagesDepUn.length, 0, 'Incorrect number of deps to uninstall');
+      assert.strictEqual(packagesDevUn.length, 0, 'Incorrect number of dev deps to uninstall');
+    }
+  );
 
-  it(`returns 1 dev dependency to uninstall for pnpm un for npm package manager`, () => {
-    (command as any).packageManager = 'pnpm';
-    packageManager.mapPackageManagerCommand({
-      command: 'pnpm un package', packagesDevExact, packagesDepExact, packagesDepUn, packagesDevUn, packageMgr: 'pnpm'
-    });
-    assert.strictEqual(packagesDevExact.length, 0, 'Incorrect number of deps to install');
-    assert.strictEqual(packagesDepExact.length, 0, 'Incorrect number of dev deps to install');
-    assert.strictEqual(packagesDepUn.length, 0, 'Incorrect number of deps to uninstall');
-    assert.strictEqual(packagesDevUn.length, 1, 'Incorrect number of dev deps to uninstall');
-  });
+  it(`returns 1 dev dependency to uninstall for pnpm un for npm package manager`,
+    () => {
+      (command as any).packageManager = 'pnpm';
+      packageManager.mapPackageManagerCommand({
+        command: 'pnpm un package', packagesDevExact, packagesDepExact, packagesDepUn, packagesDevUn, packageMgr: 'pnpm'
+      });
+      assert.strictEqual(packagesDevExact.length, 0, 'Incorrect number of deps to install');
+      assert.strictEqual(packagesDepExact.length, 0, 'Incorrect number of dev deps to install');
+      assert.strictEqual(packagesDepUn.length, 0, 'Incorrect number of deps to uninstall');
+      assert.strictEqual(packagesDevUn.length, 1, 'Incorrect number of dev deps to uninstall');
+    }
+  );
 
-  it(`returns command to install dependency for 1 dep for pnpm package manager`, () => {
-    (command as any).packageManager = 'pnpm';
-    const commands: string[] = packageManager.reducePackageManagerCommand({
-      packagesDepExact: ['package'],
-      packagesDevExact: [],
-      packagesDepUn: [],
-      packagesDevUn: [],
-      packageMgr: 'pnpm'
-    });
-    assert.strictEqual(JSON.stringify(commands), JSON.stringify(['pnpm i -E package']));
-  });
+  it(`returns command to install dependency for 1 dep for pnpm package manager`,
+    () => {
+      (command as any).packageManager = 'pnpm';
+      const commands: string[] = packageManager.reducePackageManagerCommand({
+        packagesDepExact: ['package'],
+        packagesDevExact: [],
+        packagesDepUn: [],
+        packagesDevUn: [],
+        packageMgr: 'pnpm'
+      });
+      assert.strictEqual(JSON.stringify(commands), JSON.stringify(['pnpm i -E package']));
+    }
+  );
 
-  it(`returns command to install dev dependency for 1 dev dep for pnpm package manager`, () => {
-    (command as any).packageManager = 'pnpm';
-    const commands: string[] = packageManager.reducePackageManagerCommand({
-      packagesDepExact: [],
-      packagesDevExact: ['package'],
-      packagesDepUn: [],
-      packagesDevUn: [],
-      packageMgr: 'pnpm'
-    });
-    assert.strictEqual(JSON.stringify(commands), JSON.stringify(['pnpm i -DE package']));
-  });
+  it(`returns command to install dev dependency for 1 dev dep for pnpm package manager`,
+    () => {
+      (command as any).packageManager = 'pnpm';
+      const commands: string[] = packageManager.reducePackageManagerCommand({
+        packagesDepExact: [],
+        packagesDevExact: ['package'],
+        packagesDepUn: [],
+        packagesDevUn: [],
+        packageMgr: 'pnpm'
+      });
+      assert.strictEqual(JSON.stringify(commands), JSON.stringify(['pnpm i -DE package']));
+    }
+  );
 
-  it(`returns command to uninstall dependency for 1 dep for pnpm package manager`, () => {
-    (command as any).packageManager = 'pnpm';
-    const commands: string[] = packageManager.reducePackageManagerCommand({
-      packagesDepExact: [],
-      packagesDevExact: [],
-      packagesDepUn: ['package'],
-      packagesDevUn: [],
-      packageMgr: 'pnpm'
-    });
-    assert.strictEqual(JSON.stringify(commands), JSON.stringify(['pnpm un package']));
-  });
+  it(`returns command to uninstall dependency for 1 dep for pnpm package manager`,
+    () => {
+      (command as any).packageManager = 'pnpm';
+      const commands: string[] = packageManager.reducePackageManagerCommand({
+        packagesDepExact: [],
+        packagesDevExact: [],
+        packagesDepUn: ['package'],
+        packagesDevUn: [],
+        packageMgr: 'pnpm'
+      });
+      assert.strictEqual(JSON.stringify(commands), JSON.stringify(['pnpm un package']));
+    }
+  );
 
-  it(`returns command to uninstall dev dependency for 1 dev dep for pnpm package manager`, () => {
-    (command as any).packageManager = 'pnpm';
-    const commands: string[] = packageManager.reducePackageManagerCommand({
-      packagesDepExact: [],
-      packagesDevExact: [],
-      packagesDepUn: [],
-      packagesDevUn: ['package'],
-      packageMgr: 'pnpm'
-    });
-    assert.strictEqual(JSON.stringify(commands), JSON.stringify(['pnpm un package']));
-  });
+  it(`returns command to uninstall dev dependency for 1 dev dep for pnpm package manager`,
+    () => {
+      (command as any).packageManager = 'pnpm';
+      const commands: string[] = packageManager.reducePackageManagerCommand({
+        packagesDepExact: [],
+        packagesDevExact: [],
+        packagesDepUn: [],
+        packagesDevUn: ['package'],
+        packageMgr: 'pnpm'
+      });
+      assert.strictEqual(JSON.stringify(commands), JSON.stringify(['pnpm un package']));
+    }
+  );
   //#endregion
 
   //#region yarn
-  it(`doesn't return any dependencies from command yarn for yarn package manager`, () => {
-    (command as any).packageManager = 'yarn';
-    packageManager.mapPackageManagerCommand({
-      command: 'yarn', packagesDevExact, packagesDepExact, packagesDepUn, packagesDevUn, packageMgr: 'yarn'
-    });
-    assert.strictEqual(packagesDevExact.length, 0, 'Incorrect number of deps to install');
-    assert.strictEqual(packagesDepExact.length, 0, 'Incorrect number of dev deps to install');
-    assert.strictEqual(packagesDepUn.length, 0, 'Incorrect number of deps to uninstall');
-    assert.strictEqual(packagesDevUn.length, 0, 'Incorrect number of dev deps to uninstall');
-  });
+  it(`doesn't return any dependencies from command yarn for yarn package manager`,
+    () => {
+      (command as any).packageManager = 'yarn';
+      packageManager.mapPackageManagerCommand({
+        command: 'yarn', packagesDevExact, packagesDepExact, packagesDepUn, packagesDevUn, packageMgr: 'yarn'
+      });
+      assert.strictEqual(packagesDevExact.length, 0, 'Incorrect number of deps to install');
+      assert.strictEqual(packagesDepExact.length, 0, 'Incorrect number of dev deps to install');
+      assert.strictEqual(packagesDepUn.length, 0, 'Incorrect number of deps to uninstall');
+      assert.strictEqual(packagesDevUn.length, 0, 'Incorrect number of dev deps to uninstall');
+    }
+  );
 
-  it(`returns 1 exact dependency to be installed for yarn add -E for pnpm package manager`, () => {
-    (command as any).packageManager = 'yarn';
-    packageManager.mapPackageManagerCommand({
-      command: 'yarn add -E package', packagesDevExact, packagesDepExact, packagesDepUn, packagesDevUn, packageMgr: 'yarn'
-    });
-    assert.strictEqual(packagesDevExact.length, 0, 'Incorrect number of deps to install');
-    assert.strictEqual(packagesDepExact.length, 1, 'Incorrect number of dev deps to install');
-    assert.strictEqual(packagesDepUn.length, 0, 'Incorrect number of deps to uninstall');
-    assert.strictEqual(packagesDevUn.length, 0, 'Incorrect number of dev deps to uninstall');
-  });
+  it(`returns 1 exact dependency to be installed for yarn add -E for pnpm package manager`,
+    () => {
+      (command as any).packageManager = 'yarn';
+      packageManager.mapPackageManagerCommand({
+        command: 'yarn add -E package', packagesDevExact, packagesDepExact, packagesDepUn, packagesDevUn, packageMgr: 'yarn'
+      });
+      assert.strictEqual(packagesDevExact.length, 0, 'Incorrect number of deps to install');
+      assert.strictEqual(packagesDepExact.length, 1, 'Incorrect number of dev deps to install');
+      assert.strictEqual(packagesDepUn.length, 0, 'Incorrect number of deps to uninstall');
+      assert.strictEqual(packagesDevUn.length, 0, 'Incorrect number of dev deps to uninstall');
+    }
+  );
 
-  it(`returns 1 exact dev dependency to be installed for yarn add -DE for npm package manager`, () => {
-    (command as any).packageManager = 'yarn';
-    packageManager.mapPackageManagerCommand({
-      command: 'yarn add -DE package', packagesDevExact, packagesDepExact, packagesDepUn, packagesDevUn, packageMgr: 'yarn'
-    });
-    assert.strictEqual(packagesDevExact.length, 1, 'Incorrect number of deps to install');
-    assert.strictEqual(packagesDepExact.length, 0, 'Incorrect number of dev deps to install');
-    assert.strictEqual(packagesDepUn.length, 0, 'Incorrect number of deps to uninstall');
-    assert.strictEqual(packagesDevUn.length, 0, 'Incorrect number of dev deps to uninstall');
-  });
+  it(`returns 1 exact dev dependency to be installed for yarn add -DE for npm package manager`,
+    () => {
+      (command as any).packageManager = 'yarn';
+      packageManager.mapPackageManagerCommand({
+        command: 'yarn add -DE package', packagesDevExact, packagesDepExact, packagesDepUn, packagesDevUn, packageMgr: 'yarn'
+      });
+      assert.strictEqual(packagesDevExact.length, 1, 'Incorrect number of deps to install');
+      assert.strictEqual(packagesDepExact.length, 0, 'Incorrect number of dev deps to install');
+      assert.strictEqual(packagesDepUn.length, 0, 'Incorrect number of deps to uninstall');
+      assert.strictEqual(packagesDevUn.length, 0, 'Incorrect number of dev deps to uninstall');
+    }
+  );
 
-  it(`returns 1 dev dependency to uninstall for yarn un for npm package manager`, () => {
-    (command as any).packageManager = 'yarn';
-    packageManager.mapPackageManagerCommand({
-      command: 'yarn remove package', packagesDevExact, packagesDepExact, packagesDepUn, packagesDevUn, packageMgr: 'yarn'
-    });
-    assert.strictEqual(packagesDevExact.length, 0, 'Incorrect number of deps to install');
-    assert.strictEqual(packagesDepExact.length, 0, 'Incorrect number of dev deps to install');
-    assert.strictEqual(packagesDepUn.length, 0, 'Incorrect number of deps to uninstall');
-    assert.strictEqual(packagesDevUn.length, 1, 'Incorrect number of dev deps to uninstall');
-  });
+  it(`returns 1 dev dependency to uninstall for yarn un for npm package manager`,
+    () => {
+      (command as any).packageManager = 'yarn';
+      packageManager.mapPackageManagerCommand({
+        command: 'yarn remove package', packagesDevExact, packagesDepExact, packagesDepUn, packagesDevUn, packageMgr: 'yarn'
+      });
+      assert.strictEqual(packagesDevExact.length, 0, 'Incorrect number of deps to install');
+      assert.strictEqual(packagesDepExact.length, 0, 'Incorrect number of dev deps to install');
+      assert.strictEqual(packagesDepUn.length, 0, 'Incorrect number of deps to uninstall');
+      assert.strictEqual(packagesDevUn.length, 1, 'Incorrect number of dev deps to uninstall');
+    }
+  );
 
-  it(`returns command to install dependency for 1 dep for yarn package manager`, () => {
-    (command as any).packageManager = 'yarn';
-    const commands: string[] = packageManager.reducePackageManagerCommand({
-      packagesDepExact: ['package'],
-      packagesDevExact: [],
-      packagesDepUn: [],
-      packagesDevUn: [],
-      packageMgr: 'yarn'
-    });
-    assert.strictEqual(JSON.stringify(commands), JSON.stringify(['yarn add -E package']));
-  });
+  it(`returns command to install dependency for 1 dep for yarn package manager`,
+    () => {
+      (command as any).packageManager = 'yarn';
+      const commands: string[] = packageManager.reducePackageManagerCommand({
+        packagesDepExact: ['package'],
+        packagesDevExact: [],
+        packagesDepUn: [],
+        packagesDevUn: [],
+        packageMgr: 'yarn'
+      });
+      assert.strictEqual(JSON.stringify(commands), JSON.stringify(['yarn add -E package']));
+    }
+  );
 
-  it(`returns command to install dev dependency for 1 dev dep for yarn package manager`, () => {
-    (command as any).packageManager = 'yarn';
-    const commands: string[] = packageManager.reducePackageManagerCommand({
-      packagesDepExact: [],
-      packagesDevExact: ['package'],
-      packagesDepUn: [],
-      packagesDevUn: [],
-      packageMgr: 'yarn'
-    });
-    assert.strictEqual(JSON.stringify(commands), JSON.stringify(['yarn add -DE package']));
-  });
+  it(`returns command to install dev dependency for 1 dev dep for yarn package manager`,
+    () => {
+      (command as any).packageManager = 'yarn';
+      const commands: string[] = packageManager.reducePackageManagerCommand({
+        packagesDepExact: [],
+        packagesDevExact: ['package'],
+        packagesDepUn: [],
+        packagesDevUn: [],
+        packageMgr: 'yarn'
+      });
+      assert.strictEqual(JSON.stringify(commands), JSON.stringify(['yarn add -DE package']));
+    }
+  );
 
-  it(`returns command to uninstall dependency for 1 dep for yarn package manager`, () => {
-    (command as any).packageManager = 'yarn';
-    const commands: string[] = packageManager.reducePackageManagerCommand({
-      packagesDepExact: [],
-      packagesDevExact: [],
-      packagesDepUn: ['package'],
-      packagesDevUn: [],
-      packageMgr: 'yarn'
-    });
-    assert.strictEqual(JSON.stringify(commands), JSON.stringify(['yarn remove package']));
-  });
+  it(`returns command to uninstall dependency for 1 dep for yarn package manager`,
+    () => {
+      (command as any).packageManager = 'yarn';
+      const commands: string[] = packageManager.reducePackageManagerCommand({
+        packagesDepExact: [],
+        packagesDevExact: [],
+        packagesDepUn: ['package'],
+        packagesDevUn: [],
+        packageMgr: 'yarn'
+      });
+      assert.strictEqual(JSON.stringify(commands), JSON.stringify(['yarn remove package']));
+    }
+  );
 
-  it(`returns command to uninstall dev dependency for 1 dev dep for yarn package manager`, () => {
-    (command as any).packageManager = 'yarn';
-    const commands: string[] = packageManager.reducePackageManagerCommand({
-      packagesDepExact: [],
-      packagesDevExact: [],
-      packagesDepUn: [],
-      packagesDevUn: ['package'],
-      packageMgr: 'yarn'
-    });
-    assert.strictEqual(JSON.stringify(commands), JSON.stringify(['yarn remove package']));
-  });
+  it(`returns command to uninstall dev dependency for 1 dev dep for yarn package manager`,
+    () => {
+      (command as any).packageManager = 'yarn';
+      const commands: string[] = packageManager.reducePackageManagerCommand({
+        packagesDepExact: [],
+        packagesDevExact: [],
+        packagesDepUn: [],
+        packagesDevUn: ['package'],
+        packageMgr: 'yarn'
+      });
+      assert.strictEqual(JSON.stringify(commands), JSON.stringify(['yarn remove package']));
+    }
+  );
   //#endregion
 
   it(`returns no commands to run when no dependencies found`, () => {
@@ -990,7 +1065,7 @@ describe(commands.PROJECT_UPGRADE, () => {
   });
 
   it('shows error when a upgrade rule failed', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-100-webpart-nolib'));
+    jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-100-webpart-nolib'));
     (command as any).supportedVersions.splice(1, 0, '0');
 
     await assert.rejects(command.action(logger, { options: { toVersion: '1.0.1', output: 'json' } } as any), (err) => {
@@ -1002,2194 +1077,2722 @@ describe(commands.PROJECT_UPGRADE, () => {
   });
 
   //#region 1.0.0
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.0.0 project to 1.0.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-100-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.0.0 project to 1.0.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-100-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.0.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 3);
-  });
+      await command.action(logger, { options: { toVersion: '1.0.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 3);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.0.0 project to 1.0.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-100-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.0.0 project to 1.0.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-100-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.0.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 3);
-  });
+      await command.action(logger, { options: { toVersion: '1.0.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 3);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading ko web part 1.0.0 project to 1.0.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-100-webpart-ko'));
+  it('e2e: shows correct number of findings for upgrading ko web part 1.0.0 project to 1.0.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-100-webpart-ko'));
 
-    await command.action(logger, { options: { toVersion: '1.0.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 3);
-  });
+      await command.action(logger, { options: { toVersion: '1.0.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 3);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.0.0 project to 1.0.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-100-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.0.0 project to 1.0.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-100-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.0.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 3);
-  });
+      await command.action(logger, { options: { toVersion: '1.0.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 3);
+    }
+  );
   //#endregion
 
   //#region 1.0.1
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.0.1 project to 1.0.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-101-webpart-nolib'));
-    await command.action(logger, { options: { toVersion: '1.0.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 2);
-  });
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.0.1 project to 1.0.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-101-webpart-nolib'));
+      await command.action(logger, { options: { toVersion: '1.0.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 2);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.0.1 project to 1.0.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-101-webpart-react'));
-    await command.action(logger, { options: { toVersion: '1.0.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 2);
-  });
+  it('e2e: shows correct number of findings for upgrading react web part 1.0.1 project to 1.0.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-101-webpart-react'));
+      await command.action(logger, { options: { toVersion: '1.0.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 2);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading ko web part 1.0.1 project to 1.0.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-101-webpart-ko'));
-    await command.action(logger, { options: { toVersion: '1.0.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 5);
-  });
+  it('e2e: shows correct number of findings for upgrading ko web part 1.0.1 project to 1.0.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-101-webpart-ko'));
+      await command.action(logger, { options: { toVersion: '1.0.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 5);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.0.1 project to 1.0.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-101-webpart-optionaldeps'));
-    await command.action(logger, { options: { toVersion: '1.0.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 2);
-  });
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.0.1 project to 1.0.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-101-webpart-optionaldeps'));
+      await command.action(logger, { options: { toVersion: '1.0.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 2);
+    }
+  );
   //#endregion
 
   //#region 1.0.2
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.0.2 project to 1.1.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-102-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.0.2 project to 1.1.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-102-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.1.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 16);
-  });
+      await command.action(logger, { options: { toVersion: '1.1.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 16);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.0.2 project to 1.1.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-102-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.0.2 project to 1.1.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-102-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.1.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 23);
-  });
+      await command.action(logger, { options: { toVersion: '1.1.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 23);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading ko web part 1.0.2 project to 1.1.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-102-webpart-ko'));
+  it('e2e: shows correct number of findings for upgrading ko web part 1.0.2 project to 1.1.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-102-webpart-ko'));
 
-    await command.action(logger, { options: { toVersion: '1.1.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 16);
-  });
+      await command.action(logger, { options: { toVersion: '1.1.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 16);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.0.2 project to 1.1.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-102-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.0.2 project to 1.1.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-102-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.1.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 22);
-  });
+      await command.action(logger, { options: { toVersion: '1.1.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 22);
+    }
+  );
   //#endregion
 
   //#region 1.1.0
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.1.0 project to 1.1.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-110-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.1.0 project to 1.1.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-110-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.1.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 3);
-  });
+      await command.action(logger, { options: { toVersion: '1.1.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 3);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.1.0 project to 1.1.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-110-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.1.0 project to 1.1.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-110-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.1.1', debug: true, output: 'json' } } as any);
-    const findings: Finding[] = log[3];
-    assert.strictEqual(findings.length, 3);
-  });
+      await command.action(logger, { options: { toVersion: '1.1.1', debug: true, output: 'json' } } as any);
+      const findings: Finding[] = log[3];
+      assert.strictEqual(findings.length, 3);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.1.0 project to 1.1.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-110-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.1.0 project to 1.1.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-110-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.1.1', debug: true, output: 'json' } } as any);
-    const findings: Finding[] = log[3];
-    assert.strictEqual(findings.length, 6);
-  });
+      await command.action(logger, { options: { toVersion: '1.1.1', debug: true, output: 'json' } } as any);
+      const findings: Finding[] = log[3];
+      assert.strictEqual(findings.length, 6);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading application customizer 1.1.0 project to 1.1.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-110-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.1.0 project to 1.1.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-110-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.1.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 5);
-  });
+      await command.action(logger, { options: { toVersion: '1.1.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 5);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.1.0 project to 1.1.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-110-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.1.0 project to 1.1.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-110-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.1.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 5);
-  });
+      await command.action(logger, { options: { toVersion: '1.1.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 5);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.1.0 project to 1.1.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-110-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.1.0 project to 1.1.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-110-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.1.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 5);
-  });
+      await command.action(logger, { options: { toVersion: '1.1.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 5);
+    }
+  );
   //#endregion
 
   //#region 1.1.1
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.1.1 project to 1.1.3', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-111-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.1.1 project to 1.1.3',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-111-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.1.3', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 4);
-  });
+      await command.action(logger, { options: { toVersion: '1.1.3', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 4);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.1.1 project to 1.1.3', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-111-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.1.1 project to 1.1.3',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-111-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.1.3', debug: true, output: 'json' } } as any);
-    const findings: Finding[] = log[3];
-    assert.strictEqual(findings.length, 4);
-  });
+      await command.action(logger, { options: { toVersion: '1.1.3', debug: true, output: 'json' } } as any);
+      const findings: Finding[] = log[3];
+      assert.strictEqual(findings.length, 4);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.1.1 project to 1.1.3', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-111-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.1.1 project to 1.1.3',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-111-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.1.3', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 4);
-  });
+      await command.action(logger, { options: { toVersion: '1.1.3', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 4);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading application customizer 1.1.1 project to 1.1.3', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-111-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.1.1 project to 1.1.3',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-111-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.1.3', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 4);
-  });
+      await command.action(logger, { options: { toVersion: '1.1.3', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 4);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.1.1 project to 1.1.3', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-111-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.1.1 project to 1.1.3',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-111-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.1.3', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 4);
-  });
+      await command.action(logger, { options: { toVersion: '1.1.3', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 4);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.1.1 project to 1.1.3', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-111-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.1.1 project to 1.1.3',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-111-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.1.3', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 4);
-  });
+      await command.action(logger, { options: { toVersion: '1.1.3', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 4);
+    }
+  );
   //#endregion
 
   //#region 1.1.3
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.1.3 project to 1.2.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-113-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.1.3 project to 1.2.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-113-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.2.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 21);
-  });
+      await command.action(logger, { options: { toVersion: '1.2.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 21);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.1.3 project to 1.2.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-113-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.1.3 project to 1.2.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-113-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.2.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 27);
-  });
+      await command.action(logger, { options: { toVersion: '1.2.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 27);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading knockout web part 1.1.3 project to 1.2.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-113-webpart-ko'));
+  it('e2e: shows correct number of findings for upgrading knockout web part 1.1.3 project to 1.2.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-113-webpart-ko'));
 
-    await command.action(logger, { options: { toVersion: '1.2.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 21);
-  });
+      await command.action(logger, { options: { toVersion: '1.2.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 21);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.1.3 project to 1.2.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-113-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.1.3 project to 1.2.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-113-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.2.0', debug: true, output: 'json' } } as any);
-    const findings: Finding[] = log[3];
-    assert.strictEqual(findings.length, 22);
-  });
+      await command.action(logger, { options: { toVersion: '1.2.0', debug: true, output: 'json' } } as any);
+      const findings: Finding[] = log[3];
+      assert.strictEqual(findings.length, 22);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading application customizer 1.1.3 project to 1.2.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-113-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.1.3 project to 1.2.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-113-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.2.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 23);
-  });
+      await command.action(logger, { options: { toVersion: '1.2.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 23);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.1.3 project to 1.2.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-113-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.1.3 project to 1.2.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-113-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.2.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 25);
-  });
+      await command.action(logger, { options: { toVersion: '1.2.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 25);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.1.3 project to 1.2.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-113-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.1.3 project to 1.2.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-113-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.2.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 24);
-  });
+      await command.action(logger, { options: { toVersion: '1.2.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 24);
+    }
+  );
   //#endregion
 
   //#region 1.2.0
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.2.0 project to 1.3.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-120-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.2.0 project to 1.3.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-120-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.3.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 8);
-  });
+      await command.action(logger, { options: { toVersion: '1.3.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 8);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.2.0 project to 1.3.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-120-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.2.0 project to 1.3.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-120-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.3.0', debug: true, output: 'json' } } as any);
-    const findings: Finding[] = log[3];
-    assert.strictEqual(findings.length, 8);
-  });
+      await command.action(logger, { options: { toVersion: '1.3.0', debug: true, output: 'json' } } as any);
+      const findings: Finding[] = log[3];
+      assert.strictEqual(findings.length, 8);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.2.0 project to 1.3.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-120-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.2.0 project to 1.3.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-120-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.3.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 15);
-  });
+      await command.action(logger, { options: { toVersion: '1.3.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 15);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading application customizer 1.2.0 project to 1.3.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-120-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.2.0 project to 1.3.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-120-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.3.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 9);
-  });
+      await command.action(logger, { options: { toVersion: '1.3.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 9);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.2.0 project to 1.3.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-120-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.2.0 project to 1.3.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-120-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.3.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 9);
-  });
+      await command.action(logger, { options: { toVersion: '1.3.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 9);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.2.0 project to 1.3.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-120-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.2.0 project to 1.3.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-120-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.3.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 9);
-  });
+      await command.action(logger, { options: { toVersion: '1.3.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 9);
+    }
+  );
   //#endregion
 
   //#region 1.3.0
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.3.0 project to 1.3.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-130-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.3.0 project to 1.3.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-130-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.3.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 1);
-  });
+      await command.action(logger, { options: { toVersion: '1.3.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 1);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.3.0 project to 1.3.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-130-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.3.0 project to 1.3.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-130-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.3.1', debug: true, output: 'json' } } as any);
-    const findings: Finding[] = log[3];
-    assert.strictEqual(findings.length, 1);
-  });
+      await command.action(logger, { options: { toVersion: '1.3.1', debug: true, output: 'json' } } as any);
+      const findings: Finding[] = log[3];
+      assert.strictEqual(findings.length, 1);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.3.0 project to 1.3.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-130-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.3.0 project to 1.3.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-130-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.3.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 1);
-  });
+      await command.action(logger, { options: { toVersion: '1.3.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 1);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading application customizer 1.3.0 project to 1.3.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-130-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.3.0 project to 1.3.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-130-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.3.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 1);
-  });
+      await command.action(logger, { options: { toVersion: '1.3.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 1);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.3.0 project to 1.3.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-130-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.3.0 project to 1.3.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-130-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.3.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 1);
-  });
+      await command.action(logger, { options: { toVersion: '1.3.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 1);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.3.0 project to 1.3.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-130-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.3.0 project to 1.3.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-130-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.3.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 1);
-  });
+      await command.action(logger, { options: { toVersion: '1.3.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 1);
+    }
+  );
   //#endregion
 
   //#region 1.3.1
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.3.1 project to 1.3.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-131-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.3.1 project to 1.3.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-131-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.3.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 1);
-  });
+      await command.action(logger, { options: { toVersion: '1.3.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 1);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.3.1 project to 1.3.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-131-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.3.1 project to 1.3.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-131-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.3.2', debug: true, output: 'json' } } as any);
-    const findings: Finding[] = log[3];
-    assert.strictEqual(findings.length, 1);
-  });
+      await command.action(logger, { options: { toVersion: '1.3.2', debug: true, output: 'json' } } as any);
+      const findings: Finding[] = log[3];
+      assert.strictEqual(findings.length, 1);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.3.1 project to 1.3.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-131-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.3.1 project to 1.3.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-131-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.3.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 1);
-  });
+      await command.action(logger, { options: { toVersion: '1.3.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 1);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading application customizer 1.3.1 project to 1.3.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-131-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.3.1 project to 1.3.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-131-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.3.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 1);
-  });
+      await command.action(logger, { options: { toVersion: '1.3.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 1);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.3.1 project to 1.3.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-131-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.3.1 project to 1.3.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-131-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.3.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 1);
-  });
+      await command.action(logger, { options: { toVersion: '1.3.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 1);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.3.1 project to 1.3.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-131-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.3.1 project to 1.3.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-131-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.3.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 1);
-  });
+      await command.action(logger, { options: { toVersion: '1.3.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 1);
+    }
+  );
   //#endregion
 
   //#region 1.3.2
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.3.2 project to 1.3.4', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-132-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.3.2 project to 1.3.4',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-132-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.3.4', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 11);
-  });
+      await command.action(logger, { options: { toVersion: '1.3.4', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 11);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.3.2 project to 1.3.4', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-132-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.3.2 project to 1.3.4',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-132-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.3.4', debug: true, output: 'json' } } as any);
-    const findings: Finding[] = log[3];
-    assert.strictEqual(findings.length, 11);
-  });
+      await command.action(logger, { options: { toVersion: '1.3.4', debug: true, output: 'json' } } as any);
+      const findings: Finding[] = log[3];
+      assert.strictEqual(findings.length, 11);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.3.2 project to 1.3.4', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-132-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.3.2 project to 1.3.4',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-132-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.3.4', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 18);
-  });
+      await command.action(logger, { options: { toVersion: '1.3.4', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 18);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading application customizer 1.3.2 project to 1.3.4', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-132-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.3.2 project to 1.3.4',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-132-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.3.4', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 12);
-  });
+      await command.action(logger, { options: { toVersion: '1.3.4', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 12);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.3.2 project to 1.3.4', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-132-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.3.2 project to 1.3.4',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-132-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.3.4', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 12);
-  });
+      await command.action(logger, { options: { toVersion: '1.3.4', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 12);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.3.2 project to 1.3.4', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-132-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.3.2 project to 1.3.4',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-132-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.3.4', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 11);
-  });
+      await command.action(logger, { options: { toVersion: '1.3.4', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 11);
+    }
+  );
   //#endregion
 
   //#region 1.3.4
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.3.4 project to 1.4.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-134-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.3.4 project to 1.4.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-134-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.4.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 19);
-  });
+      await command.action(logger, { options: { toVersion: '1.4.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 19);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.3.4 project to 1.4.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-134-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.3.4 project to 1.4.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-134-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.4.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 26);
-  });
+      await command.action(logger, { options: { toVersion: '1.4.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 26);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.3.4 project to 1.4.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-134-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.3.4 project to 1.4.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-134-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.4.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 26);
-  });
+      await command.action(logger, { options: { toVersion: '1.4.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 26);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading application customizer 1.3.4 project to 1.4.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-134-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.3.4 project to 1.4.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-134-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.4.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 19);
-  });
+      await command.action(logger, { options: { toVersion: '1.4.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 19);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.3.4 project to 1.4.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-134-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.3.4 project to 1.4.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-134-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.4.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 19);
-  });
+      await command.action(logger, { options: { toVersion: '1.4.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 19);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.3.4 project to 1.4.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-134-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.3.4 project to 1.4.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-134-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.4.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 25);
-  });
+      await command.action(logger, { options: { toVersion: '1.4.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 25);
+    }
+  );
   //#endregion
 
   //#region 1.4.0
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.4.0 project to 1.4.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-140-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.4.0 project to 1.4.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-140-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.4.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 9);
-  });
+      await command.action(logger, { options: { toVersion: '1.4.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 9);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.4.0 project to 1.4.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-140-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.4.0 project to 1.4.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-140-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.4.1', debug: true, output: 'json' } } as any);
-    const findings: Finding[] = log[3];
-    assert.strictEqual(findings.length, 9);
-  });
+      await command.action(logger, { options: { toVersion: '1.4.1', debug: true, output: 'json' } } as any);
+      const findings: Finding[] = log[3];
+      assert.strictEqual(findings.length, 9);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.4.0 project to 1.4.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-140-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.4.0 project to 1.4.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-140-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.4.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 16);
-  });
+      await command.action(logger, { options: { toVersion: '1.4.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 16);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading application customizer 1.4.0 project to 1.4.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-140-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.4.0 project to 1.4.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-140-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.4.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 9);
-  });
+      await command.action(logger, { options: { toVersion: '1.4.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 9);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.4.0 project to 1.4.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-140-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.4.0 project to 1.4.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-140-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.4.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 9);
-  });
+      await command.action(logger, { options: { toVersion: '1.4.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 9);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.4.0 project to 1.4.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-140-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.4.0 project to 1.4.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-140-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.4.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 8);
-  });
+      await command.action(logger, { options: { toVersion: '1.4.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 8);
+    }
+  );
   //#endregion
 
   //#region 1.4.1
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.4.1 project to 1.5.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-141-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.4.1 project to 1.5.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-141-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.5.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 26);
-  });
+      await command.action(logger, { options: { toVersion: '1.5.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 26);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.4.1 project to 1.5.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-141-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.4.1 project to 1.5.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-141-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.5.0', debug: true, output: 'json' } } as any);
-    const findings: Finding[] = log[3];
-    assert.strictEqual(findings.length, 26);
-  });
+      await command.action(logger, { options: { toVersion: '1.5.0', debug: true, output: 'json' } } as any);
+      const findings: Finding[] = log[3];
+      assert.strictEqual(findings.length, 26);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.4.1 project to 1.5.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-141-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.4.1 project to 1.5.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-141-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.5.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 33);
-  });
+      await command.action(logger, { options: { toVersion: '1.5.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 33);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading application customizer 1.4.1 project to 1.5.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-141-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.4.1 project to 1.5.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-141-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.5.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 26);
-  });
+      await command.action(logger, { options: { toVersion: '1.5.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 26);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.4.1 project to 1.5.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-141-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.4.1 project to 1.5.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-141-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.5.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 26);
-  });
+      await command.action(logger, { options: { toVersion: '1.5.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 26);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.4.1 project to 1.5.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-141-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.4.1 project to 1.5.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-141-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.5.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 25);
-  });
+      await command.action(logger, { options: { toVersion: '1.5.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 25);
+    }
+  );
   //#endregion
 
   //#region 1.5.0
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.5.0 project to 1.5.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-150-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.5.0 project to 1.5.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-150-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.5.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 9);
-  });
+      await command.action(logger, { options: { toVersion: '1.5.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 9);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.5.0 project to 1.5.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-150-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.5.0 project to 1.5.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-150-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.5.1', debug: true, output: 'json' } } as any);
-    const findings: Finding[] = log[3];
-    assert.strictEqual(findings.length, 9);
-  });
+      await command.action(logger, { options: { toVersion: '1.5.1', debug: true, output: 'json' } } as any);
+      const findings: Finding[] = log[3];
+      assert.strictEqual(findings.length, 9);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.5.0 project to 1.5.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-150-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.5.0 project to 1.5.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-150-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.5.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 18);
-  });
+      await command.action(logger, { options: { toVersion: '1.5.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 18);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading application customizer 1.5.0 project to 1.5.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-150-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.5.0 project to 1.5.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-150-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.5.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 9);
-  });
+      await command.action(logger, { options: { toVersion: '1.5.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 9);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.5.0 project to 1.5.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-150-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.5.0 project to 1.5.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-150-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.5.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 9);
-  });
+      await command.action(logger, { options: { toVersion: '1.5.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 9);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.5.0 project to 1.5.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-150-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.5.0 project to 1.5.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-150-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.5.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 8);
-  });
+      await command.action(logger, { options: { toVersion: '1.5.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 8);
+    }
+  );
   //#endregion
 
   //#region 1.5.1
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.5.1 project to 1.6.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-151-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.5.1 project to 1.6.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-151-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.6.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 16);
-  });
+      await command.action(logger, { options: { toVersion: '1.6.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 16);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.5.1 project using MSGraphClient to 1.6.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-151-webpart-nolib-graph'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.5.1 project using MSGraphClient to 1.6.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-151-webpart-nolib-graph'));
 
-    await command.action(logger, { options: { toVersion: '1.6.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 18);
-  });
+      await command.action(logger, { options: { toVersion: '1.6.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 18);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.5.1 project using AadHttpClient to 1.6.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-151-webpart-nolib-aad'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.5.1 project using AadHttpClient to 1.6.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-151-webpart-nolib-aad'));
 
-    await command.action(logger, { options: { toVersion: '1.6.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 17);
-  });
+      await command.action(logger, { options: { toVersion: '1.6.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 17);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.5.1 project to 1.6.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-151-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.5.1 project to 1.6.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-151-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.6.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 16);
-  });
+      await command.action(logger, { options: { toVersion: '1.6.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 16);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.5.1 project using MSGraphClient to 1.6.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-151-webpart-react-graph'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.5.1 project using MSGraphClient to 1.6.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-151-webpart-react-graph'));
 
-    await command.action(logger, { options: { toVersion: '1.6.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 21);
-  });
+      await command.action(logger, { options: { toVersion: '1.6.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 21);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.5.1 project to 1.6.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-151-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.5.1 project to 1.6.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-151-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.6.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 25);
-  });
+      await command.action(logger, { options: { toVersion: '1.6.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 25);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading application customizer 1.5.1 project to 1.6.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-151-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.5.1 project to 1.6.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-151-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.6.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 16);
-  });
+      await command.action(logger, { options: { toVersion: '1.6.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 16);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.5.1 project to 1.6.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-151-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.5.1 project to 1.6.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-151-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.6.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 16);
-  });
+      await command.action(logger, { options: { toVersion: '1.6.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 16);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.5.1 project to 1.6.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-151-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.5.1 project to 1.6.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-151-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.6.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 15);
-  });
+      await command.action(logger, { options: { toVersion: '1.6.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 15);
+    }
+  );
   //#endregion
 
   //#region 1.6.0
-  it('e2e: shows correct number of findings for upgrading application customizer 1.6.0 project to 1.7.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-160-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.6.0 project to 1.7.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-160-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.7.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 15);
-  });
+      await command.action(logger, { options: { toVersion: '1.7.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 15);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.6.0 project to 1.7.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-160-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.6.0 project to 1.7.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-160-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.7.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 18);
-  });
+      await command.action(logger, { options: { toVersion: '1.7.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 18);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.6.0 project to 1.7.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-160-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.6.0 project to 1.7.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-160-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.7.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 15);
-  });
+      await command.action(logger, { options: { toVersion: '1.7.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 15);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading ko web part 1.6.0 project to 1.7.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-160-webpart-ko'));
+  it('e2e: shows correct number of findings for upgrading ko web part 1.6.0 project to 1.7.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-160-webpart-ko'));
 
-    await command.action(logger, { options: { toVersion: '1.7.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 19);
-  });
+      await command.action(logger, { options: { toVersion: '1.7.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 19);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.6.0 project to 1.7.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-160-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.6.0 project to 1.7.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-160-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.7.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 19);
-  });
+      await command.action(logger, { options: { toVersion: '1.7.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 19);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.6.0 project to 1.7.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-160-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.6.0 project to 1.7.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-160-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.7.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 23);
-  });
+      await command.action(logger, { options: { toVersion: '1.7.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 23);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.6.0 project to 1.7.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-160-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.6.0 project to 1.7.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-160-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.7.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 28);
-  });
+      await command.action(logger, { options: { toVersion: '1.7.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 28);
+    }
+  );
 
-  it('e2e: suggests creating small teams app icon using a fixed name for upgrading react web part 1.6.0 project to 1.7.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-160-webpart-react'));
+  it('e2e: suggests creating small teams app icon using a fixed name for upgrading react web part 1.6.0 project to 1.7.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-160-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.7.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings[18].file, path.join('teams', 'tab20x20.png'));
-  });
+      await command.action(logger, { options: { toVersion: '1.7.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings[18].file, path.join('teams', 'tab20x20.png'));
+    }
+  );
 
-  it('e2e: suggests creating large teams app icon using a fixed name for upgrading react web part 1.6.0 project to 1.7.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-160-webpart-react'));
+  it('e2e: suggests creating large teams app icon using a fixed name for upgrading react web part 1.6.0 project to 1.7.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-160-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.7.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings[19].file, path.join('teams', 'tab96x96.png'));
-  });
+      await command.action(logger, { options: { toVersion: '1.7.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings[19].file, path.join('teams', 'tab96x96.png'));
+    }
+  );
   //#endregion
 
   //#region 1.7.0
-  it('e2e: shows correct number of findings for upgrading application customizer 1.7.0 project to 1.7.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-170-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.7.0 project to 1.7.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-170-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.7.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 12);
-  });
+      await command.action(logger, { options: { toVersion: '1.7.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 12);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.7.0 project to 1.7.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-170-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.7.0 project to 1.7.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-170-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.7.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 12);
-  });
+      await command.action(logger, { options: { toVersion: '1.7.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 12);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.7.0 project to 1.7.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-170-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.7.0 project to 1.7.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-170-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.7.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 12);
-  });
+      await command.action(logger, { options: { toVersion: '1.7.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 12);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading ko web part 1.7.0 project to 1.7.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-170-webpart-ko'));
+  it('e2e: shows correct number of findings for upgrading ko web part 1.7.0 project to 1.7.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-170-webpart-ko'));
 
-    await command.action(logger, { options: { toVersion: '1.7.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 12);
-  });
+      await command.action(logger, { options: { toVersion: '1.7.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 12);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.7.0 project to 1.7.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-170-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.7.0 project to 1.7.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-170-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.7.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 12);
-  });
+      await command.action(logger, { options: { toVersion: '1.7.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 12);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.7.0 project to 1.7.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-170-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.7.0 project to 1.7.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-170-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.7.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 13);
-  });
+      await command.action(logger, { options: { toVersion: '1.7.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 13);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.7.0 project to 1.7.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-170-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.7.0 project to 1.7.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-170-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.7.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 22);
-  });
+      await command.action(logger, { options: { toVersion: '1.7.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 22);
+    }
+  );
   //#endregion
 
   //#region 1.7.1
-  it('e2e: shows correct number of findings for upgrading application customizer 1.7.1 project to 1.8.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-171-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.7.1 project to 1.8.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-171-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.8.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 15);
-  });
+      await command.action(logger, { options: { toVersion: '1.8.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 15);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.7.1 project to 1.8.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-171-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.7.1 project to 1.8.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-171-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.8.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 16);
-  });
+      await command.action(logger, { options: { toVersion: '1.8.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 16);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.7.1 project to 1.8.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-171-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.7.1 project to 1.8.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-171-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.8.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 15);
-  });
+      await command.action(logger, { options: { toVersion: '1.8.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 15);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading ko web part 1.7.1 project to 1.8.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-171-webpart-ko'));
+  it('e2e: shows correct number of findings for upgrading ko web part 1.7.1 project to 1.8.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-171-webpart-ko'));
 
-    await command.action(logger, { options: { toVersion: '1.8.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 21);
-  });
+      await command.action(logger, { options: { toVersion: '1.8.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 21);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.7.1 project to 1.8.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-171-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.7.1 project to 1.8.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-171-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.8.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 21);
-  });
+      await command.action(logger, { options: { toVersion: '1.8.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 21);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.7.1 project to 1.8.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-171-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.7.1 project to 1.8.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-171-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.8.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 23);
-  });
+      await command.action(logger, { options: { toVersion: '1.8.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 23);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.7.1 project to 1.8.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-171-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.7.1 project to 1.8.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-171-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.8.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 31);
-  });
+      await command.action(logger, { options: { toVersion: '1.8.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 31);
+    }
+  );
 
-  it('e2e: suggests creating small teams app icon using a dynamic name for upgrading react web part 1.7.1 project to 1.8.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-171-webpart-react'));
+  it('e2e: suggests creating small teams app icon using a dynamic name for upgrading react web part 1.7.1 project to 1.8.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-171-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.8.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings[20].file, path.join('teams', '7c4a6c24-2154-4dcc-9eb4-d64b8a2c5daa_outline.png'));
-  });
+      await command.action(logger, { options: { toVersion: '1.8.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings[20].file, path.join('teams', '7c4a6c24-2154-4dcc-9eb4-d64b8a2c5daa_outline.png'));
+    }
+  );
 
-  it('e2e: suggests creating large teams app icon using a dynamic name for upgrading react web part 1.7.1 project to 1.8.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-171-webpart-react'));
+  it('e2e: suggests creating large teams app icon using a dynamic name for upgrading react web part 1.7.1 project to 1.8.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-171-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.8.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings[21].file, path.join('teams', '7c4a6c24-2154-4dcc-9eb4-d64b8a2c5daa_color.png'));
-  });
+      await command.action(logger, { options: { toVersion: '1.8.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings[21].file, path.join('teams', '7c4a6c24-2154-4dcc-9eb4-d64b8a2c5daa_color.png'));
+    }
+  );
   //#endregion
 
   //#region 1.8.0
-  it('e2e: shows correct number of findings for upgrading application customizer 1.8.0 project to 1.8.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-180-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.8.0 project to 1.8.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-180-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.8.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 10);
-  });
+      await command.action(logger, { options: { toVersion: '1.8.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 10);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.8.0 project to 1.8.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-180-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.8.0 project to 1.8.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-180-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.8.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 9);
-  });
+      await command.action(logger, { options: { toVersion: '1.8.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 9);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.8.0 project to 1.8.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-180-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.8.0 project to 1.8.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-180-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.8.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 10);
-  });
+      await command.action(logger, { options: { toVersion: '1.8.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 10);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading ko web part 1.8.0 project to 1.8.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-180-webpart-ko'));
+  it('e2e: shows correct number of findings for upgrading ko web part 1.8.0 project to 1.8.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-180-webpart-ko'));
 
-    await command.action(logger, { options: { toVersion: '1.8.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 11);
-  });
+      await command.action(logger, { options: { toVersion: '1.8.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 11);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.8.0 project to 1.8.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-180-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.8.0 project to 1.8.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-180-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.8.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 11);
-  });
+      await command.action(logger, { options: { toVersion: '1.8.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 11);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.8.0 project to 1.8.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-180-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.8.0 project to 1.8.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-180-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.8.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 11);
-  });
+      await command.action(logger, { options: { toVersion: '1.8.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 11);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.8.0 project to 1.8.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-180-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.8.0 project to 1.8.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-180-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.8.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 21);
-  });
+      await command.action(logger, { options: { toVersion: '1.8.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 21);
+    }
+  );
   //#endregion
 
   //#region 1.8.1
-  it('e2e: shows correct number of findings for upgrading application customizer 1.8.1 project to 1.8.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-181-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.8.1 project to 1.8.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-181-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.8.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 12);
-  });
+      await command.action(logger, { options: { toVersion: '1.8.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 12);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.8.1 project to 1.8.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-181-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.8.1 project to 1.8.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-181-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.8.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 15);
-  });
+      await command.action(logger, { options: { toVersion: '1.8.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 15);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.8.1 project to 1.8.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-181-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.8.1 project to 1.8.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-181-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.8.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 12);
-  });
+      await command.action(logger, { options: { toVersion: '1.8.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 12);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading ko web part 1.8.1 project to 1.8.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-181-webpart-ko'));
+  it('e2e: shows correct number of findings for upgrading ko web part 1.8.1 project to 1.8.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-181-webpart-ko'));
 
-    await command.action(logger, { options: { toVersion: '1.8.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 13);
-  });
+      await command.action(logger, { options: { toVersion: '1.8.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 13);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.8.1 project to 1.8.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-181-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.8.1 project to 1.8.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-181-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.8.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 13);
-  });
+      await command.action(logger, { options: { toVersion: '1.8.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 13);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.8.1 project to 1.8.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-181-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.8.1 project to 1.8.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-181-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.8.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 17);
-  });
+      await command.action(logger, { options: { toVersion: '1.8.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 17);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.8.1 project to 1.8.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-181-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.8.1 project to 1.8.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-181-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.8.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 23);
-  });
+      await command.action(logger, { options: { toVersion: '1.8.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 23);
+    }
+  );
   //#endregion
 
   //#region 1.8.2
-  it('e2e: shows correct number of findings for upgrading application customizer 1.8.2 project to 1.9.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-182-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.8.2 project to 1.9.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-182-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.9.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 12);
-  });
+      await command.action(logger, { options: { toVersion: '1.9.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 12);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.8.2 project to 1.9.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-182-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.8.2 project to 1.9.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-182-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.9.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 17);
-  });
+      await command.action(logger, { options: { toVersion: '1.9.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 17);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.8.2 project to 1.9.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-182-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.8.2 project to 1.9.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-182-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.9.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 12);
-  });
+      await command.action(logger, { options: { toVersion: '1.9.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 12);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading ko web part 1.8.2 project to 1.9.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-182-webpart-ko'));
+  it('e2e: shows correct number of findings for upgrading ko web part 1.8.2 project to 1.9.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-182-webpart-ko'));
 
-    await command.action(logger, { options: { toVersion: '1.9.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 13);
-  });
+      await command.action(logger, { options: { toVersion: '1.9.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 13);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.8.2 project to 1.9.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-182-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.8.2 project to 1.9.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-182-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.9.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 13);
-  });
+      await command.action(logger, { options: { toVersion: '1.9.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 13);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.8.2 project to 1.9.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-182-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.8.2 project to 1.9.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-182-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.9.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 21);
-  });
+      await command.action(logger, { options: { toVersion: '1.9.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 21);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.8.2 project to 1.9.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-182-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.8.2 project to 1.9.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-182-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.9.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 24);
-  });
+      await command.action(logger, { options: { toVersion: '1.9.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 24);
+    }
+  );
   //#endregion
 
   //#region 1.9.1
-  it('e2e: shows correct number of findings for upgrading application customizer 1.9.1 project to 1.10.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-191-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.9.1 project to 1.10.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-191-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.10.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 12);
-  });
+      await command.action(logger, { options: { toVersion: '1.10.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 12);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.9.1 project to 1.10.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-191-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.9.1 project to 1.10.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-191-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.10.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 11);
-  });
+      await command.action(logger, { options: { toVersion: '1.10.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 11);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.9.1 project to 1.10.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-191-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.9.1 project to 1.10.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-191-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.10.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 12);
-  });
+      await command.action(logger, { options: { toVersion: '1.10.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 12);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading ko web part 1.9.1 project to 1.10.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-191-webpart-ko'));
+  it('e2e: shows correct number of findings for upgrading ko web part 1.9.1 project to 1.10.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-191-webpart-ko'));
 
-    await command.action(logger, { options: { toVersion: '1.10.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 14);
-  });
+      await command.action(logger, { options: { toVersion: '1.10.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 14);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.9.1 project to 1.10.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-191-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.9.1 project to 1.10.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-191-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.10.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 14);
-  });
+      await command.action(logger, { options: { toVersion: '1.10.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 14);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.9.1 project to 1.10.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-191-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.9.1 project to 1.10.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-191-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.10.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 14);
-  });
+      await command.action(logger, { options: { toVersion: '1.10.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 14);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.9.1 project to 1.10.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-191-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.9.1 project to 1.10.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-191-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.10.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 24);
-  });
+      await command.action(logger, { options: { toVersion: '1.10.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 24);
+    }
+  );
   //#endregion
 
   //#region 1.10.0
-  it('e2e: shows correct number of findings for upgrading application customizer 1.10.0 project to 1.11.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1100-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.10.0 project to 1.11.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1100-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.11.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 16);
-  });
+      await command.action(logger, { options: { toVersion: '1.11.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 16);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.10.0 project to 1.11.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1100-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.10.0 project to 1.11.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1100-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.11.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 20);
-  });
+      await command.action(logger, { options: { toVersion: '1.11.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 20);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.10.0 project to 1.11.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1100-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.10.0 project to 1.11.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1100-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.11.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 16);
-  });
+      await command.action(logger, { options: { toVersion: '1.11.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 16);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading ko web part 1.10.0 project to 1.11.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1100-webpart-ko'));
+  it('e2e: shows correct number of findings for upgrading ko web part 1.10.0 project to 1.11.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1100-webpart-ko'));
 
-    await command.action(logger, { options: { toVersion: '1.11.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 17);
-  });
+      await command.action(logger, { options: { toVersion: '1.11.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 17);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.10.0 project to 1.11.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1100-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.10.0 project to 1.11.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1100-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.11.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 17);
-  });
+      await command.action(logger, { options: { toVersion: '1.11.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 17);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.10.0 project to 1.11.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1100-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.10.0 project to 1.11.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1100-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.11.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 22);
-  });
+      await command.action(logger, { options: { toVersion: '1.11.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 22);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.10.0 project to 1.11.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1100-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.10.0 project to 1.11.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1100-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.11.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 27);
-  });
+      await command.action(logger, { options: { toVersion: '1.11.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 27);
+    }
+  );
   //#endregion
 
   //#region 1.11.0
-  it('e2e: shows correct number of findings for upgrading application customizer 1.11.0 project to 1.12.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1110-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.11.0 project to 1.12.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1110-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.12.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 22);
-  });
+      await command.action(logger, { options: { toVersion: '1.12.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 22);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.11.0 project to 1.12.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1110-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.11.0 project to 1.12.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1110-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.12.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 26);
-  });
+      await command.action(logger, { options: { toVersion: '1.12.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 26);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.11.0 project to 1.12.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1110-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.11.0 project to 1.12.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1110-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.12.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 22);
-  });
+      await command.action(logger, { options: { toVersion: '1.12.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 22);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.11.0 project to 1.12.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1110-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.11.0 project to 1.12.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1110-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.12.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 23);
-  });
+      await command.action(logger, { options: { toVersion: '1.12.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 23);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.11.0 project to 1.12.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1110-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.11.0 project to 1.12.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1110-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.12.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 28);
-  });
+      await command.action(logger, { options: { toVersion: '1.12.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 28);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.11.0 project to 1.12.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1110-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.11.0 project to 1.12.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1110-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.12.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 34);
-  });
+      await command.action(logger, { options: { toVersion: '1.12.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 34);
+    }
+  );
   //#endregion
 
   //#region 1.12.0
-  it('e2e: shows correct number of findings for upgrading application customizer 1.12.0 project to 1.12.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1120-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.12.0 project to 1.12.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1120-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.12.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 13);
-  });
+      await command.action(logger, { options: { toVersion: '1.12.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 13);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.12.0 project to 1.12.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1120-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.12.0 project to 1.12.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1120-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.12.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 12);
-  });
+      await command.action(logger, { options: { toVersion: '1.12.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 12);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.12.0 project to 1.12.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1120-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.12.0 project to 1.12.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1120-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.12.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 13);
-  });
+      await command.action(logger, { options: { toVersion: '1.12.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 13);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.12.0 project to 1.12.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1120-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.12.0 project to 1.12.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1120-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.12.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 14);
-  });
+      await command.action(logger, { options: { toVersion: '1.12.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 14);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.12.0 project to 1.12.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1120-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.12.0 project to 1.12.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1120-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.12.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 14);
-  });
+      await command.action(logger, { options: { toVersion: '1.12.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 14);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.12.0 project to 1.12.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1120-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.12.0 project to 1.12.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1120-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.12.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 24);
-  });
+      await command.action(logger, { options: { toVersion: '1.12.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 24);
+    }
+  );
   //#endregion
 
   //#region 1.12.1
-  it('e2e: shows correct number of findings for upgrading application customizer 1.12.1 project to 1.13.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1121-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.12.1 project to 1.13.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1121-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.13.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 16);
-  });
+      await command.action(logger, { options: { toVersion: '1.13.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 16);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.12.1 project to 1.13.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1121-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.12.1 project to 1.13.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1121-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.13.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 19);
-  });
+      await command.action(logger, { options: { toVersion: '1.13.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 19);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.12.1 project to 1.13.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1121-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.12.1 project to 1.13.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1121-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.13.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 16);
-  });
+      await command.action(logger, { options: { toVersion: '1.13.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 16);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.12.1 project to 1.13.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1121-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.12.1 project to 1.13.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1121-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.13.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 18);
-  });
+      await command.action(logger, { options: { toVersion: '1.13.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 18);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.12.1 project to 1.13.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1121-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.12.1 project to 1.13.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1121-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.13.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 22);
-  });
+      await command.action(logger, { options: { toVersion: '1.13.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 22);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.12.1 project to 1.13.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1121-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.12.1 project to 1.13.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1121-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.13.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 29);
-  });
+      await command.action(logger, { options: { toVersion: '1.13.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 29);
+    }
+  );
   //#endregion
 
   //#region 1.13.0
-  it('e2e: shows correct number of findings for upgrading application customizer 1.13.0 project to 1.13.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1130-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.13.0 project to 1.13.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1130-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.13.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 9);
-  });
+      await command.action(logger, { options: { toVersion: '1.13.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 9);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.13.0 project to 1.13.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1130-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.13.0 project to 1.13.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1130-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.13.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 8);
-  });
+      await command.action(logger, { options: { toVersion: '1.13.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 8);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.13.0 project to 1.13.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1130-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.13.0 project to 1.13.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1130-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.13.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 9);
-  });
+      await command.action(logger, { options: { toVersion: '1.13.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 9);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.13.0 project to 1.13.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1130-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.13.0 project to 1.13.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1130-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.13.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 10);
-  });
+      await command.action(logger, { options: { toVersion: '1.13.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 10);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.13.0 project to 1.13.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1130-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.13.0 project to 1.13.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1130-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.13.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 10);
-  });
+      await command.action(logger, { options: { toVersion: '1.13.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 10);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.13.0 project to 1.13.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1130-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.13.0 project to 1.13.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1130-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.13.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 20);
-  });
+      await command.action(logger, { options: { toVersion: '1.13.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 20);
+    }
+  );
   //#endregion
 
   //#region 1.13.1
-  it('e2e: shows correct number of findings for upgrading application customizer 1.13.1 project to 1.14.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1131-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.13.1 project to 1.14.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1131-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.14.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 11);
-  });
+      await command.action(logger, { options: { toVersion: '1.14.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 11);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.13.1 project to 1.14.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1131-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.13.1 project to 1.14.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1131-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.14.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 10);
-  });
+      await command.action(logger, { options: { toVersion: '1.14.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 10);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.13.1 project to 1.14.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1131-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.13.1 project to 1.14.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1131-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.14.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 11);
-  });
+      await command.action(logger, { options: { toVersion: '1.14.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 11);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.13.1 project to 1.14.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1131-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.13.1 project to 1.14.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1131-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.14.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 13);
-  });
+      await command.action(logger, { options: { toVersion: '1.14.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 13);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.13.1 project to 1.14.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1131-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.13.1 project to 1.14.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1131-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.14.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 13);
-  });
+      await command.action(logger, { options: { toVersion: '1.14.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 13);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.13.1 project to 1.14.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1131-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.13.1 project to 1.14.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1131-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.14.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 24);
-  });
+      await command.action(logger, { options: { toVersion: '1.14.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 24);
+    }
+  );
   //#endregion
 
   //#region 1.14.0
-  it('e2e: shows correct number of findings for upgrading application customizer 1.14.0 project to 1.15.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1140-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.14.0 project to 1.15.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1140-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.15.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 21);
-  });
+      await command.action(logger, { options: { toVersion: '1.15.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 21);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.14.0 project to 1.15.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1140-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.14.0 project to 1.15.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1140-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.15.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 22);
-  });
+      await command.action(logger, { options: { toVersion: '1.15.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 22);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.14.0 project to 1.15.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1140-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.14.0 project to 1.15.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1140-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.15.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 21);
-  });
+      await command.action(logger, { options: { toVersion: '1.15.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 21);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.14.0 project to 1.15.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1140-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.14.0 project to 1.15.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1140-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.15.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 22);
-  });
+      await command.action(logger, { options: { toVersion: '1.15.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 22);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.14.0 project to 1.15.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1140-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.14.0 project to 1.15.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1140-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.15.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 24);
-  });
+      await command.action(logger, { options: { toVersion: '1.15.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 24);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.14.0 project to 1.15.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1140-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.14.0 project to 1.15.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1140-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.15.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 33);
-  });
+      await command.action(logger, { options: { toVersion: '1.15.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 33);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading ace 1.14.0 project to 1.15.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1140-ace'));
+  it('e2e: shows correct number of findings for upgrading ace 1.14.0 project to 1.15.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1140-ace'));
 
-    await command.action(logger, { options: { toVersion: '1.15.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 19);
-  });
+      await command.action(logger, { options: { toVersion: '1.15.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 19);
+    }
+  );
   //#endregion
 
   //#region 1.15.0
-  it('e2e: shows correct number of findings for upgrading application customizer 1.15.0 project to 1.15.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1150-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.15.0 project to 1.15.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1150-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.15.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 15);
-  });
+      await command.action(logger, { options: { toVersion: '1.15.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 15);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.15.0 project to 1.15.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1150-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.15.0 project to 1.15.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1150-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.15.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 14);
-  });
+      await command.action(logger, { options: { toVersion: '1.15.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 14);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.15.0 project to 1.15.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1150-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.15.0 project to 1.15.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1150-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.15.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 15);
-  });
+      await command.action(logger, { options: { toVersion: '1.15.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 15);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.15.0 project to 1.15.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1150-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.15.0 project to 1.15.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1150-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.15.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 16);
-  });
+      await command.action(logger, { options: { toVersion: '1.15.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 16);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.15.0 project to 1.15.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1150-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.15.0 project to 1.15.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1150-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.15.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 16);
-  });
+      await command.action(logger, { options: { toVersion: '1.15.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 16);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.15.0 project to 1.15.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1150-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.15.0 project to 1.15.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1150-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.15.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 27);
-  });
+      await command.action(logger, { options: { toVersion: '1.15.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 27);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading ace 1.15.0 project to 1.15.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1150-ace'));
+  it('e2e: shows correct number of findings for upgrading ace 1.15.0 project to 1.15.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1150-ace'));
 
-    await command.action(logger, { options: { toVersion: '1.15.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 13);
-  });
+      await command.action(logger, { options: { toVersion: '1.15.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 13);
+    }
+  );
   //#endregion
 
   //#region 1.15.2
-  it('e2e: shows correct number of findings for upgrading ace 1.15.2 project to 1.16.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1152-ace'));
+  it('e2e: shows correct number of findings for upgrading ace 1.15.2 project to 1.16.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1152-ace'));
 
-    await command.action(logger, { options: { toVersion: '1.16.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 13);
-  });
+      await command.action(logger, { options: { toVersion: '1.16.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 13);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading application customizer 1.15.2 project to 1.16.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1152-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.15.2 project to 1.16.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1152-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.16.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 15);
-  });
+      await command.action(logger, { options: { toVersion: '1.16.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 15);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.15.2 project to 1.16.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1152-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.15.2 project to 1.16.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1152-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.16.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 20);
-  });
+      await command.action(logger, { options: { toVersion: '1.16.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 20);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading form customizer react 1.15.2 project to 1.16.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1152-formcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading form customizer react 1.15.2 project to 1.16.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1152-formcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.16.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 22);
-  });
+      await command.action(logger, { options: { toVersion: '1.16.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 22);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.15.2 project to 1.16.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1152-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.15.2 project to 1.16.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1152-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.16.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 15);
-  });
+      await command.action(logger, { options: { toVersion: '1.16.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 15);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.15.2 project to 1.16.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1152-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.15.2 project to 1.16.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1152-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.16.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 16);
-  });
+      await command.action(logger, { options: { toVersion: '1.16.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 16);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.15.2 project to 1.16.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1152-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.15.2 project to 1.16.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1152-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.16.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 23);
-  });
+      await command.action(logger, { options: { toVersion: '1.16.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 23);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.15.2 project to 1.16.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1152-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.15.2 project to 1.16.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1152-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.16.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 26);
-  });
+      await command.action(logger, { options: { toVersion: '1.16.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 26);
+    }
+  );
   //#endregion
 
   //#region 1.16.0
-  it('e2e: shows correct number of findings for upgrading ace 1.16.0 project to 1.16.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1160-ace'));
+  it('e2e: shows correct number of findings for upgrading ace 1.16.0 project to 1.16.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1160-ace'));
 
-    await command.action(logger, { options: { toVersion: '1.16.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 10);
-  });
+      await command.action(logger, { options: { toVersion: '1.16.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 10);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading application customizer 1.16.0 project to 1.16.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1160-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.16.0 project to 1.16.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1160-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.16.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 12);
-  });
+      await command.action(logger, { options: { toVersion: '1.16.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 12);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.16.0 project to 1.16.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1160-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.16.0 project to 1.16.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1160-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.16.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 11);
-  });
+      await command.action(logger, { options: { toVersion: '1.16.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 11);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading form customizer react 1.16.0 project to 1.16.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1160-formcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading form customizer react 1.16.0 project to 1.16.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1160-formcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.16.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 13);
-  });
+      await command.action(logger, { options: { toVersion: '1.16.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 13);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.16.0 project to 1.16.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1160-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.16.0 project to 1.16.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1160-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.16.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 12);
-  });
+      await command.action(logger, { options: { toVersion: '1.16.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 12);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.16.0 project to 1.16.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1160-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.16.0 project to 1.16.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1160-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.16.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 13);
-  });
+      await command.action(logger, { options: { toVersion: '1.16.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 13);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.16.0 project to 1.16.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1160-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.16.0 project to 1.16.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1160-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.16.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 13);
-  });
+      await command.action(logger, { options: { toVersion: '1.16.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 13);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.16.0 project to 1.16.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1160-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.16.0 project to 1.16.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1160-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.16.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 23);
-  });
+      await command.action(logger, { options: { toVersion: '1.16.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 23);
+    }
+  );
   //#endregion
 
   //#region 1.16.1
-  it('e2e: shows correct number of findings for upgrading ace 1.16.1 project to 1.17.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1161-ace'));
+  it('e2e: shows correct number of findings for upgrading ace 1.16.1 project to 1.17.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1161-ace'));
 
-    await command.action(logger, { options: { toVersion: '1.17.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 15);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 15);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading application customizer 1.16.1 project to 1.17.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1161-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.16.1 project to 1.17.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1161-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.17.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 17);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 17);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.16.1 project to 1.17.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1161-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.16.1 project to 1.17.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1161-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.17.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 16);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 16);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading form customizer react 1.16.1 project to 1.17.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1161-formcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading form customizer react 1.16.1 project to 1.17.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1161-formcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.17.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 18);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 18);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.16.1 project to 1.17.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1161-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.16.1 project to 1.17.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1161-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.17.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 17);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 17);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.16.1 project to 1.17.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1161-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.16.1 project to 1.17.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1161-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.17.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 18);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 18);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.16.1 project to 1.17.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1161-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.16.1 project to 1.17.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1161-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.17.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 18);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 18);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.16.1 project to 1.17.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1161-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.16.1 project to 1.17.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1161-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.17.0', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 28);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.0', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 28);
+    }
+  );
   //#endregion
 
   //#region 1.17.0
-  it('e2e: shows correct number of findings for upgrading ace 1.17.0 project to 1.17.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1170-ace'));
+  it('e2e: shows correct number of findings for upgrading ace 1.17.0 project to 1.17.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1170-ace'));
 
-    await command.action(logger, { options: { toVersion: '1.17.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 9);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 9);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading application customizer 1.17.0 project to 1.17.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1170-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.17.0 project to 1.17.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1170-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.17.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 11);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 11);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.17.0 project to 1.17.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1170-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.17.0 project to 1.17.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1170-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.17.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 10);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 10);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading form customizer react 1.17.0 project to 1.17.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1170-formcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading form customizer react 1.17.0 project to 1.17.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1170-formcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.17.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 12);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 12);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.17.0 project to 1.17.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1170-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.17.0 project to 1.17.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1170-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.17.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 11);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 11);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.17.0 project to 1.17.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1170-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.17.0 project to 1.17.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1170-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.17.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 12);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 12);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.17.0 project to 1.17.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1170-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.17.0 project to 1.17.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1170-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.17.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 12);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 12);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.17.0 project to 1.17.1', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1170-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.17.0 project to 1.17.1',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1170-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.17.1', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 22);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.1', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 22);
+    }
+  );
   //#endregion
 
   //#region 1.17.1
-  it('e2e: shows correct number of findings for upgrading ace 1.17.1 project to 1.17.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1171-ace'));
+  it('e2e: shows correct number of findings for upgrading ace 1.17.1 project to 1.17.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1171-ace'));
 
-    await command.action(logger, { options: { toVersion: '1.17.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 11);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 11);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading application customizer 1.17.1 project to 1.17.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1171-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.17.1 project to 1.17.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1171-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.17.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 13);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 13);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.17.1 project to 1.17.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1171-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.17.1 project to 1.17.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1171-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.17.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 13);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 13);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading form customizer react 1.17.1 project to 1.17.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1171-formcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading form customizer react 1.17.1 project to 1.17.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1171-formcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.17.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 15);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 15);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.17.1 project to 1.17.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1171-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.17.1 project to 1.17.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1171-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.17.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 13);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 13);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.17.1 project to 1.17.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1171-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.17.1 project to 1.17.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1171-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.17.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 14);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 14);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.17.1 project to 1.17.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1171-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.17.1 project to 1.17.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1171-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.17.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 15);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 15);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.17.1 project to 1.17.2', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1171-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.17.1 project to 1.17.2',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1171-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.17.2', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 24);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.2', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 24);
+    }
+  );
   //#endregion
 
   //#region 1.17.2
-  it('e2e: shows correct number of findings for upgrading ace 1.17.2 project to 1.17.3', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1172-ace'));
+  it('e2e: shows correct number of findings for upgrading ace 1.17.2 project to 1.17.3',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1172-ace'));
 
-    await command.action(logger, { options: { toVersion: '1.17.3', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 9);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.3', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 9);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading application customizer 1.17.2 project to 1.17.3', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1172-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.17.2 project to 1.17.3',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1172-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.17.3', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 11);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.3', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 11);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.17.2 project to 1.17.3', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1172-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.17.2 project to 1.17.3',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1172-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.17.3', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 11);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.3', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 11);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading form customizer react 1.17.2 project to 1.17.3', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1172-formcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading form customizer react 1.17.2 project to 1.17.3',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1172-formcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.17.3', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 13);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.3', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 13);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.17.2 project to 1.17.3', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1172-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.17.2 project to 1.17.3',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1172-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.17.3', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 11);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.3', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 11);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.17.2 project to 1.17.3', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1172-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.17.2 project to 1.17.3',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1172-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.17.3', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 14);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.3', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 14);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.17.2 project to 1.17.3', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1172-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.17.2 project to 1.17.3',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1172-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.17.3', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 15);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.3', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 15);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.17.2 project to 1.17.3', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1172-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.17.2 project to 1.17.3',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1172-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.17.3', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 23);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.3', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 23);
+    }
+  );
   //#endregion
 
   //#region 1.17.3
-  it('e2e: shows correct number of findings for upgrading ace 1.17.3 project to 1.17.4', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1173-ace'));
+  it('e2e: shows correct number of findings for upgrading ace 1.17.3 project to 1.17.4',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1173-ace'));
 
-    await command.action(logger, { options: { toVersion: '1.17.4', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 9);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.4', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 9);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading application customizer 1.17.3 project to 1.17.4', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1173-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.17.3 project to 1.17.4',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1173-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.17.4', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 11);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.4', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 11);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.17.3 project to 1.17.4', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1173-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.17.3 project to 1.17.4',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1173-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.17.4', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 10);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.4', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 10);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading form customizer react 1.17.3 project to 1.17.4', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1173-formcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading form customizer react 1.17.3 project to 1.17.4',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1173-formcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.17.4', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 12);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.4', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 12);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.17.3 project to 1.17.4', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1173-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.17.3 project to 1.17.4',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1173-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.17.4', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 11);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.4', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 11);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.17.3 project to 1.17.4', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1173-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.17.3 project to 1.17.4',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1173-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.17.4', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 13);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.4', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 13);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.17.3 project to 1.17.4', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1173-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.17.3 project to 1.17.4',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1173-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.17.4', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 13);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.4', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 13);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.17.3 project to 1.17.4', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1173-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.17.3 project to 1.17.4',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1173-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.17.4', output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 22);
-  });
+      await command.action(logger, { options: { toVersion: '1.17.4', output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 22);
+    }
+  );
   //#endregion
 
   //#region 1.17.4
-  it('e2e: shows correct number of findings for upgrading ace 1.17.4 project to 1.18.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1174-ace'));
+  it('e2e: shows correct number of findings for upgrading ace 1.17.4 project to 1.18.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1174-ace'));
 
-    await command.action(logger, { options: { toVersion: '1.18.0', preview: true, output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 14);
-  });
+      await command.action(logger, { options: { toVersion: '1.18.0', preview: true, output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 14);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading application customizer 1.17.4 project to 1.18.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1174-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.17.4 project to 1.18.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1174-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.18.0', preview: true, output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 16);
-  });
+      await command.action(logger, { options: { toVersion: '1.18.0', preview: true, output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 16);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.17.4 project to 1.18.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1174-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.17.4 project to 1.18.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1174-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.18.0', preview: true, output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 17);
-  });
+      await command.action(logger, { options: { toVersion: '1.18.0', preview: true, output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 17);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading form customizer react 1.17.4 project to 1.18.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1174-formcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading form customizer react 1.17.4 project to 1.18.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1174-formcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.18.0', preview: true, output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 19);
-  });
+      await command.action(logger, { options: { toVersion: '1.18.0', preview: true, output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 19);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.17.4 project to 1.18.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1174-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.17.4 project to 1.18.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1174-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.18.0', preview: true, output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 16);
-  });
+      await command.action(logger, { options: { toVersion: '1.18.0', preview: true, output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 16);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.17.4 project to 1.18.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1174-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.17.4 project to 1.18.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1174-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.18.0', preview: true, output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 18);
-  });
+      await command.action(logger, { options: { toVersion: '1.18.0', preview: true, output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 18);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.17.4 project to 1.18.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1174-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.17.4 project to 1.18.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1174-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.18.0', preview: true, output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 20);
-  });
+      await command.action(logger, { options: { toVersion: '1.18.0', preview: true, output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 20);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.17.4 project to 1.18.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1174-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.17.4 project to 1.18.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1174-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.18.0', preview: true, output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 27);
-  });
+      await command.action(logger, { options: { toVersion: '1.18.0', preview: true, output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 27);
+    }
+  );
   //#endregion
 
   //#region 1.18.0
-  it('e2e: shows correct number of findings for upgrading ace 1.18.0 project to 1.18.1-rc.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1180-ace'));
+  it('e2e: shows correct number of findings for upgrading ace 1.18.0 project to 1.18.1-rc.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1180-ace'));
 
-    await command.action(logger, { options: { toVersion: '1.18.1-rc.0', preview: true, output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 10);
-  });
+      await command.action(logger, { options: { toVersion: '1.18.1-rc.0', preview: true, output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 10);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading application customizer 1.18.0 project to 1.18.1-rc.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1180-applicationcustomizer'));
+  it('e2e: shows correct number of findings for upgrading application customizer 1.18.0 project to 1.18.1-rc.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1180-applicationcustomizer'));
 
-    await command.action(logger, { options: { toVersion: '1.18.1-rc.0', preview: true, output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 12);
-  });
+      await command.action(logger, { options: { toVersion: '1.18.1-rc.0', preview: true, output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 12);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading field customizer react 1.18.0 project to 1.18.1-rc.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1180-fieldcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading field customizer react 1.18.0 project to 1.18.1-rc.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1180-fieldcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.18.1-rc.0', preview: true, output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 11);
-  });
+      await command.action(logger, { options: { toVersion: '1.18.1-rc.0', preview: true, output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 11);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading form customizer react 1.18.0 project to 1.18.1-rc.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1180-formcustomizer-react'));
+  it('e2e: shows correct number of findings for upgrading form customizer react 1.18.0 project to 1.18.1-rc.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1180-formcustomizer-react'));
 
-    await command.action(logger, { options: { toVersion: '1.18.1-rc.0', preview: true, output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 13);
-  });
+      await command.action(logger, { options: { toVersion: '1.18.1-rc.0', preview: true, output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 13);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading list view command set 1.18.0 project to 1.18.1-rc.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1180-listviewcommandset'));
+  it('e2e: shows correct number of findings for upgrading list view command set 1.18.0 project to 1.18.1-rc.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1180-listviewcommandset'));
 
-    await command.action(logger, { options: { toVersion: '1.18.1-rc.0', preview: true, output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 12);
-  });
+      await command.action(logger, { options: { toVersion: '1.18.1-rc.0', preview: true, output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 12);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading no framework web part 1.18.0 project to 1.18.1-rc.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1180-webpart-nolib'));
+  it('e2e: shows correct number of findings for upgrading no framework web part 1.18.0 project to 1.18.1-rc.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1180-webpart-nolib'));
 
-    await command.action(logger, { options: { toVersion: '1.18.1-rc.0', preview: true, output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 14);
-  });
+      await command.action(logger, { options: { toVersion: '1.18.1-rc.0', preview: true, output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 14);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading react web part 1.18.0 project to 1.18.1-rc.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1180-webpart-react'));
+  it('e2e: shows correct number of findings for upgrading react web part 1.18.0 project to 1.18.1-rc.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1180-webpart-react'));
 
-    await command.action(logger, { options: { toVersion: '1.18.1-rc.0', preview: true, output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 14);
-  });
+      await command.action(logger, { options: { toVersion: '1.18.1-rc.0', preview: true, output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 14);
+    }
+  );
 
-  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.18.0 project to 1.18.1-rc.0', async () => {
-    sinon.stub(command as any, 'getProjectRoot').callsFake(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1180-webpart-optionaldeps'));
+  it('e2e: shows correct number of findings for upgrading web part with optional dependencies 1.18.0 project to 1.18.1-rc.0',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockImplementation(_ => path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1180-webpart-optionaldeps'));
 
-    await command.action(logger, { options: { toVersion: '1.18.1-rc.0', preview: true, output: 'json' } } as any);
-    const findings: FindingToReport[] = log[0];
-    assert.strictEqual(findings.length, 23);
-  });
+      await command.action(logger, { options: { toVersion: '1.18.1-rc.0', preview: true, output: 'json' } } as any);
+      const findings: FindingToReport[] = log[0];
+      assert.strictEqual(findings.length, 23);
+    }
+  );
   //#endregion
 
   //#region superseded rules
   it('ignores superseded findings (1.1.0 > 1.2.0)', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-110-webpart-react'));
+    jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-110-webpart-react'));
 
     await command.action(logger, { options: { toVersion: '1.2.0', output: 'json' } } as any);
     const findings: FindingToReport[] = log[0];
@@ -3197,7 +3800,7 @@ describe(commands.PROJECT_UPGRADE, () => {
   });
 
   it('ignores superseded findings (1.6.0 > 1.8.0)', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-160-webpart-react'));
+    jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-160-webpart-react'));
 
     await command.action(logger, { options: { toVersion: '1.8.0', output: 'json' } } as any);
     const findings: FindingToReport[] = log[0];
@@ -3205,7 +3808,7 @@ describe(commands.PROJECT_UPGRADE, () => {
   });
 
   it('ignores superseded findings (1.7.1 > 1.8.2)', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-171-webpart-react'));
+    jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-171-webpart-react'));
 
     await command.action(logger, { options: { toVersion: '1.8.2', output: 'json' } } as any);
     const findings: FindingToReport[] = log[0];
@@ -3213,7 +3816,7 @@ describe(commands.PROJECT_UPGRADE, () => {
   });
 
   it('ignores superseded findings (1.4.1 > 1.6.0)', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-141-webpart-react'));
+    jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-141-webpart-react'));
 
     await command.action(logger, { options: { toVersion: '1.6.0', output: 'json' } } as any);
     const findings: FindingToReport[] = log[0];
@@ -3222,21 +3825,23 @@ describe(commands.PROJECT_UPGRADE, () => {
   //#endregion
 
   it('shows all information with output format json', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-151-fieldcustomizer-react'));
+    jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-151-fieldcustomizer-react'));
 
     await command.action(logger, { options: { output: 'json' } } as any);
     assert(JSON.stringify(log[0]).indexOf('"resolution":') > -1);
   });
 
-  it('upgrades project to the latest preview version using the preview option', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1131-webpart-nolib'));
+  it('upgrades project to the latest preview version using the preview option',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-1131-webpart-nolib'));
 
-    await command.action(logger, { options: { output: 'text' } } as any);
-    assert(log[0].indexOf('1.15.2') > -1);
-  });
+      await command.action(logger, { options: { output: 'text' } } as any);
+      assert(log[0].indexOf('1.15.2') > -1);
+    }
+  );
 
   it('returns markdown report with output format md', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-151-webpart-react-graph'));
+    jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-151-webpart-react-graph'));
 
     await command.action(logger, { options: { output: 'md', toVersion: '1.6.0' } } as any);
     assert(log[0].indexOf('## Findings') > -1);
@@ -3256,76 +3861,84 @@ describe(commands.PROJECT_UPGRADE, () => {
   });
 
   it('returns json report with output format default', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-151-webpart-react-graph'));
+    jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-151-webpart-react-graph'));
 
     await command.action(logger, { options: { toVersion: '1.6.0' } } as any);
     assert(JSON.stringify(log[0]).indexOf('"resolution":') > -1);
   });
 
   it('returns text report with output format text', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-151-webpart-react-graph'));
+    jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), 'src/m365/spfx/commands/project/test-projects/spfx-151-webpart-react-graph'));
 
     await command.action(logger, { options: { output: 'text', toVersion: '1.6.0' } } as any);
     assert(log[0].indexOf('Execute in ') > -1);
   });
 
-  it('returns correctly formatted Function value for .eslintrc.js overrides', async () => {
-    sinon.stub(command as any, 'getProjectRoot').returns('src/m365/spfx/commands/project/test-projects/spfx-1150-webpart-react');
+  it('returns correctly formatted Function value for .eslintrc.js overrides',
+    async () => {
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue('src/m365/spfx/commands/project/test-projects/spfx-1150-webpart-react');
 
-    await command.action(logger, { options: { output: 'text', toVersion: '1.15.2' } });
+      await command.action(logger, { options: { output: 'text', toVersion: '1.15.2' } });
 
-    const expectedFunctionValue = /The \\'Function\\' type accepts any function-like value.\\nIt provides no type safety when calling the function, which can be a common source of bugs.\\nIt also accepts things like class declarations, which will throw at runtime as they will not be called with \\'new\\'.\\nIf you are expecting the function to accept certain arguments, you should explicitly define the function shape./;
-    const isMatching = expectedFunctionValue.test(log[0].trim());
-    assert.strictEqual(isMatching, true);
-  });
+      const expectedFunctionValue = /The \\'Function\\' type accepts any function-like value.\\nIt provides no type safety when calling the function, which can be a common source of bugs.\\nIt also accepts things like class declarations, which will throw at runtime as they will not be called with \\'new\\'.\\nIf you are expecting the function to accept certain arguments, you should explicitly define the function shape./;
+      const isMatching = expectedFunctionValue.test(log[0].trim());
+      assert.strictEqual(isMatching, true);
+    }
+  );
 
-  it('writes CodeTour upgrade report to .tours folder when in tour output mode. Creates the folder when it does not exist', async () => {
-    const projectPath: string = 'src/m365/spfx/commands/project/test-projects/spfx-151-webpart-react-graph';
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), projectPath));
-    const writeFileSyncStub: sinon.SinonStub = sinon.stub(fs, 'writeFileSync').returns();
-    const existsSyncOriginal = fs.existsSync;
-    sinon.stub(fs, 'existsSync').callsFake(path => {
-      if (path.toString().indexOf('.tours') > -1) {
-        return false;
-      }
+  it('writes CodeTour upgrade report to .tours folder when in tour output mode. Creates the folder when it does not exist',
+    async () => {
+      const projectPath: string = 'src/m365/spfx/commands/project/test-projects/spfx-151-webpart-react-graph';
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), projectPath));
+      const writeFileSyncStub: jest.Mock = jest.spyOn(fs, 'writeFileSync').mockClear().mockReturnValue();
+      const existsSyncOriginal = fs.existsSync;
+      jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(path => {
+        if (path.toString().indexOf('.tours') > -1) {
+          return false;
+        }
 
-      return existsSyncOriginal(path);
-    });
-    const mkDirSyncStub: sinon.SinonStub = sinon.stub(fs, 'mkdirSync').returns('');
+        return existsSyncOriginal(path);
+      });
+      const mkDirSyncStub: jest.Mock = jest.spyOn(fs, 'mkdirSync').mockClear().mockReturnValue('');
 
-    await command.action(logger, { options: { output: 'tour', toVersion: '1.6.0' } } as any);
-    assert(writeFileSyncStub.calledWith(path.join(process.cwd(), projectPath, '/.tours/upgrade.tour')), 'Tour file not created');
-    assert(mkDirSyncStub.calledWith(path.join(process.cwd(), projectPath, '/.tours')), '.tours folder not created');
-  });
+      await command.action(logger, { options: { output: 'tour', toVersion: '1.6.0' } } as any);
+      assert(writeFileSyncStub.calledWith(path.join(process.cwd(), projectPath, '/.tours/upgrade.tour')), 'Tour file not created');
+      assert(mkDirSyncStub.calledWith(path.join(process.cwd(), projectPath, '/.tours')), '.tours folder not created');
+    }
+  );
 
-  it('writes CodeTour upgrade report to .tours folder when in tour output mode. Does not create the folder when it already exists', async () => {
-    const projectPath: string = 'src/m365/spfx/commands/project/test-projects/spfx-151-webpart-react-graph';
-    sinon.stub(command as any, 'getProjectRoot').returns(path.join(process.cwd(), projectPath));
-    const writeFileSyncStub: sinon.SinonStub = sinon.stub(fs, 'writeFileSync').returns();
-    const existsSyncOriginal = fs.existsSync;
-    sinon.stub(fs, 'existsSync').callsFake(path => {
-      if (path.toString().indexOf('.tours') > -1) {
-        return true;
-      }
+  it('writes CodeTour upgrade report to .tours folder when in tour output mode. Does not create the folder when it already exists',
+    async () => {
+      const projectPath: string = 'src/m365/spfx/commands/project/test-projects/spfx-151-webpart-react-graph';
+      jest.spyOn(command as any, 'getProjectRoot').mockClear().mockReturnValue(path.join(process.cwd(), projectPath));
+      const writeFileSyncStub: jest.Mock = jest.spyOn(fs, 'writeFileSync').mockClear().mockReturnValue();
+      const existsSyncOriginal = fs.existsSync;
+      jest.spyOn(fs, 'existsSync').mockClear().mockImplementation(path => {
+        if (path.toString().indexOf('.tours') > -1) {
+          return true;
+        }
 
-      return existsSyncOriginal(path);
-    });
-    const mkDirSyncStub: sinon.SinonStub = sinon.stub(fs, 'mkdirSync').returns('');
+        return existsSyncOriginal(path);
+      });
+      const mkDirSyncStub: jest.Mock = jest.spyOn(fs, 'mkdirSync').mockClear().mockReturnValue('');
 
-    await command.action(logger, { options: { output: 'tour', toVersion: '1.6.0' } } as any);
-    assert(writeFileSyncStub.calledWith(path.join(process.cwd(), projectPath, '/.tours/upgrade.tour')), 'Tour file not created');
-    assert(mkDirSyncStub.notCalled, '.tours folder created');
-  });
+      await command.action(logger, { options: { output: 'tour', toVersion: '1.6.0' } } as any);
+      assert(writeFileSyncStub.calledWith(path.join(process.cwd(), projectPath, '/.tours/upgrade.tour')), 'Tour file not created');
+      assert(mkDirSyncStub.notCalled, '.tours folder created');
+    }
+  );
 
   it('passes validation when package manager not specified', async () => {
     const actual = await command.validate({ options: {} }, commandInfo);
     assert.strictEqual(actual, true);
   });
 
-  it('fails validation when unsupported package manager specified', async () => {
-    const actual = await command.validate({ options: { packageManager: 'abc' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation when unsupported package manager specified',
+    async () => {
+      const actual = await command.validate({ options: { packageManager: 'abc' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation when npm package manager specified', async () => {
     const actual = await command.validate({ options: { packageManager: 'npm' } }, commandInfo);

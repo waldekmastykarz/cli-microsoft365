@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './sitedesign-rights-list.js';
@@ -17,15 +16,15 @@ import command from './sitedesign-rights-list.js';
 describe(commands.SITEDESIGN_RIGHTS_LIST, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'ABC',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -49,17 +48,17 @@ describe(commands.SITEDESIGN_RIGHTS_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -72,88 +71,92 @@ describe(commands.SITEDESIGN_RIGHTS_LIST, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('gets information about permissions granted for the specified site design', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.GetSiteDesignRights`) > -1 &&
-        JSON.stringify(opts.data) === JSON.stringify({
-          id: '0f27a016-d277-4bb4-b3c3-b5b040c9559b'
-        })) {
-        return {
-          "value": [
-            {
-              "DisplayName": "MOD Administrator",
-              "PrincipalName": "i:0#.f|membership|admin@contoso.onmicrosoft.com",
-              "Rights": "1"
-            },
-            {
-              "DisplayName": "Patti Fernandez",
-              "PrincipalName": "i:0#.f|membership|pattif@contoso.onmicrosoft.com",
-              "Rights": "1"
-            }
-          ]
-        };
-      }
+  it('gets information about permissions granted for the specified site design',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.GetSiteDesignRights`) > -1 &&
+          JSON.stringify(opts.data) === JSON.stringify({
+            id: '0f27a016-d277-4bb4-b3c3-b5b040c9559b'
+          })) {
+          return {
+            "value": [
+              {
+                "DisplayName": "MOD Administrator",
+                "PrincipalName": "i:0#.f|membership|admin@contoso.onmicrosoft.com",
+                "Rights": "1"
+              },
+              {
+                "DisplayName": "Patti Fernandez",
+                "PrincipalName": "i:0#.f|membership|pattif@contoso.onmicrosoft.com",
+                "Rights": "1"
+              }
+            ]
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { siteDesignId: '0f27a016-d277-4bb4-b3c3-b5b040c9559b' } });
-    assert(loggerLogSpy.calledWith([
-      {
-        "DisplayName": "MOD Administrator",
-        "PrincipalName": "i:0#.f|membership|admin@contoso.onmicrosoft.com",
-        "Rights": "View"
-      },
-      {
-        "DisplayName": "Patti Fernandez",
-        "PrincipalName": "i:0#.f|membership|pattif@contoso.onmicrosoft.com",
-        "Rights": "View"
-      }
-    ]));
-  });
+      await command.action(logger, { options: { siteDesignId: '0f27a016-d277-4bb4-b3c3-b5b040c9559b' } });
+      assert(loggerLogSpy.calledWith([
+        {
+          "DisplayName": "MOD Administrator",
+          "PrincipalName": "i:0#.f|membership|admin@contoso.onmicrosoft.com",
+          "Rights": "View"
+        },
+        {
+          "DisplayName": "Patti Fernandez",
+          "PrincipalName": "i:0#.f|membership|pattif@contoso.onmicrosoft.com",
+          "Rights": "View"
+        }
+      ]));
+    }
+  );
 
-  it('gets information about permissions granted for the specified site design (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.GetSiteDesignRights`) > -1 &&
-        JSON.stringify(opts.data) === JSON.stringify({
-          id: '0f27a016-d277-4bb4-b3c3-b5b040c9559b'
-        })) {
-        return {
-          "value": [
-            {
-              "DisplayName": "MOD Administrator",
-              "PrincipalName": "i:0#.f|membership|admin@contoso.onmicrosoft.com",
-              "Rights": "1"
-            },
-            {
-              "DisplayName": "Patti Fernandez",
-              "PrincipalName": "i:0#.f|membership|pattif@contoso.onmicrosoft.com",
-              "Rights": "1"
-            }
-          ]
-        };
-      }
+  it('gets information about permissions granted for the specified site design (debug)',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.GetSiteDesignRights`) > -1 &&
+          JSON.stringify(opts.data) === JSON.stringify({
+            id: '0f27a016-d277-4bb4-b3c3-b5b040c9559b'
+          })) {
+          return {
+            "value": [
+              {
+                "DisplayName": "MOD Administrator",
+                "PrincipalName": "i:0#.f|membership|admin@contoso.onmicrosoft.com",
+                "Rights": "1"
+              },
+              {
+                "DisplayName": "Patti Fernandez",
+                "PrincipalName": "i:0#.f|membership|pattif@contoso.onmicrosoft.com",
+                "Rights": "1"
+              }
+            ]
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, siteDesignId: '0f27a016-d277-4bb4-b3c3-b5b040c9559b' } });
-    assert(loggerLogSpy.calledWith([
-      {
-        "DisplayName": "MOD Administrator",
-        "PrincipalName": "i:0#.f|membership|admin@contoso.onmicrosoft.com",
-        "Rights": "View"
-      },
-      {
-        "DisplayName": "Patti Fernandez",
-        "PrincipalName": "i:0#.f|membership|pattif@contoso.onmicrosoft.com",
-        "Rights": "View"
-      }
-    ]));
-  });
+      await command.action(logger, { options: { debug: true, siteDesignId: '0f27a016-d277-4bb4-b3c3-b5b040c9559b' } });
+      assert(loggerLogSpy.calledWith([
+        {
+          "DisplayName": "MOD Administrator",
+          "PrincipalName": "i:0#.f|membership|admin@contoso.onmicrosoft.com",
+          "Rights": "View"
+        },
+        {
+          "DisplayName": "Patti Fernandez",
+          "PrincipalName": "i:0#.f|membership|pattif@contoso.onmicrosoft.com",
+          "Rights": "View"
+        }
+      ]));
+    }
+  );
 
   it('returns original value for unknown permissions', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.GetSiteDesignRights`) > -1 &&
         JSON.stringify(opts.data) === JSON.stringify({
           id: '0f27a016-d277-4bb4-b3c3-b5b040c9559b'
@@ -193,7 +196,7 @@ describe(commands.SITEDESIGN_RIGHTS_LIST, () => {
   });
 
   it('correctly handles error when site script not found', async () => {
-    sinon.stub(request, 'post').rejects({ error: { 'odata.error': { message: { value: 'File Not Found.' } } } });
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects({ error: { 'odata.error': { message: { value: 'File Not Found.' } } } });
 
     await assert.rejects(command.action(logger, { options: { siteDesignId: '0f27a016-d277-4bb4-b3c3-b5b040c9559b' } } as any), new CommandError('File Not Found.'));
   });

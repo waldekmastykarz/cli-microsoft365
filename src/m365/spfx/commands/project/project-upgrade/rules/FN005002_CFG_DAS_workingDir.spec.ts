@@ -12,25 +12,29 @@ describe('FN005002_CFG_DAS_workingDir', () => {
     rule = new FN005002_CFG_DAS_workingDir('./release/assets/');
   });
 
-  it('doesn\'t return notification if no deploy-azure-storage.json found', () => {
-    const project: Project = {
-      path: '/usr/tmp'
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it('doesn\'t return notification if no deploy-azure-storage.json found',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp'
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
-  it('doesn\'t return notification if workingDir is already up-to-date', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      deployAzureStorageJson: {
-        $schema: 'test-schema',
-        workingDir: './release/assets/'
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it('doesn\'t return notification if workingDir is already up-to-date',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        deployAzureStorageJson: {
+          $schema: 'test-schema',
+          workingDir: './release/assets/'
+        }
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
   it('returns notification if workingDir is not up-to-date', () => {
     const project: Project = {

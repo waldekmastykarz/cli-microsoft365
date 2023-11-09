@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './sitedesign-add.js';
@@ -17,15 +16,15 @@ import command from './sitedesign-add.js';
 describe(commands.SITEDESIGN_ADD, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'ABC',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -49,17 +48,17 @@ describe(commands.SITEDESIGN_ADD, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -73,7 +72,7 @@ describe(commands.SITEDESIGN_ADD, () => {
   });
 
   it('adds new site design for a team site', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.CreateSiteDesign`) > -1 &&
         JSON.stringify(opts.data) === JSON.stringify({
           info: {
@@ -115,7 +114,7 @@ describe(commands.SITEDESIGN_ADD, () => {
   });
 
   it('adds new site design for a team site (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.CreateSiteDesign`) > -1 &&
         JSON.stringify(opts.data) === JSON.stringify({
           info: {
@@ -156,39 +155,41 @@ describe(commands.SITEDESIGN_ADD, () => {
     }));
   });
 
-  it('adds new team site site design with multiple site script IDs', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.CreateSiteDesign`) > -1 &&
-        JSON.stringify(opts.data) === JSON.stringify({
-          info: {
-            Title: 'Contoso',
-            WebTemplate: '64',
-            SiteScriptIds: ['449c0c6d-5380-4df2-b84b-622e0ac8ec24', '449c0c6d-5380-4df2-b84b-622e0ac8ec25']
-          }
-        })) {
-        return {
-          "Description": null,
-          "Id": "2a9f178a-4d1d-449c-9296-df509ab4702c",
-          "IsDefault": false,
-          "PreviewImageAltText": null,
-          "PreviewImageUrl": null,
-          "ThumbnailUrl": null,
-          "SiteScriptIds": ["449c0c6d-5380-4df2-b84b-622e0ac8ec24", "449c0c6d-5380-4df2-b84b-622e0ac8ec25"],
-          "Title": "Contoso",
-          "Version": 1,
-          "WebTemplate": 64
-        };
-      }
+  it('adds new team site site design with multiple site script IDs',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.CreateSiteDesign`) > -1 &&
+          JSON.stringify(opts.data) === JSON.stringify({
+            info: {
+              Title: 'Contoso',
+              WebTemplate: '64',
+              SiteScriptIds: ['449c0c6d-5380-4df2-b84b-622e0ac8ec24', '449c0c6d-5380-4df2-b84b-622e0ac8ec25']
+            }
+          })) {
+          return {
+            "Description": null,
+            "Id": "2a9f178a-4d1d-449c-9296-df509ab4702c",
+            "IsDefault": false,
+            "PreviewImageAltText": null,
+            "PreviewImageUrl": null,
+            "ThumbnailUrl": null,
+            "SiteScriptIds": ["449c0c6d-5380-4df2-b84b-622e0ac8ec24", "449c0c6d-5380-4df2-b84b-622e0ac8ec25"],
+            "Title": "Contoso",
+            "Version": 1,
+            "WebTemplate": 64
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { title: 'Contoso', webTemplate: 'TeamSite', siteScripts: "449c0c6d-5380-4df2-b84b-622e0ac8ec24, 449c0c6d-5380-4df2-b84b-622e0ac8ec25" } });
-    assert(loggerLogSpy.calledOnce);
-  });
+      await command.action(logger, { options: { title: 'Contoso', webTemplate: 'TeamSite', siteScripts: "449c0c6d-5380-4df2-b84b-622e0ac8ec24, 449c0c6d-5380-4df2-b84b-622e0ac8ec25" } });
+      assert(loggerLogSpy.calledOnce);
+    }
+  );
 
   it('adds new site design for a communication site', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.CreateSiteDesign`) > -1 &&
         JSON.stringify(opts.data) === JSON.stringify({
           info: {
@@ -230,7 +231,7 @@ describe(commands.SITEDESIGN_ADD, () => {
   });
 
   it('adds new team site site design with description', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.CreateSiteDesign`) > -1 &&
         JSON.stringify(opts.data) === JSON.stringify({
           info: {
@@ -273,7 +274,7 @@ describe(commands.SITEDESIGN_ADD, () => {
   });
 
   it('adds new team site site design with previewImageUrl', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.CreateSiteDesign`) > -1 &&
         JSON.stringify(opts.data) === JSON.stringify({
           info: {
@@ -314,7 +315,7 @@ describe(commands.SITEDESIGN_ADD, () => {
   });
 
   it('adds new team site site design with ThumbnailUrl', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.CreateSiteDesign`) > -1 &&
         JSON.stringify(opts.data) === JSON.stringify({
           info: {
@@ -357,7 +358,7 @@ describe(commands.SITEDESIGN_ADD, () => {
   });
 
   it('adds new team site site design with previewImageAltText', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.CreateSiteDesign`) > -1 &&
         JSON.stringify(opts.data) === JSON.stringify({
           info: {
@@ -400,7 +401,7 @@ describe(commands.SITEDESIGN_ADD, () => {
   });
 
   it('adds new default team site site design', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.CreateSiteDesign`) > -1 &&
         JSON.stringify(opts.data) === JSON.stringify({
           info: {
@@ -443,7 +444,7 @@ describe(commands.SITEDESIGN_ADD, () => {
   });
 
   it('adds new team site site design with all options specified', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.CreateSiteDesign`) > -1 &&
         JSON.stringify(opts.data) === JSON.stringify({
           info: {
@@ -490,7 +491,7 @@ describe(commands.SITEDESIGN_ADD, () => {
   });
 
   it('correctly handles OData error when creating site script', async () => {
-    sinon.stub(request, 'post').callsFake(() => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(() => {
       throw { error: { 'odata.error': { message: { value: 'An error has occurred' } } } };
     });
 
@@ -596,23 +597,29 @@ describe(commands.SITEDESIGN_ADD, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if specified siteScripts is not a valid GUID', async () => {
-    const actual = await command.validate({ options: { title: 'Contoso', webTemplate: 'TeamSite', siteScripts: 'abc' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if specified siteScripts is not a valid GUID',
+    async () => {
+      const actual = await command.validate({ options: { title: 'Contoso', webTemplate: 'TeamSite', siteScripts: 'abc' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if the second specified siteScriptId is not a valid GUID', async () => {
-    const actual = await command.validate({ options: { title: 'Contoso', webTemplate: 'TeamSite', siteScripts: "449c0c6d-5380-4df2-b84b-622e0ac8ec24,abc" } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the second specified siteScriptId is not a valid GUID',
+    async () => {
+      const actual = await command.validate({ options: { title: 'Contoso', webTemplate: 'TeamSite', siteScripts: "449c0c6d-5380-4df2-b84b-622e0ac8ec24,abc" } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation if all required parameters are valid', async () => {
     const actual = await command.validate({ options: { title: 'Contoso', webTemplate: 'TeamSite', siteScripts: "449c0c6d-5380-4df2-b84b-622e0ac8ec24" } }, commandInfo);
     assert.strictEqual(actual, true);
   });
 
-  it('passes validation if all required parameters are valid (multiple siteScripts)', async () => {
-    const actual = await command.validate({ options: { title: 'Contoso', webTemplate: 'TeamSite', siteScripts: "449c0c6d-5380-4df2-b84b-622e0ac8ec24,449c0c6d-5380-4df2-b84b-622e0ac8ec25" } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if all required parameters are valid (multiple siteScripts)',
+    async () => {
+      const actual = await command.validate({ options: { title: 'Contoso', webTemplate: 'TeamSite', siteScripts: "449c0c6d-5380-4df2-b84b-622e0ac8ec24,449c0c6d-5380-4df2-b84b-622e0ac8ec25" } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

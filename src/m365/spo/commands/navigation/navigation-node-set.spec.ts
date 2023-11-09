@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './navigation-node-set.js';
@@ -29,11 +28,11 @@ describe(commands.NAVIGATION_NODE_SET, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -54,15 +53,15 @@ describe(commands.NAVIGATION_NODE_SET, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.patch,
       spo.getQuickLaunchMenuState,
       spo.getTopNavigationMenuState,
       spo.saveMenuState]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -74,52 +73,56 @@ describe(commands.NAVIGATION_NODE_SET, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('correctly updates existing navigation node and make sure it opens link in new tab', async () => {
-    let saveCalled = false;
-    const id = 2041;
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/navigation/GetNodeById(${id})`) {
-        return '';
-      }
+  it('correctly updates existing navigation node and make sure it opens link in new tab',
+    async () => {
+      let saveCalled = false;
+      const id = 2041;
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/navigation/GetNodeById(${id})`) {
+          return '';
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(spo, 'getQuickLaunchMenuState').callsFake(async () => {
-      return quickLaunchResponse;
-    });
+      jest.spyOn(spo, 'getQuickLaunchMenuState').mockClear().mockImplementation(async () => {
+        return quickLaunchResponse;
+      });
 
-    sinon.stub(spo, 'getTopNavigationMenuState').callsFake(async () => {
-      return topNavigationResponse;
-    });
+      jest.spyOn(spo, 'getTopNavigationMenuState').mockClear().mockImplementation(async () => {
+        return topNavigationResponse;
+      });
 
-    sinon.stub(spo, 'saveMenuState').callsFake(async () => {
-      saveCalled = true;
-      return;
-    });
+      jest.spyOn(spo, 'saveMenuState').mockClear().mockImplementation(async () => {
+        saveCalled = true;
+        return;
+      });
 
 
-    await command.action(logger, { options: { webUrl: webUrl, id: id, title: title, url: nodeUrl, isExternal: false, audienceIds: audienceIds, openInNewWindow: true, verbose: true } } as any);
-    assert.strictEqual(saveCalled, true);
-  });
+      await command.action(logger, { options: { webUrl: webUrl, id: id, title: title, url: nodeUrl, isExternal: false, audienceIds: audienceIds, openInNewWindow: true, verbose: true } } as any);
+      assert.strictEqual(saveCalled, true);
+    }
+  );
 
-  it('correctly clears audienceIds from existing navigation node', async () => {
-    const requestBody = {
-      AudienceIds: [],
-      IsExternal: undefined,
-      Title: undefined,
-      Url: undefined
-    };
-    const patchStub = sinon.stub(request, 'patch').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/navigation/GetNodeById(${id})`) {
-        return '';
-      }
+  it('correctly clears audienceIds from existing navigation node',
+    async () => {
+      const requestBody = {
+        AudienceIds: [],
+        IsExternal: undefined,
+        Title: undefined,
+        Url: undefined
+      };
+      const patchStub = jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/navigation/GetNodeById(${id})`) {
+          return '';
+        }
 
-      throw 'Invalid request';
-    });
-    await command.action(logger, { options: { webUrl: webUrl, id: id, audienceIds: "" } } as any);
-    assert.deepStrictEqual(patchStub.lastCall.args[0].data, requestBody);
-  });
+        throw 'Invalid request';
+      });
+      await command.action(logger, { options: { webUrl: webUrl, id: id, audienceIds: "" } } as any);
+      assert.deepStrictEqual(patchStub.mock.lastCall[0].data, requestBody);
+    }
+  );
 
   it('correctly sets navigation node as linkless', async () => {
     const requestBody = {
@@ -127,7 +130,7 @@ describe(commands.NAVIGATION_NODE_SET, () => {
       Title: undefined,
       Url: 'http://linkless.header/'
     };
-    const patchStub = sinon.stub(request, 'patch').callsFake(async (opts) => {
+    const patchStub = jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/web/navigation/GetNodeById(${id})`) {
         return '';
       }
@@ -135,11 +138,11 @@ describe(commands.NAVIGATION_NODE_SET, () => {
       throw 'Invalid request';
     });
     await command.action(logger, { options: { webUrl: webUrl, id: id, url: "" } } as any);
-    assert.deepStrictEqual(patchStub.lastCall.args[0].data, requestBody);
+    assert.deepStrictEqual(patchStub.mock.lastCall[0].data, requestBody);
   });
 
   it('correctly handles navigation node that does not exist', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/web/navigation/GetNodeById(${id})`) {
         return {
           'odata.null': true
@@ -157,16 +160,20 @@ describe(commands.NAVIGATION_NODE_SET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if webUrl is no options are set to be changed', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, id: id } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if webUrl is no options are set to be changed',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, id: id } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if audienceIds contains more than 10 guids', async () => {
-    const manyAudienceIds = `${audienceIds},${audienceIds},${audienceIds},${audienceIds},${audienceIds},${audienceIds}`;
-    const actual = await command.validate({ options: { webUrl: webUrl, id: id, audienceIds: manyAudienceIds } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if audienceIds contains more than 10 guids',
+    async () => {
+      const manyAudienceIds = `${audienceIds},${audienceIds},${audienceIds},${audienceIds},${audienceIds},${audienceIds}`;
+      const actual = await command.validate({ options: { webUrl: webUrl, id: id, audienceIds: manyAudienceIds } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if audienceIds contains invalid guid', async () => {
     const invalidAudienceIds = `${audienceIds},invalid`;

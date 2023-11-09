@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Logger } from '../../../../cli/Logger.js';
 import { CommandError } from '../../../../Command.js';
@@ -7,7 +6,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './environment-get.js';
 import { FlowEnvironmentDetails } from './FlowEnvironmentDetails.js';
@@ -15,7 +14,7 @@ import { FlowEnvironmentDetails } from './FlowEnvironmentDetails.js';
 describe(commands.ENVIRONMENT_GET, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   const flowResponse: FlowEnvironmentDetails = {
     name: "Default-d87a7535-dd31-4437-bfe1-95340acd55c5",
     location: "europe",
@@ -77,11 +76,11 @@ describe(commands.ENVIRONMENT_GET, () => {
     }
   };
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
   });
 
@@ -98,17 +97,17 @@ describe(commands.ENVIRONMENT_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -124,21 +123,23 @@ describe(commands.ENVIRONMENT_GET, () => {
     assert.deepStrictEqual(command.defaultProperties(), ['name', 'id', 'location', 'displayName', 'provisioningState', 'environmentSku', 'azureRegionHint', 'isDefault']);
   });
 
-  it('retrieves information about the specified environment (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if ((opts.url === `https://management.azure.com/providers/Microsoft.ProcessSimple/environments/Default-d87a7535-dd31-4437-bfe1-95340acd55c5?api-version=2016-11-01`)) {
-        return flowResponse;
-      }
+  it('retrieves information about the specified environment (debug)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if ((opts.url === `https://management.azure.com/providers/Microsoft.ProcessSimple/environments/Default-d87a7535-dd31-4437-bfe1-95340acd55c5?api-version=2016-11-01`)) {
+          return flowResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { output: 'json', debug: true, name: 'Default-d87a7535-dd31-4437-bfe1-95340acd55c5' } });
-    assert(loggerLogSpy.calledWith(flowResponse));
-  });
+      await command.action(logger, { options: { output: 'json', debug: true, name: 'Default-d87a7535-dd31-4437-bfe1-95340acd55c5' } });
+      assert(loggerLogSpy.calledWith(flowResponse));
+    }
+  );
 
   it('retrieves information about the specified environment', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if ((opts.url === `https://management.azure.com/providers/Microsoft.ProcessSimple/environments/Default-d87a7535-dd31-4437-bfe1-95340acd55c5?api-version=2016-11-01`)) {
         return flowResponse;
       }
@@ -150,21 +151,23 @@ describe(commands.ENVIRONMENT_GET, () => {
     assert(loggerLogSpy.calledWith(flowResponse));
   });
 
-  it('retrieves information about the specified environment with output text', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if ((opts.url === `https://management.azure.com/providers/Microsoft.ProcessSimple/environments/Default-d87a7535-dd31-4437-bfe1-95340acd55c5?api-version=2016-11-01`)) {
-        return flowResponse;
-      }
+  it('retrieves information about the specified environment with output text',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if ((opts.url === `https://management.azure.com/providers/Microsoft.ProcessSimple/environments/Default-d87a7535-dd31-4437-bfe1-95340acd55c5?api-version=2016-11-01`)) {
+          return flowResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { output: 'text', name: 'Default-d87a7535-dd31-4437-bfe1-95340acd55c5' } });
-    assert(loggerLogSpy.calledWith(flowResponseText));
-  });
+      await command.action(logger, { options: { output: 'text', name: 'Default-d87a7535-dd31-4437-bfe1-95340acd55c5' } });
+      assert(loggerLogSpy.calledWith(flowResponseText));
+    }
+  );
 
   it('retrieves information about the default environment', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if ((opts.url === `https://management.azure.com/providers/Microsoft.ProcessSimple/environments/~default?api-version=2016-11-01`)) {
         return flowResponse;
       }
@@ -177,7 +180,7 @@ describe(commands.ENVIRONMENT_GET, () => {
   });
 
   it('correctly handles no environment found', async () => {
-    sinon.stub(request, 'get').rejects({
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects({
       "error": {
         "code": "EnvironmentAccessDenied",
         "message": "Access to the environment 'Default-d87a7535-dd31-4437-bfe1-95340acd55c6' is denied."
@@ -189,7 +192,7 @@ describe(commands.ENVIRONMENT_GET, () => {
   });
 
   it('correctly handles API OData error', async () => {
-    sinon.stub(request, 'get').rejects({
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects({
       error: {
         'odata.error': {
           code: '-1, InvalidOperationException',

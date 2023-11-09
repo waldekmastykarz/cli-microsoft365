@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { accessToken } from '../../../../utils/accessToken.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './auditlog-list.js';
 
@@ -108,14 +107,14 @@ describe(commands.AUDITLOG_LIST, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
     if (!auth.service.accessTokens[auth.defaultResource]) {
@@ -139,21 +138,21 @@ describe(commands.AUDITLOG_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
-    sinon.stub(accessToken, 'getTenantIdFromAccessToken').returns(tenantId);
+    jest.spyOn(accessToken, 'getTenantIdFromAccessToken').mockClear().mockReturnValue(tenantId);
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post,
       accessToken.getTenantIdFromAccessToken
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -180,13 +179,15 @@ describe(commands.AUDITLOG_LIST, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if startTime is more than 7 days in the past', async () => {
-    const startTime = new Date();
-    startTime.setDate(startTime.getDate() - 7);
-    startTime.setHours(startTime.getHours() - 2);
-    const actual = await command.validate({ options: { contentType: contentType, startTime: startTime.toISOString() } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if startTime is more than 7 days in the past',
+    async () => {
+      const startTime = new Date();
+      startTime.setDate(startTime.getDate() - 7);
+      startTime.setHours(startTime.getHours() - 2);
+      const actual = await command.validate({ options: { contentType: contentType, startTime: startTime.toISOString() } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if endTime is in the future', async () => {
     const endTime = new Date();
@@ -214,7 +215,7 @@ describe(commands.AUDITLOG_LIST, () => {
   });
 
   it('handles error when unable to start new subscription', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://manage.office.com/api/v1.0/${tenantId}/activity/feed/subscriptions/list`) {
         return [];
       }
@@ -222,7 +223,7 @@ describe(commands.AUDITLOG_LIST, () => {
       throw 'Invalid request: ' + opts.url;
     });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://manage.office.com/api/v1.0/${tenantId}/activity/feed/subscriptions/start?contentType=DLP.All`) {
         return {
           contentType: contentTypeValue,
@@ -241,7 +242,7 @@ describe(commands.AUDITLOG_LIST, () => {
   });
 
   it('starts subscription if there was no subscription active', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://manage.office.com/api/v1.0/${tenantId}/activity/feed/subscriptions/list`) {
         return [];
       }
@@ -253,7 +254,7 @@ describe(commands.AUDITLOG_LIST, () => {
       throw 'Invalid request: ' + opts.url;
     });
 
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://manage.office.com/api/v1.0/${tenantId}/activity/feed/subscriptions/start?contentType=${contentTypeValue}`) {
         return listSubscriptionsResponse[0];
       }
@@ -281,7 +282,7 @@ describe(commands.AUDITLOG_LIST, () => {
       `https://manage.office.com/api/v1.0/${tenantId}/activity/feed/audit/20230110033216408077102$20230110033218101079570`
     ];
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://manage.office.com/api/v1.0/${tenantId}/activity/feed/subscriptions/list`) {
         return [
           {

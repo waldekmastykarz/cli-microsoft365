@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Logger } from '../../../../cli/Logger.js';
 import { CommandError } from '../../../../Command.js';
@@ -7,7 +6,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import flowCommands from '../../../flow/commands.js';
 import commands from '../../commands.js';
 import command from './connector-list.js';
@@ -15,14 +14,14 @@ import command from './connector-list.js';
 describe(commands.CONNECTOR_LIST, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
+  let loggerLogToStderrSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
   });
 
@@ -39,18 +38,18 @@ describe(commands.CONNECTOR_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -77,7 +76,7 @@ describe(commands.CONNECTOR_LIST, () => {
   });
 
   it('retrieves custom connectors (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`providers/Microsoft.PowerApps/apis?api-version=2016-11-01&$filter=environment%20eq%20%27Default-0d645e38-ec52-4a4f-ac58-65f2ac4015f6%27%20and%20IsCustomApi%20eq%20%27True%27`) > -1) {
         if (opts.headers &&
           opts.headers.accept &&
@@ -95,7 +94,7 @@ describe(commands.CONNECTOR_LIST, () => {
   });
 
   it('retrieves custom connectors', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`providers/Microsoft.PowerApps/apis?api-version=2016-11-01&$filter=environment%20eq%20%27Default-0d645e38-ec52-4a4f-ac58-65f2ac4015f6%27%20and%20IsCustomApi%20eq%20%27True%27`) > -1) {
         if (opts.headers &&
           opts.headers.accept &&
@@ -113,7 +112,7 @@ describe(commands.CONNECTOR_LIST, () => {
   });
 
   it('retrieves custom connectors in pages', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('skiptoken') === -1) {
         if (opts.headers &&
           opts.headers.accept &&
@@ -144,7 +143,7 @@ describe(commands.CONNECTOR_LIST, () => {
   });
 
   it('correctly handles no environment found', async () => {
-    sinon.stub(request, 'get').rejects({
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects({
       "error": {
         "code": "EnvironmentAccessDenied",
         "message": "The environment 'Default-d87a7535-dd31-4437-bfe1-95340acd55c6' could not be found in the tenant '0d645e38-ec52-4a4f-ac58-65f2ac4015f6'."
@@ -156,21 +155,21 @@ describe(commands.CONNECTOR_LIST, () => {
   });
 
   it('correctly handles no custom connectors found', async () => {
-    sinon.stub(request, 'get').resolves({ value: [] });
+    jest.spyOn(request, 'get').mockClear().mockImplementation().resolves({ value: [] });
 
     await command.action(logger, { options: { environmentName: 'Default-d87a7535-dd31-4437-bfe1-95340acd55c6' } });
     assert(loggerLogSpy.notCalled);
   });
 
   it('correctly handles no custom connectors found (debug)', async () => {
-    sinon.stub(request, 'get').resolves({ value: [] });
+    jest.spyOn(request, 'get').mockClear().mockImplementation().resolves({ value: [] });
 
     await command.action(logger, { options: { debug: true, environmentName: 'Default-d87a7535-dd31-4437-bfe1-95340acd55c6' } });
     assert(loggerLogToStderrSpy.calledWith('No custom connectors found'));
   });
 
   it('correctly handles API OData error', async () => {
-    sinon.stub(request, 'get').rejects({
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects({
       error: {
         'odata.error': {
           code: '-1, InvalidOperationException',
@@ -185,39 +184,41 @@ describe(commands.CONNECTOR_LIST, () => {
       new CommandError('An error has occurred'));
   });
 
-  it('correctly handles error when retrieving the second page of data', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('skiptoken') === -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return {
-            "nextLink": "https://management.azure.com/providers/Microsoft.PowerApps/apis?api-version=2016-11-01&$filter=environment%20eq%20%27Default-0d645e38-ec52-4a4f-ac58-65f2ac4015f6%27%20and%20IsCustomApi%20eq%20%27True%27&%24skiptoken=eyJuZXh0TWFya2VyIjoiMjAxOTAyMDRUMTg1NDU2Wi02YTA5NGQwMi02NDFhLTQ4OTEtYjRkZi00NDA1OTRmMjZjODUifQ%3d%3d",
-            "value": [
-              { "name": "shared_my-20connector-202-5f0027f520b23e81c1-5f9888a90360086012", "id": "/providers/Microsoft.PowerApps/apis/shared_my-20connector-202-5f0027f520b23e81c1-5f9888a90360086012", "type": "Microsoft.PowerApps/apis", "properties": { "displayName": "My connector 2", "iconUri": "https://az787822.vo.msecnd.net/defaulticons/api-dedicated.png", "iconBrandColor": "#007ee5", "contact": {}, "license": {}, "apiEnvironment": "Shared", "isCustomApi": true, "connectionParameters": {}, "runtimeUrls": ["https://europe-002.azure-apim.net/apim/my-20connector-202-5f0027f520b23e81c1-5f9888a90360086012"], "primaryRuntimeUrl": "https://europe-002.azure-apim.net/apim/my-20connector-202-5f0027f520b23e81c1-5f9888a90360086012", "metadata": { "source": "powerapps-user-defined", "brandColor": "#007ee5", "contact": {}, "license": {}, "publisherUrl": null, "serviceUrl": null, "documentationUrl": null, "environmentName": "Default-0d645e38-ec52-4a4f-ac58-65f2ac4015f6", "xrmConnectorId": null, "almMode": "Environment", "createdBy": "{\"id\":\"03043611-d01e-4e58-9fbe-1a18ecb861d8\",\"displayName\":\"MOD Administrator\",\"email\":\"admin@contoso.OnMicrosoft.com\",\"type\":\"User\",\"tenantId\":\"0d645e38-ec52-4a4f-ac58-65f2ac4015f6\",\"userPrincipalName\":\"admin@contoso.onmicrosoft.com\"}", "modifiedBy": "{\"id\":\"03043611-d01e-4e58-9fbe-1a18ecb861d8\",\"displayName\":\"MOD Administrator\",\"email\":\"admin@contoso.OnMicrosoft.com\",\"type\":\"User\",\"tenantId\":\"0d645e38-ec52-4a4f-ac58-65f2ac4015f6\",\"userPrincipalName\":\"admin@contoso.onmicrosoft.com\"}", "allowSharing": false }, "capabilities": [], "description": "", "apiDefinitions": { "originalSwaggerUrl": "https://paeu2weu8.blob.core.windows.net/api-swagger-files/my-20connector-202-5f0027f520b23e81c1-5f9888a90360086012.json_original?sv=2018-03-28&sr=b&sig=rwJTmpMb4jb88Fzd9hoz8UbX0ZNbNiz5Cy5yfqTxcjU%3D&se=2019-12-05T19%3A53%3A49Z&sp=r", "modifiedSwaggerUrl": "https://paeu2weu8.blob.core.windows.net/api-swagger-files/my-20connector-202-5f0027f520b23e81c1-5f9888a90360086012.json?sv=2018-03-28&sr=b&sig=eCW8GUjWHkcB8CFFQ%2FSZAGNBCZeAqj4H9ngRbA%2Fa4CI%3D&se=2019-12-05T19%3A53%3A49Z&sp=r" }, "createdBy": { "id": "03043611-d01e-4e58-9fbe-1a18ecb861d8", "displayName": "MOD Administrator", "email": "admin@contoso.OnMicrosoft.com", "type": "User", "tenantId": "0d645e38-ec52-4a4f-ac58-65f2ac4015f6", "userPrincipalName": "admin@contoso.onmicrosoft.com" }, "modifiedBy": { "id": "03043611-d01e-4e58-9fbe-1a18ecb861d8", "displayName": "MOD Administrator", "email": "admin@contoso.OnMicrosoft.com", "type": "User", "tenantId": "0d645e38-ec52-4a4f-ac58-65f2ac4015f6", "userPrincipalName": "admin@contoso.onmicrosoft.com" }, "createdTime": "2019-12-05T18:51:54.3261899Z", "changedTime": "2019-12-05T18:51:54.3261899Z", "environment": { "id": "/providers/Microsoft.PowerApps/environments/Default-0d645e38-ec52-4a4f-ac58-65f2ac4015f6", "name": "Default-0d645e38-ec52-4a4f-ac58-65f2ac4015f6" }, "tier": "Standard", "publisher": "MOD Administrator", "almMode": "Environment" } }
-            ]
-          };
+  it('correctly handles error when retrieving the second page of data',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('skiptoken') === -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return {
+              "nextLink": "https://management.azure.com/providers/Microsoft.PowerApps/apis?api-version=2016-11-01&$filter=environment%20eq%20%27Default-0d645e38-ec52-4a4f-ac58-65f2ac4015f6%27%20and%20IsCustomApi%20eq%20%27True%27&%24skiptoken=eyJuZXh0TWFya2VyIjoiMjAxOTAyMDRUMTg1NDU2Wi02YTA5NGQwMi02NDFhLTQ4OTEtYjRkZi00NDA1OTRmMjZjODUifQ%3d%3d",
+              "value": [
+                { "name": "shared_my-20connector-202-5f0027f520b23e81c1-5f9888a90360086012", "id": "/providers/Microsoft.PowerApps/apis/shared_my-20connector-202-5f0027f520b23e81c1-5f9888a90360086012", "type": "Microsoft.PowerApps/apis", "properties": { "displayName": "My connector 2", "iconUri": "https://az787822.vo.msecnd.net/defaulticons/api-dedicated.png", "iconBrandColor": "#007ee5", "contact": {}, "license": {}, "apiEnvironment": "Shared", "isCustomApi": true, "connectionParameters": {}, "runtimeUrls": ["https://europe-002.azure-apim.net/apim/my-20connector-202-5f0027f520b23e81c1-5f9888a90360086012"], "primaryRuntimeUrl": "https://europe-002.azure-apim.net/apim/my-20connector-202-5f0027f520b23e81c1-5f9888a90360086012", "metadata": { "source": "powerapps-user-defined", "brandColor": "#007ee5", "contact": {}, "license": {}, "publisherUrl": null, "serviceUrl": null, "documentationUrl": null, "environmentName": "Default-0d645e38-ec52-4a4f-ac58-65f2ac4015f6", "xrmConnectorId": null, "almMode": "Environment", "createdBy": "{\"id\":\"03043611-d01e-4e58-9fbe-1a18ecb861d8\",\"displayName\":\"MOD Administrator\",\"email\":\"admin@contoso.OnMicrosoft.com\",\"type\":\"User\",\"tenantId\":\"0d645e38-ec52-4a4f-ac58-65f2ac4015f6\",\"userPrincipalName\":\"admin@contoso.onmicrosoft.com\"}", "modifiedBy": "{\"id\":\"03043611-d01e-4e58-9fbe-1a18ecb861d8\",\"displayName\":\"MOD Administrator\",\"email\":\"admin@contoso.OnMicrosoft.com\",\"type\":\"User\",\"tenantId\":\"0d645e38-ec52-4a4f-ac58-65f2ac4015f6\",\"userPrincipalName\":\"admin@contoso.onmicrosoft.com\"}", "allowSharing": false }, "capabilities": [], "description": "", "apiDefinitions": { "originalSwaggerUrl": "https://paeu2weu8.blob.core.windows.net/api-swagger-files/my-20connector-202-5f0027f520b23e81c1-5f9888a90360086012.json_original?sv=2018-03-28&sr=b&sig=rwJTmpMb4jb88Fzd9hoz8UbX0ZNbNiz5Cy5yfqTxcjU%3D&se=2019-12-05T19%3A53%3A49Z&sp=r", "modifiedSwaggerUrl": "https://paeu2weu8.blob.core.windows.net/api-swagger-files/my-20connector-202-5f0027f520b23e81c1-5f9888a90360086012.json?sv=2018-03-28&sr=b&sig=eCW8GUjWHkcB8CFFQ%2FSZAGNBCZeAqj4H9ngRbA%2Fa4CI%3D&se=2019-12-05T19%3A53%3A49Z&sp=r" }, "createdBy": { "id": "03043611-d01e-4e58-9fbe-1a18ecb861d8", "displayName": "MOD Administrator", "email": "admin@contoso.OnMicrosoft.com", "type": "User", "tenantId": "0d645e38-ec52-4a4f-ac58-65f2ac4015f6", "userPrincipalName": "admin@contoso.onmicrosoft.com" }, "modifiedBy": { "id": "03043611-d01e-4e58-9fbe-1a18ecb861d8", "displayName": "MOD Administrator", "email": "admin@contoso.OnMicrosoft.com", "type": "User", "tenantId": "0d645e38-ec52-4a4f-ac58-65f2ac4015f6", "userPrincipalName": "admin@contoso.onmicrosoft.com" }, "createdTime": "2019-12-05T18:51:54.3261899Z", "changedTime": "2019-12-05T18:51:54.3261899Z", "environment": { "id": "/providers/Microsoft.PowerApps/environments/Default-0d645e38-ec52-4a4f-ac58-65f2ac4015f6", "name": "Default-0d645e38-ec52-4a4f-ac58-65f2ac4015f6" }, "tier": "Standard", "publisher": "MOD Administrator", "almMode": "Environment" } }
+              ]
+            };
+          }
         }
-      }
-      else {
-        throw {
-          error: {
-            'odata.error': {
-              code: '-1, InvalidOperationException',
-              message: {
-                value: 'An error has occurred'
+        else {
+          throw {
+            error: {
+              'odata.error': {
+                code: '-1, InvalidOperationException',
+                message: {
+                  value: 'An error has occurred'
+                }
               }
             }
-          }
-        };
-      }
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, { options: { environmentName: 'Default-d87a7535-dd31-4437-bfe1-95340acd55c5' } } as any),
-      new CommandError('An error has occurred'));
-  });
+      await assert.rejects(command.action(logger, { options: { environmentName: 'Default-d87a7535-dd31-4437-bfe1-95340acd55c5' } } as any),
+        new CommandError('An error has occurred'));
+    }
+  );
 
   it('supports specifying environment name', () => {
     const options = command.options;

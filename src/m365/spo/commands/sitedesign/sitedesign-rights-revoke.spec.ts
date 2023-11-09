@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './sitedesign-rights-revoke.js';
@@ -17,16 +16,16 @@ import command from './sitedesign-rights-revoke.js';
 describe(commands.SITEDESIGN_RIGHTS_REVOKE, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
   let promptOptions: any;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'ABC',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -50,23 +49,23 @@ describe(commands.SITEDESIGN_RIGHTS_REVOKE, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     promptOptions = undefined;
-    sinon.stub(Cli, 'prompt').callsFake(async (options) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options) => {
       promptOptions = options;
       return { continue: false };
     });
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
   });
@@ -79,103 +78,115 @@ describe(commands.SITEDESIGN_RIGHTS_REVOKE, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('revokes access to the specified site design from the specified principal without prompting for confirmation when confirm option specified', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.RevokeSiteDesignRights`) > -1 &&
-        JSON.stringify(opts.data) === JSON.stringify({
-          id: '0f27a016-d277-4bb4-b3c3-b5b040c9559b',
-          principalNames: ['PattiF']
-        })) {
-        return {
-          "odata.null": true
-        };
-      }
+  it('revokes access to the specified site design from the specified principal without prompting for confirmation when confirm option specified',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.RevokeSiteDesignRights`) > -1 &&
+          JSON.stringify(opts.data) === JSON.stringify({
+            id: '0f27a016-d277-4bb4-b3c3-b5b040c9559b',
+            principalNames: ['PattiF']
+          })) {
+          return {
+            "odata.null": true
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { force: true, siteDesignId: '0f27a016-d277-4bb4-b3c3-b5b040c9559b', principals: 'PattiF' } });
-    assert(loggerLogSpy.notCalled);
-  });
-
-  it('revokes access to the specified site design from the specified principals', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.RevokeSiteDesignRights`) > -1 &&
-        JSON.stringify(opts.data) === JSON.stringify({
-          id: '0f27a016-d277-4bb4-b3c3-b5b040c9559b',
-          principalNames: ['PattiF', 'AdeleV']
-        })) {
-        return {
-          "odata.null": true
-        };
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger, { options: { force: true, siteDesignId: '0f27a016-d277-4bb4-b3c3-b5b040c9559b', principals: 'PattiF,AdeleV' } });
-    assert(loggerLogSpy.notCalled);
-  });
-
-  it('revokes access to the specified site design from the principals specified via email', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.RevokeSiteDesignRights`) > -1 &&
-        JSON.stringify(opts.data) === JSON.stringify({
-          id: '0f27a016-d277-4bb4-b3c3-b5b040c9559b',
-          principalNames: ['PattiF@contoso.com', 'AdeleV@contoso.com']
-        })) {
-        return {
-          "odata.null": true
-        };
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger, { options: { force: true, siteDesignId: '0f27a016-d277-4bb4-b3c3-b5b040c9559b', principals: 'PattiF@contoso.com,AdeleV@contoso.com' } });
-    assert(loggerLogSpy.notCalled);
-  });
-
-  it('revokes access to the specified site design from the specified principals separated with an extra space', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.RevokeSiteDesignRights`) > -1 &&
-        JSON.stringify(opts.data) === JSON.stringify({
-          id: '0f27a016-d277-4bb4-b3c3-b5b040c9559b',
-          principalNames: ['PattiF@contoso.com', 'AdeleV@contoso.com']
-        })) {
-        return {
-          "odata.null": true
-        };
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger, { options: { force: true, siteDesignId: '0f27a016-d277-4bb4-b3c3-b5b040c9559b', principals: 'PattiF@contoso.com, AdeleV@contoso.com' } });
-    assert(loggerLogSpy.notCalled);
-  });
-
-  it('prompts before revoking access to the specified site design when confirm option not passed', async () => {
-    await command.action(logger, { options: { siteDesignId: 'b2307a39-e878-458b-bc90-03bc578531d6', principals: 'PattiF' } });
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      await command.action(logger, { options: { force: true, siteDesignId: '0f27a016-d277-4bb4-b3c3-b5b040c9559b', principals: 'PattiF' } });
+      assert(loggerLogSpy.notCalled);
     }
+  );
 
-    assert(promptIssued);
-  });
+  it('revokes access to the specified site design from the specified principals',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.RevokeSiteDesignRights`) > -1 &&
+          JSON.stringify(opts.data) === JSON.stringify({
+            id: '0f27a016-d277-4bb4-b3c3-b5b040c9559b',
+            principalNames: ['PattiF', 'AdeleV']
+          })) {
+          return {
+            "odata.null": true
+          };
+        }
 
-  it('aborts revoking access to the site design when prompt not confirmed', async () => {
-    const postSpy = sinon.spy(request, 'post');
-    await command.action(logger, { options: { siteDesignId: 'b2307a39-e878-458b-bc90-03bc578531d6', principals: 'PattiF' } });
-    assert(postSpy.notCalled);
-  });
+        throw 'Invalid request';
+      });
+
+      await command.action(logger, { options: { force: true, siteDesignId: '0f27a016-d277-4bb4-b3c3-b5b040c9559b', principals: 'PattiF,AdeleV' } });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
+
+  it('revokes access to the specified site design from the principals specified via email',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.RevokeSiteDesignRights`) > -1 &&
+          JSON.stringify(opts.data) === JSON.stringify({
+            id: '0f27a016-d277-4bb4-b3c3-b5b040c9559b',
+            principalNames: ['PattiF@contoso.com', 'AdeleV@contoso.com']
+          })) {
+          return {
+            "odata.null": true
+          };
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger, { options: { force: true, siteDesignId: '0f27a016-d277-4bb4-b3c3-b5b040c9559b', principals: 'PattiF@contoso.com,AdeleV@contoso.com' } });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
+
+  it('revokes access to the specified site design from the specified principals separated with an extra space',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.RevokeSiteDesignRights`) > -1 &&
+          JSON.stringify(opts.data) === JSON.stringify({
+            id: '0f27a016-d277-4bb4-b3c3-b5b040c9559b',
+            principalNames: ['PattiF@contoso.com', 'AdeleV@contoso.com']
+          })) {
+          return {
+            "odata.null": true
+          };
+        }
+
+        throw 'Invalid request';
+      });
+
+      await command.action(logger, { options: { force: true, siteDesignId: '0f27a016-d277-4bb4-b3c3-b5b040c9559b', principals: 'PattiF@contoso.com, AdeleV@contoso.com' } });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
+
+  it('prompts before revoking access to the specified site design when confirm option not passed',
+    async () => {
+      await command.action(logger, { options: { siteDesignId: 'b2307a39-e878-458b-bc90-03bc578531d6', principals: 'PattiF' } });
+      let promptIssued = false;
+
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+
+      assert(promptIssued);
+    }
+  );
+
+  it('aborts revoking access to the site design when prompt not confirmed',
+    async () => {
+      const postSpy = jest.spyOn(request, 'post').mockClear();
+      await command.action(logger, { options: { siteDesignId: 'b2307a39-e878-458b-bc90-03bc578531d6', principals: 'PattiF' } });
+      assert(postSpy.notCalled);
+    }
+  );
 
   it('revokes site design access when prompt confirmed', async () => {
-    const postStub = sinon.stub(request, 'post').resolves();
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation().resolves();
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: true }
     ));
 
@@ -184,7 +195,7 @@ describe(commands.SITEDESIGN_RIGHTS_REVOKE, () => {
   });
 
   it('correctly handles error when site script not found', async () => {
-    sinon.stub(request, 'post').rejects(new Error('File Not Found.'));
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects(new Error('File Not Found.'));
 
     await assert.rejects(command.action(logger, { options: { force: true, siteDesignId: '0f27a016-d277-4bb4-b3c3-b5b040c9559b', principals: 'PattiF' } } as any), new CommandError('File Not Found.'));
   });
@@ -227,8 +238,10 @@ describe(commands.SITEDESIGN_RIGHTS_REVOKE, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('passes validation when the all required parameters are specified', async () => {
-    const actual = await command.validate({ options: { siteDesignId: '2c1ba4c4-cd9b-4417-832f-92a34bc34b2a', principals: 'PattiF' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when the all required parameters are specified',
+    async () => {
+      const actual = await command.validate({ options: { siteDesignId: '2c1ba4c4-cd9b-4417-832f-92a34bc34b2a', principals: 'PattiF' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

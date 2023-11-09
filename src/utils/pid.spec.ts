@@ -2,21 +2,20 @@ import assert from 'assert';
 import child_process from 'child_process';
 import fs from 'fs';
 import os from 'os';
-import sinon from 'sinon';
 import { cache } from './cache.js';
 import { pid } from './pid.js';
-import { sinonUtil } from './sinonUtil.js';
+import { jestUtil } from './jestUtil.js';
 
 describe('utils/pid', () => {
-  let cacheSetValueStub: sinon.SinonStub;
+  let cacheSetValueStub: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(cache, 'getValue').returns(undefined);
-    cacheSetValueStub = sinon.stub(cache, 'setValue').returns(undefined);
+  beforeAll(() => {
+    jest.spyOn(cache, 'getValue').mockClear().mockReturnValue(undefined);
+    cacheSetValueStub = jest.spyOn(cache, 'setValue').mockClear().mockReturnValue(undefined);
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       os.platform,
       child_process.spawnSync,
       fs.existsSync,
@@ -24,62 +23,64 @@ describe('utils/pid', () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
   });
 
   it('retrieves process name on Windows', () => {
-    sinon.stub(os, 'platform').returns('win32');
-    sinon.stub(child_process, 'spawnSync').returns({ stdout: 'pwsh' } as any);
+    jest.spyOn(os, 'platform').mockClear().mockReturnValue('win32');
+    jest.spyOn(child_process, 'spawnSync').mockClear().mockReturnValue({ stdout: 'pwsh' } as any);
 
     assert.strictEqual(pid.getProcessName(123), 'pwsh');
   });
 
   it('retrieves process name on macOS', () => {
-    sinon.stub(os, 'platform').returns('darwin');
-    sinon.stub(child_process, 'spawnSync').returns({ stdout: '/bin/bash' } as any);
+    jest.spyOn(os, 'platform').mockClear().mockReturnValue('darwin');
+    jest.spyOn(child_process, 'spawnSync').mockClear().mockReturnValue({ stdout: '/bin/bash' } as any);
 
     assert.strictEqual(pid.getProcessName(123), '/bin/bash');
   });
 
-  it('retrieves undefined on macOS when retrieving the process name failed', () => {
-    sinon.stub(os, 'platform').returns('darwin');
-    sinon.stub(child_process, 'spawnSync').returns({ error: 'An error has occurred' } as any);
+  it('retrieves undefined on macOS when retrieving the process name failed',
+    () => {
+      jest.spyOn(os, 'platform').mockClear().mockReturnValue('darwin');
+      jest.spyOn(child_process, 'spawnSync').mockClear().mockReturnValue({ error: 'An error has occurred' } as any);
 
-    assert.strictEqual(pid.getProcessName(123), undefined);
-  });
+      assert.strictEqual(pid.getProcessName(123), undefined);
+    }
+  );
 
   it('retrieves process name on Linux', () => {
-    sinon.stub(os, 'platform').returns('linux');
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'readFileSync').returns('(pwsh)');
+    jest.spyOn(os, 'platform').mockClear().mockReturnValue('linux');
+    jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+    jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('(pwsh)');
 
     assert.strictEqual(pid.getProcessName(123), 'pwsh');
   });
 
   it(`returns undefined on Linux if the process is not found`, () => {
-    sinon.stub(os, 'platform').returns('linux');
-    sinon.stub(fs, 'existsSync').returns(false);
+    jest.spyOn(os, 'platform').mockClear().mockReturnValue('linux');
+    jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(false);
 
     assert.strictEqual(pid.getProcessName(123), undefined);
   });
 
   it('returns undefined name on other platforms', () => {
-    sinon.stub(os, 'platform').returns('android');
+    jest.spyOn(os, 'platform').mockClear().mockReturnValue('android');
 
     assert.strictEqual(pid.getProcessName(123), undefined);
   });
 
   it('returns undefined when retrieving process name on Windows fails', () => {
-    sinon.stub(os, 'platform').returns('win32');
-    sinon.stub(child_process, 'spawnSync').returns({ error: 'An error has occurred' } as any);
+    jest.spyOn(os, 'platform').mockClear().mockReturnValue('win32');
+    jest.spyOn(child_process, 'spawnSync').mockClear().mockReturnValue({ error: 'An error has occurred' } as any);
 
     assert.strictEqual(pid.getProcessName(123), undefined);
   });
 
   it('returns undefined when extracting process name on Windows', () => {
-    sinon.stub(os, 'platform').returns('win32');
-    sinon.stub(child_process, 'spawnSync').callsFake(command => {
+    jest.spyOn(os, 'platform').mockClear().mockReturnValue('win32');
+    jest.spyOn(child_process, 'spawnSync').mockClear().mockImplementation(command => {
       if (command === 'wmic') {
         return {
           stdout: 'Caption\
@@ -97,20 +98,20 @@ pwsh.exe\
   });
 
   it('stores retrieved process name in cache', () => {
-    sinon.stub(os, 'platform').returns('win32');
-    sinon.stub(child_process, 'spawnSync').returns({ stdout: 'pwsh' } as any);
+    jest.spyOn(os, 'platform').mockClear().mockReturnValue('win32');
+    jest.spyOn(child_process, 'spawnSync').mockClear().mockReturnValue({ stdout: 'pwsh' } as any);
 
     pid.getProcessName(123);
 
-    assert(cacheSetValueStub.called);
+    expect(cacheSetValueStub).toHaveBeenCalled();
   });
 
   it('retrieves process name from cache when available', () => {
-    sinonUtil.restore(cache.getValue);
-    sinon.stub(cache, 'getValue').returns('pwsh');
-    const osPlatformSpy = sinon.spy(os, 'platform');
+    jestUtil.restore(cache.getValue);
+    jest.spyOn(cache, 'getValue').mockClear().mockReturnValue('pwsh');
+    const osPlatformSpy = jest.spyOn(os, 'platform').mockClear();
 
     assert.strictEqual(pid.getProcessName(123), 'pwsh');
-    assert(osPlatformSpy.notCalled);
+    expect(osPlatformSpy).not.toHaveBeenCalled();
   });
 });

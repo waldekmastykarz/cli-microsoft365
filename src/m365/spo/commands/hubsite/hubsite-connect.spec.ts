@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request, { CliRequestOptions } from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './hubsite-connect.js';
@@ -46,19 +45,19 @@ describe(commands.HUBSITE_CONNECT, () => {
   let log: string[];
   let logger: Logger;
   let commandInfo: CommandInfo;
-  let patchStub: sinon.SinonStub<[options: CliRequestOptions]>;
+  let patchStub: jest.Mock<[options: CliRequestOptions]>;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
 
-    sinon.stub(spo, 'getSpoAdminUrl').resolves(spoAdminUrl);
-    patchStub = sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(spo, 'getSpoAdminUrl').mockClear().mockImplementation().resolves(spoAdminUrl);
+    patchStub = jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${spoAdminUrl}/_api/HubSites/GetById('${id}')`) {
         return;
       }
@@ -83,15 +82,15 @@ describe(commands.HUBSITE_CONNECT, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       cli.getSettingWithDefaultValue,
       Cli.handleMultipleResultsFound
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -118,10 +117,12 @@ describe(commands.HUBSITE_CONNECT, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if parentUrl is not a valid SharePoint URL', async () => {
-    const actual = await command.validate({ options: { title: title, parentUrl: 'Invalid' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if parentUrl is not a valid SharePoint URL',
+    async () => {
+      const actual = await command.validate({ options: { title: title, parentUrl: 'Invalid' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation if valid id and parentId are specified', async () => {
     const actual = await command.validate({ options: { id: id, parentId: parentId } }, commandInfo);
@@ -139,7 +140,7 @@ describe(commands.HUBSITE_CONNECT, () => {
   });
 
   it('correctly connects hub site to parent hub site by id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       const baseUrl = opts.url?.split('?')[0];
       if (baseUrl === `${spoAdminUrl}/_api/HubSites`) {
         if ((opts.headers?.accept as string)?.indexOf('application/json;odata=minimalmetadata') !== -1) {
@@ -157,12 +158,12 @@ describe(commands.HUBSITE_CONNECT, () => {
         parentId: parentId
       }
     });
-    assert.deepStrictEqual(patchStub.lastCall.args[0].data, { ParentHubSiteId: parentId });
-    assert.deepStrictEqual(patchStub.lastCall.args[0].headers!['if-match'], etagValue);
+    assert.deepStrictEqual(patchStub.mock.lastCall[0].data, { ParentHubSiteId: parentId });
+    assert.deepStrictEqual(patchStub.mock.lastCall[0].headers!['if-match'], etagValue);
   });
 
   it('correctly connects hub site to parent hub site by title', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       const baseUrl = opts.url?.split('?')[0];
       if (baseUrl === `${spoAdminUrl}/_api/HubSites`) {
         if ((opts.headers?.accept as string)?.indexOf('application/json;odata=minimalmetadata') !== -1) {
@@ -180,12 +181,12 @@ describe(commands.HUBSITE_CONNECT, () => {
         parentTitle: parentTitle
       }
     });
-    assert.deepStrictEqual(patchStub.lastCall.args[0].data, { ParentHubSiteId: parentId });
-    assert.deepStrictEqual(patchStub.lastCall.args[0].headers!['if-match'], etagValue);
+    assert.deepStrictEqual(patchStub.mock.lastCall[0].data, { ParentHubSiteId: parentId });
+    assert.deepStrictEqual(patchStub.mock.lastCall[0].headers!['if-match'], etagValue);
   });
 
   it('correctly connects hub site to parent hub site by url', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       const baseUrl = opts.url?.split('?')[0];
       if (baseUrl === `${spoAdminUrl}/_api/HubSites`) {
         if ((opts.headers?.accept as string)?.indexOf('application/json;odata=minimalmetadata') !== -1) {
@@ -203,12 +204,12 @@ describe(commands.HUBSITE_CONNECT, () => {
         parentUrl: parentUrl
       }
     });
-    assert.deepStrictEqual(patchStub.lastCall.args[0].data, { ParentHubSiteId: parentId });
-    assert.deepStrictEqual(patchStub.lastCall.args[0].headers!['if-match'], etagValue);
+    assert.deepStrictEqual(patchStub.mock.lastCall[0].data, { ParentHubSiteId: parentId });
+    assert.deepStrictEqual(patchStub.mock.lastCall[0].headers!['if-match'], etagValue);
   });
 
   it('throws error when hub site with ID was not found', async () => {
-    sinon.stub(request, 'get').resolves({ value: [] });
+    jest.spyOn(request, 'get').mockClear().mockImplementation().resolves({ value: [] });
 
     await assert.rejects(command.action(logger, {
       options: {
@@ -219,7 +220,7 @@ describe(commands.HUBSITE_CONNECT, () => {
   });
 
   it('throws error when hub site with title was not found', async () => {
-    sinon.stub(request, 'get').resolves({ value: [] });
+    jest.spyOn(request, 'get').mockClear().mockImplementation().resolves({ value: [] });
 
     await assert.rejects(command.action(logger, {
       options: {
@@ -230,7 +231,7 @@ describe(commands.HUBSITE_CONNECT, () => {
   });
 
   it('throws error when hub site with url was not found', async () => {
-    sinon.stub(request, 'get').resolves({ value: [] });
+    jest.spyOn(request, 'get').mockClear().mockImplementation().resolves({ value: [] });
 
     await assert.rejects(command.action(logger, {
       options: {
@@ -240,85 +241,89 @@ describe(commands.HUBSITE_CONNECT, () => {
     }), new CommandError(`The specified hub site '${url}' does not exist.`));
   });
 
-  it('throws error when multiple hub sites with the same name were found', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
-
-      return defaultValue;
-    });
-
-    sinon.stub(request, 'get').resolves({
-      value: [
-        {
-          Title: title,
-          ID: id
-        },
-        {
-          Title: title,
-          ID: parentId
+  it('throws error when multiple hub sites with the same name were found',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
         }
-      ]
-    });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        title: title,
-        parentUrl: parentUrl
-      }
-    }), new CommandError("Multiple hub sites with name 'Hub Site' found. Found: 55b979e7-36b6-4968-b3af-6ae221a3483f, f7510a39-8423-43fd-aed8-e3b11d043e0f."));
-  });
+        return defaultValue;
+      });
 
-  it('handles selecting single result when multiple hubsites with the specified name found and cli is set to prompt', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      const baseUrl = opts.url?.split('?')[0];
-      if (baseUrl === `${spoAdminUrl}/_api/HubSites`) {
-        if ((opts.headers?.accept as string)?.indexOf('application/json;odata=minimalmetadata') !== -1) {
-          return {
-            value: [
-              {
-                Title: title,
-                ID: id
-              },
-              {
-                Title: title,
-                ID: parentId
-              },
-              {
-                Title: parentTitle,
-                ID: id
-              },
-              {
-                Title: parentTitle,
-                ID: parentId
-              }
-            ]
-          };
+      jest.spyOn(request, 'get').mockClear().mockImplementation().resolves({
+        value: [
+          {
+            Title: title,
+            ID: id
+          },
+          {
+            Title: title,
+            ID: parentId
+          }
+        ]
+      });
+
+      await assert.rejects(command.action(logger, {
+        options: {
+          title: title,
+          parentUrl: parentUrl
         }
-      }
+      }), new CommandError("Multiple hub sites with name 'Hub Site' found. Found: 55b979e7-36b6-4968-b3af-6ae221a3483f, f7510a39-8423-43fd-aed8-e3b11d043e0f."));
+    }
+  );
 
-      throw 'Invalid request URL: ' + opts.url;
-    });
+  it('handles selecting single result when multiple hubsites with the specified name found and cli is set to prompt',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        const baseUrl = opts.url?.split('?')[0];
+        if (baseUrl === `${spoAdminUrl}/_api/HubSites`) {
+          if ((opts.headers?.accept as string)?.indexOf('application/json;odata=minimalmetadata') !== -1) {
+            return {
+              value: [
+                {
+                  Title: title,
+                  ID: id
+                },
+                {
+                  Title: title,
+                  ID: parentId
+                },
+                {
+                  Title: parentTitle,
+                  ID: id
+                },
+                {
+                  Title: parentTitle,
+                  ID: parentId
+                }
+              ]
+            };
+          }
+        }
 
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves({
-      Title: title,
-      ID: id,
-      'odata.etag': etagValue
-    });
+        throw 'Invalid request URL: ' + opts.url;
+      });
 
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        title: title,
-        parentTitle: parentTitle
-      }
-    });
-    assert.deepStrictEqual(patchStub.lastCall.args[0].headers!['if-match'], etagValue);
-  });
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves({
+        Title: title,
+        ID: id,
+        'odata.etag': etagValue
+      });
+
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          title: title,
+          parentTitle: parentTitle
+        }
+      });
+      assert.deepStrictEqual(patchStub.mock.lastCall[0].headers!['if-match'], etagValue);
+    }
+  );
 
   it('correctly handles random error', async () => {
-    sinon.stub(request, 'get').rejects({
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects({
       error: {
         'odata.error': {
           message: {

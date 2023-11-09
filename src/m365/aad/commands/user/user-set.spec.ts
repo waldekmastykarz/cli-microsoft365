@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -11,7 +10,7 @@ import { accessToken } from '../../../../utils/accessToken.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './user-set.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -36,15 +35,15 @@ describe(commands.USER_SET, () => {
   let cli: Cli;
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     if (!auth.service.accessTokens[auth.defaultResource]) {
       auth.service.accessTokens[auth.defaultResource] = {
@@ -68,12 +67,12 @@ describe(commands.USER_SET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.patch,
       request.post,
       request.put,
@@ -83,8 +82,8 @@ describe(commands.USER_SET, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -96,89 +95,109 @@ describe(commands.USER_SET, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('fails validation if neither the id nor the userName are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if neither the id nor the userName are specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: {} }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: {} }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if both the id and the userName are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both the id and the userName are specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { id: id, userName: userName } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { id: id, userName: userName } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the id is not a valid GUID', async () => {
     const actual = await command.validate({ options: { id: 'invalid' } }, commandInfo);
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if currentPassword is set without newPassword', async () => {
-    const actual = await command.validate({ options: { id: id, currentPassword: currentPassword } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if currentPassword is set without newPassword',
+    async () => {
+      const actual = await command.validate({ options: { id: id, currentPassword: currentPassword } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if newPassword is set without currentPassword', async () => {
-    const actual = await command.validate({ options: { id: id, newPassword: newPassword } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if newPassword is set without currentPassword',
+    async () => {
+      const actual = await command.validate({ options: { id: id, newPassword: newPassword } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if resetPassword is set without a password', async () => {
-    const actual = await command.validate({ options: { id: id, resetPassword: true } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if resetPassword is set without a password',
+    async () => {
+      const actual = await command.validate({ options: { id: id, resetPassword: true } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if resetPassword and password is set and currentPassword is also set', async () => {
-    const actual = await command.validate({ options: { id: id, resetPassword: true, password: newPassword, currentPassword: currentPassword } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if resetPassword and password is set and currentPassword is also set',
+    async () => {
+      const actual = await command.validate({ options: { id: id, resetPassword: true, password: newPassword, currentPassword: currentPassword } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation when userName has an invalid value', async () => {
     const actual = await command.validate({ options: { userName: 'invalid' } }, commandInfo);
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation usageLocation is not a valid usageLocation', async () => {
-    const actual = await command.validate({ options: { displayName: displayName, id: id, usageLocation: 'invalid' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation usageLocation is not a valid usageLocation',
+    async () => {
+      const actual = await command.validate({ options: { displayName: displayName, id: id, usageLocation: 'invalid' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation preferredLanguage is not a valid preferredLanguage', async () => {
-    const actual = await command.validate({ options: { displayName: displayName, id: id, preferredLanguage: 'z' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation preferredLanguage is not a valid preferredLanguage',
+    async () => {
+      const actual = await command.validate({ options: { displayName: displayName, id: id, preferredLanguage: 'z' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if both managerUserId and managerUserName are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both managerUserId and managerUserName are specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { displayName: displayName, id: id, managerUserId: managerUserId, managerUserName: managerUserName } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { displayName: displayName, id: id, managerUserId: managerUserId, managerUserName: managerUserName } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if managerUserName is not a valid userName', async () => {
-    const actual = await command.validate({ options: { displayName: displayName, id: id, managerUserName: 'invalid' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if managerUserName is not a valid userName',
+    async () => {
+      const actual = await command.validate({ options: { displayName: displayName, id: id, managerUserName: 'invalid' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if managerUserId is not a valid GUID', async () => {
     const actual = await command.validate({ options: { displayName: displayName, id: id, managerUserId: 'invalid' } }, commandInfo);
@@ -200,25 +219,33 @@ describe(commands.USER_SET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if companyName has more than 64 characters', async () => {
-    const actual = await command.validate({ options: { displayName: displayName, id: id, companyName: largeString } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if companyName has more than 64 characters',
+    async () => {
+      const actual = await command.validate({ options: { displayName: displayName, id: id, companyName: largeString } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if department has more than 64 characters', async () => {
-    const actual = await command.validate({ options: { displayName: displayName, id: id, department: largeString } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if department has more than 64 characters',
+    async () => {
+      const actual = await command.validate({ options: { displayName: displayName, id: id, department: largeString } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if forceChangePasswordNextSignIn is set without resetPassword', async () => {
-    const actual = await command.validate({ options: { id: id, forceChangePasswordNextSignIn: true } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if forceChangePasswordNextSignIn is set without resetPassword',
+    async () => {
+      const actual = await command.validate({ options: { id: id, forceChangePasswordNextSignIn: true } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if forceChangePasswordNextSignInWithMfa is set without resetPassword', async () => {
-    const actual = await command.validate({ options: { id: id, forceChangePasswordNextSignInWithMfa: true } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if forceChangePasswordNextSignInWithMfa is set without resetPassword',
+    async () => {
+      const actual = await command.validate({ options: { id: id, forceChangePasswordNextSignInWithMfa: true } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation if the id is a valid GUID', async () => {
     const actual = await command.validate({ options: { id: id } }, commandInfo);
@@ -230,20 +257,24 @@ describe(commands.USER_SET, () => {
     assert.strictEqual(allowUnknownOptions, true);
   });
 
-  it('throws error when id is not equal to current signed in id in Cli when passing both the options currentPassword and newPassword', async () => {
-    sinon.stub(accessToken, 'getUserIdFromAccessToken').returns('7c47b08e-e7b3-427a-9eba-b679815148e9');
-    await assert.rejects(command.action(logger, { options: { verbose: true, id: id, newPassword: newPassword, currentPassword: currentPassword } } as any),
-      new CommandError(`You can only change your own password. Please use --id @meId to reference to your own userId`));
-  });
+  it('throws error when id is not equal to current signed in id in Cli when passing both the options currentPassword and newPassword',
+    async () => {
+      jest.spyOn(accessToken, 'getUserIdFromAccessToken').mockClear().mockReturnValue('7c47b08e-e7b3-427a-9eba-b679815148e9');
+      await assert.rejects(command.action(logger, { options: { verbose: true, id: id, newPassword: newPassword, currentPassword: currentPassword } } as any),
+        new CommandError(`You can only change your own password. Please use --id @meId to reference to your own userId`));
+    }
+  );
 
-  it('throws error when userName is not equal to current signed in userName in Cli when passing both the options currentPassword and newPassword', async () => {
-    sinon.stub(accessToken, 'getUserNameFromAccessToken').returns('john@contoso.com');
-    await assert.rejects(command.action(logger, { options: { verbose: true, userName: userName, newPassword: newPassword, currentPassword: currentPassword } } as any),
-      new CommandError(`You can only change your own password. Please use --userName @meUserName to reference to your own user principal name`));
-  });
+  it('throws error when userName is not equal to current signed in userName in Cli when passing both the options currentPassword and newPassword',
+    async () => {
+      jest.spyOn(accessToken, 'getUserNameFromAccessToken').mockClear().mockReturnValue('john@contoso.com');
+      await assert.rejects(command.action(logger, { options: { verbose: true, userName: userName, newPassword: newPassword, currentPassword: currentPassword } } as any),
+        new CommandError(`You can only change your own password. Please use --userName @meUserName to reference to your own user principal name`));
+    }
+  );
 
   it('correctly handles user or property not found', async () => {
-    sinon.stub(request, 'patch').rejects({
+    jest.spyOn(request, 'patch').mockClear().mockImplementation().rejects({
       "error": {
         "code": "Request_ResourceNotFound",
         "message": "Resource '1caf7dcd-7e83-4c3a-94f7-932a1299c844' does not exist or one of its queried reference-property objects are not present.",
@@ -259,7 +290,7 @@ describe(commands.USER_SET, () => {
   });
 
   it('correctly updates information about the specified user', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/v1.0/users/`) > -1) {
         return;
       }
@@ -286,7 +317,7 @@ describe(commands.USER_SET, () => {
   });
 
   it('correctly updates user with an empty value', async () => {
-    const patchStub = sinon.stub(request, 'patch').callsFake(async (opts) => {
+    const patchStub = jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users/${id}`) {
         return;
       }
@@ -301,11 +332,11 @@ describe(commands.USER_SET, () => {
       }
     } as any);
 
-    assert.strictEqual(patchStub.lastCall.args[0].data.companyName, null);
+    assert.strictEqual(patchStub.mock.lastCall[0].data.companyName, null);
   });
 
   it('correctly resets password for a specified user by id', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users/${id}`
         && opts.data.passwordProfile !== undefined
         && opts.data.passwordProfile.password === newPassword
@@ -329,76 +360,82 @@ describe(commands.USER_SET, () => {
     assert(loggerLogSpy.notCalled);
   });
 
-  it('correctly resets password for a specified user by userName', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users/${formatting.encodeQueryParameter(userName)}`
-        && opts.data.passwordProfile !== undefined
-        && opts.data.passwordProfile.password === newPassword
-        && opts.data.passwordProfile.forceChangePasswordNextSignIn === false) {
-        return;
-      }
-      throw 'Invalid request';
-    });
+  it('correctly resets password for a specified user by userName',
+    async () => {
+      jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users/${formatting.encodeQueryParameter(userName)}`
+          && opts.data.passwordProfile !== undefined
+          && opts.data.passwordProfile.password === newPassword
+          && opts.data.passwordProfile.forceChangePasswordNextSignIn === false) {
+          return;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        userName: userName,
-        resetPassword: true,
-        newPassword: newPassword
-      }
-    } as any);
-    assert(loggerLogSpy.notCalled);
-  });
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          userName: userName,
+          resetPassword: true,
+          newPassword: newPassword
+        }
+      } as any);
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
-  it('correctly changes password for current user retrieved by userName', async () => {
-    sinon.stub(accessToken, 'getUserNameFromAccessToken').returns(userName);
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users/${formatting.encodeQueryParameter(userName)}/changePassword`
-        && opts.data !== undefined
-        && opts.data.currentPassword === currentPassword
-        && opts.data.newPassword === newPassword) {
-        return;
-      }
-      throw 'Invalid request';
-    });
+  it('correctly changes password for current user retrieved by userName',
+    async () => {
+      jest.spyOn(accessToken, 'getUserNameFromAccessToken').mockClear().mockReturnValue(userName);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users/${formatting.encodeQueryParameter(userName)}/changePassword`
+          && opts.data !== undefined
+          && opts.data.currentPassword === currentPassword
+          && opts.data.newPassword === newPassword) {
+          return;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        userName: userName,
-        currentPassword: currentPassword,
-        newPassword: newPassword
-      }
-    } as any);
-    assert(loggerLogSpy.notCalled);
-  });
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          userName: userName,
+          currentPassword: currentPassword,
+          newPassword: newPassword
+        }
+      } as any);
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
-  it('correctly changes password for current user retrieved by id', async () => {
-    sinon.stub(accessToken, 'getUserIdFromAccessToken').returns(id);
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users/${id}/changePassword`
-        && opts.data !== undefined
-        && opts.data.currentPassword === currentPassword
-        && opts.data.newPassword === newPassword) {
-        return;
-      }
-      throw 'Invalid request';
-    });
+  it('correctly changes password for current user retrieved by id',
+    async () => {
+      jest.spyOn(accessToken, 'getUserIdFromAccessToken').mockClear().mockReturnValue(id);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users/${id}/changePassword`
+          && opts.data !== undefined
+          && opts.data.currentPassword === currentPassword
+          && opts.data.newPassword === newPassword) {
+          return;
+        }
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        id: id,
-        currentPassword: currentPassword,
-        newPassword: newPassword
-      }
-    } as any);
-    assert(loggerLogSpy.notCalled);
-  });
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          id: id,
+          currentPassword: currentPassword,
+          newPassword: newPassword
+        }
+      } as any);
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
   it('correctly enables the specified user', async () => {
-    sinon.stub(request, 'patch').callsFake(async (opts) => {
+    jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/v1.0/users/`) > -1) {
         return;
       }
@@ -416,7 +453,7 @@ describe(commands.USER_SET, () => {
   });
 
   it('updates Azure AD user and set its manager by id', async () => {
-    const putStub = sinon.stub(request, 'put').callsFake(async (opts) => {
+    const putStub = jest.spyOn(request, 'put').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users/${userName}/manager/$ref`) {
         return;
       }
@@ -425,28 +462,30 @@ describe(commands.USER_SET, () => {
     });
 
     await command.action(logger, { options: { userName: userName, managerUserId: managerUserId } });
-    assert.deepEqual(putStub.lastCall.args[0].data, {
+    assert.deepEqual(putStub.mock.lastCall[0].data, {
       '@odata.id': `https://graph.microsoft.com/v1.0/users/${managerUserId}`
     });
   });
 
-  it('updates Azure AD user and set its manager by user principal name', async () => {
-    const putStub = sinon.stub(request, 'put').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/users/${userName}/manager/$ref`) {
-        return;
-      }
+  it('updates Azure AD user and set its manager by user principal name',
+    async () => {
+      const putStub = jest.spyOn(request, 'put').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/users/${userName}/manager/$ref`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { verbose: true, userName: userName, managerUserName: managerUserName } });
-    assert.deepEqual(putStub.lastCall.args[0].data, {
-      '@odata.id': `https://graph.microsoft.com/v1.0/users/${managerUserName}`
-    });
-  });
+      await command.action(logger, { options: { verbose: true, userName: userName, managerUserName: managerUserName } });
+      assert.deepEqual(putStub.mock.lastCall[0].data, {
+        '@odata.id': `https://graph.microsoft.com/v1.0/users/${managerUserName}`
+      });
+    }
+  );
 
   it('updates Azure AD user and removes manager', async () => {
-    const deleteStub = sinon.stub(request, 'delete').callsFake(async (opts) => {
+    const deleteStub = jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/users/${userName}/manager/$ref`) {
         return;
       }

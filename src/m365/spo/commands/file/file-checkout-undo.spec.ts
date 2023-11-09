@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { urlUtil } from '../../../../utils/urlUtil.js';
 import commands from '../../commands.js';
 import command from './file-checkout-undo.js';
@@ -25,11 +24,11 @@ describe(commands.FILE_CHECKOUT_UNDO, () => {
   let commandInfo: CommandInfo;
   let promptOptions: any;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -47,21 +46,21 @@ describe(commands.FILE_CHECKOUT_UNDO, () => {
         log.push(msg);
       }
     };
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -73,24 +72,26 @@ describe(commands.FILE_CHECKOUT_UNDO, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('undoes checkout for file retrieved by fileId when prompt confirmed', async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/getFileById('${fileId}')/undocheckout`) {
-        return;
-      }
+  it('undoes checkout for file retrieved by fileId when prompt confirmed',
+    async () => {
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/getFileById('${fileId}')/undocheckout`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+        throw 'Invalid request';
+      });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    await command.action(logger, { options: { webUrl: webUrl, fileId: fileId, verbose: true } });
-    assert(postStub.called);
-  });
+      await command.action(logger, { options: { webUrl: webUrl, fileId: fileId, verbose: true } });
+      assert(postStub.called);
+    }
+  );
 
   it('undoes checkout for file retrieved by fileUrl', async () => {
     const serverRelativePath = urlUtil.getServerRelativePath(webUrl, fileUrl);
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/web/getFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(serverRelativePath)}')/undocheckout`) {
         return;
       }
@@ -104,7 +105,7 @@ describe(commands.FILE_CHECKOUT_UNDO, () => {
   it('undoes checkout for file retrieved by site-relative url', async () => {
     const siteRelativeUrl = '/Shared Documents/Test.docx';
     const serverRelativePath = urlUtil.getServerRelativePath(webUrl, siteRelativeUrl);
-    const postStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/web/getFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(serverRelativePath)}')/undocheckout`) {
         return;
       }
@@ -116,7 +117,7 @@ describe(commands.FILE_CHECKOUT_UNDO, () => {
   });
 
   it('handles error when file is not checked out', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/web/getFileById('${fileId}')/undocheckout`) {
         throw {
           error: {
@@ -136,39 +137,45 @@ describe(commands.FILE_CHECKOUT_UNDO, () => {
     await assert.rejects(command.action(logger, { options: { webUrl: webUrl, fileId: fileId, force: true, verbose: true } }), new CommandError('The file "Shared Documents/4.docx" is not checked out.'));
   });
 
-  it('prompts before undoing checkout when confirmation argument not passed', async () => {
-    await command.action(logger, { options: { webUrl: webUrl, fileId: fileId } });
-    let promptIssued = false;
+  it('prompts before undoing checkout when confirmation argument not passed',
+    async () => {
+      await command.action(logger, { options: { webUrl: webUrl, fileId: fileId } });
+      let promptIssued = false;
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+
+      assert(promptIssued);
     }
-
-    assert(promptIssued);
-  });
+  );
 
   it('aborts undoing checkout when prompt not confirmed', async () => {
-    const postStub = sinon.stub(request, 'post').resolves();
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation().resolves();
+    jestUtil.restore(Cli.prompt);
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
       { continue: false }
     ));
     await command.action(logger, { options: { webUrl: webUrl, id: fileId } });
     assert(postStub.notCalled);
   });
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'invalid', fileId: fileId } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'invalid', fileId: fileId } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the fileId option is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: webUrl, fileId: 'invalid' } }, commandInfo);
     assert.notStrictEqual(actual, true);
   });
 
-  it('passes validation if the webUrl option is a valid SharePoint site URL and fileId is a valid GUID', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, fileId: fileId } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if the webUrl option is a valid SharePoint site URL and fileId is a valid GUID',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, fileId: fileId } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

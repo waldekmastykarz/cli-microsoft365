@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 
 import command from './folder-rename.js';
@@ -25,11 +24,11 @@ describe(commands.FOLDER_RENAME, () => {
   const folderRelServerUrl = '/sites/project-x/Shared Documents/Folder1';
   const newFolderName = 'New name';
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
 
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
@@ -51,13 +50,13 @@ describe(commands.FOLDER_RENAME, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.patch
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -70,7 +69,7 @@ describe(commands.FOLDER_RENAME, () => {
   });
 
   it('renames folder correctly by using server relative URL', async () => {
-    const patchStub = sinon.stub(request, 'patch').callsFake(async (opts) => {
+    const patchStub = jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/Web/GetFolderByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(folderRelServerUrl)}')/ListItemAllFields`) {
         return;
       }
@@ -88,11 +87,11 @@ describe(commands.FOLDER_RENAME, () => {
       }
     });
     assert(patchStub.called);
-    assert.deepStrictEqual(patchStub.lastCall.args[0].data, { FileLeafRef: newFolderName, Title: newFolderName });
+    assert.deepStrictEqual(patchStub.mock.lastCall[0].data, { FileLeafRef: newFolderName, Title: newFolderName });
   });
 
   it('renames folder correctly by using site relative URL', async () => {
-    const patchStub = sinon.stub(request, 'patch').callsFake(async (opts) => {
+    const patchStub = jest.spyOn(request, 'patch').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/Web/GetFolderByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(folderRelServerUrl)}')/ListItemAllFields`) {
         return;
       }
@@ -109,11 +108,11 @@ describe(commands.FOLDER_RENAME, () => {
       }
     });
     assert(patchStub.called);
-    assert.deepStrictEqual(patchStub.lastCall.args[0].data, { FileLeafRef: newFolderName, Title: newFolderName });
+    assert.deepStrictEqual(patchStub.mock.lastCall[0].data, { FileLeafRef: newFolderName, Title: newFolderName });
   });
 
   it('handles API error correctly', async () => {
-    sinon.stub(request, 'patch').resolves({ 'odata.null': true });
+    jest.spyOn(request, 'patch').mockClear().mockImplementation().resolves({ 'odata.null': true });
 
     await assert.rejects(command.action(logger, {
       options:

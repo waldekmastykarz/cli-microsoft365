@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import { urlUtil } from '../../../../utils/urlUtil.js';
 import commands from '../../commands.js';
@@ -50,7 +49,7 @@ describe(commands.LISTITEM_LIST, () => {
 
   let log: any[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
   const expectedArrayLength = 2;
@@ -86,12 +85,12 @@ describe(commands.LISTITEM_LIST, () => {
     throw 'Invalid request';
   };
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').callsFake(() => Promise.resolve());
-    sinon.stub(telemetry, 'trackEvent').callsFake(() => { });
-    sinon.stub(pid, 'getProcessName').callsFake(() => '');
-    sinon.stub(session, 'getId').callsFake(() => '');
-    sinon.stub(spo, 'getRequestDigest').callsFake(() => Promise.resolve({
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation(() => Promise.resolve());
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockImplementation(() => { });
+    jest.spyOn(pid, 'getProcessName').mockClear().mockImplementation(() => '');
+    jest.spyOn(session, 'getId').mockClear().mockImplementation(() => '');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation(() => Promise.resolve({
       FormDigestValue: 'abc',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -115,18 +114,18 @@ describe(commands.LISTITEM_LIST, () => {
       }
     };
 
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -154,15 +153,19 @@ describe(commands.LISTITEM_LIST, () => {
     assert.notStrictEqual(command.types.string, 'undefined', 'command string types undefined');
   });
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', listTitle: 'Demo List' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', listTitle: 'Demo List' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the webUrl option is a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List' } }, commandInfo);
-    assert(actual);
-  });
+  it('passes validation if the webUrl option is a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List' } }, commandInfo);
+      assert(actual);
+    }
+  );
 
   it('fails validation if the listId option is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listId: 'foo' } }, commandInfo);
@@ -174,266 +177,300 @@ describe(commands.LISTITEM_LIST, () => {
     assert(actual);
   });
 
-  it('fails validation if camlQuery and fields are specified together', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', camlQuery: '<Query><ViewFields><FieldRef Name="Title" /><FieldRef Name="Id" /></ViewFields></Query>', fields: 'Title,Id' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if camlQuery and fields are specified together',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', camlQuery: '<Query><ViewFields><FieldRef Name="Title" /><FieldRef Name="Id" /></ViewFields></Query>', fields: 'Title,Id' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if camlQuery and pageSize are specified together', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', camlQuery: '<Query><RowLimit>2</RowLimit></Query>', pageSize: 3 } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if camlQuery and pageSize are specified together',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', camlQuery: '<Query><RowLimit>2</RowLimit></Query>', pageSize: 3 } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if camlQuery and pageNumber are specified together', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', camlQuery: '<Query><RowLimit>2</RowLimit></Query>', pageNumber: 3 } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if camlQuery and pageNumber are specified together',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', camlQuery: '<Query><RowLimit>2</RowLimit></Query>', pageNumber: 3 } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if pageNumber is specified and pageSize is not', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', pageNumber: 3 } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if pageNumber is specified and pageSize is not',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', pageNumber: 3 } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the specific pageSize is not a number', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', pageSize: 'abc' } }, commandInfo);
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if the specific pageNumber is not a number', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', pageSize: 3, pageNumber: 'abc' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the specific pageNumber is not a number',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', listTitle: 'Demo List', pageSize: 3, pageNumber: 'abc' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('returns array of listItemInstance objects when a list of items is requested, and debug mode enabled', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+  it('returns array of listItemInstance objects when a list of items is requested, and debug mode enabled',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    const options: any = {
-      debug: true,
-      listTitle: 'Demo List',
-      webUrl: 'https://contoso.sharepoint.com/sites/project-x'
-    };
+      const options: any = {
+        debug: true,
+        listTitle: 'Demo List',
+        webUrl: 'https://contoso.sharepoint.com/sites/project-x'
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert.strictEqual(returnArrayLength, expectedArrayLength);
-  });
+      await command.action(logger, { options: options } as any);
+      assert.strictEqual(returnArrayLength, expectedArrayLength);
+    }
+  );
 
-  it('returns array of listItemInstance objects when a list of items is requested with an output type of json, and a list of fields and a filter specified', async () => {
-    const listTitle = `Test'list`;
-    const filter = `Title eq 'Demo list item'`;
-    const fields = 'Title,ID';
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://contoso.sharepoint.com/sites/project-x/_api/web/lists/getByTitle('${formatting.encodeQueryParameter(listTitle)}')/items?$top=2&$filter=${encodeURIComponent(filter)}&$select=${formatting.encodeQueryParameter(fields)}`) {
-        returnArrayLength = 2;
-        return listItemResponse;
-      }
-      throw 'Invalid request';
-    });
+  it('returns array of listItemInstance objects when a list of items is requested with an output type of json, and a list of fields and a filter specified',
+    async () => {
+      const listTitle = `Test'list`;
+      const filter = `Title eq 'Demo list item'`;
+      const fields = 'Title,ID';
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://contoso.sharepoint.com/sites/project-x/_api/web/lists/getByTitle('${formatting.encodeQueryParameter(listTitle)}')/items?$top=2&$filter=${encodeURIComponent(filter)}&$select=${formatting.encodeQueryParameter(fields)}`) {
+          returnArrayLength = 2;
+          return listItemResponse;
+        }
+        throw 'Invalid request';
+      });
 
-    const options: any = {
-      debug: true,
-      listTitle: listTitle,
-      webUrl: 'https://contoso.sharepoint.com/sites/project-x',
-      output: "json",
-      pageSize: 2,
-      filter: filter,
-      fields: "Title,ID"
-    };
+      const options: any = {
+        debug: true,
+        listTitle: listTitle,
+        webUrl: 'https://contoso.sharepoint.com/sites/project-x',
+        output: "json",
+        pageSize: 2,
+        filter: filter,
+        fields: "Title,ID"
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert.strictEqual(returnArrayLength, expectedArrayLength);
-    returnArrayLength = 0;
-  });
+      await command.action(logger, { options: options } as any);
+      assert.strictEqual(returnArrayLength, expectedArrayLength);
+      returnArrayLength = 0;
+    }
+  );
 
-  it('returns array of listItemInstance objects when a list of items is requested with an output type of json, a page number specified, a list of fields and a filter specified', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+  it('returns array of listItemInstance objects when a list of items is requested with an output type of json, a page number specified, a list of fields and a filter specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    const options: any = {
-      debug: true,
-      listTitle: 'Demo List',
-      webUrl: 'https://contoso.sharepoint.com/sites/project-x',
-      output: "json",
-      pageSize: 2,
-      pageNumber: 2,
-      filter: "Title eq 'Demo list item",
-      fields: "Title,ID"
-    };
+      const options: any = {
+        debug: true,
+        listTitle: 'Demo List',
+        webUrl: 'https://contoso.sharepoint.com/sites/project-x',
+        output: "json",
+        pageSize: 2,
+        pageNumber: 2,
+        filter: "Title eq 'Demo list item",
+        fields: "Title,ID"
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert.strictEqual(returnArrayLength, expectedArrayLength);
-  });
+      await command.action(logger, { options: options } as any);
+      assert.strictEqual(returnArrayLength, expectedArrayLength);
+    }
+  );
 
-  it('returns empty array of listItemInstance objects when a list of items is requested with an output type of json, a page number specified, a list of fields and a filter specified', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+  it('returns empty array of listItemInstance objects when a list of items is requested with an output type of json, a page number specified, a list of fields and a filter specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    const options: any = {
-      debug: true,
-      listTitle: 'Demo List',
-      webUrl: 'https://contoso.sharepoint.com/sites/project-x',
-      output: "json",
-      pageSize: 3,
-      pageNumber: 2,
-      filter: "Title eq 'Demo list item",
-      fields: "Title,ID"
-    };
+      const options: any = {
+        debug: true,
+        listTitle: 'Demo List',
+        webUrl: 'https://contoso.sharepoint.com/sites/project-x',
+        output: "json",
+        pageSize: 3,
+        pageNumber: 2,
+        filter: "Title eq 'Demo list item",
+        fields: "Title,ID"
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert.strictEqual(returnArrayLength, 0);
-  });
+      await command.action(logger, { options: options } as any);
+      assert.strictEqual(returnArrayLength, 0);
+    }
+  );
 
-  it('returns array of listItemInstance objects when a list of items is requested with an output type of json, and a pageNumber is specified', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+  it('returns array of listItemInstance objects when a list of items is requested with an output type of json, and a pageNumber is specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    const options: any = {
-      listTitle: 'Demo List',
-      webUrl: 'https://contoso.sharepoint.com/sites/project-x',
-      output: "json",
-      pageSize: 2,
-      pageNumber: 2,
-      fields: "Title,ID"
-    };
+      const options: any = {
+        listTitle: 'Demo List',
+        webUrl: 'https://contoso.sharepoint.com/sites/project-x',
+        output: "json",
+        pageSize: 2,
+        pageNumber: 2,
+        fields: "Title,ID"
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert.strictEqual(returnArrayLength, expectedArrayLength);
-  });
+      await command.action(logger, { options: options } as any);
+      assert.strictEqual(returnArrayLength, expectedArrayLength);
+    }
+  );
 
-  it('returns array of listItemInstance objects when a list of items is requested with no output type specified, and a list of fields specified', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+  it('returns array of listItemInstance objects when a list of items is requested with no output type specified, and a list of fields specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    const options: any = {
-      listTitle: 'Demo List',
-      webUrl: 'https://contoso.sharepoint.com/sites/project-x',
-      fields: "Title,ID"
-    };
+      const options: any = {
+        listTitle: 'Demo List',
+        webUrl: 'https://contoso.sharepoint.com/sites/project-x',
+        fields: "Title,ID"
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert.strictEqual(returnArrayLength, expectedArrayLength);
-  });
+      await command.action(logger, { options: options } as any);
+      assert.strictEqual(returnArrayLength, expectedArrayLength);
+    }
+  );
 
-  it('returns array of listItemInstance objects when a list of items by list url is requested with no output type specified, and a list of fields specified', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+  it('returns array of listItemInstance objects when a list of items by list url is requested with no output type specified, and a list of fields specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    const options: any = {
-      verbose: true,
-      listUrl: listUrl,
-      webUrl: webUrl,
-      fields: "Title,ID"
-    };
+      const options: any = {
+        verbose: true,
+        listUrl: listUrl,
+        webUrl: webUrl,
+        fields: "Title,ID"
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert.strictEqual(returnArrayLength, expectedArrayLength);
-  });
+      await command.action(logger, { options: options } as any);
+      assert.strictEqual(returnArrayLength, expectedArrayLength);
+    }
+  );
 
-  it('returns array of listItemInstance objects when a list of items is requested with no output type specified, a list of fields with lookup field specified', async () => {
-    sinon.stub(request, 'get').callsFake(opts => {
-      if ((opts.url as string).indexOf('$expand=') > -1) {
-        return Promise.resolve({
-          value:
-            [{
-              "ID": 1,
-              "Modified": "2018-08-15T13:43:12Z",
-              "Title": "Example item 1",
-              "Company": { "Title": "Contoso" }
-            },
-            {
-              "ID": 2,
-              "Modified": "2018-08-15T13:44:10Z",
-              "Title": "Example item 2",
-              "Company": { "Title": "Fabrikam" }
-            }]
-        });
-      }
+  it('returns array of listItemInstance objects when a list of items is requested with no output type specified, a list of fields with lookup field specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(opts => {
+        if ((opts.url as string).indexOf('$expand=') > -1) {
+          return Promise.resolve({
+            value:
+              [{
+                "ID": 1,
+                "Modified": "2018-08-15T13:43:12Z",
+                "Title": "Example item 1",
+                "Company": { "Title": "Contoso" }
+              },
+              {
+                "ID": 2,
+                "Modified": "2018-08-15T13:44:10Z",
+                "Title": "Example item 2",
+                "Company": { "Title": "Fabrikam" }
+              }]
+          });
+        }
 
-      return Promise.reject('Invalid request');
-    });
+        return Promise.reject('Invalid request');
+      });
 
-    const options: any = {
-      listTitle: 'Demo List',
-      webUrl: 'https://contoso.sharepoint.com/sites/project-x',
-      fields: "Title,Modified,Company/Title"
-    };
+      const options: any = {
+        listTitle: 'Demo List',
+        webUrl: 'https://contoso.sharepoint.com/sites/project-x',
+        fields: "Title,Modified,Company/Title"
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert.deepStrictEqual(JSON.stringify(loggerLogSpy.lastCall.args[0]), JSON.stringify([
-      {
-        "Modified": "2018-08-15T13:43:12Z",
-        "Title": "Example item 1",
-        "Company": { "Title": "Contoso" }
-      },
-      {
-        "Modified": "2018-08-15T13:44:10Z",
-        "Title": "Example item 2",
-        "Company": { "Title": "Fabrikam" }
-      }
-    ]));
-  });
+      await command.action(logger, { options: options } as any);
+      assert.deepStrictEqual(JSON.stringify(loggerLogSpy.mock.lastCall[0]), JSON.stringify([
+        {
+          "Modified": "2018-08-15T13:43:12Z",
+          "Title": "Example item 1",
+          "Company": { "Title": "Contoso" }
+        },
+        {
+          "Modified": "2018-08-15T13:44:10Z",
+          "Title": "Example item 2",
+          "Company": { "Title": "Fabrikam" }
+        }
+      ]));
+    }
+  );
 
-  it('returns array of listItemInstance objects when a list of items is requested with an output type of text, and no fields specified', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+  it('returns array of listItemInstance objects when a list of items is requested with an output type of text, and no fields specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    const options: any = {
-      listTitle: 'Demo List',
-      webUrl: 'https://contoso.sharepoint.com/sites/project-x',
-      output: "text"
-    };
+      const options: any = {
+        listTitle: 'Demo List',
+        webUrl: 'https://contoso.sharepoint.com/sites/project-x',
+        output: "text"
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert.strictEqual(returnArrayLength, expectedArrayLength);
-  });
+      await command.action(logger, { options: options } as any);
+      assert.strictEqual(returnArrayLength, expectedArrayLength);
+    }
+  );
 
-  it('returns array of listItemInstance objects when a list of items is requested with an output type of json, and no fields specified', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+  it('returns array of listItemInstance objects when a list of items is requested with an output type of json, and no fields specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    const options: any = {
-      listTitle: 'Demo List',
-      webUrl: 'https://contoso.sharepoint.com/sites/project-x',
-      output: "json"
-    };
+      const options: any = {
+        listTitle: 'Demo List',
+        webUrl: 'https://contoso.sharepoint.com/sites/project-x',
+        output: "json"
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert.strictEqual(returnArrayLength, expectedArrayLength);
-  });
+      await command.action(logger, { options: options } as any);
+      assert.strictEqual(returnArrayLength, expectedArrayLength);
+    }
+  );
 
-  it('returns array of listItemInstance objects when a list of items is requested with a camlQuery specified, and output set to json, and debug mode is enabled', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+  it('returns array of listItemInstance objects when a list of items is requested with a camlQuery specified, and output set to json, and debug mode is enabled',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    const options: any = {
-      debug: true,
-      listTitle: 'Demo List',
-      webUrl: 'https://contoso.sharepoint.com/sites/project-x',
-      camlQuery: "<View><Query><ViewFields><FieldRef Name='Title' /><FieldRef Name='Id' /></ViewFields><Where><Eq><FieldRef Name='Title' /><Value Type='Text'>Demo List Item 1</Value></Eq></Where></Query></View>",
-      output: "json"
-    };
+      const options: any = {
+        debug: true,
+        listTitle: 'Demo List',
+        webUrl: 'https://contoso.sharepoint.com/sites/project-x',
+        camlQuery: "<View><Query><ViewFields><FieldRef Name='Title' /><FieldRef Name='Id' /></ViewFields><Where><Eq><FieldRef Name='Title' /><Value Type='Text'>Demo List Item 1</Value></Eq></Where></Query></View>",
+        output: "json"
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert.strictEqual(returnArrayLength, expectedArrayLength);
-  });
+      await command.action(logger, { options: options } as any);
+      assert.strictEqual(returnArrayLength, expectedArrayLength);
+    }
+  );
 
-  it('returns array of listItemInstance objects when a list of items is requested with a camlQuery specified', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(postFakes);
+  it('returns array of listItemInstance objects when a list of items is requested with a camlQuery specified',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(postFakes);
 
-    const options: any = {
-      listTitle: 'Demo List',
-      webUrl: 'https://contoso.sharepoint.com/sites/project-x',
-      camlQuery: "<View><Query><ViewFields><FieldRef Name='Title' /><FieldRef Name='Id' /></ViewFields><Where><Eq><FieldRef Name='Title' /><Value Type='Text'>Demo List Item 1</Value></Eq></Where></Query></View>"
-    };
+      const options: any = {
+        listTitle: 'Demo List',
+        webUrl: 'https://contoso.sharepoint.com/sites/project-x',
+        camlQuery: "<View><Query><ViewFields><FieldRef Name='Title' /><FieldRef Name='Id' /></ViewFields><Where><Eq><FieldRef Name='Title' /><Value Type='Text'>Demo List Item 1</Value></Eq></Where></Query></View>"
+      };
 
-    await command.action(logger, { options: options } as any);
-    assert.strictEqual(returnArrayLength, expectedArrayLength);
-  });
+      await command.action(logger, { options: options } as any);
+      assert.strictEqual(returnArrayLength, expectedArrayLength);
+    }
+  );
 
   it('correctly handles random API error', async () => {
-    sinon.stub(request, 'get').callsFake(getFakes);
-    sinon.stub(request, 'post').callsFake(() => Promise.reject('An error has occurred'));
+    jest.spyOn(request, 'get').mockClear().mockImplementation(getFakes);
+    jest.spyOn(request, 'post').mockClear().mockImplementation(() => Promise.reject('An error has occurred'));
 
     const options: any = {
       listId: '935c13a0-cc53-4103-8b48-c1d0828eaa7f',

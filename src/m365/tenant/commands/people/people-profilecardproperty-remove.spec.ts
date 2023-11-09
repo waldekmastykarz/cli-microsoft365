@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './people-profilecardproperty-remove.js';
 
@@ -18,11 +17,11 @@ describe(commands.PEOPLE_PROFILECARDPROPERTY_REMOVE, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -40,20 +39,20 @@ describe(commands.PEOPLE_PROFILECARDPROPERTY_REMOVE, () => {
         log.push(msg);
       }
     };
-    sinon.stub(Cli, 'prompt').callsFake(async () => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => {
       return { continue: true };
     });
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.delete,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -70,37 +69,43 @@ describe(commands.PEOPLE_PROFILECARDPROPERTY_REMOVE, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('passes validation if the name is set to userPrincipalName.', async () => {
-    const actual = await command.validate({ options: { name: 'userPrincipalName' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if the name is set to userPrincipalName.',
+    async () => {
+      const actual = await command.validate({ options: { name: 'userPrincipalName' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('correctly removes profile card property for userPrincipalName', async () => {
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties/UserPrincipalName`) {
-        return;
-      }
+  it('correctly removes profile card property for userPrincipalName',
+    async () => {
+      jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties/UserPrincipalName`) {
+          return;
+        }
 
-      throw `Invalid request ${opts.url}`;
-    });
+        throw `Invalid request ${opts.url}`;
+      });
 
-    await assert.doesNotReject(command.action(logger, { options: { name: 'userPrincipalName' } }));
-  });
+      await assert.doesNotReject(command.action(logger, { options: { name: 'userPrincipalName' } }));
+    }
+  );
 
-  it('correctly removes profile card property for userPrincipalName (debug)', async () => {
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties/UserPrincipalName`) {
-        return;
-      }
+  it('correctly removes profile card property for userPrincipalName (debug)',
+    async () => {
+      jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties/UserPrincipalName`) {
+          return;
+        }
 
-      throw `Invalid request ${opts.url}`;
-    });
+        throw `Invalid request ${opts.url}`;
+      });
 
-    await assert.doesNotReject(command.action(logger, { options: { name: 'userPrincipalName', debug: true } }));
-  });
+      await assert.doesNotReject(command.action(logger, { options: { name: 'userPrincipalName', debug: true } }));
+    }
+  );
 
   it('correctly removes profile card property for fax', async () => {
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
+    jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties/Fax`) {
         return;
       }
@@ -111,44 +116,48 @@ describe(commands.PEOPLE_PROFILECARDPROPERTY_REMOVE, () => {
     await assert.doesNotReject(command.action(logger, { options: { name: 'fax' } }));
   });
 
-  it('correctly removes profile card property for state with force', async () => {
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties/StateOrProvince`) {
-        return;
-      }
+  it('correctly removes profile card property for state with force',
+    async () => {
+      jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties/StateOrProvince`) {
+          return;
+        }
 
-      throw `Invalid request ${opts.url}`;
-    });
+        throw `Invalid request ${opts.url}`;
+      });
 
-    await assert.doesNotReject(command.action(logger, { options: { name: 'StateOrProvince', force: true } }));
-  });
+      await assert.doesNotReject(command.action(logger, { options: { name: 'StateOrProvince', force: true } }));
+    }
+  );
 
-  it('fails when the removal runs into a property that is not found', async () => {
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties/UserPrincipalName`) {
-        throw {
-          "error": {
-            "code": "404",
-            "message": "Not Found",
-            "innerError": {
-              "peopleAdminErrorCode": "PeopleAdminItemNotFound",
-              "peopleAdminRequestId": "2497e6f6-cd91-8bd8-5c53-361d355a5c41",
-              "peopleAdminClientRequestId": "1e7328a0-8c5f-476b-9ae1-c1952e2d3276",
-              "date": "2023-11-02T19:31:25",
-              "request-id": "1e7328a0-8c5f-476b-9ae1-c1952e2d3276",
-              "client-request-id": "1e7328a0-8c5f-476b-9ae1-c1952e2d3276"
+  it('fails when the removal runs into a property that is not found',
+    async () => {
+      jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/admin/people/profileCardProperties/UserPrincipalName`) {
+          throw {
+            "error": {
+              "code": "404",
+              "message": "Not Found",
+              "innerError": {
+                "peopleAdminErrorCode": "PeopleAdminItemNotFound",
+                "peopleAdminRequestId": "2497e6f6-cd91-8bd8-5c53-361d355a5c41",
+                "peopleAdminClientRequestId": "1e7328a0-8c5f-476b-9ae1-c1952e2d3276",
+                "date": "2023-11-02T19:31:25",
+                "request-id": "1e7328a0-8c5f-476b-9ae1-c1952e2d3276",
+                "client-request-id": "1e7328a0-8c5f-476b-9ae1-c1952e2d3276"
+              }
             }
-          }
-        };
-      }
+          };
+        }
 
-      throw `Invalid request ${opts.url}`;
-    });
+        throw `Invalid request ${opts.url}`;
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        name: 'userPrincipalName'
-      }
-    }), new CommandError(`Not Found`));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          name: 'userPrincipalName'
+        }
+      }), new CommandError(`Not Found`));
+    }
+  );
 });

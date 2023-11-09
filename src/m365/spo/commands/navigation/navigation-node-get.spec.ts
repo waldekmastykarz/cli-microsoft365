@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './navigation-node-get.js';
 
@@ -30,14 +29,14 @@ describe(commands.NAVIGATION_NODE_GET, () => {
 
   let log: any[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -55,17 +54,17 @@ describe(commands.NAVIGATION_NODE_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -103,7 +102,7 @@ describe(commands.NAVIGATION_NODE_GET, () => {
   });
 
   it('retrieves navigation node by specified webUrl and id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/web/navigation/GetNodeById(${id})`) {
         return navigationNodeGetResponse;
       }
@@ -115,22 +114,24 @@ describe(commands.NAVIGATION_NODE_GET, () => {
     assert(loggerLogSpy.calledWith(navigationNodeGetResponse));
   });
 
-  it('command correctly handles navigation node get reject request', async () => {
-    const errorMessage = 'Invalid request';
-    sinon.stub(request, 'get').callsFake((opts) => {
-      if (opts.url === `${webUrl}/_api/web/navigation/GetNodeById(${id})`) {
-        throw errorMessage;
-      }
+  it('command correctly handles navigation node get reject request',
+    async () => {
+      const errorMessage = 'Invalid request';
+      jest.spyOn(request, 'get').mockClear().mockImplementation((opts) => {
+        if (opts.url === `${webUrl}/_api/web/navigation/GetNodeById(${id})`) {
+          throw errorMessage;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: webUrl,
-        id: id
-      }
-    }), new CommandError(errorMessage));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: webUrl,
+          id: id
+        }
+      }), new CommandError(errorMessage));
+    }
+  );
 });

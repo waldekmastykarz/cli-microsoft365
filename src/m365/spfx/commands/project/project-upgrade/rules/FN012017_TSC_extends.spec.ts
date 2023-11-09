@@ -12,38 +12,44 @@ describe('FN012017_TSC_extends', () => {
     rule = new FN012017_TSC_extends('./node_modules/@microsoft/rush-stack-compiler-2.7/includes/tsconfig-web.json');
   });
 
-  it('doesn\'t return notification if extends has the exact same elements', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      tsConfigJson: {
-        extends: './node_modules/@microsoft/rush-stack-compiler-2.7/includes/tsconfig-web.json'
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it('doesn\'t return notification if extends has the exact same elements',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        tsConfigJson: {
+          extends: './node_modules/@microsoft/rush-stack-compiler-2.7/includes/tsconfig-web.json'
+        }
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
-  it('doesn\'t return notification if extends has the exact same elements in different order', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      tsConfigJson: {
-        extends: './node_modules/@microsoft/rush-stack-compiler-2.7/includes/tsconfig-web.json'
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it('doesn\'t return notification if extends has the exact same elements in different order',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        tsConfigJson: {
+          extends: './node_modules/@microsoft/rush-stack-compiler-2.7/includes/tsconfig-web.json'
+        }
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
-  it('doesn\'t return notification if extends has all required elements', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      tsConfigJson: {
-        extends: './node_modules/@microsoft/rush-stack-compiler-2.7/includes/tsconfig-web.json'
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it('doesn\'t return notification if extends has all required elements',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        tsConfigJson: {
+          extends: './node_modules/@microsoft/rush-stack-compiler-2.7/includes/tsconfig-web.json'
+        }
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
   it('doesn\'t return notification if object is missing', () => {
     const project: Project = {

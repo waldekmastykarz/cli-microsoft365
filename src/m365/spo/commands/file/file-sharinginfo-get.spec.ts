@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './file-sharinginfo-get.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -18,9 +17,9 @@ describe(commands.FILE_SHARINGINFO_GET, () => {
   let cli: Cli;
   let log: any[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogToStderrSpy: jest.SpyInstance;
 
   const JSONOuput = {
     "permissionsInformation": {
@@ -465,12 +464,12 @@ describe(commands.FILE_SHARINGINFO_GET, () => {
     }
   };
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -488,20 +487,20 @@ describe(commands.FILE_SHARINGINFO_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.post,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -528,7 +527,7 @@ describe(commands.FILE_SHARINGINFO_GET, () => {
         }
       }
     };
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/GetFileById') > -1) {
         throw error;
       }
@@ -545,122 +544,132 @@ describe(commands.FILE_SHARINGINFO_GET, () => {
     }), new CommandError(error.error['odata.error'].message.value));
   });
 
-  it('Retrieves Sharing Information When Site ID is Passed - JSON Output', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/web/GetFileById') > -1) {
-        return {
-          "ListItemAllFields": {
-            "ParentList": {
-              "Title": "Documents"
-            },
-            "Id": 2,
-            "ID": 2
-          }
-        };
-      }
+  it('Retrieves Sharing Information When Site ID is Passed - JSON Output',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/web/GetFileById') > -1) {
+          return {
+            "ListItemAllFields": {
+              "ParentList": {
+                "Title": "Documents"
+              },
+              "Id": 2,
+              "ID": 2
+            }
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/web/lists/getbytitle') > -1) {
-        return JSONOuput;
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/web/lists/getbytitle') > -1) {
+          return JSONOuput;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        webUrl: 'https://contoso.sharepoint.com/sites/project-x',
-        fileId: 'b2307a39-e878-458b-bc90-03bc578531d6',
-        output: 'json'
-      }
-    } as any);
-    assert(loggerLogSpy.calledWith(JSONOuput));
-  });
+      await command.action(logger, {
+        options: {
+          webUrl: 'https://contoso.sharepoint.com/sites/project-x',
+          fileId: 'b2307a39-e878-458b-bc90-03bc578531d6',
+          output: 'json'
+        }
+      } as any);
+      assert(loggerLogSpy.calledWith(JSONOuput));
+    }
+  );
 
-  it('Retrieves Sharing Information When document URL is Passed - JSON Output (Debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/web/GetFileByServerRelativePath') > -1) {
-        return {
-          "ListItemAllFields": {
-            "ParentList": {
-              "Title": "Documents"
-            },
-            "Id": 2,
-            "ID": 2
-          }
-        };
-      }
+  it('Retrieves Sharing Information When document URL is Passed - JSON Output (Debug)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/web/GetFileByServerRelativePath') > -1) {
+          return {
+            "ListItemAllFields": {
+              "ParentList": {
+                "Title": "Documents"
+              },
+              "Id": 2,
+              "ID": 2
+            }
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/web/lists/getbytitle') > -1) {
-        return JSONOuput;
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/web/lists/getbytitle') > -1) {
+          return JSONOuput;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: 'https://contoso.sharepoint.com/sites/project-x',
-        fileUrl: '/sites/project-x/documents/SharedFile.docx',
-        output: 'json'
-      }
-    } as any);
-    assert(loggerLogToStderrSpy.called);
-  });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: 'https://contoso.sharepoint.com/sites/project-x',
+          fileUrl: '/sites/project-x/documents/SharedFile.docx',
+          output: 'json'
+        }
+      } as any);
+      assert(loggerLogToStderrSpy.called);
+    }
+  );
 
-  it('Retrieves Sharing Information When Site ID is Passed - Text Output (Debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/web/GetFileById') > -1) {
-        return {
-          "ListItemAllFields": {
-            "ParentList": {
-              "Title": "Documents"
-            },
-            "Id": 2,
-            "ID": 2
-          }
-        };
-      }
+  it('Retrieves Sharing Information When Site ID is Passed - Text Output (Debug)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/web/GetFileById') > -1) {
+          return {
+            "ListItemAllFields": {
+              "ParentList": {
+                "Title": "Documents"
+              },
+              "Id": 2,
+              "ID": 2
+            }
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf('/_api/web/lists/getbytitle') > -1) {
-        return JSONOuput;
-      }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf('/_api/web/lists/getbytitle') > -1) {
+          return JSONOuput;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        webUrl: 'https://contoso.sharepoint.com/sites/project-x',
-        fileId: 'b2307a39-e878-458b-bc90-03bc578531d6',
-        output: 'text',
-        debug: true
-      }
-    } as any);
-    assert(loggerLogToStderrSpy.called);
-  });
+      await command.action(logger, {
+        options: {
+          webUrl: 'https://contoso.sharepoint.com/sites/project-x',
+          fileId: 'b2307a39-e878-458b-bc90-03bc578531d6',
+          output: 'text',
+          debug: true
+        }
+      } as any);
+      assert(loggerLogToStderrSpy.called);
+    }
+  );
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', fileId: 'f09c4efe-b8c0-4e89-a166-03418661b89b' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', fileId: 'f09c4efe-b8c0-4e89-a166-03418661b89b' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the webUrl option is a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', fileId: 'f09c4efe-b8c0-4e89-a166-03418661b89b' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if the webUrl option is a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', fileId: 'f09c4efe-b8c0-4e89-a166-03418661b89b' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the fileId option is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', fileId: '12345' } }, commandInfo);
@@ -672,29 +681,33 @@ describe(commands.FILE_SHARINGINFO_GET, () => {
     assert(actual);
   });
 
-  it('fails validation if the fileId or fileUrl option not specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if the fileId or fileUrl option not specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if both fileId and fileUrl options are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both fileId and fileUrl options are specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', fileId: 'f09c4efe-b8c0-4e89-a166-03418661b89b', fileUrl: '/sites/project-x/documents/SharedFile.docx' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', fileId: 'f09c4efe-b8c0-4e89-a166-03418661b89b', fileUrl: '/sites/project-x/documents/SharedFile.docx' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 });

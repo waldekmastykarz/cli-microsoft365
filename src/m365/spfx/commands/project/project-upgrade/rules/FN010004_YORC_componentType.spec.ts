@@ -24,91 +24,101 @@ describe('FN010004_YORC_componentType', () => {
     assert.strictEqual(findings.length, 0);
   });
 
-  it('doesn\'t return notification if componentType is already up-to-date', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      yoRcJson: {
-        "@microsoft/generator-sharepoint": {
-          componentType: 'webpart'
+  it('doesn\'t return notification if componentType is already up-to-date',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        yoRcJson: {
+          "@microsoft/generator-sharepoint": {
+            componentType: 'webpart'
+          }
         }
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
-  it('suggests setting componentType to webpart for a project with a web part', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      manifests: [{
-        "$schema": 'https://developer.microsoft.com/json-schemas/spfx/client-side-web-part-manifest.schema.json',
-        componentType: 'WebPart',
-        path: '/usr/tmp/src/webparts/helloWorld/HelloWorld.manifest.json'
-      }],
-      yoRcJson: {
-        "@microsoft/generator-sharepoint": {
-        },
-        source: JSON.stringify({
+  it('suggests setting componentType to webpart for a project with a web part',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        manifests: [{
+          "$schema": 'https://developer.microsoft.com/json-schemas/spfx/client-side-web-part-manifest.schema.json',
+          componentType: 'WebPart',
+          path: '/usr/tmp/src/webparts/helloWorld/HelloWorld.manifest.json'
+        }],
+        yoRcJson: {
+          "@microsoft/generator-sharepoint": {
+          },
+          source: JSON.stringify({
+            "@microsoft/generator-sharepoint": {
+            }
+          }, null, 2)
+        }
+      };
+      rule.visit(project, findings);
+      assert(findings[0].occurrences[0].resolution.indexOf('"componentType": "webpart"') > -1, 'Incorrect suggestion');
+      assert.strictEqual(findings[0].occurrences[0].position?.line, 2, 'Incorrect line number');
+    }
+  );
+
+  it('suggests setting componentType to webpart for a project with a web part when @microsoft/generator-sharepoint not set',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        manifests: [{
+          "$schema": 'https://developer.microsoft.com/json-schemas/spfx/client-side-web-part-manifest.schema.json',
+          componentType: 'WebPart',
+          path: '/usr/tmp/src/webparts/helloWorld/HelloWorld.manifest.json'
+        }],
+        yoRcJson: {}
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 1);
+    }
+  );
+
+  it('suggests setting componentType to extension for a project with an extension',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        manifests: [{
+          "$schema": 'https://developer.microsoft.com/json-schemas/spfx/command-set-extension-manifest.schema.json',
+          componentType: 'Extension',
+          path: '/usr/tmp/src/extensions/helloWorld/HelloWorld.manifest.json'
+        }],
+        yoRcJson: {
           "@microsoft/generator-sharepoint": {
           }
-        }, null, 2)
-      }
-    };
-    rule.visit(project, findings);
-    assert(findings[0].occurrences[0].resolution.indexOf('"componentType": "webpart"') > -1, 'Incorrect suggestion');
-    assert.strictEqual(findings[0].occurrences[0].position?.line, 2, 'Incorrect line number');
-  });
-
-  it('suggests setting componentType to webpart for a project with a web part when @microsoft/generator-sharepoint not set', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      manifests: [{
-        "$schema": 'https://developer.microsoft.com/json-schemas/spfx/client-side-web-part-manifest.schema.json',
-        componentType: 'WebPart',
-        path: '/usr/tmp/src/webparts/helloWorld/HelloWorld.manifest.json'
-      }],
-      yoRcJson: {}
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 1);
-  });
-
-  it('suggests setting componentType to extension for a project with an extension', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      manifests: [{
-        "$schema": 'https://developer.microsoft.com/json-schemas/spfx/command-set-extension-manifest.schema.json',
-        componentType: 'Extension',
-        path: '/usr/tmp/src/extensions/helloWorld/HelloWorld.manifest.json'
-      }],
-      yoRcJson: {
-        "@microsoft/generator-sharepoint": {
         }
-      }
-    };
-    rule.visit(project, findings);
-    assert(findings[0].occurrences[0].resolution.indexOf('"componentType": "extension"') > -1);
-  });
+      };
+      rule.visit(project, findings);
+      assert(findings[0].occurrences[0].resolution.indexOf('"componentType": "extension"') > -1);
+    }
+  );
 
-  it('suggests setting componentType to extension for a project with an extension and a web part', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      manifests: [{
-        "$schema": 'https://developer.microsoft.com/json-schemas/spfx/command-set-extension-manifest.schema.json',
-        componentType: 'Extension',
-        path: '/usr/tmp/src/extensions/helloWorld/HelloWorld.manifest.json'
-      },
-      {
-        "$schema": 'https://developer.microsoft.com/json-schemas/spfx/client-side-web-part-manifest.schema.json',
-        componentType: 'WebPart',
-        path: '/usr/tmp/src/webparts/helloWorld/HelloWorld.manifest.json'
-      }],
-      yoRcJson: {
-        "@microsoft/generator-sharepoint": {
+  it('suggests setting componentType to extension for a project with an extension and a web part',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        manifests: [{
+          "$schema": 'https://developer.microsoft.com/json-schemas/spfx/command-set-extension-manifest.schema.json',
+          componentType: 'Extension',
+          path: '/usr/tmp/src/extensions/helloWorld/HelloWorld.manifest.json'
+        },
+        {
+          "$schema": 'https://developer.microsoft.com/json-schemas/spfx/client-side-web-part-manifest.schema.json',
+          componentType: 'WebPart',
+          path: '/usr/tmp/src/webparts/helloWorld/HelloWorld.manifest.json'
+        }],
+        yoRcJson: {
+          "@microsoft/generator-sharepoint": {
+          }
         }
-      }
-    };
-    rule.visit(project, findings);
-    assert(findings[0].occurrences[0].resolution.indexOf('"componentType": "extension"') > -1);
-  });
+      };
+      rule.visit(project, findings);
+      assert(findings[0].occurrences[0].resolution.indexOf('"componentType": "extension"') > -1);
+    }
+  );
 });

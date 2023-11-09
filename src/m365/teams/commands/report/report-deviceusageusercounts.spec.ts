@@ -1,12 +1,11 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Logger } from '../../../../cli/Logger.js';
 import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './report-deviceusageusercounts.js';
 
@@ -14,11 +13,11 @@ describe(commands.REPORT_DEVICEUSAGEUSERCOUNTS, () => {
   let log: string[];
   let logger: Logger;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
   });
 
@@ -39,13 +38,13 @@ describe(commands.REPORT_DEVICEUSAGEUSERCOUNTS, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -57,21 +56,23 @@ describe(commands.REPORT_DEVICEUSAGEUSERCOUNTS, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('gets the number of Microsoft Teams daily unique users by device type for the given period', async () => {
-    const requestStub: sinon.SinonStub = sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/reports/getTeamsDeviceUsageUserCounts(period='D7')`) {
-        return `
-        Report Refresh Date,Web,Windows Phone,Android Phone,iOS,Mac,Windows,Report Date,Report Period
-        2019-08-28,0,0,0,0,0,0,2019-08-28,7
-        2019-08-28,0,0,0,0,0,0,2019-08-27,7
-        `;
-      }
+  it('gets the number of Microsoft Teams daily unique users by device type for the given period',
+    async () => {
+      const requestStub: jest.Mock = jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/reports/getTeamsDeviceUsageUserCounts(period='D7')`) {
+          return `
+          Report Refresh Date,Web,Windows Phone,Android Phone,iOS,Mac,Windows,Report Date,Report Period
+          2019-08-28,0,0,0,0,0,0,2019-08-28,7
+          2019-08-28,0,0,0,0,0,0,2019-08-27,7
+          `;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { period: 'D7' } });
-    assert.strictEqual(requestStub.lastCall.args[0].url, "https://graph.microsoft.com/v1.0/reports/getTeamsDeviceUsageUserCounts(period='D7')");
-    assert.strictEqual(requestStub.lastCall.args[0].headers["accept"], 'application/json;odata.metadata=none');
-  });
+      await command.action(logger, { options: { period: 'D7' } });
+      assert.strictEqual(requestStub.mock.lastCall[0].url, "https://graph.microsoft.com/v1.0/reports/getTeamsDeviceUsageUserCounts(period='D7')");
+      assert.strictEqual(requestStub.mock.lastCall[0].headers["accept"], 'application/json;odata.metadata=none');
+    }
+  );
 });

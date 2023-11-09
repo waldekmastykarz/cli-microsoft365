@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,21 +8,21 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './sitedesign-run-list.js';
 
 describe(commands.SITEDESIGN_RUN_LIST, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -41,17 +40,17 @@ describe(commands.SITEDESIGN_RUN_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -67,92 +66,96 @@ describe(commands.SITEDESIGN_RUN_LIST, () => {
     assert.deepStrictEqual(command.defaultProperties(), ['ID', 'SiteDesignID', 'SiteDesignTitle', 'StartTime']);
   });
 
-  it('gets information about site designs applied to the specified site', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.GetSiteDesignRun`) > -1) {
-        return {
-          "value": [
-            {
-              "ID": "b4411557-308b-4545-a3c4-55297d5cd8c8",
-              "SiteDesignID": "6ec3ca5b-d04b-4381-b169-61378556d76e",
-              "SiteDesignTitle": "Contoso Team Site",
-              "SiteDesignVersion": 1,
-              "SiteID": "24cea241-ad89-44b8-8669-d60d88d38575",
-              "StartTime": "1548960114000",
-              "WebID": "e87e4ab8-2732-4a90-836d-9b3d0cd3a5cf"
-            },
-            {
-              "ID": "e15d5b37-fe95-4667-96f7-bee41aa1ccdf",
-              "SiteDesignID": "2b5cb6bc-a176-472a-b59a-d1289d720414",
-              "SiteDesignTitle": "Contoso Communication Site",
-              "SiteDesignVersion": 1,
-              "SiteID": "24cea241-ad89-44b8-8669-d60d88d38575",
-              "StartTime": "1548959800000",
-              "WebID": "e87e4ab8-2732-4a90-836d-9b3d0cd3a5cf"
-            }
-          ]
-        };
-      }
+  it('gets information about site designs applied to the specified site',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.GetSiteDesignRun`) > -1) {
+          return {
+            "value": [
+              {
+                "ID": "b4411557-308b-4545-a3c4-55297d5cd8c8",
+                "SiteDesignID": "6ec3ca5b-d04b-4381-b169-61378556d76e",
+                "SiteDesignTitle": "Contoso Team Site",
+                "SiteDesignVersion": 1,
+                "SiteID": "24cea241-ad89-44b8-8669-d60d88d38575",
+                "StartTime": "1548960114000",
+                "WebID": "e87e4ab8-2732-4a90-836d-9b3d0cd3a5cf"
+              },
+              {
+                "ID": "e15d5b37-fe95-4667-96f7-bee41aa1ccdf",
+                "SiteDesignID": "2b5cb6bc-a176-472a-b59a-d1289d720414",
+                "SiteDesignTitle": "Contoso Communication Site",
+                "SiteDesignVersion": 1,
+                "SiteID": "24cea241-ad89-44b8-8669-d60d88d38575",
+                "StartTime": "1548959800000",
+                "WebID": "e87e4ab8-2732-4a90-836d-9b3d0cd3a5cf"
+              }
+            ]
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a' } });
-    assert(loggerLogSpy.calledWith([{
-      "ID": "b4411557-308b-4545-a3c4-55297d5cd8c8",
-      "SiteDesignID": "6ec3ca5b-d04b-4381-b169-61378556d76e",
-      "SiteDesignTitle": "Contoso Team Site",
-      "SiteDesignVersion": 1,
-      "SiteID": "24cea241-ad89-44b8-8669-d60d88d38575",
-      "StartTime": new Date(1548960114000).toLocaleString(),
-      "WebID": "e87e4ab8-2732-4a90-836d-9b3d0cd3a5cf"
-    },
-    {
-      "ID": "e15d5b37-fe95-4667-96f7-bee41aa1ccdf",
-      "SiteDesignID": "2b5cb6bc-a176-472a-b59a-d1289d720414",
-      "SiteDesignTitle": "Contoso Communication Site",
-      "SiteDesignVersion": 1,
-      "SiteID": "24cea241-ad89-44b8-8669-d60d88d38575",
-      "StartTime": new Date(1548959800000).toLocaleString(),
-      "WebID": "e87e4ab8-2732-4a90-836d-9b3d0cd3a5cf"
-    }]));
-  });
+      await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a' } });
+      assert(loggerLogSpy.calledWith([{
+        "ID": "b4411557-308b-4545-a3c4-55297d5cd8c8",
+        "SiteDesignID": "6ec3ca5b-d04b-4381-b169-61378556d76e",
+        "SiteDesignTitle": "Contoso Team Site",
+        "SiteDesignVersion": 1,
+        "SiteID": "24cea241-ad89-44b8-8669-d60d88d38575",
+        "StartTime": new Date(1548960114000).toLocaleString(),
+        "WebID": "e87e4ab8-2732-4a90-836d-9b3d0cd3a5cf"
+      },
+      {
+        "ID": "e15d5b37-fe95-4667-96f7-bee41aa1ccdf",
+        "SiteDesignID": "2b5cb6bc-a176-472a-b59a-d1289d720414",
+        "SiteDesignTitle": "Contoso Communication Site",
+        "SiteDesignVersion": 1,
+        "SiteID": "24cea241-ad89-44b8-8669-d60d88d38575",
+        "StartTime": new Date(1548959800000).toLocaleString(),
+        "WebID": "e87e4ab8-2732-4a90-836d-9b3d0cd3a5cf"
+      }]));
+    }
+  );
 
-  it('gets information about the specified site design applied to the specified site', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.GetSiteDesignRun`) > -1) {
-        return {
-          "value": [
-            {
-              "ID": "b4411557-308b-4545-a3c4-55297d5cd8c8",
-              "SiteDesignID": "6ec3ca5b-d04b-4381-b169-61378556d76e",
-              "SiteDesignTitle": "Contoso Team Site",
-              "SiteDesignVersion": 1,
-              "SiteID": "24cea241-ad89-44b8-8669-d60d88d38575",
-              "StartTime": "1548960114000",
-              "WebID": "e87e4ab8-2732-4a90-836d-9b3d0cd3a5cf"
-            }
-          ]
-        };
-      }
+  it('gets information about the specified site design applied to the specified site',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.GetSiteDesignRun`) > -1) {
+          return {
+            "value": [
+              {
+                "ID": "b4411557-308b-4545-a3c4-55297d5cd8c8",
+                "SiteDesignID": "6ec3ca5b-d04b-4381-b169-61378556d76e",
+                "SiteDesignTitle": "Contoso Team Site",
+                "SiteDesignVersion": 1,
+                "SiteID": "24cea241-ad89-44b8-8669-d60d88d38575",
+                "StartTime": "1548960114000",
+                "WebID": "e87e4ab8-2732-4a90-836d-9b3d0cd3a5cf"
+              }
+            ]
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com/sites/team-a', siteDesignId: 'b4411557-308b-4545-a3c4-55297d5cd8c8' } });
-    assert(loggerLogSpy.calledWith([{
-      "ID": "b4411557-308b-4545-a3c4-55297d5cd8c8",
-      "SiteDesignID": "6ec3ca5b-d04b-4381-b169-61378556d76e",
-      "SiteDesignTitle": "Contoso Team Site",
-      "SiteDesignVersion": 1,
-      "SiteID": "24cea241-ad89-44b8-8669-d60d88d38575",
-      "StartTime": new Date(1548960114000).toLocaleString(),
-      "WebID": "e87e4ab8-2732-4a90-836d-9b3d0cd3a5cf"
-    }]));
-  });
+      await command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com/sites/team-a', siteDesignId: 'b4411557-308b-4545-a3c4-55297d5cd8c8' } });
+      assert(loggerLogSpy.calledWith([{
+        "ID": "b4411557-308b-4545-a3c4-55297d5cd8c8",
+        "SiteDesignID": "6ec3ca5b-d04b-4381-b169-61378556d76e",
+        "SiteDesignTitle": "Contoso Team Site",
+        "SiteDesignVersion": 1,
+        "SiteID": "24cea241-ad89-44b8-8669-d60d88d38575",
+        "StartTime": new Date(1548960114000).toLocaleString(),
+        "WebID": "e87e4ab8-2732-4a90-836d-9b3d0cd3a5cf"
+      }]));
+    }
+  );
 
   it('outputs all information in JSON output mode', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/Microsoft.Sharepoint.Utilities.WebTemplateExtensions.SiteScriptUtility.GetSiteDesignRun`) > -1) {
         return {
           "value": [
@@ -204,11 +207,13 @@ describe(commands.SITEDESIGN_RUN_LIST, () => {
     ]));
   });
 
-  it('correctly handles OData error when retrieving information about site designs', async () => {
-    sinon.stub(request, 'post').rejects({ error: { 'odata.error': { message: { value: 'An error has occurred' } } } });
+  it('correctly handles OData error when retrieving information about site designs',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation().rejects({ error: { 'odata.error': { message: { value: 'An error has occurred' } } } });
 
-    await assert.rejects(command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a' } } as any), new CommandError('An error has occurred'));
-  });
+      await assert.rejects(command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/team-a' } } as any), new CommandError('An error has occurred'));
+    }
+  );
 
   it('fails validation if webUrl is not a valid SharePoint URL', async () => {
     const actual = await command.validate({ options: { webUrl: 'invalid' } }, commandInfo);
@@ -220,10 +225,12 @@ describe(commands.SITEDESIGN_RUN_LIST, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('passes validation if webUrl is valid and siteDesignId is not specified', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if webUrl is valid and siteDesignId is not specified',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('passes validation if webUrl and siteDesignId are valid', async () => {
     const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', siteDesignId: '6ec3ca5b-d04b-4381-b169-61378556d76e' } }, commandInfo);

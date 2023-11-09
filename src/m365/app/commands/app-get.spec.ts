@@ -1,6 +1,5 @@
 import assert from 'assert';
 import fs from 'fs';
-import sinon from 'sinon';
 import auth from '../../../Auth.js';
 import { Logger } from '../../../cli/Logger.js';
 import { CommandError } from '../../../Command.js';
@@ -8,23 +7,23 @@ import request from '../../../request.js';
 import { telemetry } from '../../../telemetry.js';
 import { pid } from '../../../utils/pid.js';
 import { session } from '../../../utils/session.js';
-import { sinonUtil } from '../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../utils/jestUtil.js';
 import commands from '../commands.js';
 import command from './app-get.js';
 
 describe(commands.GET, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
+  let loggerLogToStderrSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'readFileSync').returns(JSON.stringify({
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+    jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue(JSON.stringify({
       "apps": [
         {
           "appId": "9b1b1e42-794b-4c71-93ac-5ed92488b67f",
@@ -48,18 +47,18 @@ describe(commands.GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -71,34 +70,38 @@ describe(commands.GET, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('handles error when the app specified with the appId not found', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '9b1b1e42-794b-4c71-93ac-5ed92488b67f'&$select=id`) {
-        return { value: [] };
-      }
+  it('handles error when the app specified with the appId not found',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '9b1b1e42-794b-4c71-93ac-5ed92488b67f'&$select=id`) {
+          return { value: [] };
+        }
 
-      throw `Invalid request ${JSON.stringify(opts)}`;
-    });
+        throw `Invalid request ${JSON.stringify(opts)}`;
+      });
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f'
-      }
-    }), new CommandError(`No Azure AD application registration with ID 9b1b1e42-794b-4c71-93ac-5ed92488b67f found`));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f'
+        }
+      }), new CommandError(`No Azure AD application registration with ID 9b1b1e42-794b-4c71-93ac-5ed92488b67f found`));
+    }
+  );
 
-  it('handles error when retrieving information about app through appId failed', async () => {
-    sinon.stub(request, 'get').rejects(new Error('An error has occurred'));
+  it('handles error when retrieving information about app through appId failed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f'
-      }
-    }), new CommandError(`An error has occurred`));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f'
+        }
+      }), new CommandError(`An error has occurred`));
+    }
+  );
 
   it(`gets an Azure AD app registration by its app (client) ID.`, async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '9b1b1e42-794b-4c71-93ac-5ed92488b67f'&$select=id`) {
         return {
           value: [
@@ -131,14 +134,14 @@ describe(commands.GET, () => {
         appId: '9b1b1e42-794b-4c71-93ac-5ed92488b67f'
       }
     });
-    const call: sinon.SinonSpyCall = loggerLogSpy.lastCall;
-    assert.strictEqual(call.args[0].id, '340a4aa3-1af6-43ac-87d8-189819003952');
-    assert.strictEqual(call.args[0].appId, '9b1b1e42-794b-4c71-93ac-5ed92488b67f');
-    assert.strictEqual(call.args[0].displayName, 'My App');
+    const call: sinon.SinonSpyCall = loggerLogSpy.mock.lastCall;
+    assert.strictEqual(call.mock.calls[0].id, '340a4aa3-1af6-43ac-87d8-189819003952');
+    assert.strictEqual(call.mock.calls[0].appId, '9b1b1e42-794b-4c71-93ac-5ed92488b67f');
+    assert.strictEqual(call.mock.calls[0].displayName, 'My App');
   });
 
   it(`shows underlying debug information in debug mode`, async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/myorganization/applications?$filter=appId eq '9b1b1e42-794b-4c71-93ac-5ed92488b67f'&$select=id`) {
         return {
           value: [
@@ -172,7 +175,7 @@ describe(commands.GET, () => {
         debug: true
       }
     });
-    const call: sinon.SinonSpyCall = loggerLogToStderrSpy.firstCall;
-    assert(call.args[0].includes('Executing command aad app get with options'));
+    const call: sinon.SinonSpyCall = loggerLogToStderrSpy.mock.calls[0];
+    assert(call.mock.calls[0].includes('Executing command aad app get with options'));
   });
 });

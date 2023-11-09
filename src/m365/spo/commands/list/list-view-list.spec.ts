@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { urlUtil } from '../../../../utils/urlUtil.js';
 import commands from '../../commands.js';
 import command from './list-view-list.js';
@@ -31,11 +30,11 @@ describe(commands.LIST_VIEW_LIST, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -56,13 +55,13 @@ describe(commands.LIST_VIEW_LIST, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -78,10 +77,12 @@ describe(commands.LIST_VIEW_LIST, () => {
     assert.deepStrictEqual(command.defaultProperties(), ['Id', 'Title', 'DefaultView', 'Hidden', 'BaseViewId']);
   });
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', listId: listId } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', listId: listId } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if the listId option is not a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: webUrl, listId: '12345' } }, commandInfo);
@@ -93,79 +94,87 @@ describe(commands.LIST_VIEW_LIST, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('retrieves all views of the specific list if listTitle option is passed (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/lists/GetByTitle('${formatting.encodeQueryParameter(listTitle)}')/views`) {
-        return listViewResponse;
-      }
+  it('retrieves all views of the specific list if listTitle option is passed (debug)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/lists/GetByTitle('${formatting.encodeQueryParameter(listTitle)}')/views`) {
+          return listViewResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        listTitle: listTitle,
-        webUrl: webUrl
-      }
-    });
-  });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          listTitle: listTitle,
+          webUrl: webUrl
+        }
+      });
+    }
+  );
 
-  it('retrieves all views of the specific list if listId option is passed', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/lists(guid'${formatting.encodeQueryParameter(listId)}')/views`) {
-        return listViewResponse;
-      }
+  it('retrieves all views of the specific list if listId option is passed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/lists(guid'${formatting.encodeQueryParameter(listId)}')/views`) {
+          return listViewResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        listId: listId,
-        webUrl: webUrl
-      }
-    });
-  });
+      await command.action(logger, {
+        options: {
+          listId: listId,
+          webUrl: webUrl
+        }
+      });
+    }
+  );
 
-  it('retrieves all views of the specific list if listUrl option is passed', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      const serverRelativeUrl: string = urlUtil.getServerRelativePath(webUrl, listUrl);
-      if (opts.url === `${webUrl}/_api/web/GetList('${formatting.encodeQueryParameter(serverRelativeUrl)}')/views`) {
-        return listViewResponse;
-      }
+  it('retrieves all views of the specific list if listUrl option is passed',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        const serverRelativeUrl: string = urlUtil.getServerRelativePath(webUrl, listUrl);
+        if (opts.url === `${webUrl}/_api/web/GetList('${formatting.encodeQueryParameter(serverRelativeUrl)}')/views`) {
+          return listViewResponse;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, {
-      options: {
-        listUrl: listUrl,
-        webUrl: webUrl
-      }
-    });
-  });
+      await command.action(logger, {
+        options: {
+          listUrl: listUrl,
+          webUrl: webUrl
+        }
+      });
+    }
+  );
 
-  it('correctly handles error when the specified list doesn\'t exist', async () => {
-    const errorMessage = `List '' does not exist at site with URL ''`;
-    const error = {
-      error: {
-        'odata.error': {
-          code: '-1, Microsoft.SharePoint.Client.InvalidOperationException',
-          message: {
-            value: errorMessage
+  it('correctly handles error when the specified list doesn\'t exist',
+    async () => {
+      const errorMessage = `List '' does not exist at site with URL ''`;
+      const error = {
+        error: {
+          'odata.error': {
+            code: '-1, Microsoft.SharePoint.Client.InvalidOperationException',
+            message: {
+              value: errorMessage
+            }
           }
         }
-      }
-    };
-    sinon.stub(request, 'get').rejects(error);
+      };
+      jest.spyOn(request, 'get').mockClear().mockImplementation().rejects(error);
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        debug: true,
-        listTitle: listTitle,
-        webUrl: webUrl
-      }
-    }), new CommandError(errorMessage));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          debug: true,
+          listTitle: listTitle,
+          webUrl: webUrl
+        }
+      }), new CommandError(errorMessage));
+    }
+  );
 });

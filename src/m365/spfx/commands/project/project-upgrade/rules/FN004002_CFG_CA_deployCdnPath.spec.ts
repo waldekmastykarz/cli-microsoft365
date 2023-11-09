@@ -20,17 +20,19 @@ describe('FN004002_CFG_CA_deployCdnPath', () => {
     assert.strictEqual(findings.length, 0);
   });
 
-  it(`doesn't return notification if deployCdnPath is already up-to-date`, () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      copyAssetsJson: {
-        $schema: 'test-schema',
-        deployCdnPath: './release/assets/'
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+  it(`doesn't return notification if deployCdnPath is already up-to-date`,
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        copyAssetsJson: {
+          $schema: 'test-schema',
+          deployCdnPath: './release/assets/'
+        }
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
   it('returns notification if deployCdnPath is not up-to-date', () => {
     const project: Project = {

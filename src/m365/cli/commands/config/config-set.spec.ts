@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
 import { Logger } from '../../../../cli/Logger.js';
@@ -7,7 +6,7 @@ import { settingsNames } from '../../../../settingsNames.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './config-set.js';
 
@@ -16,11 +15,11 @@ describe(commands.CONFIG_SET, () => {
   let logger: Logger;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     commandInfo = Cli.getCommandInfo(command);
-    sinon.stub(telemetry, 'trackEvent').callsFake(() => { });
-    sinon.stub(pid, 'getProcessName').callsFake(() => '');
-    sinon.stub(session, 'getId').callsFake(() => '');
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockImplementation(() => { });
+    jest.spyOn(pid, 'getProcessName').mockClear().mockImplementation(() => '');
+    jest.spyOn(session, 'getId').mockClear().mockImplementation(() => '');
   });
 
   beforeEach(() => {
@@ -39,11 +38,11 @@ describe(commands.CONFIG_SET, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore(Cli.getInstance().config.set);
+    jestUtil.restore(Cli.getInstance().config.set);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
   });
 
   it('has correct name', () => {
@@ -57,7 +56,7 @@ describe(commands.CONFIG_SET, () => {
   it(`sets ${settingsNames.showHelpOnFailure} property`, async () => {
     const config = Cli.getInstance().config;
     let actualKey: string = '', actualValue: any;
-    sinon.stub(config, 'set').callsFake(((key: string, value: any) => {
+    jest.spyOn(config, 'set').mockClear().mockImplementation(((key: string, value: any) => {
       actualKey = key;
       actualValue = value;
     }) as any);
@@ -69,7 +68,7 @@ describe(commands.CONFIG_SET, () => {
   it(`sets ${settingsNames.autoOpenLinksInBrowser} property`, async () => {
     const config = Cli.getInstance().config;
     let actualKey: string = '', actualValue: any;
-    sinon.stub(config, 'set').callsFake(((key: string, value: any) => {
+    jest.spyOn(config, 'set').mockClear().mockImplementation(((key: string, value: any) => {
       actualKey = key;
       actualValue = value;
     }) as any);
@@ -82,7 +81,7 @@ describe(commands.CONFIG_SET, () => {
     const output = "text";
     const config = Cli.getInstance().config;
     let actualKey: string = '', actualValue: any;
-    sinon.stub(config, 'set').callsFake(((key: string, value: any) => {
+    jest.spyOn(config, 'set').mockClear().mockImplementation(((key: string, value: any) => {
       actualKey = key;
       actualValue = value;
     }) as any);
@@ -96,7 +95,7 @@ describe(commands.CONFIG_SET, () => {
     const output = "json";
     const config = Cli.getInstance().config;
     let actualKey: string = '', actualValue: any;
-    sinon.stub(config, 'set').callsFake(((key: string, value: any) => {
+    jest.spyOn(config, 'set').mockClear().mockImplementation(((key: string, value: any) => {
       actualKey = key;
       actualValue = value;
     }) as any);
@@ -110,7 +109,7 @@ describe(commands.CONFIG_SET, () => {
     const output = "csv";
     const config = Cli.getInstance().config;
     let actualKey: string = '', actualValue: any;
-    sinon.stub(config, 'set').callsFake(((key: string, value: any) => {
+    jest.spyOn(config, 'set').mockClear().mockImplementation(((key: string, value: any) => {
       actualKey = key;
       actualValue = value;
     }) as any);
@@ -123,7 +122,7 @@ describe(commands.CONFIG_SET, () => {
   it(`sets ${settingsNames.csvHeader} property`, async () => {
     const config = Cli.getInstance().config;
     let actualKey: string = '', actualValue: any;
-    sinon.stub(config, 'set').callsFake(((key: string, value: any) => {
+    jest.spyOn(config, 'set').mockClear().mockImplementation(((key: string, value: any) => {
       actualKey = key;
       actualValue = value;
     }) as any);
@@ -135,7 +134,7 @@ describe(commands.CONFIG_SET, () => {
   it(`sets ${settingsNames.csvQuoted} property`, async () => {
     const config = Cli.getInstance().config;
     let actualKey: string = '', actualValue: any;
-    sinon.stub(config, 'set').callsFake(((key: string, value: any) => {
+    jest.spyOn(config, 'set').mockClear().mockImplementation(((key: string, value: any) => {
       actualKey = key;
       actualValue = value;
     }) as any);
@@ -147,7 +146,7 @@ describe(commands.CONFIG_SET, () => {
   it(`sets ${settingsNames.csvQuotedEmpty} property`, async () => {
     const config = Cli.getInstance().config;
     let actualKey: string = '', actualValue: any;
-    sinon.stub(config, 'set').callsFake(((key: string, value: any) => {
+    jest.spyOn(config, 'set').mockClear().mockImplementation(((key: string, value: any) => {
       actualKey = key;
       actualValue = value;
     }) as any);
@@ -159,7 +158,7 @@ describe(commands.CONFIG_SET, () => {
   it(`sets ${settingsNames.prompt} property`, async () => {
     const config = Cli.getInstance().config;
     let actualKey: string = '', actualValue: any;
-    sinon.stub(config, 'set').callsFake(((key: string, value: any) => {
+    jest.spyOn(config, 'set').mockClear().mockImplementation(((key: string, value: any) => {
       actualKey = key;
       actualValue = value;
     }) as any);
@@ -189,15 +188,19 @@ describe(commands.CONFIG_SET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it(`passes validation if setting is set to ${settingsNames.showHelpOnFailure} and value to true`, async () => {
-    const actual = await command.validate({ options: { key: settingsNames.showHelpOnFailure, value: 'true' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it(`passes validation if setting is set to ${settingsNames.showHelpOnFailure} and value to true`,
+    async () => {
+      const actual = await command.validate({ options: { key: settingsNames.showHelpOnFailure, value: 'true' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it(`passes validation if setting is set to ${settingsNames.showHelpOnFailure} and value to false`, async () => {
-    const actual = await command.validate({ options: { key: settingsNames.showHelpOnFailure, value: 'false' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it(`passes validation if setting is set to ${settingsNames.showHelpOnFailure} and value to false`,
+    async () => {
+      const actual = await command.validate({ options: { key: settingsNames.showHelpOnFailure, value: 'false' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('fails validation if specified output type is invalid', async () => {
     const actual = await command.validate({ options: { key: settingsNames.output, value: 'invalid' } }, commandInfo);
@@ -219,10 +222,12 @@ describe(commands.CONFIG_SET, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('fails validation if specified error output type is invalid', async () => {
-    const actual = await command.validate({ options: { key: settingsNames.errorOutput, value: 'invalid' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if specified error output type is invalid',
+    async () => {
+      const actual = await command.validate({ options: { key: settingsNames.errorOutput, value: 'invalid' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation for error output stdout', async () => {
     const actual = await command.validate({ options: { key: settingsNames.errorOutput, value: 'stdout' } }, commandInfo);

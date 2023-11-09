@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './mail-send.js';
 
@@ -19,11 +18,11 @@ describe(commands.MAIL_SEND, () => {
   let commandInfo: CommandInfo;
   let requests: any[];
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -45,18 +44,18 @@ describe(commands.MAIL_SEND, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
   it('has correct name', () => {
-    assert.strictEqual(command.name,commands.MAIL_SEND);
+    assert.strictEqual(command.name, commands.MAIL_SEND);
   });
 
   it('has a description', () => {
@@ -64,7 +63,7 @@ describe(commands.MAIL_SEND, () => {
   });
 
   it('Send an email to one recipient (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
       if ((opts.url as string).indexOf(`/_api/SP.Utilities.Utility.SendEmail`) > -1) {
         return '';
@@ -86,7 +85,7 @@ describe(commands.MAIL_SEND, () => {
   });
 
   it('Send an email to one recipient', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
       if ((opts.url as string).indexOf(`/_api/SP.Utilities.Utility.SendEmail`) > -1) {
         return '';
@@ -108,7 +107,7 @@ describe(commands.MAIL_SEND, () => {
   });
 
   it('Send an email to one recipient and from someone (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
       if ((opts.url as string).indexOf(`/_api/SP.Utilities.Utility.SendEmail`) > -1) {
         return '';
@@ -130,7 +129,7 @@ describe(commands.MAIL_SEND, () => {
   });
 
   it('Send an email to one recipient and from someone', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
       if ((opts.url as string).indexOf(`/_api/SP.Utilities.Utility.SendEmail`) > -1) {
         return '';
@@ -151,30 +150,32 @@ describe(commands.MAIL_SEND, () => {
     assert(correctRequestIssued);
   });
 
-  it('Send an email to one recipient and from some peoples (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      requests.push(opts);
-      if ((opts.url as string).indexOf(`/_api/SP.Utilities.Utility.SendEmail`) > -1) {
-        return '';
-      }
+  it('Send an email to one recipient and from some peoples (debug)',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        requests.push(opts);
+        if ((opts.url as string).indexOf(`/_api/SP.Utilities.Utility.SendEmail`) > -1) {
+          return '';
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, webUrl: "https://contoso.sharepoint.com", to: 'user@contoso.com', subject: 'Subject of the email', body: 'Content of the email', from: 'user@contoso.com,someone@consotos.com', verbose: true } });
-    let correctRequestIssued = false;
-    requests.forEach(r => {
-      if (r.url.indexOf(`/_api/SP.Utilities.Utility.SendEmail`) > -1 &&
-        r.data) {
-        correctRequestIssued = true;
-      }
-    });
+      await command.action(logger, { options: { debug: true, webUrl: "https://contoso.sharepoint.com", to: 'user@contoso.com', subject: 'Subject of the email', body: 'Content of the email', from: 'user@contoso.com,someone@consotos.com', verbose: true } });
+      let correctRequestIssued = false;
+      requests.forEach(r => {
+        if (r.url.indexOf(`/_api/SP.Utilities.Utility.SendEmail`) > -1 &&
+          r.data) {
+          correctRequestIssued = true;
+        }
+      });
 
-    assert(correctRequestIssued);
-  });
+      assert(correctRequestIssued);
+    }
+  );
 
   it('Send an email to one recipient and from some peoples', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
       if ((opts.url as string).indexOf(`/_api/SP.Utilities.Utility.SendEmail`) > -1) {
         return '';
@@ -196,7 +197,7 @@ describe(commands.MAIL_SEND, () => {
   });
 
   it('Send an email to one recipient and CC someone (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
       if ((opts.url as string).indexOf(`/_api/SP.Utilities.Utility.SendEmail`) > -1) {
         return '';
@@ -218,7 +219,7 @@ describe(commands.MAIL_SEND, () => {
   });
 
   it('Send an email to one recipient and CC someone', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
       if ((opts.url as string).indexOf(`/_api/SP.Utilities.Utility.SendEmail`) > -1) {
         return '';
@@ -240,7 +241,7 @@ describe(commands.MAIL_SEND, () => {
   });
 
   it('Send an email to one recipient and BCC someone (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
       if ((opts.url as string).indexOf(`/_api/SP.Utilities.Utility.SendEmail`) > -1) {
         return '';
@@ -262,7 +263,7 @@ describe(commands.MAIL_SEND, () => {
   });
 
   it('Send an email to one recipient and BCC someone', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
       if ((opts.url as string).indexOf(`/_api/SP.Utilities.Utility.SendEmail`) > -1) {
         return '';
@@ -283,30 +284,32 @@ describe(commands.MAIL_SEND, () => {
     assert(correctRequestIssued);
   });
 
-  it('Send an email to one recipient with additional header (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      requests.push(opts);
-      if ((opts.url as string).indexOf(`/_api/SP.Utilities.Utility.SendEmail`) > -1) {
-        return '';
-      }
+  it('Send an email to one recipient with additional header (debug)',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        requests.push(opts);
+        if ((opts.url as string).indexOf(`/_api/SP.Utilities.Utility.SendEmail`) > -1) {
+          return '';
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, webUrl: "https://contoso.sharepoint.com", to: 'user@contoso.com', subject: 'Subject of the email', body: 'Content of the email', additionalHeaders: '{"X-Custom": "My Custom Header Value"}', verbose: true } });
-    let correctRequestIssued = false;
-    requests.forEach(r => {
-      if (r.url.indexOf(`/_api/SP.Utilities.Utility.SendEmail`) > -1 &&
-        r.data) {
-        correctRequestIssued = true;
-      }
-    });
+      await command.action(logger, { options: { debug: true, webUrl: "https://contoso.sharepoint.com", to: 'user@contoso.com', subject: 'Subject of the email', body: 'Content of the email', additionalHeaders: '{"X-Custom": "My Custom Header Value"}', verbose: true } });
+      let correctRequestIssued = false;
+      requests.forEach(r => {
+        if (r.url.indexOf(`/_api/SP.Utilities.Utility.SendEmail`) > -1 &&
+          r.data) {
+          correctRequestIssued = true;
+        }
+      });
 
-    assert(correctRequestIssued);
-  });
+      assert(correctRequestIssued);
+    }
+  );
 
   it('Send an email to one recipient with additional header', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
       if ((opts.url as string).indexOf(`/_api/SP.Utilities.Utility.SendEmail`) > -1) {
         return '';
@@ -328,7 +331,7 @@ describe(commands.MAIL_SEND, () => {
   });
 
   it('correctly handles random API error', async () => {
-    sinon.stub(request, 'post').callsFake(() => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(() => {
       throw 'An error has occurred';
     });
 
@@ -347,13 +350,17 @@ describe(commands.MAIL_SEND, () => {
     assert(containsTypeOption);
   });
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', to: 'user@contoso.com', subject: 'Subject of the email', body: 'Content of the email' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', to: 'user@contoso.com', subject: 'Subject of the email', body: 'Content of the email' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if at least the webUrl \'to\', \'subject\' and \'body\' are sprecified', async () => {
-    const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', to: 'user@contoso.com', subject: 'Subject of the email', body: 'Content of the email' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if at least the webUrl \'to\', \'subject\' and \'body\' are sprecified',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'https://contoso.sharepoint.com', to: 'user@contoso.com', subject: 'Subject of the email', body: 'Content of the email' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

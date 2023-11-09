@@ -1,9 +1,8 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import request from "../request.js";
 import { PlannerPlan } from '@microsoft/microsoft-graph-types';
 import { planner } from './planner.js';
-import { sinonUtil } from "./sinonUtil.js";
+import { jestUtil } from "./jestUtil.js";
 
 const validPlanId = 'oUHpnKBFekqfGE_PS6GGUZcAFY7b';
 const validPlanTitle = 'Plan title';
@@ -23,13 +22,13 @@ const multiplePlanResponse = {
 
 describe('utils/planner', () => {
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
   it('correctly get all plans related to a specific group.', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups/${validOwnerGroupId}/planner/plans`) {
         return multiplePlanResponse;
       }
@@ -42,7 +41,7 @@ describe('utils/planner', () => {
   });
 
   it('correctly get a single plan by id.', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${validPlanId}`) {
         return singlePlanResponse;
       }
@@ -55,7 +54,7 @@ describe('utils/planner', () => {
   });
 
   it('display error message when plan is not found.', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url === `https://graph.microsoft.com/v1.0/planner/plans/${validPlanId}`) {
         throw Error('Plan not found.');
       }
@@ -73,7 +72,7 @@ describe('utils/planner', () => {
   });
 
   it('correctly get plan by title.', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups/${validOwnerGroupId}/planner/plans`) {
         return multiplePlanResponse;
       }
@@ -86,7 +85,7 @@ describe('utils/planner', () => {
   });
 
   it('fails to get plan when plan doesn not exist', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups/${validOwnerGroupId}/planner/plans`) {
         const response = { ...multiplePlanResponse };
         response.value[0].title = "Wrong title";
@@ -106,7 +105,7 @@ describe('utils/planner', () => {
   });
 
   it('fails to get plan when multiple plans have the same title', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups/${validOwnerGroupId}/planner/plans`) {
         return {
           value: [

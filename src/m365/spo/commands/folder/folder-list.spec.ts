@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { urlUtil } from '../../../../utils/urlUtil.js';
 import commands from '../../commands.js';
 import command from './folder-list.js';
@@ -45,14 +44,14 @@ describe(commands.FOLDER_LIST, () => {
 
   let log: any[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -70,17 +69,17 @@ describe(commands.FOLDER_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -97,7 +96,7 @@ describe(commands.FOLDER_LIST, () => {
   });
 
   it('should correctly handle folder get reject request', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === requestUrl) {
         throw 'error1';
       }
@@ -113,7 +112,7 @@ describe(commands.FOLDER_LIST, () => {
   });
 
   it('should correctly handle folder get success request', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === requestUrl) {
         return folderListOutput;
       }
@@ -131,75 +130,79 @@ describe(commands.FOLDER_LIST, () => {
     assert(loggerLogSpy.calledWith(folderListOutput.value));
   });
 
-  it('retrieves folders with filter and fields option, requesting the ListItemAllFields Id property', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/GetFolderByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(serverRelativeUrl)}')/Folders?$skip=0&$top=5000&$expand=ListItemAllFields&$select=ListItemAllFields/Id,Name&$filter=name eq 'Folder1'`) {
-        return {
-          value: [
-            {
-              ListItemAllFields: {
-                Id: 1,
-                ID: 1
+  it('retrieves folders with filter and fields option, requesting the ListItemAllFields Id property',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/GetFolderByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(serverRelativeUrl)}')/Folders?$skip=0&$top=5000&$expand=ListItemAllFields&$select=ListItemAllFields/Id,Name&$filter=name eq 'Folder1'`) {
+          return {
+            value: [
+              {
+                ListItemAllFields: {
+                  Id: 1,
+                  ID: 1
+                },
+                Name: "Test1"
               },
-              Name: "Test1"
-            },
-            {
-              ListItemAllFields: {
-                Id: 2
+              {
+                ListItemAllFields: {
+                  Id: 2
+                },
+                Name: "Test2"
               },
-              Name: "Test2"
-            },
-            {
-              Name: "Test3"
-            }
-          ]
-        };
-      }
+              {
+                Name: "Test3"
+              }
+            ]
+          };
+        }
 
-      throw `Invalid request ${opts.url}`;
-    });
+        throw `Invalid request ${opts.url}`;
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: webUrl,
-        parentFolderUrl: parentFolderUrl,
-        filter: `name eq 'Folder1'`,
-        fields: 'ListItemAllFields/Id,Name'
-      }
-    });
-    assert(loggerLogSpy.calledWith([{ ListItemAllFields: { Id: 1 }, Name: "Test1" }, { ListItemAllFields: { Id: 2 }, Name: "Test2" }, { Name: "Test3" }]));
-  });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: webUrl,
+          parentFolderUrl: parentFolderUrl,
+          filter: `name eq 'Folder1'`,
+          fields: 'ListItemAllFields/Id,Name'
+        }
+      });
+      assert(loggerLogSpy.calledWith([{ ListItemAllFields: { Id: 1 }, Name: "Test1" }, { ListItemAllFields: { Id: 2 }, Name: "Test2" }, { Name: "Test3" }]));
+    }
+  );
 
-  it('should correctly handle folder get success request with threshold limit', async () => {
-    const folderThresholdLimitOutput = {
-      value: new Array(5000).fill(folderListOutputSingleFolder.value)
-    };
+  it('should correctly handle folder get success request with threshold limit',
+    async () => {
+      const folderThresholdLimitOutput = {
+        value: new Array(5000).fill(folderListOutputSingleFolder.value)
+      };
 
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/web/GetFolderByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(serverRelativeUrl)}')/Folders?$skip=0&$top=5000`) {
-        return folderThresholdLimitOutput;
-      }
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/web/GetFolderByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(serverRelativeUrl)}')/Folders?$skip=0&$top=5000`) {
+          return folderThresholdLimitOutput;
+        }
 
-      if (opts.url === `${webUrl}/_api/web/GetFolderByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(serverRelativeUrl)}')/Folders?$skip=5000&$top=5000`) {
-        return folderListOutput;
-      }
+        if (opts.url === `${webUrl}/_api/web/GetFolderByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(serverRelativeUrl)}')/Folders?$skip=5000&$top=5000`) {
+          return folderListOutput;
+        }
 
-      throw `Invalid request ${opts.url}`;
-    });
+        throw `Invalid request ${opts.url}`;
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: webUrl,
-        parentFolderUrl: parentFolderUrl
-      }
-    });
-    assert(loggerLogSpy.calledWith([...folderThresholdLimitOutput.value, ...folderListOutput.value]));
-  });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: webUrl,
+          parentFolderUrl: parentFolderUrl
+        }
+      });
+      assert(loggerLogSpy.calledWith([...folderThresholdLimitOutput.value, ...folderListOutput.value]));
+    }
+  );
 
   it('returns all information for output type json', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === requestUrl) {
         return folderListOutput;
       }
@@ -221,7 +224,7 @@ describe(commands.FOLDER_LIST, () => {
     const serverRelativeUrlLevel1First: string = `${webUrl}/_api/web/GetFolderByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(urlUtil.getServerRelativePath(webUrl, `${parentFolderUrl}/Test`))}')/Folders?$skip=0&$top=5000`;
     const serverRelativeUrlLevel2First: string = `${webUrl}/_api/web/GetFolderByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(urlUtil.getServerRelativePath(webUrl, `${parentFolderUrl}/Test/Test2`))}')/Folders?$skip=0&$top=5000`;
     const serverRelativeUrlLevel2Second: string = `${webUrl}/_api/web/GetFolderByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(urlUtil.getServerRelativePath(webUrl, `${parentFolderUrl}/Test/Test3`))}')/Folders?$skip=0&$top=5000`;
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === requestUrl) {
         return folderListOutputSingleFolder;
       }
@@ -258,7 +261,7 @@ describe(commands.FOLDER_LIST, () => {
   });
 
   it('should send correct request params when /', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === requestUrl) {
         return folderListOutput;
       }
@@ -278,7 +281,7 @@ describe(commands.FOLDER_LIST, () => {
     const webUrl = 'https://contoso.sharepoint.com/sites/abc';
     const serverRelativeUrl: string = urlUtil.getServerRelativePath(webUrl, parentFolderUrl);
     const requestUrl: string = `${webUrl}/_api/web/GetFolderByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(serverRelativeUrl)}')/Folders?$skip=0&$top=5000`;
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === requestUrl) {
         return folderListOutput;
       }
@@ -293,16 +296,20 @@ describe(commands.FOLDER_LIST, () => {
       }
     });
 
-    assert(loggerLogSpy.lastCall.calledWith(folderListOutput.value));
+    assert(loggerLogSpy.mock.lastCall.calledWith(folderListOutput.value));
   });
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', parentFolderUrl: parentFolderUrl } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', parentFolderUrl: parentFolderUrl } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the webUrl option is a valid SharePoint site URL and parentFolderUrl specified', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, parentFolderUrl: parentFolderUrl } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if the webUrl option is a valid SharePoint site URL and parentFolderUrl specified',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, parentFolderUrl: parentFolderUrl } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

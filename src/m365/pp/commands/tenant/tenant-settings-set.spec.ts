@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './tenant-settings-set.js';
 
@@ -69,13 +68,13 @@ describe(commands.TENANT_SETTINGS_SET, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -93,17 +92,17 @@ describe(commands.TENANT_SETTINGS_SET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -120,48 +119,64 @@ describe(commands.TENANT_SETTINGS_SET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if the shareWithColleaguesUserLimit is not a valid number', async () => {
-    const actual = await command.validate({ options: { shareWithColleaguesUserLimit: 'foo' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the shareWithColleaguesUserLimit is not a valid number',
+    async () => {
+      const actual = await command.validate({ options: { shareWithColleaguesUserLimit: 'foo' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if the shareWithColleaguesUserLimit is a negative number', async () => {
-    const actual = await command.validate({ options: { shareWithColleaguesUserLimit: -1 } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the shareWithColleaguesUserLimit is a negative number',
+    async () => {
+      const actual = await command.validate({ options: { shareWithColleaguesUserLimit: -1 } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if the shareWithColleaguesUserLimit is a float number', async () => {
-    const actual = await command.validate({ options: { shareWithColleaguesUserLimit: 3.14 } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the shareWithColleaguesUserLimit is a float number',
+    async () => {
+      const actual = await command.validate({ options: { shareWithColleaguesUserLimit: 3.14 } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when the shareWithColleaguesUserLimit is a valid number', async () => {
-    const actual = await command.validate({ options: { shareWithColleaguesUserLimit: 9 } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when the shareWithColleaguesUserLimit is a valid number',
+    async () => {
+      const actual = await command.validate({ options: { shareWithColleaguesUserLimit: 9 } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if the storageCapacityConsumptionWarningThreshold is not a valid number', async () => {
-    const actual = await command.validate({ options: { storageCapacityConsumptionWarningThreshold: 'foo' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the storageCapacityConsumptionWarningThreshold is not a valid number',
+    async () => {
+      const actual = await command.validate({ options: { storageCapacityConsumptionWarningThreshold: 'foo' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if the storageCapacityConsumptionWarningThreshold is a negative number', async () => {
-    const actual = await command.validate({ options: { storageCapacityConsumptionWarningThreshold: -1 } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the storageCapacityConsumptionWarningThreshold is a negative number',
+    async () => {
+      const actual = await command.validate({ options: { storageCapacityConsumptionWarningThreshold: -1 } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if the storageCapacityConsumptionWarningThreshold is a float number', async () => {
-    const actual = await command.validate({ options: { storageCapacityConsumptionWarningThreshold: 3.14 } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the storageCapacityConsumptionWarningThreshold is a float number',
+    async () => {
+      const actual = await command.validate({ options: { storageCapacityConsumptionWarningThreshold: 3.14 } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation when the storageCapacityConsumptionWarningThreshold is a valid number', async () => {
-    const actual = await command.validate({ options: { storageCapacityConsumptionWarningThreshold: 9 } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation when the storageCapacityConsumptionWarningThreshold is a valid number',
+    async () => {
+      const actual = await command.validate({ options: { storageCapacityConsumptionWarningThreshold: 9 } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('successfully updates tenant settings', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === "https://api.bap.microsoft.com/providers/Microsoft.BusinessAppPlatform/scopes/admin/updateTenantSettings?api-version=2020-10-01") {
         return successResponse;
       }
@@ -209,7 +224,7 @@ describe(commands.TENANT_SETTINGS_SET, () => {
       }
     };
 
-    sinon.stub(request, 'post').callsFake(async () => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async () => {
       throw error;
     });
 

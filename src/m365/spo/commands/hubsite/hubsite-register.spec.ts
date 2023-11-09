@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './hubsite-register.js';
@@ -17,15 +16,15 @@ import command from './hubsite-register.js';
 describe(commands.HUBSITE_REGISTER, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(spo, 'getRequestDigest').resolves({
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves({
       FormDigestValue: 'ABC',
       FormDigestTimeoutSeconds: 1800,
       FormDigestExpiresAt: new Date(),
@@ -48,17 +47,17 @@ describe(commands.HUBSITE_REGISTER, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -71,7 +70,7 @@ describe(commands.HUBSITE_REGISTER, () => {
   });
 
   it('registers site as a hub site', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/site/RegisterHubSite`) > -1) {
         return {
           "Description": null,
@@ -102,7 +101,7 @@ describe(commands.HUBSITE_REGISTER, () => {
   });
 
   it('registers site as a hub site (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/site/RegisterHubSite`) > -1) {
         return {
           "Description": null,
@@ -132,27 +131,31 @@ describe(commands.HUBSITE_REGISTER, () => {
     }));
   });
 
-  it('correctly handles error when trying to register site which already is a hub site as a hub site', async () => {
-    sinon.stub(request, 'post').rejects({
-      error: {
-        "odata.error": {
-          "code": "-1, System.InvalidOperationException",
-          "message": {
-            "lang": "en-US",
-            "value": "This site is already a HubSite."
+  it('correctly handles error when trying to register site which already is a hub site as a hub site',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation().rejects({
+        error: {
+          "odata.error": {
+            "code": "-1, System.InvalidOperationException",
+            "message": {
+              "lang": "en-US",
+              "value": "This site is already a HubSite."
+            }
           }
         }
-      }
-    });
+      });
 
-    await assert.rejects(command.action(logger, { options: { siteUrl: 'https://contoso.sharepoint.com/sites/sales' } } as any),
-      new CommandError('This site is already a HubSite.'));
-  });
+      await assert.rejects(command.action(logger, { options: { siteUrl: 'https://contoso.sharepoint.com/sites/sales' } } as any),
+        new CommandError('This site is already a HubSite.'));
+    }
+  );
 
-  it('fails validation if the specified site collection URL is not a valid SharePoint URL', async () => {
-    const actual = await command.validate({ options: { siteUrl: 'site.com' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the specified site collection URL is not a valid SharePoint URL',
+    async () => {
+      const actual = await command.validate({ options: { siteUrl: 'site.com' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation when all required parameters are valid', async () => {
     const actual = await command.validate({ options: { siteUrl: 'https://contoso.sharepoint.com/sites/sales' } }, commandInfo);

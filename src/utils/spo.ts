@@ -555,8 +555,8 @@ export const spo = {
     }
 
     const customActions = [
-      ...await odata.getAllItems<CustomAction>(`${webUrl}/_api/Site/UserCustomActions${queryString}`),
-      ...await odata.getAllItems<CustomAction>(`${webUrl}/_api/Web/UserCustomActions${queryString}`)
+      ...(await odata.getAllItems<CustomAction>(`${webUrl}/_api/Site/UserCustomActions${queryString}`)),
+      ...(await odata.getAllItems<CustomAction>(`${webUrl}/_api/Web/UserCustomActions${queryString}`))
     ];
 
     return customActions;

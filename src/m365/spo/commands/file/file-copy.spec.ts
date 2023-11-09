@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './file-copy.js';
 import { settingsNames } from '../../../../settingsNames.js';
@@ -26,15 +25,15 @@ describe(commands.FILE_COPY, () => {
   let cli: Cli;
   let log: any[];
   let logger: Logger;
-  let requestPostStub: sinon.SinonStub;
+  let requestPostStub: jest.Mock;
   let commandInfo: CommandInfo;
 
-  before(() => {
+  beforeAll(() => {
     cli = Cli.getInstance();
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -53,7 +52,7 @@ describe(commands.FILE_COPY, () => {
       }
     };
 
-    requestPostStub = sinon.stub(request, 'post').callsFake(async (opts) => {
+    requestPostStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${webUrl}/_api/SP.MoveCopyUtil.CopyFileByPath`) {
         return {
           'odata.null': true
@@ -65,14 +64,14 @@ describe(commands.FILE_COPY, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       cli.getSettingWithDefaultValue
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -84,258 +83,286 @@ describe(commands.FILE_COPY, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', sourceUrl: absoluteSourceUrl, targetUrl: absoluteTargetUrl } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', sourceUrl: absoluteSourceUrl, targetUrl: absoluteTargetUrl } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if the sourceId option is not a valid GUID', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, sourceId: 'invalid', targetUrl: absoluteTargetUrl } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the sourceId option is not a valid GUID',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, sourceId: 'invalid', targetUrl: absoluteTargetUrl } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation if the sourceId option is a valid GUID', async () => {
     const actual = await command.validate({ options: { webUrl: webUrl, sourceId: sourceId, targetUrl: absoluteTargetUrl } }, commandInfo);
     assert(actual);
   });
 
-  it('fails validation if both sourceId and sourceUrl options are not specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both sourceId and sourceUrl options are not specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: webUrl, targetUrl: absoluteTargetUrl } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: webUrl, targetUrl: absoluteTargetUrl } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if both sourceId and url options are specified', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('fails validation if both sourceId and url options are specified',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    const actual = await command.validate({ options: { webUrl: webUrl, sourceId: sourceId, sourceUrl: absoluteSourceUrl, targetUrl: absoluteTargetUrl } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+      const actual = await command.validate({ options: { webUrl: webUrl, sourceId: sourceId, sourceUrl: absoluteSourceUrl, targetUrl: absoluteTargetUrl } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if nameConflictBehavior has an invalid value', async () => {
-    const actual = await command.validate({ options: { webUrl: webUrl, sourceUrl: absoluteSourceUrl, targetUrl: absoluteTargetUrl, nameConflictBehavior: 'invalid' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if nameConflictBehavior has an invalid value',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: webUrl, sourceUrl: absoluteSourceUrl, targetUrl: absoluteTargetUrl, nameConflictBehavior: 'invalid' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation if all required properties are provided', async () => {
     const actual = await command.validate({ options: { webUrl: webUrl, sourceUrl: absoluteSourceUrl, targetUrl: absoluteTargetUrl } }, commandInfo);
     assert.strictEqual(actual, true);
   });
 
-  it('copies file with sourceId successfully when absolute URLs are provided', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `${webUrl}/_api/Web/GetFileById('${sourceId}')?$select=ServerRelativePath`) {
-        return {
-          ServerRelativePath: {
-            DecodedUrl: absoluteTargetUrl + `/${documentName}`
-          }
-        };
-      }
-      throw 'Invalid request: ' + opts.url;
-    });
+  it('copies file with sourceId successfully when absolute URLs are provided',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${webUrl}/_api/Web/GetFileById('${sourceId}')?$select=ServerRelativePath`) {
+          return {
+            ServerRelativePath: {
+              DecodedUrl: absoluteTargetUrl + `/${documentName}`
+            }
+          };
+        }
+        throw 'Invalid request: ' + opts.url;
+      });
 
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        webUrl: webUrl,
-        sourceId: sourceId,
-        targetUrl: absoluteTargetUrl
-      }
-    });
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          webUrl: webUrl,
+          sourceId: sourceId,
+          targetUrl: absoluteTargetUrl
+        }
+      });
 
-    const response = {
-      srcPath: {
-        DecodedUrl: absoluteSourceUrl
-      },
-      destPath: {
-        DecodedUrl: absoluteTargetUrl + `/${documentName}`
-      },
-      overwrite: false,
-      options: {
-        KeepBoth: false,
-        ResetAuthorAndCreatedOnCopy: false,
-        ShouldBypassSharedLocks: false
-      }
-    };
+      const response = {
+        srcPath: {
+          DecodedUrl: absoluteSourceUrl
+        },
+        destPath: {
+          DecodedUrl: absoluteTargetUrl + `/${documentName}`
+        },
+        overwrite: false,
+        options: {
+          KeepBoth: false,
+          ResetAuthorAndCreatedOnCopy: false,
+          ShouldBypassSharedLocks: false
+        }
+      };
 
-    assert.deepStrictEqual(requestPostStub.lastCall.args[0].data, response);
-  });
+      assert.deepStrictEqual(requestPostStub.mock.lastCall[0].data, response);
+    }
+  );
 
-  it('copies file with absolute url successfully when absolute URLs are provided', async () => {
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        webUrl: webUrl,
-        sourceUrl: absoluteSourceUrl,
-        targetUrl: absoluteTargetUrl
-      }
-    });
+  it('copies file with absolute url successfully when absolute URLs are provided',
+    async () => {
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          webUrl: webUrl,
+          sourceUrl: absoluteSourceUrl,
+          targetUrl: absoluteTargetUrl
+        }
+      });
 
-    const response = {
-      srcPath: {
-        DecodedUrl: absoluteSourceUrl
-      },
-      destPath: {
-        DecodedUrl: absoluteTargetUrl + `/${documentName}`
-      },
-      overwrite: false,
-      options: {
-        KeepBoth: false,
-        ResetAuthorAndCreatedOnCopy: false,
-        ShouldBypassSharedLocks: false
-      }
-    };
+      const response = {
+        srcPath: {
+          DecodedUrl: absoluteSourceUrl
+        },
+        destPath: {
+          DecodedUrl: absoluteTargetUrl + `/${documentName}`
+        },
+        overwrite: false,
+        options: {
+          KeepBoth: false,
+          ResetAuthorAndCreatedOnCopy: false,
+          ShouldBypassSharedLocks: false
+        }
+      };
 
-    assert.deepStrictEqual(requestPostStub.lastCall.args[0].data, response);
-  });
+      assert.deepStrictEqual(requestPostStub.mock.lastCall[0].data, response);
+    }
+  );
 
-  it('copies file with relative url successfully when server relative URLs are provided', async () => {
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        webUrl: webUrl,
-        sourceUrl: relSourceUrl,
-        targetUrl: relTargetUrl
-      }
-    });
+  it('copies file with relative url successfully when server relative URLs are provided',
+    async () => {
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          webUrl: webUrl,
+          sourceUrl: relSourceUrl,
+          targetUrl: relTargetUrl
+        }
+      });
 
-    const response = {
-      srcPath: {
-        DecodedUrl: absoluteSourceUrl
-      },
-      destPath: {
-        DecodedUrl: absoluteTargetUrl + `/${documentName}`
-      },
-      overwrite: false,
-      options: {
-        KeepBoth: false,
-        ResetAuthorAndCreatedOnCopy: false,
-        ShouldBypassSharedLocks: false
-      }
-    };
+      const response = {
+        srcPath: {
+          DecodedUrl: absoluteSourceUrl
+        },
+        destPath: {
+          DecodedUrl: absoluteTargetUrl + `/${documentName}`
+        },
+        overwrite: false,
+        options: {
+          KeepBoth: false,
+          ResetAuthorAndCreatedOnCopy: false,
+          ShouldBypassSharedLocks: false
+        }
+      };
 
-    assert.deepStrictEqual(requestPostStub.lastCall.args[0].data, response);
-  });
+      assert.deepStrictEqual(requestPostStub.mock.lastCall[0].data, response);
+    }
+  );
 
-  it('copies file with relative url successfully with a new name', async () => {
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        webUrl: webUrl,
-        sourceUrl: relSourceUrl,
-        targetUrl: relTargetUrl,
-        newName: 'Document-renamed.pdf'
-      }
-    });
+  it('copies file with relative url successfully with a new name',
+    async () => {
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          webUrl: webUrl,
+          sourceUrl: relSourceUrl,
+          targetUrl: relTargetUrl,
+          newName: 'Document-renamed.pdf'
+        }
+      });
 
-    const response = {
-      srcPath: {
-        DecodedUrl: absoluteSourceUrl
-      },
-      destPath: {
-        DecodedUrl: absoluteTargetUrl + '/Document-renamed.pdf'
-      },
-      overwrite: false,
-      options: {
-        KeepBoth: false,
-        ResetAuthorAndCreatedOnCopy: false,
-        ShouldBypassSharedLocks: false
-      }
-    };
+      const response = {
+        srcPath: {
+          DecodedUrl: absoluteSourceUrl
+        },
+        destPath: {
+          DecodedUrl: absoluteTargetUrl + '/Document-renamed.pdf'
+        },
+        overwrite: false,
+        options: {
+          KeepBoth: false,
+          ResetAuthorAndCreatedOnCopy: false,
+          ShouldBypassSharedLocks: false
+        }
+      };
 
-    assert.deepStrictEqual(requestPostStub.lastCall.args[0].data, response);
-  });
+      assert.deepStrictEqual(requestPostStub.mock.lastCall[0].data, response);
+    }
+  );
 
-  it('copies file with relative url successfully with nameConflictBehavior fail', async () => {
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        webUrl: webUrl,
-        sourceUrl: relSourceUrl,
-        targetUrl: relTargetUrl,
-        nameConflictBehavior: 'fail'
-      }
-    });
+  it('copies file with relative url successfully with nameConflictBehavior fail',
+    async () => {
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          webUrl: webUrl,
+          sourceUrl: relSourceUrl,
+          targetUrl: relTargetUrl,
+          nameConflictBehavior: 'fail'
+        }
+      });
 
-    assert.strictEqual(requestPostStub.lastCall.args[0].data.overwrite, false, 'Overwrite option is not false');
-    assert.strictEqual(requestPostStub.lastCall.args[0].data.options.KeepBoth, false, 'KeepBoth option is not false');
-  });
+      assert.strictEqual(requestPostStub.mock.lastCall[0].data.overwrite, false, 'Overwrite option is not false');
+      assert.strictEqual(requestPostStub.mock.lastCall[0].data.options.KeepBoth, false, 'KeepBoth option is not false');
+    }
+  );
 
-  it('copies file with relative url successfully with nameConflictBehavior replace', async () => {
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        webUrl: webUrl,
-        sourceUrl: relSourceUrl,
-        targetUrl: relTargetUrl,
-        nameConflictBehavior: 'replace'
-      }
-    });
+  it('copies file with relative url successfully with nameConflictBehavior replace',
+    async () => {
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          webUrl: webUrl,
+          sourceUrl: relSourceUrl,
+          targetUrl: relTargetUrl,
+          nameConflictBehavior: 'replace'
+        }
+      });
 
-    assert.strictEqual(requestPostStub.lastCall.args[0].data.overwrite, true, 'Overwrite option is not true');
-    assert.strictEqual(requestPostStub.lastCall.args[0].data.options.KeepBoth, false, 'KeepBoth option is not false');
-  });
+      assert.strictEqual(requestPostStub.mock.lastCall[0].data.overwrite, true, 'Overwrite option is not true');
+      assert.strictEqual(requestPostStub.mock.lastCall[0].data.options.KeepBoth, false, 'KeepBoth option is not false');
+    }
+  );
 
-  it('copies file with relative url successfully with nameConflictBehavior rename', async () => {
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        webUrl: webUrl,
-        sourceUrl: relSourceUrl,
-        targetUrl: relTargetUrl,
-        nameConflictBehavior: 'rename'
-      }
-    });
+  it('copies file with relative url successfully with nameConflictBehavior rename',
+    async () => {
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          webUrl: webUrl,
+          sourceUrl: relSourceUrl,
+          targetUrl: relTargetUrl,
+          nameConflictBehavior: 'rename'
+        }
+      });
 
-    assert.strictEqual(requestPostStub.lastCall.args[0].data.overwrite, false, 'Overwrite option is not false');
-    assert.strictEqual(requestPostStub.lastCall.args[0].data.options.KeepBoth, true, 'KeepBoth option is not true');
-  });
+      assert.strictEqual(requestPostStub.mock.lastCall[0].data.overwrite, false, 'Overwrite option is not false');
+      assert.strictEqual(requestPostStub.mock.lastCall[0].data.options.KeepBoth, true, 'KeepBoth option is not true');
+    }
+  );
 
-  it('copies file with relative url successfully with bypassSharedLock option', async () => {
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        webUrl: webUrl,
-        sourceUrl: relSourceUrl,
-        targetUrl: relTargetUrl,
-        bypassSharedLock: true
-      }
-    });
+  it('copies file with relative url successfully with bypassSharedLock option',
+    async () => {
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          webUrl: webUrl,
+          sourceUrl: relSourceUrl,
+          targetUrl: relTargetUrl,
+          bypassSharedLock: true
+        }
+      });
 
-    assert.strictEqual(requestPostStub.lastCall.args[0].data.options.ShouldBypassSharedLocks, true);
-  });
+      assert.strictEqual(requestPostStub.mock.lastCall[0].data.options.ShouldBypassSharedLocks, true);
+    }
+  );
 
-  it('copies file with relative url successfully with resetAuthorAndCreated option', async () => {
-    await command.action(logger, {
-      options: {
-        verbose: true,
-        webUrl: webUrl,
-        sourceUrl: relSourceUrl,
-        targetUrl: relTargetUrl,
-        resetAuthorAndCreated: true
-      }
-    });
+  it('copies file with relative url successfully with resetAuthorAndCreated option',
+    async () => {
+      await command.action(logger, {
+        options: {
+          verbose: true,
+          webUrl: webUrl,
+          sourceUrl: relSourceUrl,
+          targetUrl: relTargetUrl,
+          resetAuthorAndCreated: true
+        }
+      });
 
-    assert.strictEqual(requestPostStub.lastCall.args[0].data.options.ResetAuthorAndCreatedOnCopy, true);
-  });
+      assert.strictEqual(requestPostStub.mock.lastCall[0].data.options.ResetAuthorAndCreatedOnCopy, true);
+    }
+  );
 
   it('handles file not found error correctly', async () => {
     const errorMessage = 'File Not Found.';
-    requestPostStub.restore();
-    sinon.stub(request, 'post').callsFake(async () => {
+    requestPostStub.mockRestore();
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async () => {
       throw {
         error: {
           'odata.error': {

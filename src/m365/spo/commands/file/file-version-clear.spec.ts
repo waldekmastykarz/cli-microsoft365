@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,25 +9,25 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './file-version-clear.js';
 
 describe(commands.FILE_VERSION_CLEAR, () => {
   let log: any[];
   let logger: Logger;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogToStderrSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
   let promptOptions: any;
   const validWebUrl = "https://contoso.sharepoint.com";
   const validFileUrl = "/Shared Documents/Document.docx";
   const validFileId = "7a9b8bb6-d5c4-4de9-ab76-5210a7879e89";
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -46,8 +45,8 @@ describe(commands.FILE_VERSION_CLEAR, () => {
         log.push(msg);
       }
     };
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
@@ -55,14 +54,14 @@ describe(commands.FILE_VERSION_CLEAR, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -84,10 +83,12 @@ describe(commands.FILE_VERSION_CLEAR, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if the webUrl option is not a valid SharePoint site URL', async () => {
-    const actual = await command.validate({ options: { webUrl: 'foo', fileUrl: validFileUrl } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the webUrl option is not a valid SharePoint site URL',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: 'foo', fileUrl: validFileUrl } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation if required options specified (fileUrl)', async () => {
     const actual = await command.validate({ options: { webUrl: validWebUrl, fileUrl: validFileUrl } }, commandInfo);
@@ -99,115 +100,127 @@ describe(commands.FILE_VERSION_CLEAR, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('prompts before removing all file history when confirm option not passed', async () => {
-    await command.action(logger, {
-      options: {
-        webUrl: validWebUrl,
-        fileId: validFileId
-      }
-    });
-    let promptIssued = false;
+  it('prompts before removing all file history when confirm option not passed',
+    async () => {
+      await command.action(logger, {
+        options: {
+          webUrl: validWebUrl,
+          fileId: validFileId
+        }
+      });
+      let promptIssued = false;
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+
+      assert(promptIssued);
     }
+  );
 
-    assert(promptIssued);
-  });
+  it('aborts removing all file history when confirm option not passed and prompt not confirmed',
+    async () => {
+      const postSpy = jest.spyOn(request, 'post').mockClear();
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: false });
 
-  it('aborts removing all file history when confirm option not passed and prompt not confirmed', async () => {
-    const postSpy = sinon.spy(request, 'post');
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: false });
+      await command.action(logger, {
+        options: {
+          webUrl: validWebUrl,
+          fileId: validFileId
+        }
+      });
+      assert(postSpy.notCalled);
+    }
+  );
 
-    await command.action(logger, {
-      options: {
-        webUrl: validWebUrl,
-        fileId: validFileId
-      }
-    });
-    assert(postSpy.notCalled);
-  });
+  it('deletes all version history from a file with the fileUrl options',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${validWebUrl}/_api/web/GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(validFileUrl)}')/versions/DeleteAll()`) {
+          return { statusCode: 200 };
+        }
+        throw 'Invalid request';
+      });
 
-  it('deletes all version history from a file with the fileUrl options', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `${validWebUrl}/_api/web/GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(validFileUrl)}')/versions/DeleteAll()`) {
-        return { statusCode: 200 };
-      }
-      throw 'Invalid request';
-    });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: validWebUrl,
+          fileUrl: validFileUrl,
+          force: true
+        }
+      });
+      assert(loggerLogToStderrSpy.called);
+    }
+  );
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: validWebUrl,
-        fileUrl: validFileUrl,
-        force: true
-      }
-    });
-    assert(loggerLogToStderrSpy.called);
-  });
+  it('deletes all version history from a file with the fileId options',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${validWebUrl}/_api/web/GetFileById('${validFileId}')/versions/DeleteAll()`) {
+          return { statusCode: 200 };
+        }
+        throw 'Invalid request';
+      });
 
-  it('deletes all version history from a file with the fileId options', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `${validWebUrl}/_api/web/GetFileById('${validFileId}')/versions/DeleteAll()`) {
-        return { statusCode: 200 };
-      }
-      throw 'Invalid request';
-    });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: validWebUrl,
+          fileId: validFileId,
+          force: true
+        }
+      });
+      assert(loggerLogToStderrSpy.called);
+    }
+  );
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: validWebUrl,
-        fileId: validFileId,
-        force: true
-      }
-    });
-    assert(loggerLogToStderrSpy.called);
-  });
+  it('deletes all version history from a file with the fileUrl options asking to confirm',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${validWebUrl}/_api/web/GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(validFileUrl)}')/versions/DeleteAll()`) {
+          return { statusCode: 200 };
+        }
+        throw 'Invalid request';
+      });
 
-  it('deletes all version history from a file with the fileUrl options asking to confirm', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `${validWebUrl}/_api/web/GetFileByServerRelativePath(DecodedUrl='${formatting.encodeQueryParameter(validFileUrl)}')/versions/DeleteAll()`) {
-        return { statusCode: 200 };
-      }
-      throw 'Invalid request';
-    });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: validWebUrl,
+          fileUrl: validFileUrl
+        }
+      });
+      assert(loggerLogToStderrSpy.called);
+    }
+  );
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: validWebUrl,
-        fileUrl: validFileUrl
-      }
-    });
-    assert(loggerLogToStderrSpy.called);
-  });
+  it('deletes all version history from a file with the fileId options asking to confirm',
+    async () => {
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${validWebUrl}/_api/web/GetFileById('${validFileId}')/versions/DeleteAll()`) {
+          return { statusCode: 200 };
+        }
+        throw 'Invalid request';
+      });
 
-  it('deletes all version history from a file with the fileId options asking to confirm', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `${validWebUrl}/_api/web/GetFileById('${validFileId}')/versions/DeleteAll()`) {
-        return { statusCode: 200 };
-      }
-      throw 'Invalid request';
-    });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
-
-    await command.action(logger, {
-      options: {
-        debug: true,
-        webUrl: validWebUrl,
-        fileId: validFileId
-      }
-    });
-    assert(loggerLogToStderrSpy.called);
-  });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          webUrl: validWebUrl,
+          fileId: validFileId
+        }
+      });
+      assert(loggerLogToStderrSpy.called);
+    }
+  );
 
   it('command correctly handles version list reject request', async () => {
     const err = 'Invalid version request';
@@ -222,7 +235,7 @@ describe(commands.FILE_VERSION_CLEAR, () => {
       }
     };
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf('/_api/web/GetFileById') > -1) {
         throw error;
       }

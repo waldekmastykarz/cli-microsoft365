@@ -12,18 +12,20 @@ describe('FN012020_TSC_noImplicitAny', () => {
     rule = new FN012020_TSC_noImplicitAny(true);
   });
 
-  it('doesn\'t return notification if noImplicitAny is already up-to-date', () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      tsConfigJson: {
-        compilerOptions: {
-          noImplicitAny: true
+  it('doesn\'t return notification if noImplicitAny is already up-to-date',
+    () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        tsConfigJson: {
+          compilerOptions: {
+            noImplicitAny: true
+          }
         }
-      }
-    };
-    rule.visit(project, findings);
-    assert.strictEqual(findings.length, 0);
-  });
+      };
+      rule.visit(project, findings);
+      assert.strictEqual(findings.length, 0);
+    }
+  );
 
   it('returns notification if noImplicitAny is not up-to-date', () => {
     const project: Project = {

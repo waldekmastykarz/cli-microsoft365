@@ -1,6 +1,5 @@
 import assert from 'assert';
 import fs from 'fs';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,14 +9,14 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './app-publish.js';
 
 describe(commands.APP_PUBLISH, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
   const appResponse = {
     id: "e3e29acb-8c79-412b-b746-e6c39ff4cd22",
@@ -26,11 +25,11 @@ describe(commands.APP_PUBLISH, () => {
     distributionMethod: "organization"
   };
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -48,20 +47,20 @@ describe(commands.APP_PUBLISH, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       fs.readFileSync,
       fs.existsSync
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -74,7 +73,7 @@ describe(commands.APP_PUBLISH, () => {
   });
 
   it('fails validation if the filePath does not exist', async () => {
-    sinon.stub(fs, 'existsSync').returns(false);
+    jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(false);
     const actual = await command.validate({
       options: { filePath: 'invalid.zip' }
     }, commandInfo);
@@ -83,14 +82,14 @@ describe(commands.APP_PUBLISH, () => {
 
   it('fails validation if the filePath points to a directory', async () => {
     const stats: fs.Stats = new fs.Stats();
-    sinon.stub(stats, 'isDirectory').returns(true);
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'lstatSync').returns(stats);
+    jest.spyOn(stats, 'isDirectory').mockClear().mockReturnValue(true);
+    jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+    jest.spyOn(fs, 'lstatSync').mockClear().mockReturnValue(stats);
 
     const actual = await command.validate({
       options: { filePath: './' }
     }, commandInfo);
-    sinonUtil.restore([
+    jestUtil.restore([
       fs.lstatSync
     ]);
     assert.notStrictEqual(actual, true);
@@ -98,23 +97,23 @@ describe(commands.APP_PUBLISH, () => {
 
   it('validates for a correct input.', async () => {
     const stats: fs.Stats = new fs.Stats();
-    sinon.stub(stats, 'isDirectory').returns(false);
-    sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'lstatSync').returns(stats);
+    jest.spyOn(stats, 'isDirectory').mockClear().mockReturnValue(false);
+    jest.spyOn(fs, 'existsSync').mockClear().mockReturnValue(true);
+    jest.spyOn(fs, 'lstatSync').mockClear().mockReturnValue(stats);
 
     const actual = await command.validate({
       options: {
         filePath: 'teamsapp.zip'
       }
     }, commandInfo);
-    sinonUtil.restore([
+    jestUtil.restore([
       fs.lstatSync
     ]);
     assert.strictEqual(actual, true);
   });
 
   it('adds new Teams app to the tenant app catalog', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/appCatalogs/teamsApps`) {
         return appResponse;
       }
@@ -122,14 +121,14 @@ describe(commands.APP_PUBLISH, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(fs, 'readFileSync').returns('123');
+    jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('123');
 
     await command.action(logger, { options: { filePath: 'teamsapp.zip' } });
     assert(loggerLogSpy.calledWith(appResponse));
   });
 
   it('adds new Teams app to the tenant app catalog (debug)', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/appCatalogs/teamsApps`) {
         return appResponse;
       }
@@ -137,14 +136,14 @@ describe(commands.APP_PUBLISH, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(fs, 'readFileSync').returns('123');
+    jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('123');
 
     await command.action(logger, { options: { debug: true, filePath: 'teamsapp.zip' } });
     assert(loggerLogSpy.calledWith(appResponse));
   });
 
   it('correctly handles error when publishing an app', async () => {
-    sinon.stub(request, 'post').rejects({
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects({
       "error": {
         "code": "UnknownError",
         "message": "An error has occurred",
@@ -157,7 +156,7 @@ describe(commands.APP_PUBLISH, () => {
     });
 
 
-    sinon.stub(fs, 'readFileSync').returns('123');
+    jest.spyOn(fs, 'readFileSync').mockClear().mockReturnValue('123');
 
     await assert.rejects(command.action(logger, { options: { filePath: 'teamsapp.zip' } } as any), new CommandError('An error has occurred'));
   });

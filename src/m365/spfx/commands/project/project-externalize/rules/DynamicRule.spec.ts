@@ -1,8 +1,7 @@
 import assert from 'assert';
 import fs from 'fs';
-import sinon from 'sinon';
 import request from '../../../../../../request.js';
-import { sinonUtil } from '../../../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../../../utils/jestUtil.js';
 import { Project } from '../../project-model/index.js';
 import { DynamicRule } from './DynamicRule.js';
 
@@ -14,7 +13,7 @@ describe('DynamicRule', () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       fs.readFileSync,
       request.head,
       request.post
@@ -49,7 +48,7 @@ describe('DynamicRule', () => {
       }
     };
     const originalReadFileSync = fs.readFileSync;
-    sinon.stub(fs, 'readFileSync').callsFake((path, options) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path, options) => {
       if (path.toString().endsWith('@pnp/pnpjs/package.json')) {
         return JSON.stringify({
           main: "./dist/pnpjs.es5.umd.bundle.js",
@@ -60,8 +59,8 @@ describe('DynamicRule', () => {
         return originalReadFileSync(path, options);
       }
     });
-    sinon.stub(request, 'head').resolves();
-    sinon.stub(request, 'post').rejects();
+    jest.spyOn(request, 'head').mockClear().mockImplementation().resolves();
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects();
     const findings = await rule.visit(project);
     assert.strictEqual(findings.entries.length, 1);
   });
@@ -76,7 +75,7 @@ describe('DynamicRule', () => {
       }
     };
     const originalReadFileSync = fs.readFileSync;
-    sinon.stub(fs, 'readFileSync').callsFake((path, options) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path, options) => {
       if (path.toString().endsWith('@pnp/sp-taxonomy/package.json') || path.toString().endsWith('@pnp/sp-clientsvc/package.json')) {
         return JSON.stringify({
           main: "./dist/pnpjs.es5.umd.bundle.js",
@@ -87,34 +86,36 @@ describe('DynamicRule', () => {
         return originalReadFileSync(path, options);
       }
     });
-    sinon.stub(request, 'head').resolves();
-    sinon.stub(request, 'post').rejects();
+    jest.spyOn(request, 'head').mockClear().mockImplementation().resolves();
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects();
     const findings = await rule.visit(project);
     assert.strictEqual(findings.entries.length, 0);
   });
-  it('doesn\'t return anything if both module and main are missing', async () => {
-    const project: Project = {
-      path: '/usr/tmp',
-      packageJson: {
-        dependencies: {
-          '@pnp/pnpjs': '1.3.5'
+  it('doesn\'t return anything if both module and main are missing',
+    async () => {
+      const project: Project = {
+        path: '/usr/tmp',
+        packageJson: {
+          dependencies: {
+            '@pnp/pnpjs': '1.3.5'
+          }
         }
-      }
-    };
-    const originalReadFileSync = fs.readFileSync;
-    sinon.stub(fs, 'readFileSync').callsFake((path) => {
-      if (path.toString().endsWith('@pnp/pnpjs/package.json')) {
-        return JSON.stringify({
-        });
-      }
-      else {
-        return originalReadFileSync(path);
-      }
-    });
-    sinon.stub(request, 'head').resolves();
-    const findings = await rule.visit(project);
-    assert.strictEqual(findings.entries.length, 0);
-  });
+      };
+      const originalReadFileSync = fs.readFileSync;
+      jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path) => {
+        if (path.toString().endsWith('@pnp/pnpjs/package.json')) {
+          return JSON.stringify({
+          });
+        }
+        else {
+          return originalReadFileSync(path);
+        }
+      });
+      jest.spyOn(request, 'head').mockClear().mockImplementation().resolves();
+      const findings = await rule.visit(project);
+      assert.strictEqual(findings.entries.length, 0);
+    }
+  );
 
   it('doesn\'t return anything if file is not present on CDN', async () => {
     const project: Project = {
@@ -126,7 +127,7 @@ describe('DynamicRule', () => {
       }
     };
     const originalReadFileSync = fs.readFileSync;
-    sinon.stub(fs, 'readFileSync').callsFake((path) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path) => {
       if (path.toString().endsWith('@pnp/pnpjs/package.json')) {
         return JSON.stringify({
           main: "./dist/pnpjs.es5.umd.bundle.js",
@@ -137,8 +138,8 @@ describe('DynamicRule', () => {
         return originalReadFileSync(path);
       }
     });
-    sinon.stub(request, 'head').rejects();
-    sinon.stub(request, 'post').callsFake(async () => { return { scriptType: 'UMD' }; });
+    jest.spyOn(request, 'head').mockClear().mockImplementation().rejects();
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async () => { return { scriptType: 'UMD' }; });
     const findings = await rule.visit(project);
     assert.strictEqual(findings.entries.length, 0);
   });
@@ -152,7 +153,7 @@ describe('DynamicRule', () => {
       }
     };
     const originalReadFileSync = fs.readFileSync;
-    sinon.stub(fs, 'readFileSync').callsFake((path, options) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path, options) => {
       if (path.toString().endsWith('@pnp/pnpjs/package.json')) {
         return JSON.stringify({
           main: "./dist/pnpjs.es5.umd.bundle.js",
@@ -163,8 +164,8 @@ describe('DynamicRule', () => {
         return originalReadFileSync(path, options);
       }
     });
-    sinon.stub(request, 'head').resolves();
-    sinon.stub(request, 'post').callsFake(async () => { return { scriptType: 'CommonJs' }; });
+    jest.spyOn(request, 'head').mockClear().mockImplementation().resolves();
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async () => { return { scriptType: 'CommonJs' }; });
     const findings = await rule.visit(project);
     assert.strictEqual(findings.entries.length, 0);
   });
@@ -178,7 +179,7 @@ describe('DynamicRule', () => {
       }
     };
     const originalReadFileSync = fs.readFileSync;
-    sinon.stub(fs, 'readFileSync').callsFake((path) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path) => {
       if (path.toString().endsWith('@pnp/pnpjs/package.json')) {
         return JSON.stringify({
           main: "./dist/pnpjs.es5.umd.bundle",
@@ -189,8 +190,8 @@ describe('DynamicRule', () => {
         return originalReadFileSync(path);
       }
     });
-    sinon.stub(request, 'head').resolves();
-    sinon.stub(request, 'post').callsFake(async () => { return { scriptType: 'UMD' }; });
+    jest.spyOn(request, 'head').mockClear().mockImplementation().resolves();
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async () => { return { scriptType: 'UMD' }; });
     const findings = await rule.visit(project);
     assert.strictEqual(findings.entries.length, 1);
   });
@@ -204,7 +205,7 @@ describe('DynamicRule', () => {
       }
     };
     const originalReadFileSync = fs.readFileSync;
-    sinon.stub(fs, 'readFileSync').callsFake((path) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path) => {
       if (path.toString().endsWith('@pnp/pnpjs/package.json')) {
         return JSON.stringify({
           main: "./dist/pnpjs.es5.umd.bundle.js",
@@ -215,8 +216,8 @@ describe('DynamicRule', () => {
         return originalReadFileSync(path);
       }
     });
-    sinon.stub(request, 'head').resolves();
-    sinon.stub(request, 'post').callsFake(async () => { return { scriptType: 'UMD', exports: ['pnpjs'] }; });
+    jest.spyOn(request, 'head').mockClear().mockImplementation().resolves();
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async () => { return { scriptType: 'UMD', exports: ['pnpjs'] }; });
     const findings = await rule.visit(project);
     assert.strictEqual(findings.entries.length, 1);
     assert.strictEqual(findings.entries[0].globalName, 'pnpjs');
@@ -231,7 +232,7 @@ describe('DynamicRule', () => {
       }
     };
     const originalReadFileSync = fs.readFileSync;
-    sinon.stub(fs, 'readFileSync').callsFake((path, options) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path, options) => {
       if (path.toString().endsWith('@pnp/pnpjs/package.json')) {
         return JSON.stringify({
           main: "./dist/pnpjs.es5.umd.bundle.js",
@@ -250,8 +251,8 @@ describe('DynamicRule', () => {
         return originalReadFileSync(path, options);
       }
     });
-    sinon.stub(request, 'head').resolves();
-    sinon.stub(request, 'post').callsFake(async () => { return { scriptType: 'UMD' }; });
+    jest.spyOn(request, 'head').mockClear().mockImplementation().resolves();
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async () => { return { scriptType: 'UMD' }; });
     const findings = await rule.visit(project);
     assert.strictEqual(findings.entries.length, 1);
   });
@@ -265,7 +266,7 @@ describe('DynamicRule', () => {
       }
     };
     const originalReadFileSync = fs.readFileSync;
-    sinon.stub(fs, 'readFileSync').callsFake((path) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path) => {
       if (path.toString().endsWith('@pnp/pnpjs/package.json')) {
         throw new Error('file doesnt exist');
       }
@@ -286,7 +287,7 @@ describe('DynamicRule', () => {
       }
     };
     const originalReadFileSync = fs.readFileSync;
-    sinon.stub(fs, 'readFileSync').callsFake((path) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path) => {
       if (path.toString().endsWith('@pnp/pnpjs/package.json')) {
         return JSON.stringify({
           main: "./dist/pnpjs.es5.umd.bundle.js",
@@ -297,8 +298,8 @@ describe('DynamicRule', () => {
         return originalReadFileSync(path);
       }
     });
-    sinon.stub(request, 'head').resolves();
-    sinon.stub(request, 'post').callsFake(async () => { return { scriptType: 'ES2015' }; });
+    jest.spyOn(request, 'head').mockClear().mockImplementation().resolves();
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async () => { return { scriptType: 'ES2015' }; });
     const findings = await rule.visit(project);
     assert.strictEqual(findings.entries.length, 1);
   });
@@ -312,7 +313,7 @@ describe('DynamicRule', () => {
       }
     };
     const originalReadFileSync = fs.readFileSync;
-    sinon.stub(fs, 'readFileSync').callsFake((path) => {
+    jest.spyOn(fs, 'readFileSync').mockClear().mockImplementation((path) => {
       if (path.toString().endsWith('@pnp/pnpjs/package.json')) {
         return JSON.stringify({
           main: "./dist/pnpjs.es5.umd.bundle.js",
@@ -323,8 +324,8 @@ describe('DynamicRule', () => {
         return originalReadFileSync(path);
       }
     });
-    sinon.stub(request, 'head').resolves();
-    sinon.stub(request, 'post').callsFake(async () => { return { scriptType: 'AMD' }; });
+    jest.spyOn(request, 'head').mockClear().mockImplementation().resolves();
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async () => { return { scriptType: 'AMD' }; });
     const findings = await rule.visit(project);
     assert.strictEqual(findings.entries.length, 1);
   });

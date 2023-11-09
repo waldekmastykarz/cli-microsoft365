@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './threatassessment-get.js';
 
@@ -48,14 +47,14 @@ describe(commands.THREATASSESSMENT_GET, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -73,18 +72,18 @@ describe(commands.THREATASSESSMENT_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
     (command as any).items = [];
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.accessTokens = {};
   });
@@ -102,13 +101,15 @@ describe(commands.THREATASSESSMENT_GET, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('passes validation if a correct id is entered and includeResults is specified', async () => {
-    const actual = await command.validate({ options: { id: threatAssessmentId, includeResults: true } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if a correct id is entered and includeResults is specified',
+    async () => {
+      const actual = await command.validate({ options: { id: threatAssessmentId, includeResults: true } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
   it('retrieves threat assessment by specified id', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/informationProtection/threatAssessmentRequests/${threatAssessmentId}`) {
         return threatAssessmentGetResponse;
       }
@@ -120,39 +121,43 @@ describe(commands.THREATASSESSMENT_GET, () => {
     assert(loggerLogSpy.calledWith(threatAssessmentGetResponse));
   });
 
-  it('retrieves threat assessment by specified id including results', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/informationProtection/threatAssessmentRequests/${threatAssessmentId}?$expand=results`) {
-        return threatAssessmentGetResponseIncludingResults;
-      }
-
-      throw 'Invalid request';
-    });
-
-    await command.action(logger, { options: { id: threatAssessmentId, includeResults: true, verbose: true } });
-    assert(loggerLogSpy.calledWith(threatAssessmentGetResponseIncludingResults));
-  });
-
-  it('handles error when threat assessment by specified id is not found', async () => {
-    const error = {
-      'error': {
-        'code': 'ResourceNotFound',
-        'message': 'The requested resource does not exist.',
-        'innerError': {
-          'date': '2023-02-25T16:13:25',
-          'request-id': 'a9e23bc8-0845-4eef-8ba1-e031b098c955',
-          'client-request-id': 'a9e23bc8-0845-4eef-8ba1-e031b098c955'
+  it('retrieves threat assessment by specified id including results',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/informationProtection/threatAssessmentRequests/${threatAssessmentId}?$expand=results`) {
+          return threatAssessmentGetResponseIncludingResults;
         }
-      }
-    };
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/informationProtection/threatAssessmentRequests/${threatAssessmentId}`) {
-        throw error;
-      }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, { options: { id: threatAssessmentId } }), new CommandError(error.error.message));
-  });
+      await command.action(logger, { options: { id: threatAssessmentId, includeResults: true, verbose: true } });
+      assert(loggerLogSpy.calledWith(threatAssessmentGetResponseIncludingResults));
+    }
+  );
+
+  it('handles error when threat assessment by specified id is not found',
+    async () => {
+      const error = {
+        'error': {
+          'code': 'ResourceNotFound',
+          'message': 'The requested resource does not exist.',
+          'innerError': {
+            'date': '2023-02-25T16:13:25',
+            'request-id': 'a9e23bc8-0845-4eef-8ba1-e031b098c955',
+            'client-request-id': 'a9e23bc8-0845-4eef-8ba1-e031b098c955'
+          }
+        }
+      };
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/informationProtection/threatAssessmentRequests/${threatAssessmentId}`) {
+          throw error;
+        }
+
+        throw 'Invalid request';
+      });
+
+      await assert.rejects(command.action(logger, { options: { id: threatAssessmentId } }), new CommandError(error.error.message));
+    }
+  );
 });

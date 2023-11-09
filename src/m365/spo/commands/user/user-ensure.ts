@@ -89,7 +89,7 @@ class SpoUserEnsureCommand extends SpoCommand {
 
     try {
       const requestBody = {
-        logonName: args.options.userName || await this.getUpnByUserId(args.options.aadId!, logger)
+        logonName: args.options.userName || (await this.getUpnByUserId(args.options.aadId!, logger))
       };
 
       const requestOptions: CliRequestOptions = {

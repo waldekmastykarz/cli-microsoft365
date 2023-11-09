@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import { spo } from '../../../../utils/spo.js';
 import commands from '../../commands.js';
 import command from './cdn-origin-add.js';
@@ -21,12 +20,12 @@ describe(commands.CDN_ORIGIN_ADD, () => {
   let commandInfo: CommandInfo;
   let requests: any[];
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
-    sinon.stub(spo, 'getRequestDigest').resolves(
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
+    jest.spyOn(spo, 'getRequestDigest').mockClear().mockImplementation().resolves(
       {
         FormDigestValue: 'abc',
         FormDigestTimeoutSeconds: 1800,
@@ -37,7 +36,7 @@ describe(commands.CDN_ORIGIN_ADD, () => {
     auth.service.connected = true;
     auth.service.spoUrl = 'https://contoso.sharepoint.com';
     auth.service.tenantId = 'abc';
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
 
       if ((opts.url as string).indexOf('/_vti_bin/client.svc/ProcessQuery') > -1) {
@@ -77,8 +76,8 @@ describe(commands.CDN_ORIGIN_ADD, () => {
     requests = [];
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
     auth.service.spoUrl = undefined;
     auth.service.tenantId = undefined;
@@ -92,33 +91,37 @@ describe(commands.CDN_ORIGIN_ADD, () => {
     assert.notStrictEqual(command.description, null);
   });
 
-  it('sets CDN origin on the public CDN when Public type specified', async () => {
-    await command.action(logger, { options: { debug: true, origin: '*/cdn', type: 'Public' } });
-    let setRequestIssued = false;
-    requests.forEach(r => {
-      if (r.url.indexOf('/_vti_bin/client.svc/ProcessQuery') > -1 &&
-        r.headers['X-RequestDigest'] &&
-        r.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><Method Name="AddTenantCdnOrigin" Id="27" ObjectPathId="23"><Parameters><Parameter Type="Enum">0</Parameter><Parameter Type="String">*/cdn</Parameter></Parameters></Method></Actions><ObjectPaths><Identity Id="23" Name="abc" /></ObjectPaths></Request>`) {
-        setRequestIssued = true;
-      }
-    });
+  it('sets CDN origin on the public CDN when Public type specified',
+    async () => {
+      await command.action(logger, { options: { debug: true, origin: '*/cdn', type: 'Public' } });
+      let setRequestIssued = false;
+      requests.forEach(r => {
+        if (r.url.indexOf('/_vti_bin/client.svc/ProcessQuery') > -1 &&
+          r.headers['X-RequestDigest'] &&
+          r.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><Method Name="AddTenantCdnOrigin" Id="27" ObjectPathId="23"><Parameters><Parameter Type="Enum">0</Parameter><Parameter Type="String">*/cdn</Parameter></Parameters></Method></Actions><ObjectPaths><Identity Id="23" Name="abc" /></ObjectPaths></Request>`) {
+          setRequestIssued = true;
+        }
+      });
 
-    assert(setRequestIssued);
-  });
+      assert(setRequestIssued);
+    }
+  );
 
-  it('sets CDN origin on the private CDN when Private type specified', async () => {
-    await assert.rejects(command.action(logger, { options: { debug: true, origin: '*/cdn', type: 'Private' } }));
-    let setRequestIssued = false;
-    requests.forEach(r => {
-      if (r.url.indexOf('/_vti_bin/client.svc/ProcessQuery') > -1 &&
-        r.headers['X-RequestDigest'] &&
-        r.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><Method Name="AddTenantCdnOrigin" Id="27" ObjectPathId="23"><Parameters><Parameter Type="Enum">1</Parameter><Parameter Type="String">*/cdn</Parameter></Parameters></Method></Actions><ObjectPaths><Identity Id="23" Name="abc" /></ObjectPaths></Request>`) {
-        setRequestIssued = true;
-      }
-    });
+  it('sets CDN origin on the private CDN when Private type specified',
+    async () => {
+      await assert.rejects(command.action(logger, { options: { debug: true, origin: '*/cdn', type: 'Private' } }));
+      let setRequestIssued = false;
+      requests.forEach(r => {
+        if (r.url.indexOf('/_vti_bin/client.svc/ProcessQuery') > -1 &&
+          r.headers['X-RequestDigest'] &&
+          r.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><Method Name="AddTenantCdnOrigin" Id="27" ObjectPathId="23"><Parameters><Parameter Type="Enum">1</Parameter><Parameter Type="String">*/cdn</Parameter></Parameters></Method></Actions><ObjectPaths><Identity Id="23" Name="abc" /></ObjectPaths></Request>`) {
+          setRequestIssued = true;
+        }
+      });
 
-    assert(setRequestIssued);
-  });
+      assert(setRequestIssued);
+    }
+  );
 
   it('sets CDN origin on the public CDN when no type specified', async () => {
     await command.action(logger, { options: { origin: '*/cdn' } });
@@ -134,51 +137,53 @@ describe(commands.CDN_ORIGIN_ADD, () => {
     assert(setRequestIssued);
   });
 
-  it('correctly handles trying to set CDN origin that has already been set', async () => {
-    sinonUtil.restore(request.post);
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      requests.push(opts);
+  it('correctly handles trying to set CDN origin that has already been set',
+    async () => {
+      jestUtil.restore(request.post);
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        requests.push(opts);
 
-      if ((opts.url as string).indexOf('/_api/contextinfo') > -1) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return { FormDigestValue: 'abc' };
-        }
-      }
-
-      if ((opts.url as string).indexOf('/_vti_bin/client.svc/ProcessQuery') > -1) {
-        if (opts.headers &&
-          opts.headers['X-RequestDigest'] &&
-          opts.data) {
-          if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><Method Name="AddTenantCdnOrigin" Id="27" ObjectPathId="23"><Parameters><Parameter Type="Enum">0</Parameter><Parameter Type="String">*/cdn</Parameter></Parameters></Method></Actions><ObjectPaths><Identity Id="23" Name="abc" /></ObjectPaths></Request>`) {
-            return JSON.stringify([
-              {
-                "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.7018.1204", "ErrorInfo": {
-                  "ErrorMessage": "The library is already registered as a CDN origin.", "ErrorValue": null, "TraceCorrelationId": "965d299e-a0c6-4000-8546-cc244881a129", "ErrorCode": -1, "ErrorTypeName": "Microsoft.SharePoint.PublicCdn.TenantCdnAdministrationException"
-                }, "TraceCorrelationId": "965d299e-a0c6-4000-8546-cc244881a129"
-              }
-            ]);
+        if ((opts.url as string).indexOf('/_api/contextinfo') > -1) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return { FormDigestValue: 'abc' };
           }
         }
-      }
 
-      throw 'Invalid request';
-    });
-    await assert.rejects(command.action(logger, { options: { debug: true, origin: '*/cdn', type: 'Public' } } as any),
-      new CommandError('The library is already registered as a CDN origin.'));
-  });
+        if ((opts.url as string).indexOf('/_vti_bin/client.svc/ProcessQuery') > -1) {
+          if (opts.headers &&
+            opts.headers['X-RequestDigest'] &&
+            opts.data) {
+            if (opts.data === `<Request AddExpandoFieldTypeSuffix="true" SchemaVersion="15.0.0.0" LibraryVersion="16.0.0.0" ApplicationName="${config.applicationName}" xmlns="http://schemas.microsoft.com/sharepoint/clientquery/2009"><Actions><Method Name="AddTenantCdnOrigin" Id="27" ObjectPathId="23"><Parameters><Parameter Type="Enum">0</Parameter><Parameter Type="String">*/cdn</Parameter></Parameters></Method></Actions><ObjectPaths><Identity Id="23" Name="abc" /></ObjectPaths></Request>`) {
+              return JSON.stringify([
+                {
+                  "SchemaVersion": "15.0.0.0", "LibraryVersion": "16.0.7018.1204", "ErrorInfo": {
+                    "ErrorMessage": "The library is already registered as a CDN origin.", "ErrorValue": null, "TraceCorrelationId": "965d299e-a0c6-4000-8546-cc244881a129", "ErrorCode": -1, "ErrorTypeName": "Microsoft.SharePoint.PublicCdn.TenantCdnAdministrationException"
+                  }, "TraceCorrelationId": "965d299e-a0c6-4000-8546-cc244881a129"
+                }
+              ]);
+            }
+          }
+        }
+
+        throw 'Invalid request';
+      });
+      await assert.rejects(command.action(logger, { options: { debug: true, origin: '*/cdn', type: 'Public' } } as any),
+        new CommandError('The library is already registered as a CDN origin.'));
+    }
+  );
 
   it('correctly handles random API error', async () => {
-    sinonUtil.restore(request.post);
-    sinon.stub(request, 'post').rejects(new Error('An error has occurred'));
+    jestUtil.restore(request.post);
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects(new Error('An error has occurred'));
     await assert.rejects(command.action(logger, { options: { debug: true, origin: '*/cdn', type: 'Public' } } as any),
       new CommandError('An error has occurred'));
   });
 
   it('escapes XML in user input', async () => {
-    sinonUtil.restore(request.post);
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jestUtil.restore(request.post);
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       requests.push(opts);
 
       if ((opts.url as string).indexOf('/_api/contextinfo') > -1) {
@@ -246,8 +251,10 @@ describe(commands.CDN_ORIGIN_ADD, () => {
     assert.strictEqual(actual, `${type} is not a valid CDN type. Allowed values are Public|Private`);
   });
 
-  it('doesn\'t fail validation if the optional type option not specified', async () => {
-    const actual = await command.validate({ options: { origin: '*/CDN' } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('doesn\'t fail validation if the optional type option not specified',
+    async () => {
+      const actual = await command.validate({ options: { origin: '*/CDN' } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 });

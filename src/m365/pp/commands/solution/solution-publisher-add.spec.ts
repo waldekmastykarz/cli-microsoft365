@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { powerPlatform } from '../../../../utils/powerPlatform.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './solution-publisher-add.js';
 
@@ -28,11 +27,11 @@ describe(commands.SOLUTION_PUBLISHER_ADD, () => {
   let log: string[];
   let logger: Logger;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -53,14 +52,14 @@ describe(commands.SOLUTION_PUBLISHER_ADD, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       powerPlatform.getDynamicsInstanceApiUrl
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -85,31 +84,35 @@ describe(commands.SOLUTION_PUBLISHER_ADD, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if choiceValuePrefix is more than the upper bound', async () => {
-    const actual = await command.validate({
-      options: {
-        environmentName: validEnvironment,
-        name: validName,
-        displayName: validDisplayName,
-        prefix: validPrefix,
-        choiceValuePrefix: 100000
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if choiceValuePrefix is more than the upper bound',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          environmentName: validEnvironment,
+          name: validName,
+          displayName: validDisplayName,
+          prefix: validPrefix,
+          choiceValuePrefix: 100000
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if choiceValuePrefix is less than the lower bound', async () => {
-    const actual = await command.validate({
-      options: {
-        environmentName: validEnvironment,
-        name: validName,
-        displayName: validDisplayName,
-        prefix: validPrefix,
-        choiceValuePrefix: 9999
-      }
-    }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if choiceValuePrefix is less than the lower bound',
+    async () => {
+      const actual = await command.validate({
+        options: {
+          environmentName: validEnvironment,
+          name: validName,
+          displayName: validDisplayName,
+          prefix: validPrefix,
+          choiceValuePrefix: 9999
+        }
+      }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('fails validation if name is not a valid value', async () => {
     const actual = await command.validate({
@@ -142,26 +145,28 @@ describe(commands.SOLUTION_PUBLISHER_ADD, () => {
     assert.strictEqual(actual, true);
   });
 
-  it('correctly adds a specific publisher with the required parameters', async () => {
-    sinon.stub(powerPlatform, 'getDynamicsInstanceApiUrl').callsFake(async () => envUrl);
+  it('correctly adds a specific publisher with the required parameters',
+    async () => {
+      jest.spyOn(powerPlatform, 'getDynamicsInstanceApiUrl').mockClear().mockImplementation(async () => envUrl);
 
-    sinon.stub(request, 'post').callsFake(async opts => {
-      if ((opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.0/publishers`)) {
-        if ((opts.headers?.accept as string)?.indexOf('application/json') === 0) {
-          return;
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
+        if ((opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.0/publishers`)) {
+          if ((opts.headers?.accept as string)?.indexOf('application/json') === 0) {
+            return;
+          }
         }
-      }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { verbose: true, environmentName: validEnvironment, name: validName, displayName: validDisplayName, prefix: validPrefix, choiceValuePrefix: validChoiceValuePrefix } });
-  });
+      await command.action(logger, { options: { verbose: true, environmentName: validEnvironment, name: validName, displayName: validDisplayName, prefix: validPrefix, choiceValuePrefix: validChoiceValuePrefix } });
+    }
+  );
 
   it('correctly handles API OData error', async () => {
-    sinon.stub(powerPlatform, 'getDynamicsInstanceApiUrl').callsFake(async () => envUrl);
+    jest.spyOn(powerPlatform, 'getDynamicsInstanceApiUrl').mockClear().mockImplementation(async () => envUrl);
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if ((opts.url === `https://contoso-dev.api.crm4.dynamics.com/api/data/v9.0/publishers`)) {
         if ((opts.headers?.accept as string)?.indexOf('application/json') === 0) {
           throw {

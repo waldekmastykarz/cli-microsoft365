@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,21 +8,21 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './oauth2grant-list.js';
 
 describe(commands.OAUTH2GRANT_LIST, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -41,17 +40,17 @@ describe(commands.OAUTH2GRANT_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -67,103 +66,107 @@ describe(commands.OAUTH2GRANT_LIST, () => {
     assert.deepStrictEqual(command.defaultProperties(), ['objectId', 'resourceId', 'scope']);
   });
 
-  it('retrieves OAuth2 permission grants for the specified service principal (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/v1.0/oauth2PermissionGrants?$filter=clientId eq '141f7648-0c71-4752-9cdb-c7d5305b7e68'`) > -1) {
-        return {
-          value: [{
-            "clientId": "cd4043e7-b749-420b-bd07-aa7c3912ed22",
-            "consentType": "AllPrincipals",
-            "principalId": null,
-            "resourceId": "1c444f1a-bba3-42f2-999f-4106c5b1c20c",
-            "scope": "Group.ReadWrite.All"
-          },
-          {
-            "clientId": "cd4043e7-b749-420b-bd07-aa7c3912ed22",
-            "consentType": "AllPrincipals",
-            "principalId": null,
-            "resourceId": "dcf25ef3-e2df-4a77-839d-6b7857a11c78",
-            "scope": "MyFiles.Read"
-          }]
-        };
+  it('retrieves OAuth2 permission grants for the specified service principal (debug)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/v1.0/oauth2PermissionGrants?$filter=clientId eq '141f7648-0c71-4752-9cdb-c7d5305b7e68'`) > -1) {
+          return {
+            value: [{
+              "clientId": "cd4043e7-b749-420b-bd07-aa7c3912ed22",
+              "consentType": "AllPrincipals",
+              "principalId": null,
+              "resourceId": "1c444f1a-bba3-42f2-999f-4106c5b1c20c",
+              "scope": "Group.ReadWrite.All"
+            },
+            {
+              "clientId": "cd4043e7-b749-420b-bd07-aa7c3912ed22",
+              "consentType": "AllPrincipals",
+              "principalId": null,
+              "resourceId": "dcf25ef3-e2df-4a77-839d-6b7857a11c78",
+              "scope": "MyFiles.Read"
+            }]
+          };
 
-      }
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, spObjectId: '141f7648-0c71-4752-9cdb-c7d5305b7e68' } });
-    assert(loggerLogSpy.calledWith([{
-      "clientId": "cd4043e7-b749-420b-bd07-aa7c3912ed22",
-      "consentType": "AllPrincipals",
-      "principalId": null,
-      "resourceId": "1c444f1a-bba3-42f2-999f-4106c5b1c20c",
-      "scope": "Group.ReadWrite.All"
-    },
-    {
-      "clientId": "cd4043e7-b749-420b-bd07-aa7c3912ed22",
-      "consentType": "AllPrincipals",
-      "principalId": null,
-      "resourceId": "dcf25ef3-e2df-4a77-839d-6b7857a11c78",
-      "scope": "MyFiles.Read"
-    }]));
-  });
+      await command.action(logger, { options: { debug: true, spObjectId: '141f7648-0c71-4752-9cdb-c7d5305b7e68' } });
+      assert(loggerLogSpy.calledWith([{
+        "clientId": "cd4043e7-b749-420b-bd07-aa7c3912ed22",
+        "consentType": "AllPrincipals",
+        "principalId": null,
+        "resourceId": "1c444f1a-bba3-42f2-999f-4106c5b1c20c",
+        "scope": "Group.ReadWrite.All"
+      },
+      {
+        "clientId": "cd4043e7-b749-420b-bd07-aa7c3912ed22",
+        "consentType": "AllPrincipals",
+        "principalId": null,
+        "resourceId": "dcf25ef3-e2df-4a77-839d-6b7857a11c78",
+        "scope": "MyFiles.Read"
+      }]));
+    }
+  );
 
-  it('retrieves OAuth2 permission grants for the specified service principal', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/v1.0/oauth2PermissionGrants?$filter=clientId eq '141f7648-0c71-4752-9cdb-c7d5305b7e68'`) > -1) {
-        return {
-          value: [{
-            "clientId": "cd4043e7-b749-420b-bd07-aa7c3912ed22",
-            "consentType": "AllPrincipals",
-            "expiryTime": "9999-12-31T23:59:59.9999999",
-            "objectId": "50NAzUm3C0K9B6p8ORLtIhpPRByju_JCmZ9BBsWxwgw",
-            "principalId": null,
-            "resourceId": "1c444f1a-bba3-42f2-999f-4106c5b1c20c",
-            "scope": "Group.ReadWrite.All",
-            "startTime": "0001-01-01T00:00:00"
-          },
-          {
-            "clientId": "cd4043e7-b749-420b-bd07-aa7c3912ed22",
-            "consentType": "AllPrincipals",
-            "expiryTime": "9999-12-31T23:59:59.9999999",
-            "objectId": "50NAzUm3C0K9B6p8ORLtIvNe8tzf4ndKg51reFehHHg",
-            "principalId": null,
-            "resourceId": "dcf25ef3-e2df-4a77-839d-6b7857a11c78",
-            "scope": "MyFiles.Read",
-            "startTime": "0001-01-01T00:00:00"
-          }]
-        };
-      }
+  it('retrieves OAuth2 permission grants for the specified service principal',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/v1.0/oauth2PermissionGrants?$filter=clientId eq '141f7648-0c71-4752-9cdb-c7d5305b7e68'`) > -1) {
+          return {
+            value: [{
+              "clientId": "cd4043e7-b749-420b-bd07-aa7c3912ed22",
+              "consentType": "AllPrincipals",
+              "expiryTime": "9999-12-31T23:59:59.9999999",
+              "objectId": "50NAzUm3C0K9B6p8ORLtIhpPRByju_JCmZ9BBsWxwgw",
+              "principalId": null,
+              "resourceId": "1c444f1a-bba3-42f2-999f-4106c5b1c20c",
+              "scope": "Group.ReadWrite.All",
+              "startTime": "0001-01-01T00:00:00"
+            },
+            {
+              "clientId": "cd4043e7-b749-420b-bd07-aa7c3912ed22",
+              "consentType": "AllPrincipals",
+              "expiryTime": "9999-12-31T23:59:59.9999999",
+              "objectId": "50NAzUm3C0K9B6p8ORLtIvNe8tzf4ndKg51reFehHHg",
+              "principalId": null,
+              "resourceId": "dcf25ef3-e2df-4a77-839d-6b7857a11c78",
+              "scope": "MyFiles.Read",
+              "startTime": "0001-01-01T00:00:00"
+            }]
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { spObjectId: '141f7648-0c71-4752-9cdb-c7d5305b7e68' } });
-    assert(loggerLogSpy.calledWith([{
-      "clientId": "cd4043e7-b749-420b-bd07-aa7c3912ed22",
-      "consentType": "AllPrincipals",
-      "expiryTime": "9999-12-31T23:59:59.9999999",
-      "objectId": "50NAzUm3C0K9B6p8ORLtIhpPRByju_JCmZ9BBsWxwgw",
-      "principalId": null,
-      "resourceId": "1c444f1a-bba3-42f2-999f-4106c5b1c20c",
-      "scope": "Group.ReadWrite.All",
-      "startTime": "0001-01-01T00:00:00"
-    },
-    {
-      "clientId": "cd4043e7-b749-420b-bd07-aa7c3912ed22",
-      "consentType": "AllPrincipals",
-      "expiryTime": "9999-12-31T23:59:59.9999999",
-      "objectId": "50NAzUm3C0K9B6p8ORLtIvNe8tzf4ndKg51reFehHHg",
-      "principalId": null,
-      "resourceId": "dcf25ef3-e2df-4a77-839d-6b7857a11c78",
-      "scope": "MyFiles.Read",
-      "startTime": "0001-01-01T00:00:00"
-    }]));
-  });
+      await command.action(logger, { options: { spObjectId: '141f7648-0c71-4752-9cdb-c7d5305b7e68' } });
+      assert(loggerLogSpy.calledWith([{
+        "clientId": "cd4043e7-b749-420b-bd07-aa7c3912ed22",
+        "consentType": "AllPrincipals",
+        "expiryTime": "9999-12-31T23:59:59.9999999",
+        "objectId": "50NAzUm3C0K9B6p8ORLtIhpPRByju_JCmZ9BBsWxwgw",
+        "principalId": null,
+        "resourceId": "1c444f1a-bba3-42f2-999f-4106c5b1c20c",
+        "scope": "Group.ReadWrite.All",
+        "startTime": "0001-01-01T00:00:00"
+      },
+      {
+        "clientId": "cd4043e7-b749-420b-bd07-aa7c3912ed22",
+        "consentType": "AllPrincipals",
+        "expiryTime": "9999-12-31T23:59:59.9999999",
+        "objectId": "50NAzUm3C0K9B6p8ORLtIvNe8tzf4ndKg51reFehHHg",
+        "principalId": null,
+        "resourceId": "dcf25ef3-e2df-4a77-839d-6b7857a11c78",
+        "scope": "MyFiles.Read",
+        "startTime": "0001-01-01T00:00:00"
+      }]));
+    }
+  );
 
   it('outputs all properties when output is JSON', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/v1.0/oauth2PermissionGrants?$filter=clientId eq '141f7648-0c71-4752-9cdb-c7d5305b7e68'`) > -1) {
         return {
           value: [{
@@ -215,21 +218,23 @@ describe(commands.OAUTH2GRANT_LIST, () => {
     }]));
   });
 
-  it('correctly handles no OAuth2 permission grants for the specified service principal found', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/v1.0/oauth2PermissionGrants?$filter=clientId eq '141f7648-0c71-4752-9cdb-c7d5305b7e68'`) > -1) {
-        return { value: [] };
-      }
+  it('correctly handles no OAuth2 permission grants for the specified service principal found',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/v1.0/oauth2PermissionGrants?$filter=clientId eq '141f7648-0c71-4752-9cdb-c7d5305b7e68'`) > -1) {
+          return { value: [] };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { spObjectId: '141f7648-0c71-4752-9cdb-c7d5305b7e68' } });
-    assert(loggerLogSpy.notCalled);
-  });
+      await command.action(logger, { options: { spObjectId: '141f7648-0c71-4752-9cdb-c7d5305b7e68' } });
+      assert(loggerLogSpy.notCalled);
+    }
+  );
 
   it('correctly handles API OData error', async () => {
-    sinon.stub(request, 'get').rejects({
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects({
       error: {
         'odata.error': {
           code: '-1, InvalidOperationException',

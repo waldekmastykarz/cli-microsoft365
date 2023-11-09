@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { formatting } from '../../../../utils/formatting.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './channel-remove.js';
 
@@ -25,11 +24,11 @@ describe(commands.CHANNEL_REMOVE, () => {
   let promptOptions: any;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -47,7 +46,7 @@ describe(commands.CHANNEL_REMOVE, () => {
         log.push(msg);
       }
     };
-    sinon.stub(Cli, 'prompt').callsFake(async (options) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options) => {
       promptOptions = options;
       return { continue: false };
     });
@@ -55,15 +54,15 @@ describe(commands.CHANNEL_REMOVE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       request.delete,
       Cli.prompt
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -117,7 +116,7 @@ describe(commands.CHANNEL_REMOVE, () => {
 
   it('fails to remove channel when channel does not exists', async () => {
     const errorMessage = 'The specified channel does not exist in this Microsoft Teams team';
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/teams/${formatting.encodeQueryParameter(teamId)}/channels?$filter=displayName eq '${formatting.encodeQueryParameter(name)}'`) {
         return { value: [] };
       }
@@ -134,41 +133,45 @@ describe(commands.CHANNEL_REMOVE, () => {
     }), new CommandError(errorMessage));
   });
 
-  it('prompts before removing the specified channel when confirm option not passed (debug)', async () => {
-    await command.action(logger, {
-      options: {
-        debug: true,
-        id: id,
-        teamId: teamId
+  it('prompts before removing the specified channel when confirm option not passed (debug)',
+    async () => {
+      await command.action(logger, {
+        options: {
+          debug: true,
+          id: id,
+          teamId: teamId
+        }
+      });
+
+      let promptIssued = false;
+
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
       }
-    });
 
-    let promptIssued = false;
-
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      assert(promptIssued);
     }
+  );
 
-    assert(promptIssued);
-  });
+  it('aborts removing the specified channel when confirm option not passed and prompt not confirmed',
+    async () => {
+      const postSpy = jest.spyOn(request, 'delete').mockClear();
 
-  it('aborts removing the specified channel when confirm option not passed and prompt not confirmed', async () => {
-    const postSpy = sinon.spy(request, 'delete');
+      await command.action(logger, {
+        options: {
+          debug: true,
+          id: id,
+          teamId: teamId
+        }
+      });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        id: id,
-        teamId: teamId
-      }
-    });
-
-    assert(postSpy.notCalled);
-  });
+      assert(postSpy.notCalled);
+    }
+  );
 
   it('fails when team name does not exist', async () => {
     const errorMessage = 'The specified team does not exist';
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(teamName)}'`) {
         return {
           "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#teams",
@@ -194,119 +197,127 @@ describe(commands.CHANNEL_REMOVE, () => {
     }), new CommandError(errorMessage));
   });
 
-  it('removes specified channel when id is passed with confirm option', async () => {
-    sinon.stub(request, 'delete').returns(Promise.resolve());
+  it('removes specified channel when id is passed with confirm option',
+    async () => {
+      jest.spyOn(request, 'delete').mockClear().mockReturnValue(Promise.resolve());
 
-    await command.action(logger, {
-      options: {
-        id: id,
-        teamId: teamId,
-        force: true
-      }
-    });
-  });
+      await command.action(logger, {
+        options: {
+          id: id,
+          teamId: teamId,
+          force: true
+        }
+      });
+    }
+  );
 
-  it('removes the specified channel by id when prompt confirmed (debug)', async () => {
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/teams/${formatting.encodeQueryParameter(teamId)}/channels/${formatting.encodeQueryParameter(id)}`) {
-        return;
-      }
+  it('removes the specified channel by id when prompt confirmed (debug)',
+    async () => {
+      jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/teams/${formatting.encodeQueryParameter(teamId)}/channels/${formatting.encodeQueryParameter(id)}`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').callsFake(async () => (
-      { continue: true }
-    ));
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async () => (
+        { continue: true }
+      ));
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        id: id,
-        teamId: teamId
-      }
-    });
-  });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          id: id,
+          teamId: teamId
+        }
+      });
+    }
+  );
 
-  it('removes the specified channel by name and teamName when prompt confirmed (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(teamName)}'`) {
-        return {
-          value: [
-            {
-              "id": teamId,
-              "displayName": teamName,
-              "resourceProvisioningOptions": ["Team"]
-            }
-          ]
-        };
-      }
-      throw 'Invalid request';
-    });
+  it('removes the specified channel by name and teamName when prompt confirmed (debug)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(teamName)}'`) {
+          return {
+            value: [
+              {
+                "id": teamId,
+                "displayName": teamName,
+                "resourceProvisioningOptions": ["Team"]
+              }
+            ]
+          };
+        }
+        throw 'Invalid request';
+      });
 
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/teams/${formatting.encodeQueryParameter(teamId)}/channels/${formatting.encodeQueryParameter(id)}`) {
-        return;
-      }
+      jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/teams/${formatting.encodeQueryParameter(teamId)}/channels/${formatting.encodeQueryParameter(id)}`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        id: id,
-        teamName: teamName
-      }
-    });
-  });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          id: id,
+          teamName: teamName
+        }
+      });
+    }
+  );
 
 
-  it('removes the specified channel by name and teamId when prompt confirmed (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/teams/${formatting.encodeQueryParameter(teamId)}/channels?$filter=displayName eq '${formatting.encodeQueryParameter(name)}'`) {
-        return {
-          value: [
-            {
-              "id": "19:f3dcbb1674574677abcae89cb626f1e6@thread.skype",
-              "displayName": "name",
-              "description": null,
-              "email": "",
-              "webUrl": "https://teams.microsoft.com/l/channel/19:f3dcbb1674574677abcae89cb626f1e6%40thread.skype/%F0%9F%92%A1+Ideas?groupId=d66b8110-fcad-49e8-8159-0d488ddb7656&tenantId=eff8592e-e14a-4ae8-8771-d96d5c549e1c"
-            }
-          ]
-        };
-      }
+  it('removes the specified channel by name and teamId when prompt confirmed (debug)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/teams/${formatting.encodeQueryParameter(teamId)}/channels?$filter=displayName eq '${formatting.encodeQueryParameter(name)}'`) {
+          return {
+            value: [
+              {
+                "id": "19:f3dcbb1674574677abcae89cb626f1e6@thread.skype",
+                "displayName": "name",
+                "description": null,
+                "email": "",
+                "webUrl": "https://teams.microsoft.com/l/channel/19:f3dcbb1674574677abcae89cb626f1e6%40thread.skype/%F0%9F%92%A1+Ideas?groupId=d66b8110-fcad-49e8-8159-0d488ddb7656&tenantId=eff8592e-e14a-4ae8-8771-d96d5c549e1c"
+              }
+            ]
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/teams/${formatting.encodeQueryParameter(teamId)}/channels/${formatting.encodeQueryParameter(id)}`) {
-        return;
-      }
+      jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/teams/${formatting.encodeQueryParameter(teamId)}/channels/${formatting.encodeQueryParameter(id)}`) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
 
-    await command.action(logger, {
-      options: {
-        debug: true,
-        name: name,
-        teamId: teamId
-      }
-    });
-  });
+      await command.action(logger, {
+        options: {
+          debug: true,
+          name: name,
+          teamId: teamId
+        }
+      });
+    }
+  );
 
   it('removes the specified channel by name without prompt', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(teamName)}'`) {
         return {
           value: [
@@ -336,7 +347,7 @@ describe(commands.CHANNEL_REMOVE, () => {
       throw 'Invalid request';
     });
 
-    sinon.stub(request, 'delete').callsFake(async (opts) => {
+    jest.spyOn(request, 'delete').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://graph.microsoft.com/v1.0/teams/${formatting.encodeQueryParameter(teamId)}/channels/${formatting.encodeQueryParameter(id)}`) {
         return;
       }
@@ -366,7 +377,7 @@ describe(commands.CHANNEL_REMOVE, () => {
         }
       }
     };
-    sinon.stub(request, 'delete').rejects(error);
+    jest.spyOn(request, 'delete').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, {
       options: {

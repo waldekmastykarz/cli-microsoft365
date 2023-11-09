@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,22 +8,22 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './hubsite-data-get.js';
 
 describe(commands.HUBSITE_DATA_GET, () => {
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
-  let loggerLogToStderrSpy: sinon.SinonSpy;
+  let loggerLogToStderrSpy: jest.SpyInstance;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -42,18 +41,18 @@ describe(commands.HUBSITE_DATA_GET, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
-    loggerLogToStderrSpy = sinon.spy(logger, 'logToStderr');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
+    loggerLogToStderrSpy = jest.spyOn(logger, 'logToStderr').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -66,7 +65,7 @@ describe(commands.HUBSITE_DATA_GET, () => {
   });
 
   it('gets information about the specified hub site', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/HubSiteData(false)`) > -1) {
         return {
           value: JSON.stringify({
@@ -94,37 +93,39 @@ describe(commands.HUBSITE_DATA_GET, () => {
     }));
   });
 
-  it('gets information about the specified hub site with forced refresh', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/HubSiteData(true)`) > -1) {
-        return {
-          value: JSON.stringify({
-            "themeKey": null,
-            "name": "CommunicationSite",
-            "url": "https://contoso.sharepoint.com/sites/Sales",
-            "logoUrl": "http://contoso.com/__siteIcon__.jpg",
-            "usesMetadataNavigation": false,
-            "navigation": []
-          })
-        };
-      }
+  it('gets information about the specified hub site with forced refresh',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/HubSiteData(true)`) > -1) {
+          return {
+            value: JSON.stringify({
+              "themeKey": null,
+              "name": "CommunicationSite",
+              "url": "https://contoso.sharepoint.com/sites/Sales",
+              "logoUrl": "http://contoso.com/__siteIcon__.jpg",
+              "usesMetadataNavigation": false,
+              "navigation": []
+            })
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/Project-X', forceRefresh: true } });
-    assert(loggerLogSpy.calledWith({
-      "themeKey": null,
-      "name": "CommunicationSite",
-      "url": "https://contoso.sharepoint.com/sites/Sales",
-      "logoUrl": "http://contoso.com/__siteIcon__.jpg",
-      "usesMetadataNavigation": false,
-      "navigation": []
-    }));
-  });
+      await command.action(logger, { options: { webUrl: 'https://contoso.sharepoint.com/sites/Project-X', forceRefresh: true } });
+      assert(loggerLogSpy.calledWith({
+        "themeKey": null,
+        "name": "CommunicationSite",
+        "url": "https://contoso.sharepoint.com/sites/Sales",
+        "logoUrl": "http://contoso.com/__siteIcon__.jpg",
+        "usesMetadataNavigation": false,
+        "navigation": []
+      }));
+    }
+  );
 
   it('gets information about the specified hub site (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/HubSiteData`) > -1) {
         return {
           value: JSON.stringify({
@@ -153,7 +154,7 @@ describe(commands.HUBSITE_DATA_GET, () => {
   });
 
   it('correctly handles empty response', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if ((opts.url as string).indexOf(`/_api/web/HubSiteData`) > -1) {
         return { "odata.null": true };
       }
@@ -165,21 +166,23 @@ describe(commands.HUBSITE_DATA_GET, () => {
     assert(loggerLogSpy.notCalled);
   });
 
-  it('correctly handles error when specified site is not connect to or is a hub site (debug)', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if ((opts.url as string).indexOf(`/_api/web/HubSiteData`) > -1) {
-        return { "odata.null": true };
-      }
+  it('correctly handles error when specified site is not connect to or is a hub site (debug)',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if ((opts.url as string).indexOf(`/_api/web/HubSiteData`) > -1) {
+          return { "odata.null": true };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com/sites/Project-X' } });
-    assert(loggerLogToStderrSpy.calledWith(`https://contoso.sharepoint.com/sites/Project-X is not connected to a hub site and is not a hub site itself`));
-  });
+      await command.action(logger, { options: { debug: true, webUrl: 'https://contoso.sharepoint.com/sites/Project-X' } });
+      assert(loggerLogToStderrSpy.calledWith(`https://contoso.sharepoint.com/sites/Project-X is not connected to a hub site and is not a hub site itself`));
+    }
+  );
 
   it('correctly handles error when hub site not found', async () => {
-    sinon.stub(request, 'get').rejects({
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects({
       error: {
         "odata.error": {
           "code": "-1, Microsoft.SharePoint.Client.ResourceNotFoundException",

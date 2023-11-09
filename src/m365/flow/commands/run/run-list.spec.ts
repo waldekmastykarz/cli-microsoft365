@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { Cli } from '../../../../cli/Cli.js';
 import { CommandInfo } from '../../../../cli/CommandInfo.js';
@@ -9,7 +8,7 @@ import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './run-list.js';
 
@@ -110,14 +109,14 @@ describe(commands.RUN_LIST, () => {
 
   let log: string[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -135,17 +134,17 @@ describe(commands.RUN_LIST, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -162,7 +161,7 @@ describe(commands.RUN_LIST, () => {
   });
 
   it('retrieves all runs for a specific flow', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://management.azure.com/providers/Microsoft.ProcessSimple/environments/${environmentName}/flows/${flowName}/runs?api-version=2016-11-01`) {
         if (opts.headers &&
           opts.headers.accept &&
@@ -179,7 +178,7 @@ describe(commands.RUN_LIST, () => {
   });
 
   it('retrieves all runs for a specific flow as admin', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://management.azure.com/providers/Microsoft.ProcessSimple/scopes/admin/environments/${environmentName}/flows/${flowName}/runs?api-version=2016-11-01`) {
         if (opts.headers &&
           opts.headers.accept &&
@@ -195,25 +194,27 @@ describe(commands.RUN_LIST, () => {
     assert(loggerLogSpy.calledWith(flowRunListResponse.value));
   });
 
-  it('retrieves all runs with a specific status for a specific flow', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
-      if (opts.url === `https://management.azure.com/providers/Microsoft.ProcessSimple/environments/${environmentName}/flows/${flowName}/runs?api-version=2016-11-01&$filter=status eq '${status}'`) {
-        if (opts.headers &&
-          opts.headers.accept &&
-          (opts.headers.accept as string).indexOf('application/json') === 0) {
-          return flowRunListResponse;
+  it('retrieves all runs with a specific status for a specific flow',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `https://management.azure.com/providers/Microsoft.ProcessSimple/environments/${environmentName}/flows/${flowName}/runs?api-version=2016-11-01&$filter=status eq '${status}'`) {
+          if (opts.headers &&
+            opts.headers.accept &&
+            (opts.headers.accept as string).indexOf('application/json') === 0) {
+            return flowRunListResponse;
+          }
         }
-      }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { environmentName: environmentName, flowName: flowName, status: status, verbose: true } });
-    assert(loggerLogSpy.calledWith(flowRunListResponse.value));
-  });
+      await command.action(logger, { options: { environmentName: environmentName, flowName: flowName, status: status, verbose: true } });
+      assert(loggerLogSpy.calledWith(flowRunListResponse.value));
+    }
+  );
 
   it('retrieves all runs between two dates for a specific flow', async () => {
-    sinon.stub(request, 'get').callsFake(async (opts) => {
+    jest.spyOn(request, 'get').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `https://management.azure.com/providers/Microsoft.ProcessSimple/environments/${environmentName}/flows/${flowName}/runs?api-version=2016-11-01&$filter=startTime ge ${triggerStartTime} and startTime lt ${triggerEndTime}`) {
         if (opts.headers &&
           opts.headers.accept &&
@@ -230,7 +231,7 @@ describe(commands.RUN_LIST, () => {
   });
 
   it('correctly handles no environment found', async () => {
-    sinon.stub(request, 'get').rejects({
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects({
       "error": {
         "code": "EnvironmentAccessDenied",
         "message": `Access to the environment '${environmentName}' is denied.`
@@ -242,14 +243,14 @@ describe(commands.RUN_LIST, () => {
   });
 
   it('correctly handles no runs for this flow found', async () => {
-    sinon.stub(request, 'get').resolves({ value: [] });
+    jest.spyOn(request, 'get').mockClear().mockImplementation().resolves({ value: [] });
 
     await command.action(logger, { options: { verbose: true, environmentName: 'Default-48595cc3-adce-4267-8e99-0c838923dbb9', flowName: '16c90c26-25e0-4800-8af9-da594e02d427' } });
     assert(loggerLogSpy.calledWith([]));
   });
 
   it('correctly handles API OData error', async () => {
-    sinon.stub(request, 'get').rejects({
+    jest.spyOn(request, 'get').mockClear().mockImplementation().rejects({
       error: {
         'odata.error': {
           code: '-1, InvalidOperationException',
@@ -274,15 +275,19 @@ describe(commands.RUN_LIST, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if the triggerStartTime is not a valid ISO datetime', async () => {
-    const actual = await command.validate({ options: { environmentName: environmentName, flowName: flowName, triggerStartTime: 'invalid' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the triggerStartTime is not a valid ISO datetime',
+    async () => {
+      const actual = await command.validate({ options: { environmentName: environmentName, flowName: flowName, triggerStartTime: 'invalid' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('fails validation if the triggerEndTime is not a valid ISO datetime', async () => {
-    const actual = await command.validate({ options: { environmentName: environmentName, flowName: flowName, triggerEndTime: 'invalid' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if the triggerEndTime is not a valid ISO datetime',
+    async () => {
+      const actual = await command.validate({ options: { environmentName: environmentName, flowName: flowName, triggerEndTime: 'invalid' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation if all options are passed properly', async () => {
     const actual = await command.validate({ options: { environmentName: environmentName, flowName: flowName, status: status, triggerStartTime: triggerStartTime, triggerEndTime: triggerEndTime } }, commandInfo);

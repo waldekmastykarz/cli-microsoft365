@@ -1,7 +1,6 @@
 import assert from 'assert';
 import Axios from 'axios';
 import { AddressInfo } from 'net';
-import sinon from 'sinon';
 import { Auth } from './Auth.js';
 import authServer from './AuthServer.js';
 import { Logger } from './cli/Logger.js';
@@ -10,9 +9,9 @@ import { browserUtil } from './utils/browserUtil.js';
 describe('AuthServer', () => {
   let log: any[];
 
-  let callbackResolveStub: sinon.SinonStub;
-  let callbackRejectStub: sinon.SinonStub;
-  let openStub: sinon.SinonStub;
+  let callbackResolveStub: jest.Mock;
+  let callbackRejectStub: jest.Mock;
+  let openStub: jest.Mock;
   let serverUrl: string = "";
   let auth: Auth;
 
@@ -27,9 +26,9 @@ describe('AuthServer', () => {
     auth = new Auth();
     auth.service.appId = '9bc3ab49-b65d-410a-85ad-de819febfddc';
     auth.service.tenant = '9bc3ab49-b65d-410a-85ad-de819febfddd';
-    openStub = sinon.stub(browserUtil, 'open').callsFake(async () => { return; });
-    callbackResolveStub = sinon.stub().callsFake(() => { });
-    callbackRejectStub = sinon.stub().callsFake(() => { });
+    openStub = jest.spyOn(browserUtil, 'open').mockClear().mockImplementation(async () => { return; });
+    callbackResolveStub = jest.fn().callsFake(() => { });
+    callbackRejectStub = jest.fn().callsFake(() => { });
     authServer.initializeServer(auth.service, auth.defaultResource, callbackResolveStub, callbackRejectStub, logger, true);
     const address = authServer.server.address() as AddressInfo;
     serverUrl = `http://localhost:${address?.port}`;
@@ -39,7 +38,7 @@ describe('AuthServer', () => {
     if (authServer.server.listening) {
       authServer.server.close();
     }
-    openStub.restore();
+    openStub.mockRestore();
   });
 
   it('successfully listens', (done) => {
@@ -67,8 +66,8 @@ describe('AuthServer', () => {
       Axios.get<string>(`${serverUrl}/?code=1111`).then((response) => {
         assert(response.data.indexOf("You have logged into CLI for Microsoft 365!") > -1);
         assert(callbackResolveStub.called);
-        assert(callbackResolveStub.args[0][0].code === "1111");
-        assert(callbackResolveStub.args[0][0].redirectUri === serverUrl);
+        assert(callbackResolveStub.mock.calls[0][0].code === "1111");
+        assert(callbackResolveStub.mock.calls[0][0].redirectUri === serverUrl);
         assert(callbackRejectStub.notCalled);
         assert(authServer.server.listening === false, "server is closed after a successful request");
         done();
@@ -87,8 +86,8 @@ describe('AuthServer', () => {
         assert(response.data.indexOf("Oops! Azure Active Directory replied with an error message.") > -1);
         assert(callbackResolveStub.notCalled);
         assert(callbackRejectStub.called);
-        assert(callbackRejectStub.args[0][0].error === "an error has occurred");
-        assert(callbackRejectStub.args[0][0].errorDescription === undefined);
+        assert(callbackRejectStub.mock.calls[0][0].error === "an error has occurred");
+        assert(callbackRejectStub.mock.calls[0][0].errorDescription === undefined);
         assert(authServer.server.listening === false, "server is closed after a successful request");
         done();
       }).catch((reason) => {
@@ -106,8 +105,8 @@ describe('AuthServer', () => {
         assert(response.data.indexOf("Oops! Azure Active Directory replied with an error message.") > -1);
         assert(callbackResolveStub.notCalled);
         assert(callbackRejectStub.called);
-        assert(callbackRejectStub.args[0][0].error === "an error has occurred");
-        assert(callbackRejectStub.args[0][0].errorDescription === "error description");
+        assert(callbackRejectStub.mock.calls[0][0].error === "an error has occurred");
+        assert(callbackRejectStub.mock.calls[0][0].errorDescription === "error description");
         assert(authServer.server.listening === false, "server is closed after a successful request");
         done();
       }).catch((reason) => {
@@ -125,8 +124,8 @@ describe('AuthServer', () => {
         assert(response.data.indexOf("Oops! This is an invalid request.") > -1);
         assert(callbackResolveStub.notCalled);
         assert(callbackRejectStub.called);
-        assert(callbackRejectStub.args[0][0].error === "invalid request");
-        assert(callbackRejectStub.args[0][0].errorDescription === "An invalid request has been received by the HTTP server");
+        assert(callbackRejectStub.mock.calls[0][0].error === "invalid request");
+        assert(callbackRejectStub.mock.calls[0][0].errorDescription === "An invalid request has been received by the HTTP server");
         assert(authServer.server.listening === false, "server is closed after a successful request");
         done();
       }).catch((reason) => {
@@ -144,15 +143,15 @@ describe('AuthServer', () => {
         authServer.server.close();
       }
 
-      openStub.restore();
-      openStub = sinon.stub(browserUtil, 'open').callsFake(async () => {
+      openStub.mockRestore();
+      openStub = jest.spyOn(browserUtil, 'open').mockClear().mockImplementation(async () => {
         throw '';
       });
       authServer.initializeServer(auth.service, auth.defaultResource, callbackResolveStub, callbackRejectStub, logger, true);
       setTimeout(() => {
         assert(callbackRejectStub.called);
-        assert(callbackRejectStub.args[0][0].error === "Can't open the default browser");
-        assert(callbackRejectStub.args[0][0].errorDescription === "Was not able to open a browser instance. Try again later or use a different authentication method.");
+        assert(callbackRejectStub.mock.calls[0][0].error === "Can't open the default browser");
+        assert(callbackRejectStub.mock.calls[0][0].errorDescription === "Was not able to open a browser instance. Try again later or use a different authentication method.");
         assert(authServer.server.listening === false, "server is closed after a successful request");
         done();
       }, 10);

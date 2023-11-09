@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -10,7 +9,7 @@ import { telemetry } from '../../../../telemetry.js';
 import { aadUser } from '../../../../utils/aadUser.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './user-ensure.js';
 
@@ -38,14 +37,14 @@ describe(commands.USER_ENSURE, () => {
 
   let log: any[];
   let logger: Logger;
-  let loggerLogSpy: sinon.SinonSpy;
+  let loggerLogSpy: jest.SpyInstance;
   let commandInfo: CommandInfo;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
   });
@@ -63,18 +62,18 @@ describe(commands.USER_ENSURE, () => {
         log.push(msg);
       }
     };
-    loggerLogSpy = sinon.spy(logger, 'log');
+    loggerLogSpy = jest.spyOn(logger, 'log').mockClear();
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.post,
       aadUser.getUpnByUserId
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -87,7 +86,7 @@ describe(commands.USER_ENSURE, () => {
   });
 
   it('ensures user for a specific web by userPrincipalName', async () => {
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${validWebUrl}/_api/web/ensureuser`) {
         return ensuredUserResponse;
       }
@@ -100,11 +99,11 @@ describe(commands.USER_ENSURE, () => {
   });
 
   it('ensures user for a specific web by aadId', async () => {
-    sinon.stub(aadUser, 'getUpnByUserId').callsFake(async () => {
+    jest.spyOn(aadUser, 'getUpnByUserId').mockClear().mockImplementation(async () => {
       return validUserName;
     });
 
-    sinon.stub(request, 'post').callsFake(async (opts) => {
+    jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
       if (opts.url === `${validWebUrl}/_api/web/ensureuser`) {
         return ensuredUserResponse;
       }
@@ -116,48 +115,52 @@ describe(commands.USER_ENSURE, () => {
     assert(loggerLogSpy.calledWith(ensuredUserResponse));
   });
 
-  it('throws error message when no user was found with a specific id', async () => {
-    sinon.stub(aadUser, 'getUpnByUserId').callsFake(async (id) => {
-      throw {
-        "error": {
+  it('throws error message when no user was found with a specific id',
+    async () => {
+      jest.spyOn(aadUser, 'getUpnByUserId').mockClear().mockImplementation(async (id) => {
+        throw {
           "error": {
-            "code": "Request_ResourceNotFound",
-            "message": `Resource '${id}' does not exist or one of its queried reference-property objects are not present.`,
-            "innerError": {
-              "date": "2023-02-17T22:44:21",
-              "request-id": "25519ac1-8f24-46a7-90b0-19baace49a7a",
-              "client-request-id": "25519ac1-8f24-46a7-90b0-19baace49a7a"
+            "error": {
+              "code": "Request_ResourceNotFound",
+              "message": `Resource '${id}' does not exist or one of its queried reference-property objects are not present.`,
+              "innerError": {
+                "date": "2023-02-17T22:44:21",
+                "request-id": "25519ac1-8f24-46a7-90b0-19baace49a7a",
+                "client-request-id": "25519ac1-8f24-46a7-90b0-19baace49a7a"
+              }
+            }
+          }
+        };
+      });
+
+      await assert.rejects(command.action(logger, { options: { verbose: true, webUrl: validWebUrl, aadId: validAadId } }), new CommandError(`Resource '${validAadId}' does not exist or one of its queried reference-property objects are not present.`));
+    }
+  );
+
+  it('throws error message when no user was found with a specific user name',
+    async () => {
+      const error = {
+        'error': {
+          'odata.error': {
+            'code': '-2146232832, Microsoft.SharePoint.SPException',
+            'message': {
+              'lang': 'en-US',
+              'value': `The specified user ${validUserName} could not be found.`
             }
           }
         }
       };
-    });
-
-    await assert.rejects(command.action(logger, { options: { verbose: true, webUrl: validWebUrl, aadId: validAadId } }), new CommandError(`Resource '${validAadId}' does not exist or one of its queried reference-property objects are not present.`));
-  });
-
-  it('throws error message when no user was found with a specific user name', async () => {
-    const error = {
-      'error': {
-        'odata.error': {
-          'code': '-2146232832, Microsoft.SharePoint.SPException',
-          'message': {
-            'lang': 'en-US',
-            'value': `The specified user ${validUserName} could not be found.`
-          }
+      jest.spyOn(request, 'post').mockClear().mockImplementation(async (opts) => {
+        if (opts.url === `${validWebUrl}/_api/web/ensureuser`) {
+          throw error;
         }
-      }
-    };
-    sinon.stub(request, 'post').callsFake(async (opts) => {
-      if (opts.url === `${validWebUrl}/_api/web/ensureuser`) {
-        throw error;
-      }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await assert.rejects(command.action(logger, { options: { verbose: true, webUrl: validWebUrl, userName: validUserName } }), new CommandError(error.error['odata.error'].message.value));
-  });
+      await assert.rejects(command.action(logger, { options: { verbose: true, webUrl: validWebUrl, userName: validUserName } }), new CommandError(error.error['odata.error'].message.value));
+    }
+  );
 
   it('fails validation if webUrl is not a valid url', async () => {
     const actual = await command.validate({ options: { webUrl: 'invalid', aadId: validAadId } }, commandInfo);
@@ -169,18 +172,24 @@ describe(commands.USER_ENSURE, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if userName is not a valid user principal name', async () => {
-    const actual = await command.validate({ options: { webUrl: validWebUrl, userName: 'invalid' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if userName is not a valid user principal name',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: validWebUrl, userName: 'invalid' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the url is valid and aadId is a valid id', async () => {
-    const actual = await command.validate({ options: { webUrl: validWebUrl, aadId: validAadId } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if the url is valid and aadId is a valid id',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: validWebUrl, aadId: validAadId } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 
-  it('passes validation if the url is valid and userName is a valid user principal name', async () => {
-    const actual = await command.validate({ options: { webUrl: validWebUrl, userName: validUserName } }, commandInfo);
-    assert.strictEqual(actual, true);
-  });
+  it('passes validation if the url is valid and userName is a valid user principal name',
+    async () => {
+      const actual = await command.validate({ options: { webUrl: validWebUrl, userName: validUserName } }, commandInfo);
+      assert.strictEqual(actual, true);
+    }
+  );
 }); 

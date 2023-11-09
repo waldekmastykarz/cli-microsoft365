@@ -1,5 +1,4 @@
 import assert from 'assert';
-import sinon from 'sinon';
 import auth from '../../../../Auth.js';
 import { CommandError } from '../../../../Command.js';
 import { Cli } from '../../../../cli/Cli.js';
@@ -13,7 +12,7 @@ import { formatting } from '../../../../utils/formatting.js';
 import { settingsNames } from '../../../../settingsNames.js';
 import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
-import { sinonUtil } from '../../../../utils/sinonUtil.js';
+import { jestUtil } from '../../../../utils/jestUtil.js';
 import commands from '../../commands.js';
 import command from './owner-remove.js';
 
@@ -35,11 +34,11 @@ describe(commands.OWNER_REMOVE, () => {
   let promptOptions: any;
   let cli: Cli;
 
-  before(() => {
-    sinon.stub(auth, 'restoreAuth').resolves();
-    sinon.stub(telemetry, 'trackEvent').returns();
-    sinon.stub(pid, 'getProcessName').returns('');
-    sinon.stub(session, 'getId').returns('');
+  beforeAll(() => {
+    jest.spyOn(auth, 'restoreAuth').mockClear().mockImplementation().resolves();
+    jest.spyOn(telemetry, 'trackEvent').mockClear().mockReturnValue();
+    jest.spyOn(pid, 'getProcessName').mockClear().mockReturnValue('');
+    jest.spyOn(session, 'getId').mockClear().mockReturnValue('');
     auth.service.connected = true;
     commandInfo = Cli.getCommandInfo(command);
     cli = Cli.getInstance();
@@ -58,7 +57,7 @@ describe(commands.OWNER_REMOVE, () => {
         log.push(msg);
       }
     };
-    sinon.stub(Cli, 'prompt').callsFake(async (options: any) => {
+    jest.spyOn(Cli, 'prompt').mockClear().mockImplementation(async (options: any) => {
       promptOptions = options;
       return { continue: false };
     });
@@ -66,7 +65,7 @@ describe(commands.OWNER_REMOVE, () => {
   });
 
   afterEach(() => {
-    sinonUtil.restore([
+    jestUtil.restore([
       request.get,
       aadGroup.getGroupIdByDisplayName,
       aadUser.getUserIdByUpn,
@@ -77,8 +76,8 @@ describe(commands.OWNER_REMOVE, () => {
     ]);
   });
 
-  after(() => {
-    sinon.restore();
+  afterAll(() => {
+    jest.restoreAllMocks();
     auth.service.connected = false;
   });
 
@@ -91,7 +90,7 @@ describe(commands.OWNER_REMOVE, () => {
   });
 
   it('deletes owner from flow by userId', async () => {
-    const postStub = sinon.stub(request, 'post').callsFake(async opts => {
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if (opts.url === requestUrlNoAdmin) {
         return;
       }
@@ -100,12 +99,12 @@ describe(commands.OWNER_REMOVE, () => {
     });
 
     await command.action(logger, { options: { verbose: true, environmentName: environmentName, flowName: flowName, userId: userId, force: true } });
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, requestBodyUser);
+    assert.deepStrictEqual(postStub.mock.lastCall[0].data, requestBodyUser);
   });
 
   it('deletes owner from flow by userName', async () => {
-    sinon.stub(aadUser, 'getUserIdByUpn').resolves(userId);
-    const postStub = sinon.stub(request, 'post').callsFake(async opts => {
+    jest.spyOn(aadUser, 'getUserIdByUpn').mockClear().mockImplementation().resolves(userId);
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if (opts.url === requestUrlNoAdmin) {
         return;
       }
@@ -114,27 +113,29 @@ describe(commands.OWNER_REMOVE, () => {
     });
 
     await command.action(logger, { options: { verbose: true, environmentName: environmentName, flowName: flowName, userName: userName, force: true } });
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, requestBodyUser);
+    assert.deepStrictEqual(postStub.mock.lastCall[0].data, requestBodyUser);
   });
 
-  it('deletes owner from flow by groupId as admin when prompt confirmed', async () => {
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: true });
-    const postStub = sinon.stub(request, 'post').callsFake(async opts => {
-      if (opts.url === requestUrlAdmin) {
-        return;
-      }
+  it('deletes owner from flow by groupId as admin when prompt confirmed',
+    async () => {
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: true });
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
+        if (opts.url === requestUrlAdmin) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { verbose: true, environmentName: environmentName, flowName: flowName, groupId: groupId, asAdmin: true } });
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, requestBodyGroup);
-  });
+      await command.action(logger, { options: { verbose: true, environmentName: environmentName, flowName: flowName, groupId: groupId, asAdmin: true } });
+      assert.deepStrictEqual(postStub.mock.lastCall[0].data, requestBodyGroup);
+    }
+  );
 
   it('deletes owner from flow by groupName as admin', async () => {
-    sinon.stub(aadGroup, 'getGroupIdByDisplayName').resolves(groupId);
-    const postStub = sinon.stub(request, 'post').callsFake(async opts => {
+    jest.spyOn(aadGroup, 'getGroupIdByDisplayName').mockClear().mockImplementation().resolves(groupId);
+    const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
       if (opts.url === requestUrlAdmin) {
         return;
       }
@@ -143,67 +144,71 @@ describe(commands.OWNER_REMOVE, () => {
     });
 
     await command.action(logger, { options: { verbose: true, environmentName: environmentName, flowName: flowName, groupName: groupName, asAdmin: true, force: true } });
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, requestBodyGroup);
+    assert.deepStrictEqual(postStub.mock.lastCall[0].data, requestBodyGroup);
   });
 
-  it('handles error when multiple groups with the specified name found', async () => {
-    sinon.stub(cli, 'getSettingWithDefaultValue').callsFake((settingName, defaultValue) => {
-      if (settingName === settingsNames.prompt) {
-        return false;
-      }
+  it('handles error when multiple groups with the specified name found',
+    async () => {
+      jest.spyOn(cli, 'getSettingWithDefaultValue').mockClear().mockImplementation((settingName, defaultValue) => {
+        if (settingName === settingsNames.prompt) {
+          return false;
+        }
 
-      return defaultValue;
-    });
+        return defaultValue;
+      });
 
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(groupName)}'&$select=id`) {
-        return {
-          value: [
-            { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67f' },
-            { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67g' }
-          ]
-        };
-      }
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(groupName)}'&$select=id`) {
+          return {
+            value: [
+              { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67f' },
+              { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67g' }
+            ]
+          };
+        }
 
-      return 'Invalid Request';
-    });
+        return 'Invalid Request';
+      });
 
-    sinon.stub(request, 'post').rejects('POST request executed');
+      jest.spyOn(request, 'post').mockClear().mockImplementation().rejects('POST request executed');
 
-    await assert.rejects(command.action(logger, {
-      options: {
-        verbose: true, environmentName: environmentName, flowName: flowName, groupName: groupName, asAdmin: true, force: true
-      }
-    }), new CommandError(`Multiple groups with name 'Test Group' found. Found: 9b1b1e42-794b-4c71-93ac-5ed92488b67f, 9b1b1e42-794b-4c71-93ac-5ed92488b67g.`));
-  });
+      await assert.rejects(command.action(logger, {
+        options: {
+          verbose: true, environmentName: environmentName, flowName: flowName, groupName: groupName, asAdmin: true, force: true
+        }
+      }), new CommandError(`Multiple groups with name 'Test Group' found. Found: 9b1b1e42-794b-4c71-93ac-5ed92488b67f, 9b1b1e42-794b-4c71-93ac-5ed92488b67g.`));
+    }
+  );
 
-  it('handles selecting single result when multiple groups with the name found and cli is set to prompt', async () => {
-    sinon.stub(request, 'get').callsFake(async opts => {
-      if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(groupName)}'&$select=id`) {
-        return {
-          value: [
-            { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67f' },
-            { id: '37a0264d-fea4-4e87-8e5e-e574ff878cf2' }
-          ]
-        };
-      }
+  it('handles selecting single result when multiple groups with the name found and cli is set to prompt',
+    async () => {
+      jest.spyOn(request, 'get').mockClear().mockImplementation(async opts => {
+        if (opts.url === `https://graph.microsoft.com/v1.0/groups?$filter=displayName eq '${formatting.encodeQueryParameter(groupName)}'&$select=id`) {
+          return {
+            value: [
+              { id: '9b1b1e42-794b-4c71-93ac-5ed92488b67f' },
+              { id: '37a0264d-fea4-4e87-8e5e-e574ff878cf2' }
+            ]
+          };
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    sinon.stub(Cli, 'handleMultipleResultsFound').resolves({ id: '37a0264d-fea4-4e87-8e5e-e574ff878cf2' });
+      jest.spyOn(Cli, 'handleMultipleResultsFound').mockClear().mockImplementation().resolves({ id: '37a0264d-fea4-4e87-8e5e-e574ff878cf2' });
 
-    const postStub = sinon.stub(request, 'post').callsFake(async opts => {
-      if (opts.url === requestUrlAdmin) {
-        return;
-      }
+      const postStub = jest.spyOn(request, 'post').mockClear().mockImplementation(async opts => {
+        if (opts.url === requestUrlAdmin) {
+          return;
+        }
 
-      throw 'Invalid request';
-    });
+        throw 'Invalid request';
+      });
 
-    await command.action(logger, { options: { verbose: true, environmentName: environmentName, flowName: flowName, groupName: groupName, asAdmin: true, force: true } });
-    assert.deepStrictEqual(postStub.lastCall.args[0].data, requestBodyGroup);
-  });
+      await command.action(logger, { options: { verbose: true, environmentName: environmentName, flowName: flowName, groupName: groupName, asAdmin: true, force: true } });
+      assert.deepStrictEqual(postStub.mock.lastCall[0].data, requestBodyGroup);
+    }
+  );
 
   it('throws error when no environment found', async () => {
     const error = {
@@ -212,31 +217,35 @@ describe(commands.OWNER_REMOVE, () => {
         message: `Access to the environment '${environmentName}' is denied.`
       }
     };
-    sinon.stub(request, 'post').rejects(error);
+    jest.spyOn(request, 'post').mockClear().mockImplementation().rejects(error);
 
     await assert.rejects(command.action(logger, { options: { environmentName: environmentName, flowName: flowName, userId: userId, force: true } } as any),
       new CommandError(error.error.message));
   });
 
-  it('prompts before removing the specified owner from a flow when confirm option not passed', async () => {
-    await command.action(logger, { options: { environmentName: environmentName, flowName: flowName, useName: userName } });
-    let promptIssued = false;
+  it('prompts before removing the specified owner from a flow when confirm option not passed',
+    async () => {
+      await command.action(logger, { options: { environmentName: environmentName, flowName: flowName, useName: userName } });
+      let promptIssued = false;
 
-    if (promptOptions && promptOptions.type === 'confirm') {
-      promptIssued = true;
+      if (promptOptions && promptOptions.type === 'confirm') {
+        promptIssued = true;
+      }
+
+      assert(promptIssued);
     }
+  );
 
-    assert(promptIssued);
-  });
+  it('aborts removing the specified owner from a flow when option not passed and prompt not confirmed',
+    async () => {
+      const postSpy = jest.spyOn(request, 'post').mockClear();
+      jestUtil.restore(Cli.prompt);
+      jest.spyOn(Cli, 'prompt').mockClear().mockImplementation().resolves({ continue: false });
 
-  it('aborts removing the specified owner from a flow when option not passed and prompt not confirmed', async () => {
-    const postSpy = sinon.spy(request, 'post');
-    sinonUtil.restore(Cli.prompt);
-    sinon.stub(Cli, 'prompt').resolves({ continue: false });
-
-    await command.action(logger, { options: { environmentName: environmentName, flowName: flowName, useName: userName } });
-    assert(postSpy.notCalled);
-  });
+      await command.action(logger, { options: { environmentName: environmentName, flowName: flowName, useName: userName } });
+      assert(postSpy.notCalled);
+    }
+  );
 
   it('fails validation if flowName is not a valid GUID', async () => {
     const actual = await command.validate({ options: { environmentName: environmentName, flowName: 'invalid', userId: userId } }, commandInfo);
@@ -253,10 +262,12 @@ describe(commands.OWNER_REMOVE, () => {
     assert.notStrictEqual(actual, true);
   });
 
-  it('fails validation if username is not a valid user principal name', async () => {
-    const actual = await command.validate({ options: { environmentName: environmentName, flowName: flowName, userName: 'invalid' } }, commandInfo);
-    assert.notStrictEqual(actual, true);
-  });
+  it('fails validation if username is not a valid user principal name',
+    async () => {
+      const actual = await command.validate({ options: { environmentName: environmentName, flowName: flowName, userName: 'invalid' } }, commandInfo);
+      assert.notStrictEqual(actual, true);
+    }
+  );
 
   it('passes validation if groupName passed', async () => {
     const actual = await command.validate({ options: { environmentName: environmentName, flowName: flowName, groupName: groupName } }, commandInfo);

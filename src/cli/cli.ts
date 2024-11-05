@@ -5,7 +5,7 @@ import os from 'os';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import yargs from 'yargs-parser';
-import { ZodError } from 'zod';
+import { ZodCustomIssue, ZodError, ZodIssueCode } from 'zod';
 import Command, { CommandArgs, CommandError } from '../Command.js';
 import GlobalOptions from '../GlobalOptions.js';
 import config from '../config.js';
@@ -186,27 +186,35 @@ async function execute(rawArgs: string[]): Promise<void> {
         break;
       }
       else {
-        const hasNonRequiredErrors = result.error.errors.some(e => e.code !== 'invalid_type' || e.received !== 'undefined');
         const shouldPrompt = cli.getSettingWithDefaultValue<boolean>(settingsNames.prompt, true);
+        const hasNonFixableErrors = result.error.errors
+          .some(e =>
+            (e.code !== ZodIssueCode.invalid_type && e.code !== ZodIssueCode.custom) ||
+            (e.code === ZodIssueCode.invalid_type && e.received !== 'undefined') ||
+            (e.code === ZodIssueCode.custom && e.params?.customCode !== validation.zodOptionNotSpecified)
+          );
 
-        if (hasNonRequiredErrors === false &&
-          shouldPrompt) {
-          await cli.error('🌶️  Provide values for the following parameters:');
-
-          for (const error of result.error.errors) {
-            const optionInfo = cli.commandToExecute!.options.find(o => o.name === error.path.join('.'));
-            const answer = await cli.promptForValue(optionInfo!);
-            cli.optionsFromArgs!.options[error.path.join('.')] = answer;
+        result.error.errors.forEach(e => {
+          if (e.code === ZodIssueCode.invalid_type &&
+            e.received === 'undefined') {
+            e.message = `Required option not specified`;
           }
-        }
-        else {
-          result.error.errors.forEach(e => {
-            if (e.code === 'invalid_type' &&
-              e.received === 'undefined') {
-              e.message = `Required option not specified`;
-            }
-          });
+        });
+        if (hasNonFixableErrors || !shouldPrompt) {
           return cli.closeWithError(result.error, cli.optionsFromArgs, true);
+        }
+
+        const missingOptionSets = result.error.errors.filter(e => e.code === ZodIssueCode.custom && e.params?.customCode === validation.zodOptionNotSpecified);
+        for (const error of missingOptionSets) {
+          await promptForOptionSetNameAndValue(cli.optionsFromArgs!, (<ZodCustomIssue>error).params?.optionSet);
+        }
+
+        await cli.error('🌶️  Provide values for the following parameters:');
+        const requiredOptions = result.error.errors.filter(e => e.code === ZodIssueCode.invalid_type && e.received === 'undefined');
+        for (const error of requiredOptions) {
+          const optionInfo = cli.commandToExecute!.options.find(o => o.name === error.path.join('.'));
+          const answer = await cli.promptForValue(optionInfo!);
+          cli.optionsFromArgs!.options[error.path.join('.')] = answer;
         }
       }
     }
@@ -1011,6 +1019,16 @@ async function promptForInput(config: InputConfig): Promise<string> {
   return answer;
 }
 
+async function promptForOptionSetNameAndValue(args: { options: yargs.Arguments }, optionSet: string[]): Promise<void> {
+  await cli.error(`🌶️  Please specify one of the following options:`);
+
+  const selectedOptionName = await promptForSelection<string>({ message: `Option to use:`, choices: optionSet.map((choice: any) => { return { name: choice, value: choice }; }) });
+  const optionValue = await promptForInput({ message: `${selectedOptionName}:` });
+
+  args.options[selectedOptionName] = optionValue;
+  await cli.error('');
+}
+
 async function handleMultipleResultsFound<T>(message: string, values: { [key: string]: T }): Promise<T> {
   const prompt: boolean = cli.getSettingWithDefaultValue<boolean>(settingsNames.prompt, true);
   if (!prompt) {
@@ -1075,6 +1093,7 @@ export const cli = {
   promptForInput,
   promptForSelection,
   promptForValue,
+  promptForOptionSetNameAndValue,
   shouldTrimOutput,
   yargsConfiguration
 };

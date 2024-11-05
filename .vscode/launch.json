@@ -5,7 +5,8 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "type": "pwa-node",
+      "type": "node",
+      "runtimeExecutable": "/Users/waldek/.nvm/versions/node/v20.11.0/bin/node",
       "request": "launch",
       "name": "Debug CLI",
       "skipFiles": [
@@ -16,7 +17,7 @@
       // 'm365 spo site get --url /', you'd use:
       // "args": ["spo", "site", "get", "--url", "/"]
       // after debugging, revert changes so that they won't end up in your PR
-      "args": [],
+      "args": ["entra", "app", "get"],
       "console": "integratedTerminal",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
@@ -33,7 +34,7 @@
       ]
     },
     {
-      "type": "pwa-node",
+      "type": "node",
       "request": "launch",
       "name": "Debug current file",
       "skipFiles": [

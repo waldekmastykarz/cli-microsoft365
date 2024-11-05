@@ -1,3 +1,4 @@
+import { RefinementCtx, ZodIssueCode } from "zod";
 import { formatting } from "./formatting.js";
 import { FormDigestInfo } from "./spo.js";
 
@@ -417,5 +418,19 @@ export const validation = {
       .split(' ')
       .filter(permission => permission.indexOf('/') < 0);
     return invalidPermissions.length > 0 ? invalidPermissions : true;
+  },
+
+  zodOptionNotSpecified: 'optionNotSpecified',
+  oneOf<T>(optionSet: T[], options: any, ctx: RefinementCtx): void {
+    if (optionSet.filter(o => options[o] !== undefined).length !== 1) {
+      ctx.addIssue({
+        code: ZodIssueCode.custom,
+        message: `Use one of the following options: ${optionSet.join(', ')}`,
+        params: {
+          customCode: validation.zodOptionNotSpecified,
+          optionSet
+        }
+      });
+    }
   }
 };

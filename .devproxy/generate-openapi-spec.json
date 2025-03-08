@@ -1,0 +1,22 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dotnet/dev-proxy/main/schemas/v0.25.0/rc.schema.json",
+  "plugins": [
+    {
+      "name": "OpenApiSpecGeneratorPlugin",
+      "enabled": true,
+      "pluginPath": "~appFolder/plugins/dev-proxy-plugins.dll",
+      "configSection": "openApiSpecGeneratorPlugin"
+    }
+  ],
+  "urlsToWatch": [
+		"https://*.sharepoint.com/*"
+	],
+  "openApiSpecGeneratorPlugin": {
+    "$schema": "https://raw.githubusercontent.com/dotnet/dev-proxy/main/schemas/v0.25.0/openapispecgeneratorplugin.schema.json",
+    "includeOptionsRequests": false,
+    "specVersion": "v3_0",
+    "specFormat": "Yaml"
+  },
+  "asSystemProxy": false,
+  "record": true
+}

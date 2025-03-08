@@ -1,0 +1,23 @@
+{
+	"$schema": "https://raw.githubusercontent.com/dotnet/dev-proxy/main/schemas/v0.25.0/rc.schema.json",
+	"plugins": [
+		{
+      "name": "MinimalPermissionsPlugin",
+      "enabled": true,
+      "pluginPath": "~appFolder/plugins/dev-proxy-plugins.dll",
+      "configSection": "minimalPermissionsPlugin"
+    }
+	],
+	"urlsToWatch": [
+		"https://*.sharepoint.com/*"
+	],
+  "minimalPermissionsPlugin": {
+    "$schema": "https://raw.githubusercontent.com/dotnet/dev-proxy/main/schemas/v0.25.0/minimalpermissionsplugin.schema.json",
+    "apiSpecsFolderPath": "./api-specs"
+  },
+  "asSystemProxy": false,
+	"logLevel": "information",
+	"newVersionNotification": "stable",
+	"showSkipMessages": true,
+  "record": true
+}

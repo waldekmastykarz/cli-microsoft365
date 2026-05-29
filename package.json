@@ -354,6 +354,7 @@
     "@types/yargs-parser": "^21.0.3",
     "@typescript-eslint/eslint-plugin": "^8.59.1",
     "@typescript-eslint/parser": "^8.58.0",
+    "@typescript/native-preview": "^7.0.0-dev.20260421.2",
     "c8": "^11.0.0",
     "eslint": "^10.2.1",
     "eslint-plugin-mocha": "^11.2.0",

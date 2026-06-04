@@ -957,6 +957,34 @@ describe(commands.DOCTOR, () => {
     assert(loggerLogSpy.calledWith(getStatus(0, '@rushstack/heft v1.1.17')));
   });
 
+  it('skips heft check when not in a project', async () => {
+    sandbox = sinon.createSandbox();
+    sandbox.stub(process, 'version').value('v10.18.0');
+    sinon.stub(fs, 'existsSync').returns(false);
+
+    sinon.stub(child_process, 'exec').callsFake((file, callback: any) => {
+      const packageName: string = file.split(' ')[2];
+      switch (packageName) {
+        case '@microsoft/generator-sharepoint':
+          callback(null, packageVersionResponse(packageName, '1.22.0'), '');
+          break;
+        default:
+          callback(new Error(`${file} ENOENT`), '', '');
+      }
+      return {} as child_process.ChildProcess;
+    });
+    let getPackageVersionSpy;
+    try {
+      getPackageVersionSpy = sinon.spy(command as any, 'getPackageVersion');
+
+      await command.action(logger, { options: { spfxVersion: '1.22.0' } });
+      assert(getPackageVersionSpy.neverCalledWith('@rushstack/heft'));
+    }
+    finally {
+      sinonUtil.restore(getPackageVersionSpy);
+    }
+  });
+
   it('skips heft check when heft not required', async () => {
     sandbox = sinon.createSandbox();
     sandbox.stub(process, 'version').value('v10.18.0');
@@ -1002,7 +1030,7 @@ describe(commands.DOCTOR, () => {
 
     await command.action(logger, { options: {} });
     assert(loggerLogSpy.calledWith(getStatus(1, '@rushstack/heft not found')));
-    assert(loggerLogSpy.calledWith('- npm i -g @rushstack/heft@1'), 'No fix provided');
+    assert(loggerLogSpy.calledWith('- npm i @rushstack/heft@1'), 'No fix provided');
   });
 
   it('fails gulp check when gulp is found', async () => {

@@ -329,7 +329,11 @@ class SpfxDoctorCommand extends BaseProjectCommand {
       return;
     }
 
-    const heftVersion: string = await this.getPackageVersion('@rushstack/heft', PackageSearchMode.GlobalOnly, HandlePromise.Continue);
+    if (!this.projectRootPath) {
+      return;
+    }
+
+    const heftVersion: string = await this.getPackageVersion('@rushstack/heft', PackageSearchMode.LocalOnly, HandlePromise.Continue);
     if (heftVersion) {
       await this.checkStatus('@rushstack/heft', heftVersion, prerequisites.heft);
     }

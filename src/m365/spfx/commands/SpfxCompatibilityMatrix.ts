@@ -601,7 +601,7 @@ export const versions: { [version: string]: SpfxVersionPrerequisites } = {
   '1.22.0': {
     heft: {
       range: '^1',
-      fix: 'npm i -g @rushstack/heft@1'
+      fix: 'npm i @rushstack/heft@1'
     },
     node: {
       range: '>=22.14.0 <23.0.0',
@@ -616,7 +616,7 @@ export const versions: { [version: string]: SpfxVersionPrerequisites } = {
   '1.22.1': {
     heft: {
       range: '^1',
-      fix: 'npm i -g @rushstack/heft@1'
+      fix: 'npm i @rushstack/heft@1'
     },
     node: {
       range: '>=22.14.0 <23.0.0',
@@ -631,7 +631,7 @@ export const versions: { [version: string]: SpfxVersionPrerequisites } = {
   '1.22.2': {
     heft: {
       range: '^1',
-      fix: 'npm i -g @rushstack/heft@1'
+      fix: 'npm i @rushstack/heft@1'
     },
     node: {
       range: '>=22.14.0 <23.0.0',
@@ -646,7 +646,7 @@ export const versions: { [version: string]: SpfxVersionPrerequisites } = {
   '1.23.0': {
     heft: {
       range: '^1',
-      fix: 'npm i -g @rushstack/heft@1'
+      fix: 'npm i @rushstack/heft@1'
     },
     node: {
       range: '>=22.14.0 <23.0.0',

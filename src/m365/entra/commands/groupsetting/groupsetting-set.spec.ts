@@ -11,8 +11,7 @@ import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
 import { sinonUtil } from '../../../../utils/sinonUtil.js';
 import commands from '../../commands.js';
-import command from './groupsetting-set.js';
-import { options } from './groupsetting-get.js';
+import command, { options } from './groupsetting-set.js';
 
 describe(commands.GROUPSETTING_SET, () => {
   let log: string[];

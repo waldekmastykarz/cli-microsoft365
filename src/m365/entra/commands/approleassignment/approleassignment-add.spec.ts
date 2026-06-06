@@ -49,7 +49,7 @@ describe(commands.APPROLEASSIGNMENT_ADD, () => {
     sinon.stub(session, 'getId').returns('');
     auth.connection.active = true;
     commandInfo = cli.getCommandInfo(command);
-    commandOptionsSchema = commandInfo.command.getSchemaToParse()! as typeof options;
+    commandOptionsSchema = commandInfo.command.getSchemaToParse() as typeof options;
   });
 
   beforeEach(() => {
@@ -311,4 +311,3 @@ describe(commands.APPROLEASSIGNMENT_ADD, () => {
     assert.strictEqual(actual.success, true);
   });
 });
-

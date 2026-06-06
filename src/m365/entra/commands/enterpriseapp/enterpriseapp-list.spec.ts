@@ -1,6 +1,8 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import auth from '../../../../Auth.js';
+import { cli } from '../../../../cli/cli.js';
+import { CommandInfo } from '../../../../cli/CommandInfo.js';
 import { Logger } from '../../../../cli/Logger.js';
 import request from '../../../../request.js';
 import { telemetry } from '../../../../telemetry.js';
@@ -8,12 +10,14 @@ import { pid } from '../../../../utils/pid.js';
 import { session } from '../../../../utils/session.js';
 import { sinonUtil } from '../../../../utils/sinonUtil.js';
 import commands from '../../commands.js';
-import command from './enterpriseapp-list.js';
+import command, { options } from './enterpriseapp-list.js';
 
 describe(commands.ENTERPRISEAPP_LIST, () => {
   let log: string[];
   let logger: Logger;
   let loggerLogSpy: sinon.SinonSpy;
+  let commandInfo: CommandInfo;
+  let commandOptionsSchema: typeof options;
 
   const displayName = "My custom enterprise application";
   const tag = "WindowsAzureActiveDirectoryIntegratedApp";
@@ -97,6 +101,8 @@ describe(commands.ENTERPRISEAPP_LIST, () => {
     sinon.stub(pid, 'getProcessName').callsFake(() => '');
     sinon.stub(session, 'getId').callsFake(() => '');
     auth.connection.active = true;
+    commandInfo = cli.getCommandInfo(command);
+    commandOptionsSchema = commandInfo.command.getSchemaToParse() as typeof options;
   });
 
   beforeEach(() => {
@@ -196,5 +202,25 @@ describe(commands.ENTERPRISEAPP_LIST, () => {
     });
 
     await assert.rejects(command.action(logger, { options: {} } as any), error['odata.error'].message.value);
+  });
+
+  it('passes validation when displayName is specified', () => {
+    const actual = commandOptionsSchema.safeParse({ displayName: 'My custom enterprise application' });
+    assert.strictEqual(actual.success, true);
+  });
+
+  it('passes validation when tag is specified', () => {
+    const actual = commandOptionsSchema.safeParse({ tag: 'WindowsAzureActiveDirectoryIntegratedApp' });
+    assert.strictEqual(actual.success, true);
+  });
+
+  it('fails validation if displayName is not a string', () => {
+    const actual = commandOptionsSchema.safeParse({ displayName: 1 });
+    assert.strictEqual(actual.success, false);
+  });
+
+  it('fails validation if tag is not a string', () => {
+    const actual = commandOptionsSchema.safeParse({ tag: 1 });
+    assert.strictEqual(actual.success, false);
   });
 });

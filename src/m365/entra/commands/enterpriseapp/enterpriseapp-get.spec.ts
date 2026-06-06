@@ -44,7 +44,7 @@ describe(commands.ENTERPRISEAPP_GET, () => {
     sinon.stub(session, 'getId').returns('');
     auth.connection.active = true;
     commandInfo = cli.getCommandInfo(command);
-    commandOptionsSchema = commandInfo.command.getSchemaToParse()! as typeof options;
+    commandOptionsSchema = commandInfo.command.getSchemaToParse() as typeof options;
   });
 
   beforeEach(() => {
@@ -304,6 +304,11 @@ describe(commands.ENTERPRISEAPP_GET, () => {
 
   it('fails validation if both id and displayName are specified', () => {
     const actual = commandOptionsSchema.safeParse({ id: '6a7b1395-d313-4682-8ed4-65a6265a6320', displayName: 'abc' });
+    assert.strictEqual(actual.success, false);
+  });
+
+  it('fails validation if both id and objectId are specified', () => {
+    const actual = commandOptionsSchema.safeParse({ id: '6a7b1395-d313-4682-8ed4-65a6265a6320', objectId: 'dbf32ef1-ea3e-4e3c-968f-79fbe57ea4d8' });
     assert.strictEqual(actual.success, false);
   });
 

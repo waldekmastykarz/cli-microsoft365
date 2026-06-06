@@ -29,7 +29,7 @@ describe(commands.APPROLEASSIGNMENT_REMOVE, () => {
     sinon.stub(session, 'getId').returns('');
     auth.connection.active = true;
     commandInfo = cli.getCommandInfo(command);
-    commandOptionsSchema = commandInfo.command.getSchemaToParse()! as typeof options;
+    commandOptionsSchema = commandInfo.command.getSchemaToParse() as typeof options;
   });
 
   beforeEach(() => {
@@ -279,4 +279,3 @@ describe(commands.APPROLEASSIGNMENT_REMOVE, () => {
     assert.strictEqual(actual.success, true);
   });
 });
-

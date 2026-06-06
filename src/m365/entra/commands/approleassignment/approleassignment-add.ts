@@ -143,8 +143,10 @@ class EntraAppRoleAssignmentAddCommand extends GraphCommand {
         throw `The resource '${args.options.resource}' does not have any application permissions available.`;
       }
 
+      const scopes = `${args.options.scopes}`.split(',').map(String);
+
       // search for match between the found app roles and the specified scopes option value
-      for (const scope of args.options.scopes) {
+      for (const scope of scopes) {
         const existingRoles = appRolesFound.filter((role: AppRole) => {
           return role.value.toLocaleLowerCase() === scope.toLocaleLowerCase().trim();
         });

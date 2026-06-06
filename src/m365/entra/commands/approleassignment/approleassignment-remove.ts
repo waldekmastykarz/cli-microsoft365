@@ -115,7 +115,9 @@ class EntraAppRoleAssignmentRemoveCommand extends GraphCommand {
           throw `The resource '${args.options.resource}' does not have any application permissions available.`;
         }
 
-        for (const scope of args.options.scopes) {
+        const scopes = `${args.options.scopes}`.split(',').map(String);
+
+        for (const scope of scopes) {
           const existingRoles = appRolesFound.filter((role: AppRole) => {
             return role.value!.toLocaleLowerCase() === scope.toLocaleLowerCase().trim();
           });

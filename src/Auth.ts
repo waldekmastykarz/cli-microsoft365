@@ -343,7 +343,7 @@ export class Auth {
     return {
       auth: authConfig,
       cache: {
-        cachePlugin: msalCachePlugin
+        cachePlugin: await msalCachePlugin.getCachePlugin()
       },
       system: {
         loggerOptions: {
@@ -462,7 +462,7 @@ export class Auth {
       await logger.logToStderr(`🌶️  ${response.message}`);
     }
 
-    if (cli.getSettingWithDefaultValue<boolean>(settingsNames.autoOpenLinksInBrowser, false)) {
+    if (cli.getSettingWithDefaultValue<boolean>(settingsNames.autoOpenLinksInBrowser, false) && response.verificationUri !== undefined) {
       await browserUtil.open(response.verificationUri);
     }
 
@@ -475,7 +475,9 @@ export class Auth {
         this._clipboardy = (await import('clipboardy')).default;
       }
 
-      this._clipboardy.writeSync(response.userCode);
+      if (response.userCode !== undefined) {
+        this._clipboardy.writeSync(response.userCode);
+      }
     }
   }
 
@@ -916,8 +918,7 @@ export class Auth {
 
     // we need to manually clear MSAL cache, because MSAL doesn't have support
     // for logging out when using cert-based auth
-    const msalCache = this.getMsalCacheStorage();
-    await msalCache.remove();
+    await msalCachePlugin.clearMsalCache();
   }
 
   public async removeConnectionInfo(connection: Connection, logger: Logger, debug: boolean): Promise<void> {
@@ -960,9 +961,6 @@ export class Auth {
     return new FileTokenStorage(FileTokenStorage.connectionInfoFilePath());
   }
 
-  private getMsalCacheStorage(): TokenStorage {
-    return new FileTokenStorage(FileTokenStorage.msalCacheFilePath());
-  }
 
   public getAllConnectionsStorage(): TokenStorage {
     return new FileTokenStorage(FileTokenStorage.allConnectionsFilePath());

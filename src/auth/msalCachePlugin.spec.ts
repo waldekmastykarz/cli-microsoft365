@@ -61,14 +61,23 @@ describe('msalCachePlugin', () => {
     assert.strictEqual(plugin1, plugin2);
   });
 
-  it(`falls back to file-based cache when native persistence fails`, async () => {
+  it(`falls back to file-based cache when native persistence fails on Linux`, async () => {
     sinon.stub(msalCachePlugin, 'createNativePersistence').rejects(new Error('libsecret not available'));
     sinon.stub(msalCachePlugin, 'removeLegacyCache');
+    sinon.stub(process, 'platform').value('linux');
 
     const plugin = await msalCachePlugin.getCachePlugin();
     assert.notStrictEqual(plugin, undefined);
     assert.notStrictEqual(plugin.beforeCacheAccess, undefined);
     assert.notStrictEqual(plugin.afterCacheAccess, undefined);
+  });
+
+  it(`throws when native persistence fails on non-Linux platforms`, async () => {
+    sinon.stub(msalCachePlugin, 'createNativePersistence').rejects(new Error('Keychain error'));
+    sinon.stub(msalCachePlugin, 'removeLegacyCache');
+    sinon.stub(process, 'platform').value('darwin');
+
+    await assert.rejects(msalCachePlugin.getCachePlugin(), { message: 'Keychain error' });
   });
 
   it(`clears MSAL cache via native persistence`, async () => {
@@ -78,14 +87,17 @@ describe('msalCachePlugin', () => {
       clearCache: clearCacheStub
     });
     sinon.stub(msalCachePlugin, 'removeLegacyCache');
+    const unlinkStub = sinon.stub(fs, 'unlinkSync');
 
     await msalCachePlugin.clearMsalCache();
     assert(clearCacheStub.calledOnce);
+    assert(unlinkStub.called);
   });
 
-  it(`clears file-based cache when native persistence fails`, async () => {
+  it(`clears file-based cache when native persistence fails on Linux`, async () => {
     sinon.stub(msalCachePlugin, 'createNativePersistence').rejects(new Error('libsecret not available'));
     sinon.stub(msalCachePlugin, 'removeLegacyCache');
+    sinon.stub(process, 'platform').value('linux');
     const unlinkStub = sinon.stub(fs, 'unlinkSync');
 
     await msalCachePlugin.clearMsalCache();
@@ -95,9 +107,18 @@ describe('msalCachePlugin', () => {
   it(`does not fail clearing file-based cache when file does not exist`, async () => {
     sinon.stub(msalCachePlugin, 'createNativePersistence').rejects(new Error('libsecret not available'));
     sinon.stub(msalCachePlugin, 'removeLegacyCache');
+    sinon.stub(process, 'platform').value('linux');
     sinon.stub(fs, 'unlinkSync').throws(new Error('ENOENT'));
 
     await msalCachePlugin.clearMsalCache();
+  });
+
+  it(`throws when clearing cache and native persistence fails on non-Linux`, async () => {
+    sinon.stub(msalCachePlugin, 'createNativePersistence').rejects(new Error('DPAPI error'));
+    sinon.stub(msalCachePlugin, 'removeLegacyCache');
+    sinon.stub(process, 'platform').value('win32');
+
+    await assert.rejects(msalCachePlugin.clearMsalCache(), { message: 'DPAPI error' });
   });
 
   it(`initializes only once when clearing cache after getting plugin`, async () => {
@@ -176,7 +197,6 @@ describe('msalCachePlugin', () => {
 
   it(`removes legacy plaintext cache file when it exists`, () => {
     sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'readFileSync').returns('{"AccessToken":{}}');
     const unlinkStub = sinon.stub(fs, 'unlinkSync');
 
     msalCachePlugin.removeLegacyCache();
@@ -191,22 +211,20 @@ describe('msalCachePlugin', () => {
     assert(unlinkStub.notCalled);
   });
 
-  it(`does not remove cache file when it is empty`, () => {
+  it(`removes cache file even when it is empty`, () => {
     sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'readFileSync').returns('');
     const unlinkStub = sinon.stub(fs, 'unlinkSync');
 
     msalCachePlugin.removeLegacyCache();
-    assert(unlinkStub.notCalled);
+    assert(unlinkStub.calledOnce);
   });
 
-  it(`does not fail when cache file contains non-JSON content`, () => {
+  it(`removes cache file even when it contains non-JSON content`, () => {
     sinon.stub(fs, 'existsSync').returns(true);
-    sinon.stub(fs, 'readFileSync').returns('not-json-content');
     const unlinkStub = sinon.stub(fs, 'unlinkSync');
 
     msalCachePlugin.removeLegacyCache();
-    assert(unlinkStub.notCalled);
+    assert(unlinkStub.calledOnce);
   });
 
   it(`does not fail when reading cache file throws error`, () => {
@@ -240,6 +258,7 @@ describe('msalCachePlugin', () => {
   it(`file cache plugin deserializes token cache from file`, async () => {
     sinon.stub(msalCachePlugin, 'createNativePersistence').rejects(new Error('not available'));
     sinon.stub(msalCachePlugin, 'removeLegacyCache');
+    sinon.stub(process, 'platform').value('linux');
 
     const plugin = await msalCachePlugin.getCachePlugin();
 
@@ -255,6 +274,7 @@ describe('msalCachePlugin', () => {
   it(`file cache plugin does not fail when cache file is missing`, async () => {
     sinon.stub(msalCachePlugin, 'createNativePersistence').rejects(new Error('not available'));
     sinon.stub(msalCachePlugin, 'removeLegacyCache');
+    sinon.stub(process, 'platform').value('linux');
 
     const plugin = await msalCachePlugin.getCachePlugin();
 
@@ -269,6 +289,7 @@ describe('msalCachePlugin', () => {
   it(`file cache plugin serializes token cache to file when changed`, async () => {
     sinon.stub(msalCachePlugin, 'createNativePersistence').rejects(new Error('not available'));
     sinon.stub(msalCachePlugin, 'removeLegacyCache');
+    sinon.stub(process, 'platform').value('linux');
 
     const plugin = await msalCachePlugin.getCachePlugin();
 
@@ -283,6 +304,7 @@ describe('msalCachePlugin', () => {
   it(`file cache plugin does not write when cache not changed`, async () => {
     sinon.stub(msalCachePlugin, 'createNativePersistence').rejects(new Error('not available'));
     sinon.stub(msalCachePlugin, 'removeLegacyCache');
+    sinon.stub(process, 'platform').value('linux');
 
     const plugin = await msalCachePlugin.getCachePlugin();
 
@@ -297,6 +319,7 @@ describe('msalCachePlugin', () => {
   it(`file cache plugin does not throw when writing fails`, async () => {
     sinon.stub(msalCachePlugin, 'createNativePersistence').rejects(new Error('not available'));
     sinon.stub(msalCachePlugin, 'removeLegacyCache');
+    sinon.stub(process, 'platform').value('linux');
 
     const plugin = await msalCachePlugin.getCachePlugin();
 
@@ -310,6 +333,7 @@ describe('msalCachePlugin', () => {
   it(`file cache plugin does not throw when reading fails`, async () => {
     sinon.stub(msalCachePlugin, 'createNativePersistence').rejects(new Error('not available'));
     sinon.stub(msalCachePlugin, 'removeLegacyCache');
+    sinon.stub(process, 'platform').value('linux');
 
     const plugin = await msalCachePlugin.getCachePlugin();
 

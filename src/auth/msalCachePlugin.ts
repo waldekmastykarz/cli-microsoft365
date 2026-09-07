@@ -49,7 +49,7 @@ class FileCachePlugin implements ICachePlugin {
     }
 
     try {
-      fs.writeFileSync(this.cachePath, tokenCacheContext.tokenCache.serialize(), 'utf8');
+      fs.writeFileSync(this.cachePath, tokenCacheContext.tokenCache.serialize(), { encoding: 'utf8', mode: 0o600 });
     }
     catch {
       // Do nothing
@@ -87,11 +87,7 @@ export const msalCachePlugin = {
   removeLegacyCache(): void {
     try {
       if (fs.existsSync(legacyCachePath)) {
-        const contents = fs.readFileSync(legacyCachePath, 'utf8');
-        if (contents.trim().length > 0) {
-          JSON.parse(contents);
-          fs.unlinkSync(legacyCachePath);
-        }
+        fs.unlinkSync(legacyCachePath);
       }
     }
     catch {
@@ -106,10 +102,14 @@ export const msalCachePlugin = {
       try {
         return await msalCachePlugin.createNativePersistence();
       }
-      catch {
-        // Fall back to file-based cache when native persistence is
-        // unavailable (e.g. Linux without libsecret)
-        return msalCachePlugin.createFileFallback();
+      catch (err) {
+        // Fall back to file-based cache only on Linux where libsecret
+        // may not be installed. On Windows (DPAPI) and macOS (Keychain)
+        // native persistence should always work.
+        if (process.platform === 'linux') {
+          return msalCachePlugin.createFileFallback();
+        }
+        throw err;
       }
     })();
     const { plugin } = await _initPromise;
@@ -122,12 +122,19 @@ export const msalCachePlugin = {
       try {
         return await msalCachePlugin.createNativePersistence();
       }
-      catch {
-        return msalCachePlugin.createFileFallback();
+      catch (err) {
+        if (process.platform === 'linux') {
+          return msalCachePlugin.createFileFallback();
+        }
+        throw err;
       }
     })();
     const { clearCache } = await _initPromise;
     await clearCache();
+    // Also remove the file-based fallback cache to ensure no tokens
+    // remain if the machine previously used file-based persistence
+    try { fs.unlinkSync(persistenceConfiguration.cachePath); }
+    catch { /* file may not exist */ }
   },
 
   resetForTesting(): void {

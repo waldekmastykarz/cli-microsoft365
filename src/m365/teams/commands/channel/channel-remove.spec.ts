@@ -225,8 +225,7 @@ describe(commands.CHANNEL_REMOVE, () => {
           value: [
             {
               "id": teamId,
-              "displayName": teamName,
-              "resourceProvisioningOptions": ["Team"]
+              "displayName": teamName
             }
           ]
         };
@@ -301,8 +300,7 @@ describe(commands.CHANNEL_REMOVE, () => {
           value: [
             {
               "id": teamId,
-              "displayName": teamName,
-              "resourceProvisioningOptions": ["Team"]
+              "displayName": teamName
             }
           ]
         };

@@ -18,53 +18,9 @@ import { settingsNames } from '../../../../settingsNames.js';
 describe(commands.CHANNEL_MEMBER_ADD, () => {
   //#region Mocked Responses 
   const singleTeamResponse: any = {
-    "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#groups",
     "value": [
       {
-        "id": "47d6625d-a540-4b59-a4ab-19b787e40593",
-        "deletedDateTime": null,
-        "classification": null,
-        "createdDateTime": "2018-12-28T04:09:33Z",
-        "createdByAppId": null,
-        "description": "Human Resources",
-        "displayName": "Human Resources",
-        "expirationDateTime": null,
-        "groupTypes": [
-          "Unified"
-        ],
-        "infoCatalogs": [],
-        "isAssignableToRole": null,
-        "mail": "hr@contoso.onmicrosoft.com",
-        "mailEnabled": true,
-        "mailNickname": "hr",
-        "membershipRule": null,
-        "membershipRuleProcessingState": null,
-        "onPremisesDomainName": null,
-        "onPremisesLastSyncDateTime": null,
-        "onPremisesNetBiosName": null,
-        "onPremisesSamAccountName": null,
-        "onPremisesSecurityIdentifier": null,
-        "onPremisesSyncEnabled": null,
-        "preferredDataLocation": null,
-        "preferredLanguage": null,
-        "proxyAddresses": [
-          "SPO:SPO_c562a29c-2afd-4b53-ae4d-f94f200de3ef@SPO_d544d1e7-d321-494b-870a-1beac97967a2",
-          "SMTP:hr@sconsoto.onmicrosoft.com"
-        ],
-        "renewedDateTime": "2018-12-28T04:09:33Z",
-        "resourceBehaviorOptions": [],
-        "resourceProvisioningOptions": [
-          "Team"
-        ],
-        "securityEnabled": false,
-        "securityIdentifier": "S-1-12-1-1205232221-1264166208-3071912868-2466636935",
-        "theme": null,
-        "visibility": "Private",
-        "writebackConfiguration": {
-          "isEnabled": null,
-          "onPremisesGroupType": null
-        },
-        "onPremisesProvisioningErrors": []
+        "id": "47d6625d-a540-4b59-a4ab-19b787e40593"
       }
     ]
   };

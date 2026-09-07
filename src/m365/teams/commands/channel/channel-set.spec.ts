@@ -184,8 +184,7 @@ describe(commands.CHANNEL_SET, () => {
           value: [
             {
               "id": teamId,
-              "displayName": teamName,
-              "resourceProvisioningOptions": ["Team"]
+              "displayName": teamName
             }
           ]
         };

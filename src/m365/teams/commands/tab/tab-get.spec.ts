@@ -387,22 +387,9 @@ describe(commands.TAB_GET, () => {
           "value": [
             {
               "id": "00000000-0000-0000-0000-000000000000",
-              "createdDateTime": null,
               "displayName": "Team Name",
               "description": "Team Description",
-              "internalId": null,
-              "classification": null,
-              "specialization": null,
-              "visibility": null,
-              "webUrl": null,
-              "isArchived": false,
-              "isMembershipLimitedToOwners": null,
-              "memberSettings": null,
-              "guestSettings": null,
-              "messagingSettings": null,
-              "funSettings": null,
-              "discoverySettings": null,
-              "resourceProvisioningOptions": ["Team"]
+              "isArchived": false
             }
           ]
         };

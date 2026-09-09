@@ -83,7 +83,7 @@ class SpoFolderRemoveCommand extends SpoCommand {
       await this.removeFolder(logger, args.options);
     }
     else {
-      const result = await cli.promptForConfirmation({ message: `Are you sure you want to ${args.options.permanent ? "permanently remove" : "recycle"} the folder ${args.options.url} located in site ${args.options.webUrl}?` });
+      const result = await cli.promptForConfirmation({ message: `Are you sure you want to ${args.options.permanent ? 'permanently remove' : 'recycle'} the folder ${args.options.url} located in site ${args.options.webUrl}?` });
 
       if (result) {
         await this.removeFolder(logger, args.options);

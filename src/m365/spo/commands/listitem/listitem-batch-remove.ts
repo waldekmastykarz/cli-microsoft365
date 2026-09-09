@@ -144,7 +144,7 @@ class SpoListItemBatchRemoveCommand extends SpoCommand {
       'ids',
       'filePath'
     );
-    this.types.boolean.push('permanent');
+    this.types.boolean.push('permanent', 'force');
   }
 
   #initOptionSets(): void {
@@ -190,7 +190,7 @@ class SpoListItemBatchRemoveCommand extends SpoCommand {
       await removeListItems();
     }
     else {
-      const result = await cli.promptForConfirmation({ message: `Are you sure you want to ${args.options.permanent ? "permanently remove" : "recycle"} the list items from list ${args.options.listId || args.options.listTitle || args.options.listUrl} located in site ${args.options.webUrl}?` });
+      const result = await cli.promptForConfirmation({ message: `Are you sure you want to ${args.options.permanent ? 'permanently remove' : 'recycle'} the list items from list ${args.options.listId || args.options.listTitle || args.options.listUrl} located in site ${args.options.webUrl}?` });
 
       if (result) {
         await removeListItems();

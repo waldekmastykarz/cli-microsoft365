@@ -59,7 +59,7 @@ class SpeContainerRemoveCommand extends GraphCommand {
 
   public async commandAction(logger: Logger, args: CommandArgs): Promise<void> {
     if (!args.options.force) {
-      const result = await cli.promptForConfirmation({ message: `Are you sure you want to remove container '${args.options.id || args.options.name}'${args.options.permanent ? ' permanently' : ''}?` });
+      const result = await cli.promptForConfirmation({ message: `Are you sure you want to ${args.options.permanent ? 'permanently remove' : 'recycle'} container '${args.options.id || args.options.name}'?` });
 
       if (!result) {
         return;

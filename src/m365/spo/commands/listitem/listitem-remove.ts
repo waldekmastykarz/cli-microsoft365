@@ -107,7 +107,7 @@ class SpoListItemRemoveCommand extends SpoCommand {
   }
 
   #initTypes(): void {
-    this.types.boolean.push('permanent');
+    this.types.boolean.push('permanent', 'force');
   }
 
   public async commandAction(logger: Logger, args: CommandArgs): Promise<void> {
@@ -159,7 +159,7 @@ class SpoListItemRemoveCommand extends SpoCommand {
       await removeListItem();
     }
     else {
-      const result = await cli.promptForConfirmation({ message: `Are you sure you want to ${args.options.permanent ? "permanently remove" : "recycle"} the list item ${args.options.id} from list ${args.options.listId || args.options.listTitle || args.options.listUrl} located in site ${args.options.webUrl}?` });
+      const result = await cli.promptForConfirmation({ message: `Are you sure you want to ${args.options.permanent ? 'permanently remove' : 'recycle'} the list item ${args.options.id} from list ${args.options.listId || args.options.listTitle || args.options.listUrl} located in site ${args.options.webUrl}?` });
 
       if (result) {
         await removeListItem();

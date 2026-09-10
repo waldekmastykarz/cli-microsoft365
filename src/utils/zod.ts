@@ -3,8 +3,6 @@ import { JSONSchema, util } from 'zod/v4/core';
 import { CommandOptionInfo } from '../cli/CommandOptionInfo';
 import { CommandOption } from '../Command';
 
-type EnumLike = Readonly<Record<string, string | number>>;
-
 declare module 'zod' {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   interface ZodType<out Output = unknown, out Input = unknown, out Internals extends z.core.$ZodTypeInternals<Output, Input> = z.core.$ZodTypeInternals<Output, Input>> {

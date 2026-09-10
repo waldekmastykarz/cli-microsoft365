@@ -1,5 +1,6 @@
 import assert from 'assert';
 import fs from 'fs';
+import path from 'path';
 import sinon from 'sinon';
 import { fsUtil } from './fsUtil.js';
 import { sinonUtil } from './sinonUtil.js';
@@ -41,18 +42,23 @@ describe('utils/fsUtil', () => {
     });
 
     it('copies directory contents recursively', () => {
+      const srcDir = path.join('/src');
+      const destDir = path.join('/dest');
+      const srcChild = path.join('/src', 'child.txt');
+      const destChild = path.join('/dest', 'child.txt');
+
       const existsStub = sinon.stub(fs, 'existsSync');
       existsStub.returns(true);
       const statStub = sinon.stub(fs, 'statSync');
-      statStub.withArgs('/src').returns({ isDirectory: () => true } as fs.Stats);
-      statStub.withArgs('/src/child.txt').returns({ isDirectory: () => false } as fs.Stats);
+      statStub.withArgs(srcDir).returns({ isDirectory: () => true } as fs.Stats);
+      statStub.withArgs(srcChild).returns({ isDirectory: () => false } as fs.Stats);
       sinon.stub(fs, 'readdirSync').returns(['child.txt'] as any);
       sinon.stub(fs, 'mkdirSync');
       const copyFileStub = sinon.stub(fs, 'copyFileSync');
 
-      fsUtil.copyRecursiveSync('/src', '/dest');
+      fsUtil.copyRecursiveSync(srcDir, destDir);
 
-      assert(copyFileStub.calledOnce);
+      assert(copyFileStub.calledOnceWith(srcChild, destChild));
     });
 
     it('applies replaceTokens to destination path', () => {

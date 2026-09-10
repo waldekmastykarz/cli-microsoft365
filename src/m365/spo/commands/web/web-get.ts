@@ -29,7 +29,7 @@ class SpoWebGetCommand extends SpoCommand {
   }
 
   public get description(): string {
-    return 'Retrieve information about the specified site';
+    return 'Retrieves information about the specified site';
   }
 
   public get schema(): z.ZodType | undefined {

@@ -448,6 +448,16 @@ describe(commands.USER_GET, () => {
     assert.strictEqual(actual.success, false);
   });
 
+  it('fails validation if id is a negative number', () => {
+    const actual = commandOptionsSchema.safeParse({ webUrl: validWebUrl, id: -1 });
+    assert.strictEqual(actual.success, false);
+  });
+
+  it('fails validation if id is a float number', () => {
+    const actual = commandOptionsSchema.safeParse({ webUrl: validWebUrl, id: 1.5 });
+    assert.strictEqual(actual.success, false);
+  });
+
   it('fails validation if id, email, loginName, userName, entraGroupId, and entraGroupName options are passed (multiple options)', () => {
     const actual = commandOptionsSchema.safeParse({ webUrl: validWebUrl, id: 1, email: validEmail, loginName: validLoginName, userName: validUserName, entraGroupId: validEntraGroupId, entraGroupName: validEntraGroupName });
     assert.strictEqual(actual.success, false);

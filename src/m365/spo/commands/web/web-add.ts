@@ -38,7 +38,7 @@ class SpoWebAddCommand extends SpoCommand {
   }
 
   public get description(): string {
-    return 'Create new subsite';
+    return 'Creates new subsite';
   }
 
   public get schema(): z.ZodType | undefined {

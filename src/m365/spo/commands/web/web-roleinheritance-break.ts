@@ -28,7 +28,7 @@ class SpoWebRoleInheritanceBreakCommand extends SpoCommand {
   }
 
   public get description(): string {
-    return 'Break role inheritance of subsite';
+    return 'Breaks role inheritance of subsite';
   }
 
   public get schema(): z.ZodType | undefined {

@@ -26,7 +26,7 @@ class SpoWebRetentionLabelListCommand extends SpoCommand {
   }
 
   public get description(): string {
-    return `Get a list of retention labels that are available on a site.`;
+    return 'Gets a list of retention labels that are available on a site';
   }
 
   public defaultProperties(): string[] | undefined {

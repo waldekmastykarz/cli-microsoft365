@@ -1,61 +1,71 @@
 import assert from 'assert';
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
+import sinon from 'sinon';
 import { fsUtil } from './fsUtil.js';
 
 describe('utils/fsUtil', () => {
-  let tmpDir: string;
-
-  beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fsutil-test-'));
-  });
-
   afterEach(() => {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
+    sinon.restore();
   });
 
-  it('copies a file', () => {
-    const srcFile = path.join(tmpDir, 'source.txt');
-    const destFile = path.join(tmpDir, 'dest.txt');
-    fs.writeFileSync(srcFile, 'hello');
+  describe('copyRecursiveSync', () => {
+    it('copies a directory recursively creating dest if it does not exist', () => {
+      sinon.stub(fs, 'existsSync')
+        .withArgs('src').returns(true)
+        .withArgs('dest').returns(false);
+      sinon.stub(fs, 'statSync').returns({ isDirectory: () => true } as fs.Stats);
+      const mkdirStub = sinon.stub(fs, 'mkdirSync');
+      sinon.stub(fs, 'readdirSync').returns(['file1.txt'] as any);
+      const copyFileStub = sinon.stub(fs, 'copyFileSync');
+      // child is a file
+      (fs.existsSync as sinon.SinonStub)
+        .withArgs(path.join('src', 'file1.txt')).returns(true);
+      (fs.statSync as sinon.SinonStub)
+        .withArgs(path.join('src', 'file1.txt')).returns({ isDirectory: () => false } as fs.Stats);
 
-    fsUtil.copyRecursiveSync(srcFile, destFile);
+      fsUtil.copyRecursiveSync('src', 'dest');
 
-    assert.strictEqual(fs.readFileSync(destFile, 'utf8'), 'hello');
-  });
+      assert(mkdirStub.calledWith('dest'));
+      assert(copyFileStub.calledWith(path.join('src', 'file1.txt'), path.join('dest', 'file1.txt')));
+    });
 
-  it('copies a directory recursively', () => {
-    const srcDir = path.join(tmpDir, 'src');
-    const destDir = path.join(tmpDir, 'dest');
-    fs.mkdirSync(srcDir);
-    fs.writeFileSync(path.join(srcDir, 'file.txt'), 'content');
+    it('copies a directory recursively when dest already exists', () => {
+      sinon.stub(fs, 'existsSync').returns(true);
+      sinon.stub(fs, 'statSync')
+        .withArgs('src').returns({ isDirectory: () => true } as fs.Stats)
+        .withArgs(path.join('src', 'child.txt')).returns({ isDirectory: () => false } as fs.Stats);
+      const mkdirStub = sinon.stub(fs, 'mkdirSync');
+      sinon.stub(fs, 'readdirSync').returns(['child.txt'] as any);
+      const copyFileStub = sinon.stub(fs, 'copyFileSync');
 
-    fsUtil.copyRecursiveSync(srcDir, destDir);
+      fsUtil.copyRecursiveSync('src', 'dest');
 
-    assert.strictEqual(fs.readFileSync(path.join(destDir, 'file.txt'), 'utf8'), 'content');
-  });
+      assert(mkdirStub.notCalled);
+      assert(copyFileStub.calledWith(path.join('src', 'child.txt'), path.join('dest', 'child.txt')));
+    });
 
-  it('copies a directory with replaceTokens', () => {
-    const srcDir = path.join(tmpDir, 'src');
-    const destDir = path.join(tmpDir, 'dest');
-    fs.mkdirSync(srcDir);
-    fs.writeFileSync(path.join(srcDir, 'file.txt'), 'content');
+    it('applies replaceTokens to destination path', () => {
+      sinon.stub(fs, 'existsSync')
+        .withArgs('src').returns(true)
+        .withArgs('replaced-dest').returns(false);
+      sinon.stub(fs, 'statSync').returns({ isDirectory: () => true } as fs.Stats);
+      const mkdirStub = sinon.stub(fs, 'mkdirSync');
+      sinon.stub(fs, 'readdirSync').returns([] as any);
 
-    fsUtil.copyRecursiveSync(srcDir, destDir, (s: string) => s);
+      fsUtil.copyRecursiveSync('src', 'dest', (s: string) => s === 'dest' ? 'replaced-dest' : s);
 
-    assert.strictEqual(fs.readFileSync(path.join(destDir, 'file.txt'), 'utf8'), 'content');
-  });
+      assert(mkdirStub.calledWith('replaced-dest'));
+    });
 
-  it('copies into existing destination directory', () => {
-    const srcDir = path.join(tmpDir, 'src');
-    const destDir = path.join(tmpDir, 'dest');
-    fs.mkdirSync(srcDir);
-    fs.mkdirSync(destDir);
-    fs.writeFileSync(path.join(srcDir, 'file.txt'), 'content');
+    it('copies a single file', () => {
+      sinon.stub(fs, 'existsSync').returns(true);
+      sinon.stub(fs, 'statSync').returns({ isDirectory: () => false } as fs.Stats);
+      const copyFileStub = sinon.stub(fs, 'copyFileSync');
 
-    fsUtil.copyRecursiveSync(srcDir, destDir);
+      fsUtil.copyRecursiveSync('src/file.txt', 'dest/file.txt');
 
-    assert.strictEqual(fs.readFileSync(path.join(destDir, 'file.txt'), 'utf8'), 'content');
+      assert(copyFileStub.calledWith('src/file.txt', 'dest/file.txt'));
+    });
   });
 });

@@ -18,6 +18,7 @@ interface CommandArgs {
 interface Options extends GlobalOptions {
   url: string;
   permanent?: boolean;
+  skipRecycleBin?: boolean;
   fromRecycleBin?: boolean;
   force?: boolean;
 }
@@ -52,7 +53,7 @@ class SpoSiteRemoveCommand extends SpoCommand {
   #initTelemetry(): void {
     this.telemetry.push((args: CommandArgs) => {
       Object.assign(this.telemetryProperties, {
-        permanent: !!args.options.permanent,
+        permanent: !!(args.options.permanent || args.options.skipRecycleBin),
         fromRecycleBin: !!args.options.fromRecycleBin,
         force: !!args.options.force
       });
@@ -66,6 +67,9 @@ class SpoSiteRemoveCommand extends SpoCommand {
       },
       {
         option: '--permanent'
+      },
+      {
+        option: '--skipRecycleBin'
       },
       {
         option: '--fromRecycleBin'
@@ -90,7 +94,7 @@ class SpoSiteRemoveCommand extends SpoCommand {
           return `The root site cannot be deleted.`;
         }
 
-        if (args.options.fromRecycleBin && args.options.permanent) {
+        if (args.options.fromRecycleBin && (args.options.permanent || args.options.skipRecycleBin)) {
           return 'Specify either fromRecycleBin or permanent, but not both.';
         }
 
@@ -100,10 +104,15 @@ class SpoSiteRemoveCommand extends SpoCommand {
 
   #initTypes(): void {
     this.types.string.push('url');
-    this.types.boolean.push('permanent', 'fromRecycleBin', 'force');
+    this.types.boolean.push('permanent', 'skipRecycleBin', 'fromRecycleBin', 'force');
   }
 
   public async commandAction(logger: Logger, args: CommandArgs): Promise<void> {
+    if (args.options.skipRecycleBin) {
+      await this.warn(logger, `Option 'skipRecycleBin' is deprecated. Please use 'permanent' instead.`);
+      args.options.permanent = true;
+    }
+
     if (args.options.force) {
       await this.removeSite(logger, args.options);
     }

@@ -59,6 +59,25 @@ class OneNoteNotebookListCommand extends GraphDelegatedCommand {
       });
   }
 
+  public get schema(): z.ZodType | undefined {
+    return options;
+  }
+
+  public getRefinedSchema(schema: typeof options): z.ZodObject<any> | undefined {
+    return schema
+      .refine(options => {
+        const opts = [options.userId, options.userName, options.groupId, options.groupName, options.webUrl];
+        const defined = opts.filter(item => item !== undefined);
+        return defined.length <= 1;
+      }, {
+        error: 'Specify userId, userName, groupId, groupName, or webUrl, but not multiple.',
+        params: {
+          customCode: 'optionSet',
+          options: ['userId', 'userName', 'groupId', 'groupName', 'webUrl']
+        }
+      });
+  }
+
   public defaultProperties(): string[] | undefined {
     return ['createdDateTime', 'displayName', 'id'];
   }
